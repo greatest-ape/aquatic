@@ -1,0 +1,23 @@
+[package]
+name = "aquatic"
+version = "0.1.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "aquatic"
+path = "src/main.rs"
+
+[dependencies]
+bittorrent_udp = { path = "../bittorrent_udp" }
+dashmap = "3"
+indexmap = "1"
+net2 = "0.2"
+
+[dependencies.rand]
+version = "0.7"
+features = ["small_rng"]
+
+[dependencies.mio]
+version = "0.7"
+features = ["udp", "os-poll", "os-util"]
