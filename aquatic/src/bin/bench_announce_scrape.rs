@@ -25,7 +25,7 @@ fn main(){
 
         println!("generating data..");
 
-        let mut responses = Vec::new();
+        let mut responses = Vec::with_capacity(ANNOUNCE_ITERATIONS);
 
         let mut announce_requests = create_announce_requests(&mut rng, &info_hashes);
 
@@ -82,7 +82,7 @@ fn main(){
 
         println!("generating data..");
 
-        let mut responses = Vec::new();
+        let mut responses = Vec::with_capacity(SCRAPE_ITERATIONS);
 
         let mut scrape_requests = create_scrape_requests(&mut rng, &info_hashes);
 
