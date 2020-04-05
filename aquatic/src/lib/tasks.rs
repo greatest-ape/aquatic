@@ -8,6 +8,7 @@ pub fn clean_connections(state: &State){
     let limit = Instant::now() - Duration::from_secs(300);
 
     state.connections.retain(|_, v| v.0 > limit);
+    state.connections.shrink_to_fit();
 }
 
 
@@ -38,4 +39,6 @@ pub fn clean_torrents(state: &State){
 
         !torrent.peers.is_empty()
     });
+
+    state.torrents.shrink_to_fit();
 }

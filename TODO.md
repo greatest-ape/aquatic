@@ -2,8 +2,9 @@
 
 * Configuration, cli
 * Tests
-* Optimize extract_response_peers
-* Clean connections: `state.connections.shrink_to_fit()`?
+* extract_response_peers
+    * Cleaner code
+    * Stack-allocated vector?
 
 ## Don't do
 
