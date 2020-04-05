@@ -21,3 +21,7 @@ features = ["small_rng"]
 [dependencies.mio]
 version = "0.7"
 features = ["udp", "os-poll", "os-util"]
+
+[dev-dependencies]
+quickcheck = "0.9"
+quickcheck_macros = "0.9"

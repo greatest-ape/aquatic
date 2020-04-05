@@ -131,3 +131,28 @@ impl State {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_peer_status_from_event_and_bytes_left(){
+        use crate::common::*;
+
+        use PeerStatus::*;
+
+        let f = PeerStatus::from_event_and_bytes_left;
+
+        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(0)));
+        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(1)));
+
+        assert_eq!(Seeding, f(AnnounceEvent::Started, NumberOfBytes(0)));
+        assert_eq!(Leeching, f(AnnounceEvent::Started, NumberOfBytes(1)));
+
+        assert_eq!(Seeding, f(AnnounceEvent::Completed, NumberOfBytes(0)));
+        assert_eq!(Leeching, f(AnnounceEvent::Completed, NumberOfBytes(1)));
+
+        assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes(0)));
+        assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes(1)));
+    }
+}

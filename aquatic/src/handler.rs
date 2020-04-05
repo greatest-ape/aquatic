@@ -182,3 +182,66 @@ pub fn create_torrent_scrape_statistics(
         leechers: NumberOfPeers(leechers)
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::time::Instant;
+    use std::net::IpAddr;
+
+    use indexmap::IndexMap;
+    use quickcheck::{TestResult, quickcheck};
+
+    use super::*;
+
+    fn gen_peer_map_key_and_value(i: u8) -> (PeerMapKey, Peer) {
+        let ip_address: IpAddr = "127.0.0.1".parse().unwrap();
+        let peer_id = PeerId([i; 20]);
+
+        let key = PeerMapKey {
+            ip: ip_address, 
+            peer_id,
+        };
+        let value = Peer {
+            connection_id: ConnectionId(0),
+            ip_address,
+            id: peer_id,
+            port: Port(1),
+            status: PeerStatus::Leeching,
+            last_announce: Time(Instant::now()),
+        };
+
+        (key, value)
+    }
+
+    #[test]
+    fn test_extract_response_peers(){
+        fn prop(data: (u8, u8)) -> TestResult {
+            let gen_num_peers = data.0;
+            let req_num_peers = data.1 as usize;
+
+            let mut peer_map: PeerMap = IndexMap::new();
+
+            for i in 0..gen_num_peers {
+                let (key, value) = gen_peer_map_key_and_value(i);
+
+                peer_map.insert(key, value);
+            }
+
+            let num_returned = extract_response_peers(
+                &peer_map,
+                req_num_peers
+            ).len();
+
+            let mut success = num_returned <= req_num_peers;
+
+            if req_num_peers >= gen_num_peers as usize {
+                success &= num_returned == gen_num_peers as usize;
+            }
+
+            TestResult::from_bool(success)
+        }   
+
+        quickcheck(prop as fn((u8, u8)) -> TestResult);
+    }
+}
