@@ -4,7 +4,6 @@ use std::time::Instant;
 use std::vec::Drain;
 
 use rand::{Rng, SeedableRng, rngs::SmallRng, thread_rng};
-use rand::seq::IteratorRandom;
 
 use bittorrent_udp::types::*;
 
@@ -158,10 +157,9 @@ pub fn handle_scrape_requests(
 
 /// Extract response peers
 /// 
-/// Do a random selection of peers if there are more than
-/// `number_of_peers_to_take`. I tried out just selecting a random range,
-/// but this might cause issues with the announcing peer getting back too
-/// homogenous peers (based on when they were inserted into the map.)
+/// If there are more peers in map that `number_of_peers_to_take`, do a
+/// half-random selection of peers from first and second halves of map,
+/// in order to avoid returning too homogeneous peers.
 /// 
 /// Don't care if we send back announcing peer.
 pub fn extract_response_peers(
@@ -176,11 +174,37 @@ pub fn extract_response_peers(
             .map(Peer::to_response_peer)
             .collect()
     } else {
-        peer_map.values()
-            .choose_multiple(rng, number_of_peers_to_take)
-            .into_iter()
-            .map(Peer::to_response_peer)
-            .collect()
+        let half_num_to_take = number_of_peers_to_take / 2;
+        let half_peer_map_len = peer_map_len / 2;
+
+        let offset_first_half = rng.gen_range(
+            0,
+            (half_peer_map_len + (peer_map_len % 2)) - half_num_to_take
+        );
+        let offset_second_half = rng.gen_range(
+            half_peer_map_len,
+            peer_map_len - half_num_to_take
+        );
+
+        let end_first_half = offset_first_half + half_num_to_take;
+        let end_second_half = offset_second_half + half_num_to_take + (number_of_peers_to_take % 2);
+
+        let mut peers: Vec<ResponsePeer> = Vec::with_capacity(number_of_peers_to_take);
+
+        for i in offset_first_half..end_first_half {
+            if let Some((_, peer)) = peer_map.get_index(i){
+                peers.push(peer.to_response_peer())
+            }
+        }
+        for i in offset_second_half..end_second_half {
+            if let Some((_, peer)) = peer_map.get_index(i){
+                peers.push(peer.to_response_peer())
+            }
+        }
+        
+        debug_assert_eq!(peers.len(), number_of_peers_to_take);
+
+        peers
     }
 }
 
@@ -201,6 +225,7 @@ pub fn create_torrent_scrape_statistics(
 mod tests {
     use std::time::Instant;
     use std::net::IpAddr;
+    use std::collections::HashSet;
 
     use indexmap::IndexMap;
     use rand::thread_rng;
@@ -208,9 +233,9 @@ mod tests {
 
     use super::*;
 
-    fn gen_peer_map_key_and_value(i: u8) -> (PeerMapKey, Peer) {
-        let ip_address: IpAddr = "127.0.0.1".parse().unwrap();
-        let peer_id = PeerId([i; 20]);
+    fn gen_peer_map_key_and_value(i: u32) -> (PeerMapKey, Peer) {
+        let ip_address = IpAddr::from(i.to_be_bytes());
+        let peer_id = PeerId([0; 20]);
 
         let key = PeerMapKey {
             ip: ip_address, 
@@ -230,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_extract_response_peers(){
-        fn prop(data: (u8, u8)) -> TestResult {
+        fn prop(data: (u32, u16)) -> TestResult {
             let gen_num_peers = data.0;
             let req_num_peers = data.1 as usize;
 
@@ -244,21 +269,37 @@ mod tests {
 
             let mut rng = thread_rng();
 
-            let num_returned = extract_response_peers(
+            let peers = extract_response_peers(
                 &mut rng,
                 &peer_map,
                 req_num_peers
-            ).len();
+            );
 
-            let mut success = num_returned <= req_num_peers;
+            // Check that number of returned peers is correct
+
+            let mut success = peers.len() <= req_num_peers;
 
             if req_num_peers >= gen_num_peers as usize {
-                success &= num_returned == gen_num_peers as usize;
+                success &= peers.len() == gen_num_peers as usize;
+            }
+
+            // Check that returned peers are unique (no overlap)
+
+            let mut ip_addresses = HashSet::new();
+
+            for peer in peers {
+                if ip_addresses.contains(&peer.ip_address){
+                    success = false;
+
+                    break;
+                }
+
+                ip_addresses.insert(peer.ip_address);
             }
 
             TestResult::from_bool(success)
         }   
 
-        quickcheck(prop as fn((u8, u8)) -> TestResult);
+        quickcheck(prop as fn((u32, u16)) -> TestResult);
     }
 }
