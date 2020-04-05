@@ -3,6 +3,7 @@
 * Configuration, cli
 * Tests
 * Benchmarks (with criterion?)
+* Clean connections: `state.connections.shrink_to_fit()`?
 
 
 ## Don't do

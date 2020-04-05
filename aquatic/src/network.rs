@@ -86,7 +86,7 @@ pub fn run_event_loop(
                             Ok((amt, src)) => {
                                 let request = request_from_bytes(
                                     &buffer[..amt],
-                                    255u8
+                                    255u8 // FIXME
                                 );
 
                                 match request {
@@ -111,8 +111,6 @@ pub fn run_event_loop(
                                     },
                                     err => {
                                         eprintln!("recv_from error: {:?}", err);
-                
-                                        break;
                                     }
                                 }
                             }
@@ -148,8 +146,6 @@ pub fn run_event_loop(
                                     },
                                     err => {
                                         eprintln!("send_to error: {:?}", err);
-
-                                        break;
                                     }
                                 }
                             }
