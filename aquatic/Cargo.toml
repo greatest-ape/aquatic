@@ -17,12 +17,16 @@ name = "bench_connect"
 [[bin]]
 name = "bench_announce_scrape"
 
+[[bin]]
+name = "plot_pareto"
+
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
 dashmap = "3"
 indexmap = "1"
 net2 = "0.2"
 rand_distr = "0.2"
+plotly = "0.4"
 
 [dependencies.mio]
 version = "0.7"

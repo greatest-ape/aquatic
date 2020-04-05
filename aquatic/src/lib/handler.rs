@@ -118,7 +118,15 @@ pub fn handle_scrape_requests(
 ){
     let empty_stats = create_torrent_scrape_statistics(0, 0);
 
-    responses.extend(requests.map(|(request, src)| {
+    responses.extend(requests.filter_map(|(request, src)| {
+        let connection_key = ConnectionKey {
+            connection_id: request.connection_id,
+            socket_addr: src,
+        };
+
+        if !state.connections.contains_key(&connection_key){
+            return None;
+        }
         let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(256);
 
         for info_hash in request.info_hashes.iter() {
@@ -137,7 +145,7 @@ pub fn handle_scrape_requests(
             torrent_stats: stats,
         });
 
-        (response, src)
+        Some((response, src))
     }));
 }
 
