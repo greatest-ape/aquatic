@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 use std::vec::Drain;
 
-use rand::{self, SeedableRng, rngs::SmallRng, thread_rng};
+use rand::{Rng, SeedableRng, rngs::SmallRng, thread_rng};
 use rand::seq::IteratorRandom;
 
 use bittorrent_udp::types::*;
@@ -17,9 +17,10 @@ pub fn handle_connect_requests(
     requests: Drain<(ConnectRequest, SocketAddr)>,
 ){
     let now = Time(Instant::now());
+    let mut rng = thread_rng();
 
-    for (request, src) in requests {
-        let connection_id = ConnectionId(rand::random());
+    responses.extend(requests.map(|(request, src)| {
+        let connection_id = ConnectionId(rng.gen());
 
         let key = ConnectionKey {
             connection_id,
@@ -28,13 +29,15 @@ pub fn handle_connect_requests(
 
         state.connections.insert(key, now);
 
-        responses.push((Response::Connect(
+        let response = Response::Connect(
             ConnectResponse {
                 connection_id,
                 transaction_id: request.transaction_id,
             }
-        ), src));
-    }
+        );
+        
+        (response, src)
+    }));
 }
 
 
@@ -43,14 +46,14 @@ pub fn handle_announce_requests(
     responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
 ){
-    for (request, src) in requests {
+    responses.extend(requests.filter_map(|(request, src)| {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
             socket_addr: src,
         };
 
         if !state.connections.contains_key(&connection_key){
-            continue;
+            return None;
         }
 
         let mut torrent_data = state.torrents
@@ -105,8 +108,8 @@ pub fn handle_announce_requests(
             peers: response_peers
         });
 
-        responses.push((response, src));
-    }
+        Some((response, src))
+    }));
 }
 
 
@@ -117,7 +120,7 @@ pub fn handle_scrape_requests(
 ){
     let empty_stats = create_torrent_scrape_statistics(0, 0);
 
-    for (request, src) in requests {
+    responses.extend(requests.map(|(request, src)| {
         let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(256);
 
         for info_hash in request.info_hashes.iter() {
@@ -136,8 +139,8 @@ pub fn handle_scrape_requests(
             torrent_stats: stats,
         });
 
-        responses.push((response, src));
-    }
+        (response, src)
+    }));
 }
 
 
