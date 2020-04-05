@@ -1,10 +1,10 @@
 use std::time::Duration;
 
+mod common;
 mod handler;
 mod network;
-mod types;
 
-use types::State;
+use common::State;
 
 
 fn main(){
@@ -17,9 +17,9 @@ fn main(){
         let state = state.clone();
 
         ::std::thread::spawn(move || {
-            network::run_event_loop(state, socket, i, 4096, Duration::from_millis(1000));
+            network::run_event_loop(state, socket, i, Duration::from_millis(1000));
         });
     }
 
-    network::run_event_loop(state, socket, 0, 4096, Duration::from_millis(1000));
+    network::run_event_loop(state, socket, 0, Duration::from_millis(1000));
 }

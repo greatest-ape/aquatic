@@ -10,7 +10,7 @@ use net2::unix::UnixUdpBuilderExt;
 use bittorrent_udp::types::IpVersion;
 use bittorrent_udp::converters::{response_to_bytes, request_from_bytes};
 
-use crate::types::*;
+use crate::common::*;
 use crate::handler::*;
 
 
@@ -52,21 +52,25 @@ pub fn run_event_loop(
     state: State,
     socket: ::std::net::UdpSocket,
     token_num: usize,
-    event_capacity: usize,
     poll_timeout: Duration,
 ){
-    let mut buffer = [0u8; 4096];
+    let mut buffer = [0u8; MAX_PACKET_SIZE];
 
     let mut socket = UdpSocket::from_std(socket);
     let mut poll = Poll::new().expect("create poll");
 
-    let interests = Interest::READABLE | Interest::WRITABLE;
+    let interests = Interest::READABLE;
 
     poll.registry()
         .register(&mut socket, Token(token_num), interests)
         .unwrap();
 
-    let mut events = Events::with_capacity(event_capacity);
+    let mut events = Events::with_capacity(EVENT_CAPACITY);
+
+    let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::with_capacity(1024);
+    let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::with_capacity(1024);
+    let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::with_capacity(1024);
+    let mut responses: Vec<(Response, SocketAddr)> = Vec::with_capacity(1024);
 
     loop {
         poll.poll(&mut events, Some(poll_timeout))
@@ -77,9 +81,6 @@ pub fn run_event_loop(
 
             if token.0 == token_num {
                 if event.is_readable(){
-                    let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::with_capacity(event_capacity);
-                    let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::with_capacity(event_capacity);
-
                     loop {
                         match socket.recv_from(&mut buffer) {
                             Ok((amt, src)) => {
@@ -94,6 +95,9 @@ pub fn run_event_loop(
                                     },
                                     Request::Announce(r) => {
                                         announce_requests.push((r, src));
+                                    },
+                                    Request::Scrape(r) => {
+                                        scrape_requests.push((r, src));
                                     },
                                     _ => {
                                         // FIXME
@@ -115,13 +119,23 @@ pub fn run_event_loop(
                         }
                     }
 
-                    let responses = gen_responses(
+                    handle_connect_requests(
                         &state,
-                        connect_requests,
-                        announce_requests
+                        &mut responses,
+                        connect_requests.drain(..)
+                    );
+                    handle_announce_requests(
+                        &state,
+                        &mut responses,
+                        announce_requests.drain(..),
+                    );
+                    handle_scrape_requests(
+                        &state,
+                        &mut responses,
+                        scrape_requests.drain(..),
                     );
 
-                    for (response, src) in responses {
+                    for (response, src) in responses.drain(..) {
                         let bytes = response_to_bytes(&response, IpVersion::IPv4);
 
                         match socket.send_to(&bytes[..], src){

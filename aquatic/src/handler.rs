@@ -1,25 +1,24 @@
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
+use std::vec::Drain;
 
 use rand::{self, SeedableRng, rngs::SmallRng, thread_rng};
 use rand::seq::IteratorRandom;
 
 use bittorrent_udp::types::*;
 
-use crate::types::*;
+use crate::common::*;
 
 
-pub fn gen_responses(
+pub fn handle_connect_requests(
     state: &State,
-    connect_requests: Vec<(ConnectRequest, SocketAddr)>,
-    announce_requests: Vec<(AnnounceRequest, SocketAddr)>
-)-> Vec<(Response, SocketAddr)> {
-    let mut responses = Vec::new();
-
+    responses: &mut Vec<(Response, SocketAddr)>,
+    requests: Drain<(ConnectRequest, SocketAddr)>,
+){
     let now = Time(Instant::now());
 
-    for (request, src) in connect_requests {
+    for (request, src) in requests {
         let connection_id = ConnectionId(rand::random());
 
         let key = ConnectionKey {
@@ -36,8 +35,15 @@ pub fn gen_responses(
             }
         ), src));
     }
+}
 
-    for (request, src) in announce_requests {
+
+pub fn handle_announce_requests(
+    state: &State,
+    responses: &mut Vec<(Response, SocketAddr)>,
+    requests: Drain<(AnnounceRequest, SocketAddr)>,
+){
+    for (request, src) in requests {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
             socket_addr: src,
@@ -101,8 +107,37 @@ pub fn gen_responses(
 
         responses.push((response, src));
     }
+}
 
-    responses
+
+pub fn handle_scrape_requests(
+    state: &State,
+    responses: &mut Vec<(Response, SocketAddr)>,
+    requests: Drain<(ScrapeRequest, SocketAddr)>,
+){
+    let empty_stats = create_torrent_scrape_statistics(0, 0);
+
+    for (request, src) in requests {
+        let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(256);
+
+        for info_hash in request.info_hashes.iter() {
+            if let Some(torrent_data) = state.torrents.get(info_hash){
+                stats.push(create_torrent_scrape_statistics(
+                    torrent_data.num_seeders.load(Ordering::SeqCst) as i32,
+                    torrent_data.num_leechers.load(Ordering::SeqCst) as i32,
+                ));
+            } else {
+                stats.push(empty_stats);
+            }
+        }
+
+        let response = Response::Scrape(ScrapeResponse {
+            transaction_id: request.transaction_id,
+            torrent_stats: stats,
+        });
+
+        responses.push((response, src));
+    }
 }
 
 
@@ -130,5 +165,17 @@ pub fn extract_response_peers(
         peer_map.values()
             .map(Peer::to_response_peer)
             .choose_multiple(&mut rng, number_of_peers_to_take)
+    }
+}
+
+
+pub fn create_torrent_scrape_statistics(
+    seeders: i32,
+    leechers: i32
+) -> TorrentScrapeStatistics {
+    TorrentScrapeStatistics {
+        seeders: NumberOfPeers(seeders),
+        completed: NumberOfDownloads(0), // No implementation planned
+        leechers: NumberOfPeers(leechers)
     }
 }
