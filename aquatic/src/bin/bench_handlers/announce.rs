@@ -11,7 +11,7 @@ use aquatic::common::*;
 use crate::common::*;
 
 
-const ANNOUNCE_REQUESTS: usize = 100_000;
+const ANNOUNCE_REQUESTS: usize = 1_000_000;
 
 
 pub fn bench(
