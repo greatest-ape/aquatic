@@ -2,7 +2,8 @@
 
 * Configuration, cli
 * Tests
-* Benchmarks (with criterion?)
+* Benchmarks
+    * Pareto distribution parameters OK?
 * Clean connections: `state.connections.shrink_to_fit()`?
 
 

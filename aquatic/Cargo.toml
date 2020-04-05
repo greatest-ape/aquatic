@@ -15,7 +15,7 @@ name = "aquatic"
 name = "bench_connect"
 
 [[bin]]
-name = "bench_announce"
+name = "bench_announce_scrape"
 
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
