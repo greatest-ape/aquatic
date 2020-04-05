@@ -10,8 +10,8 @@ use aquatic::handler::handle_connect_requests;
 const ITERATIONS: usize = 10_000_000;
 
 
-fn main(){
-    println!("benchmark: handle_connect_requests\n");
+pub fn bench(){
+    println!("# benchmark: handle_connect_requests\n");
 
     let state = State::new();
     let mut responses = Vec::new();
@@ -31,13 +31,20 @@ fn main(){
     println!("time per request: {:.2}ns", duration.as_nanos() as f64 / ITERATIONS as f64);
 
     let mut dummy = 0usize;
+    let mut num_responses: usize = 0;
     
     for (response, _src) in responses {
         if let Response::Connect(response) = response {
             if response.connection_id.0 > 0 {
                 dummy += 1;
             }
+
+            num_responses += 1;
         }
+    }
+
+    if num_responses != ITERATIONS {
+        println!("ERROR: only {} responses received", num_responses);
     }
 
     if dummy == ITERATIONS {

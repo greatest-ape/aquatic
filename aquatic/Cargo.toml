@@ -12,10 +12,7 @@ path = "src/lib/lib.rs"
 name = "aquatic"
 
 [[bin]]
-name = "bench_connect"
-
-[[bin]]
-name = "bench_announce_scrape"
+name = "bench_handlers"
 
 [[bin]]
 name = "plot_pareto"
