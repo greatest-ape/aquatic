@@ -8,10 +8,10 @@ use aquatic::common::*;
 use aquatic::handler::*;
 
 
+const PARETO_SHAPE: f64 = 3.0;
 const ANNOUNCE_ITERATIONS: usize = 5_000_000;
 const SCRAPE_ITERATIONS: usize = 500_000;
-
-const NUM_INFO_HASHES: usize = ANNOUNCE_ITERATIONS;
+const NUM_INFO_HASHES: usize = 500_000;
 
 
 fn main(){
@@ -128,7 +128,7 @@ fn create_announce_requests(
     rng: &mut impl Rng,
     info_hashes: &Vec<InfoHash>
 ) -> Vec<(AnnounceRequest, SocketAddr)> {
-    let pareto = Pareto::new(1., 6.).unwrap();
+    let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
 
     let max_index = info_hashes.len() - 1;
 
@@ -166,7 +166,7 @@ fn create_scrape_requests(
     rng: &mut impl Rng,
     info_hashes: &Vec<InfoHash>
 ) -> Vec<(ScrapeRequest, SocketAddr)> {
-    let pareto = Pareto::new(1., 6.).unwrap();
+    let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
 
     let max_index = info_hashes.len() - 1;
 
