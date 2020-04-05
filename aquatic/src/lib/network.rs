@@ -11,7 +11,7 @@ use bittorrent_udp::types::IpVersion;
 use bittorrent_udp::converters::{response_to_bytes, request_from_bytes};
 
 use crate::common::*;
-use crate::handler::*;
+use crate::handlers::*;
 
 
 pub fn create_socket(

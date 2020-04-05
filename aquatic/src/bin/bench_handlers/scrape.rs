@@ -5,7 +5,7 @@ use rand::Rng;
 use rand_distr::Pareto;
 
 use aquatic::bench_utils::*;
-use aquatic::handler::*;
+use aquatic::handlers::*;
 use aquatic::common::*;
 
 use crate::common::*;

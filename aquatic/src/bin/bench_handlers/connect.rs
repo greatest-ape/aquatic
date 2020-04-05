@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
 
 use aquatic::common::*;
-use aquatic::handler::handle_connect_requests;
+use aquatic::handlers::handle_connect_requests;
 
 
 const ITERATIONS: usize = 10_000_000;
