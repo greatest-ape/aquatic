@@ -9,118 +9,126 @@ use aquatic::handler::*;
 
 
 const PARETO_SHAPE: f64 = 3.0;
-const ANNOUNCE_ITERATIONS: usize = 5_000_000;
+const ANNOUNCE_ITERATIONS: usize = 500_000;
 const SCRAPE_ITERATIONS: usize = 500_000;
+const SCRAPE_NUM_HASHES: usize = 10;
 const NUM_INFO_HASHES: usize = 500_000;
 
 
 fn main(){
-    println!("benchmark: handle_announce_requests\n");
-
-    println!("generating data..");
-
-    let state = State::new();
-    let mut responses = Vec::new();
-
     let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
-
     let info_hashes = create_info_hashes(&mut rng);
-    let mut announce_requests = create_announce_requests(&mut rng, &info_hashes);
+    let state = State::new();
 
-    let time = Time(Instant::now());
+    {
+        println!("benchmark: handle_announce_requests\n");
 
-    for (request, src) in announce_requests.iter() {
-        let key = ConnectionKey {
-            connection_id: request.connection_id,
-            socket_addr: *src,
-        };
+        println!("generating data..");
 
-        state.connections.insert(key, time);
-    }
+        let mut responses = Vec::new();
 
-    let announce_requests = announce_requests.drain(..);
+        let mut announce_requests = create_announce_requests(&mut rng, &info_hashes);
 
-    ::std::thread::sleep(Duration::from_secs(1));
+        let time = Time(Instant::now());
 
-    let now = Instant::now();
+        for (request, src) in announce_requests.iter() {
+            let key = ConnectionKey {
+                connection_id: request.connection_id,
+                socket_addr: *src,
+            };
 
-    println!("running benchmark..");
-
-    handle_announce_requests(
-        &state,
-        &mut responses,
-        announce_requests,
-    );
-
-    let duration = Instant::now() - now;
-
-    println!("\nrequests/second: {:.2}", ANNOUNCE_ITERATIONS as f64 / (duration.as_millis() as f64 / 1000.0));
-    println!("time per request: {:.2}ns", duration.as_nanos() as f64 / ANNOUNCE_ITERATIONS as f64);
-
-    let mut total_num_peers = 0.0f64;
-    let mut max_num_peers = 0.0f64;
-    
-    for (response, _src) in responses.drain(..) {
-        if let Response::Announce(response) = response {
-            let n = response.peers.len() as f64;
-
-            total_num_peers += n;
-            max_num_peers = max_num_peers.max(n);
+            state.connections.insert(key, time);
         }
-    }
 
-    println!("avg num peers: {:.2}", total_num_peers / ANNOUNCE_ITERATIONS as f64);
-    println!("max num peers: {:.2}", max_num_peers);
+        let announce_requests = announce_requests.drain(..);
 
+        ::std::thread::sleep(Duration::from_secs(1));
 
-    println!("\n\nbenchmark: handle_scrape_requests\n");
+        let now = Instant::now();
 
-    println!("generating data..");
+        println!("running benchmark..");
 
-    let mut scrape_requests = create_scrape_requests(&mut rng, &info_hashes);
+        handle_announce_requests(
+            &state,
+            &mut responses,
+            announce_requests,
+        );
 
-    let time = Time(Instant::now());
+        let duration = Instant::now() - now;
 
-    for (request, src) in scrape_requests.iter() {
-        let key = ConnectionKey {
-            connection_id: request.connection_id,
-            socket_addr: *src,
-        };
+        println!("\nrequests/second: {:.2}", ANNOUNCE_ITERATIONS as f64 / (duration.as_millis() as f64 / 1000.0));
+        println!("time per request: {:.2}ns", duration.as_nanos() as f64 / ANNOUNCE_ITERATIONS as f64);
 
-        state.connections.insert(key, time);
-    }
+        let mut total_num_peers = 0.0f64;
+        let mut max_num_peers = 0.0f64;
+        
+        for (response, _src) in responses.drain(..) {
+            if let Response::Announce(response) = response {
+                let n = response.peers.len() as f64;
 
-    let scrape_requests = scrape_requests.drain(..);
-
-    ::std::thread::sleep(Duration::from_secs(1));
-
-    let now = Instant::now();
-
-    println!("running benchmark..");
-
-    handle_scrape_requests(
-        &state,
-        &mut responses,
-        scrape_requests,
-    );
-
-    let duration = Instant::now() - now;
-
-    println!("\nrequests/second: {:.2}", SCRAPE_ITERATIONS as f64 / (duration.as_millis() as f64 / 1000.0));
-    println!("time per request: {:.2}ns", duration.as_nanos() as f64 / SCRAPE_ITERATIONS as f64);
-
-    let mut total_num_peers = 0.0f64;
-
-    for (response, _src) in responses.drain(..){
-        if let Response::Scrape(response) = response {
-            for stats in response.torrent_stats {
-                total_num_peers += f64::from(stats.seeders.0);
-                total_num_peers += f64::from(stats.leechers.0);
+                total_num_peers += n;
+                max_num_peers = max_num_peers.max(n);
             }
         }
+
+        println!("avg num peers returned: {:.2}", total_num_peers / ANNOUNCE_ITERATIONS as f64);
+        println!("max num peers returned: {:.2}", max_num_peers);
     }
 
-    println!("avg num peers: {:.2}", total_num_peers / SCRAPE_ITERATIONS as f64);
+    state.connections.clear();
+
+    {
+        println!("\n\nbenchmark: handle_scrape_requests\n");
+
+        println!("generating data..");
+
+        let mut responses = Vec::new();
+
+        let mut scrape_requests = create_scrape_requests(&mut rng, &info_hashes);
+
+        let time = Time(Instant::now());
+
+        for (request, src) in scrape_requests.iter() {
+            let key = ConnectionKey {
+                connection_id: request.connection_id,
+                socket_addr: *src,
+            };
+
+            state.connections.insert(key, time);
+        }
+
+        let scrape_requests = scrape_requests.drain(..);
+
+        ::std::thread::sleep(Duration::from_secs(1));
+
+        let now = Instant::now();
+
+        println!("running benchmark..");
+
+        handle_scrape_requests(
+            &state,
+            &mut responses,
+            scrape_requests,
+        );
+
+        let duration = Instant::now() - now;
+
+        println!("\nrequests/second: {:.2}", SCRAPE_ITERATIONS as f64 / (duration.as_millis() as f64 / 1000.0));
+        println!("time per request: {:.2}ns", duration.as_nanos() as f64 / SCRAPE_ITERATIONS as f64);
+
+        let mut total_num_peers = 0.0f64;
+
+        for (response, _src) in responses.drain(..){
+            if let Response::Scrape(response) = response {
+                for stats in response.torrent_stats {
+                    total_num_peers += f64::from(stats.seeders.0);
+                    total_num_peers += f64::from(stats.leechers.0);
+                }
+            }
+        }
+
+        println!("avg num peers reported: {:.2}", total_num_peers / (SCRAPE_ITERATIONS as f64 * SCRAPE_NUM_HASHES as f64));
+    }
 }
 
 
@@ -175,7 +183,7 @@ fn create_scrape_requests(
     for _ in 0..SCRAPE_ITERATIONS {
         let mut request_info_hashes = Vec::new();
 
-        for _ in 0..10 {
+        for _ in 0..SCRAPE_NUM_HASHES {
             let info_hash_index = pareto_usize(rng, pareto, max_index);
             request_info_hashes.push(info_hashes[info_hash_index])
         }
