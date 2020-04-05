@@ -177,8 +177,10 @@ pub fn extract_response_peers(
             .collect()
     } else {
         peer_map.values()
-            .map(Peer::to_response_peer)
             .choose_multiple(rng, number_of_peers_to_take)
+            .into_iter()
+            .map(Peer::to_response_peer)
+            .collect()
     }
 }
 

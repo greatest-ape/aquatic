@@ -2,10 +2,8 @@
 
 * Configuration, cli
 * Tests
-* Benchmarks
-    * Pareto distribution parameters OK?
+* Optimize extract_response_peers
 * Clean connections: `state.connections.shrink_to_fit()`?
-
 
 ## Don't do
 
