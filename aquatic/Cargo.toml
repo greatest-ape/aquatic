@@ -4,23 +4,33 @@ version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 
+[lib]
+name = "aquatic"
+path = "src/lib/lib.rs"
+
 [[bin]]
 name = "aquatic"
-path = "src/main.rs"
+
+[[bin]]
+name = "bench_connect"
+
+[[bin]]
+name = "bench_announce"
 
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
 dashmap = "3"
 indexmap = "1"
 net2 = "0.2"
-
-[dependencies.rand]
-version = "0.7"
-features = ["small_rng"]
+rand_distr = "0.2"
 
 [dependencies.mio]
 version = "0.7"
 features = ["udp", "os-poll", "os-util"]
+
+[dependencies.rand]
+version = "0.7"
+features = ["small_rng"]
 
 [dev-dependencies]
 quickcheck = "0.9"

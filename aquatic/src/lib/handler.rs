@@ -96,7 +96,7 @@ pub fn handle_announce_requests(
             }
         }
 
-        let response_peers = extract_response_peers(&torrent_data.peers, 100); // FIXME num peers
+        let response_peers = extract_response_peers(&torrent_data.peers, 255); // FIXME num peers
 
         let response = Response::Announce(AnnounceResponse {
             transaction_id: request.transaction_id,

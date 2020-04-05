@@ -1,14 +1,14 @@
 use std::time::Duration;
 
-mod common;
-mod handler;
-mod network;
-mod tasks;
+pub mod common;
+pub mod handler;
+pub mod network;
+pub mod tasks;
 
 use common::State;
 
 
-fn main(){
+pub fn run(){
     let addr = ([127, 0, 0, 1], 3000).into();
     let state = State::new();
     let socket = network::create_socket(addr, 4096 * 8);
