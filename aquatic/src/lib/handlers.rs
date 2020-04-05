@@ -46,6 +46,8 @@ pub fn handle_announce_requests(
     responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
 ){
+    let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
+
     responses.extend(requests.filter_map(|(request, src)| {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
@@ -96,7 +98,11 @@ pub fn handle_announce_requests(
             }
         }
 
-        let response_peers = extract_response_peers(&torrent_data.peers, 255); // FIXME num peers
+        let response_peers = extract_response_peers(
+            &mut rng,
+            &torrent_data.peers,
+            255
+        ); // FIXME num peers
 
         let response = Response::Announce(AnnounceResponse {
             transaction_id: request.transaction_id,
@@ -159,7 +165,8 @@ pub fn handle_scrape_requests(
 /// 
 /// Don't care if we send back announcing peer.
 pub fn extract_response_peers(
-    peer_map:                &PeerMap,
+    rng: &mut impl Rng,
+    peer_map: &PeerMap,
     number_of_peers_to_take: usize,
 ) -> Vec<ResponsePeer> {
     let peer_map_len = peer_map.len();
@@ -169,11 +176,9 @@ pub fn extract_response_peers(
             .map(Peer::to_response_peer)
             .collect()
     } else {
-        let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
-
         peer_map.values()
             .map(Peer::to_response_peer)
-            .choose_multiple(&mut rng, number_of_peers_to_take)
+            .choose_multiple(rng, number_of_peers_to_take)
     }
 }
 
@@ -196,6 +201,7 @@ mod tests {
     use std::net::IpAddr;
 
     use indexmap::IndexMap;
+    use rand::thread_rng;
     use quickcheck::{TestResult, quickcheck};
 
     use super::*;
@@ -234,7 +240,10 @@ mod tests {
                 peer_map.insert(key, value);
             }
 
+            let mut rng = thread_rng();
+
             let num_returned = extract_response_peers(
+                &mut rng,
                 &peer_map,
                 req_num_peers
             ).len();
