@@ -4,9 +4,9 @@ use std::net::SocketAddr;
 use rand::Rng;
 use rand_distr::Pareto;
 
-use aquatic::bench_utils::*;
 use aquatic::handlers::*;
 use aquatic::common::*;
+use aquatic_bench::*;
 
 use crate::common::*;
 

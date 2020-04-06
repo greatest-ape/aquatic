@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-pub mod bench_utils;
 pub mod common;
 pub mod handlers;
 pub mod network;

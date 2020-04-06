@@ -28,10 +28,19 @@ dependencies = [
  "mimalloc",
  "mio",
  "net2",
- "num-format",
- "plotly",
  "quickcheck",
  "quickcheck_macros",
+ "rand",
+]
+
+[[package]]
+name = "aquatic_bench"
+version = "0.1.0"
+dependencies = [
+ "aquatic",
+ "mimalloc",
+ "num-format",
+ "plotly",
  "rand",
  "rand_distr",
 ]

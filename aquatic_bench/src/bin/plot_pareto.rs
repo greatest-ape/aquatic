@@ -4,7 +4,7 @@ use plotly::layout::Axis;
 use rand::{thread_rng, rngs::SmallRng, SeedableRng};
 use rand_distr::Pareto;
 
-use aquatic::bench_utils::pareto_usize;
+use aquatic_bench::pareto_usize;
 
 
 fn main(){

@@ -3,15 +3,9 @@
 members = [ 
     "bittorrent_udp",
     "aquatic",
+    "aquatic_bench",
 ]
-
-[profile.dev]
-debug = true
 
 [profile.release]
 debug = true
-lto = true
-
-[profile.bench]
-opt-level = 3 
 lto = true

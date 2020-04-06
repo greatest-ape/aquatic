@@ -1,0 +1,23 @@
+
+[package]
+name = "aquatic_bench"
+version = "0.1.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "aquatic_bench"
+
+[[bin]]
+name = "bench_handlers"
+
+[[bin]]
+name = "plot_pareto"
+
+[dependencies]
+aquatic = { path = "../aquatic" }
+mimalloc = "0.1"
+num-format = "0.4"
+plotly = "0.4"
+rand_distr = "0.2"
+rand = { version = "0.7", features = ["small_rng"] }

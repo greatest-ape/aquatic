@@ -11,31 +11,14 @@ path = "src/lib/lib.rs"
 [[bin]]
 name = "aquatic"
 
-[[bin]]
-name = "bench_handlers"
-
-[[bin]]
-name = "plot_pareto"
-
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
 dashmap = "3"
 indexmap = "1"
 mimalloc = "0.1"
+mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 net2 = "0.2"
-
-# bench_handlers / plot_pareto
-num-format = "0.4"
-rand_distr = "0.2"
-plotly = "0.4"
-
-[dependencies.mio]
-version = "0.7"
-features = ["udp", "os-poll", "os-util"]
-
-[dependencies.rand]
-version = "0.7"
-features = ["small_rng"]
+rand = { version = "0.7", features = ["small_rng"] }
 
 [dev-dependencies]
 quickcheck = "0.9"
