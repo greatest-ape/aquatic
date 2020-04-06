@@ -2,10 +2,11 @@
 //! 
 //! Example summary output:
 //! ```
-//! # Average results over 100 rounds
-//! connect handler:   3 201 147 requests/second,   312.66 ns/request
-//! announce handler:    330 958 requests/second,  3029.13 ns/request
-//! scrape handler:    1 242 478 requests/second,   805.62 ns/request
+//! ## Average results over 100 rounds
+//! 
+//! Connect handler:   3 246 351 requests/second,   308.21 ns/request
+//! Announce handler:    348 740 requests/second,  2873.65 ns/request
+//! Scrape handler:    1 115 949 requests/second,   898.17 ns/request
 //! ```
 
 use std::time::{Duration, Instant};
@@ -44,7 +45,7 @@ macro_rules! print_results {
 
 
 fn main(){
-    let num_rounds = 20;
+    let num_rounds = 100;
 
     let mut connect_data = (0.0, 0.0);
     let mut announce_data = (0.0, 0.0);
