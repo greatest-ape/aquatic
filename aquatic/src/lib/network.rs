@@ -90,18 +90,26 @@ pub fn run_event_loop(
                                 );
 
                                 match request {
-                                    Request::Connect(r) => {
+                                    Ok(Request::Connect(r)) => {
                                         connect_requests.push((r, src)); 
                                     },
-                                    Request::Announce(r) => {
+                                    Ok(Request::Announce(r)) => {
                                         announce_requests.push((r, src));
                                     },
-                                    Request::Scrape(r) => {
+                                    Ok(Request::Scrape(r)) => {
                                         scrape_requests.push((r, src));
                                     },
-                                    _ => {
-                                        // FIXME
-                                    }
+                                    Ok(Request::Invalid(r)) => {
+                                        let response = Response::Error(ErrorResponse {
+                                            transaction_id: r.transaction_id,
+                                            message: "Invalid request".to_string(),
+                                        });
+
+                                        responses.push((response, src));
+                                    },
+                                    Err(err) => {
+                                        eprintln!("Request parse error: {:?}", err);
+                                    },
                                 }
                             },
                             Err(err) => {

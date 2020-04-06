@@ -52,8 +52,4 @@ pub enum Request {
     Announce(AnnounceRequest),
     Scrape(ScrapeRequest),
     Invalid(InvalidRequest),
-
-    /// Should ideally only be used when no transaction id can be parsed,
-    /// but is currently also used as a catch-all for non-specific errors
-    Error, 
 }

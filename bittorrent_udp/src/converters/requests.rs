@@ -64,18 +64,6 @@ pub fn request_to_bytes(request: &types::Request) -> Vec<u8> {
 pub fn request_from_bytes(
     bytes: &[u8],
     max_scrape_torrents: u8,
-) -> types::Request {
-
-    match try_request_from_bytes(bytes, max_scrape_torrents){
-        Ok(request) => request,
-        Err(_) => types::Request::Error
-    }
-}
-
-
-fn try_request_from_bytes(
-    bytes: &[u8],
-    max_scrape_torrents: u8,
 ) -> Result<types::Request,io::Error> {
 
     let mut bytes = io::Cursor::new(bytes);
