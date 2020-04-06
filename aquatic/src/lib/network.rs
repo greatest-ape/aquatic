@@ -81,86 +81,110 @@ pub fn run_event_loop(
 
             if token.0 == token_num {
                 if event.is_readable(){
-                    loop {
-                        match socket.recv_from(&mut buffer) {
-                            Ok((amt, src)) => {
-                                let request = request_from_bytes(
-                                    &buffer[..amt],
-                                    255u8 // FIXME
-                                );
+                    handle_readable_socket(
+                        &state,
+                        &mut socket,
+                        &mut buffer,
+                        &mut responses,
+                        &mut connect_requests,
+                        &mut announce_requests,
+                        &mut scrape_requests
+                    );
 
-                                match request {
-                                    Ok(Request::Connect(r)) => {
-                                        connect_requests.push((r, src)); 
-                                    },
-                                    Ok(Request::Announce(r)) => {
-                                        announce_requests.push((r, src));
-                                    },
-                                    Ok(Request::Scrape(r)) => {
-                                        scrape_requests.push((r, src));
-                                    },
-                                    Ok(Request::Invalid(r)) => {
-                                        let response = Response::Error(ErrorResponse {
-                                            transaction_id: r.transaction_id,
-                                            message: "Invalid request".to_string(),
-                                        });
+                    poll.registry()
+                        .reregister(&mut socket, token, interests)
+                        .unwrap();
+                }
+            }
+        }
+    }
+}
 
-                                        responses.push((response, src));
-                                    },
-                                    Err(err) => {
-                                        eprintln!("Request parse error: {:?}", err);
-                                    },
-                                }
-                            },
-                            Err(err) => {
-                                match err.kind() {
-                                    ErrorKind::WouldBlock => {
-                                        break;
-                                    },
-                                    err => {
-                                        eprintln!("recv_from error: {:?}", err);
-                                    }
-                                }
-                            }
-                        }
+
+/// Read requests, generate and send back responses
+fn handle_readable_socket(
+    state: &State,
+    socket: &mut UdpSocket,
+    buffer: &mut [u8],
+    responses: &mut Vec<(Response, SocketAddr)>,
+    connect_requests: &mut Vec<(ConnectRequest, SocketAddr)>,
+    announce_requests: &mut Vec<(AnnounceRequest, SocketAddr)>,
+    scrape_requests: &mut Vec<(ScrapeRequest, SocketAddr)>,
+){
+    loop {
+        match socket.recv_from(buffer) {
+            Ok((amt, src)) => {
+                let request = request_from_bytes(
+                    &buffer[..amt],
+                    255u8 // FIXME
+                );
+
+                match request {
+                    Ok(Request::Connect(r)) => {
+                        connect_requests.push((r, src)); 
+                    },
+                    Ok(Request::Announce(r)) => {
+                        announce_requests.push((r, src));
+                    },
+                    Ok(Request::Scrape(r)) => {
+                        scrape_requests.push((r, src));
+                    },
+                    Ok(Request::Invalid(r)) => {
+                        let response = Response::Error(ErrorResponse {
+                            transaction_id: r.transaction_id,
+                            message: "Invalid request".to_string(),
+                        });
+
+                        responses.push((response, src));
+                    },
+                    Err(err) => {
+                        eprintln!("request_from_bytes error: {:?}", err);
+                    },
+                }
+            },
+            Err(err) => {
+                match err.kind() {
+                    ErrorKind::WouldBlock => {
+                        break;
+                    },
+                    err => {
+                        eprintln!("recv_from error: {:?}", err);
                     }
+                }
+            }
+        }
+    }
 
-                    handle_connect_requests(
-                        &state,
-                        &mut responses,
-                        connect_requests.drain(..)
-                    );
-                    handle_announce_requests(
-                        &state,
-                        &mut responses,
-                        announce_requests.drain(..),
-                    );
-                    handle_scrape_requests(
-                        &state,
-                        &mut responses,
-                        scrape_requests.drain(..),
-                    );
+    handle_connect_requests(
+        state,
+        responses,
+        connect_requests.drain(..)
+    );
+    handle_announce_requests(
+        state,
+        responses,
+        announce_requests.drain(..),
+    );
+    handle_scrape_requests(
+        state,
+        responses,
+        scrape_requests.drain(..),
+    );
 
-                    for (response, src) in responses.drain(..) {
-                        let bytes = response_to_bytes(&response, IpVersion::IPv4);
+    for (response, src) in responses.drain(..) {
+        let bytes = response_to_bytes(&response, IpVersion::IPv4);
 
-                        match socket.send_to(&bytes[..], src){
-                            Ok(_bytes_sent) => {
-                            },
-                            Err(err) => {
-                                match err.kind(){
-                                    ErrorKind::WouldBlock => {
-                                        break;
-                                    },
-                                    err => {
-                                        eprintln!("send_to error: {:?}", err);
-                                    }
-                                }
-                            }
-                        }
+        match socket.send_to(&bytes[..], src){
+            Ok(_bytes_sent) => {
+            },
+            Err(err) => {
+                match err.kind(){
+                    ErrorKind::WouldBlock => {
+                        break;
+                    },
+                    err => {
+                        eprintln!("send_to error: {:?}", err);
                     }
-
-                    poll.registry().reregister(&mut socket, token, interests).unwrap();
                 }
             }
         }
