@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use std::net::SocketAddr;
 
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
@@ -10,8 +10,8 @@ use aquatic::handlers::handle_connect_requests;
 const ITERATIONS: usize = 10_000_000;
 
 
-pub fn bench(){
-    println!("# benchmark: handle_connect_requests\n");
+pub fn bench() -> (f64, f64){
+    println!("## benchmark: handle_connect_requests\n");
 
     let state = State::new();
     let mut responses = Vec::new();
@@ -21,14 +21,19 @@ pub fn bench(){
 
     println!("running benchmark..");
 
+    ::std::thread::sleep(Duration::from_millis(100));
+
     let now = Instant::now();
 
     handle_connect_requests(&state, &mut responses, requests);
 
     let duration = Instant::now() - now;
 
-    println!("\nrequests/second: {:.2}", ITERATIONS as f64 / (duration.as_millis() as f64 / 1000.0));
-    println!("time per request: {:.2}ns", duration.as_nanos() as f64 / ITERATIONS as f64);
+    let requests_per_second = ITERATIONS as f64 / (duration.as_millis() as f64 / 1000.0);
+    let time_per_request = duration.as_nanos() as f64 / ITERATIONS as f64;
+
+    println!("\nrequests/second: {:.2}", requests_per_second);
+    println!("time per request: {:.2}ns", time_per_request);
 
     let mut dummy = 0usize;
     let mut num_responses: usize = 0;
@@ -50,6 +55,8 @@ pub fn bench(){
     if dummy == ITERATIONS {
         println!("dummy test output: {}", dummy);
     }
+
+    (requests_per_second, time_per_request)
 }
 
 

@@ -23,6 +23,9 @@ dashmap = "3"
 indexmap = "1"
 mimalloc = "0.1"
 net2 = "0.2"
+
+# bench_handlers / plot_pareto
+num-format = "0.4"
 rand_distr = "0.2"
 plotly = "0.4"
 

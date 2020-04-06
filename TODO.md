@@ -5,6 +5,11 @@
 * extract_response_peers
     * Cleaner code
     * Stack-allocated vector?
+* Benchmarks
+    * Seperate setup so actual benchmarks can be run after each other,
+      enabling better profiling
+    * Show standard deviation?
+    * Send in connect reponse ids to other functions as integration test
 
 ## Don't do
 

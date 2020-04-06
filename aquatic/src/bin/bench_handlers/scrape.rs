@@ -19,8 +19,8 @@ pub fn bench(
     rng: &mut impl Rng,
     state: &State,
     info_hashes: &Vec<InfoHash>
-){
-    println!("# benchmark: handle_scrape_requests\n");
+) -> (f64, f64) {
+    println!("## benchmark: handle_scrape_requests\n");
     println!("generating data..");
 
     let mut responses = Vec::with_capacity(SCRAPE_REQUESTS);
@@ -40,7 +40,7 @@ pub fn bench(
 
     let scrape_requests = scrape_requests.drain(..);
 
-    ::std::thread::sleep(Duration::from_secs(1));
+    ::std::thread::sleep(Duration::from_millis(100));
 
     let now = Instant::now();
 
@@ -54,8 +54,11 @@ pub fn bench(
 
     let duration = Instant::now() - now;
 
-    println!("\nrequests/second: {:.2}", SCRAPE_REQUESTS as f64 / (duration.as_millis() as f64 / 1000.0));
-    println!("time per request: {:.2}ns", duration.as_nanos() as f64 / SCRAPE_REQUESTS as f64);
+    let requests_per_second = SCRAPE_REQUESTS as f64 / (duration.as_millis() as f64 / 1000.0);
+    let time_per_request = duration.as_nanos() as f64 / SCRAPE_REQUESTS as f64;
+
+    println!("\nrequests/second: {:.2}", requests_per_second);
+    println!("time per request: {:.2}ns", time_per_request);
 
     let mut total_num_peers = 0.0f64;
     let mut num_responses: usize = 0;
@@ -76,6 +79,8 @@ pub fn bench(
     }
 
     println!("avg num peers reported: {:.2}", total_num_peers / (SCRAPE_REQUESTS as f64 * SCRAPE_NUM_HASHES as f64));
+
+    (requests_per_second, time_per_request)
 }
 
 

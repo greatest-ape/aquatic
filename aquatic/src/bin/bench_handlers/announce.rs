@@ -18,8 +18,8 @@ pub fn bench(
     rng: &mut impl Rng,
     state: &State,
     info_hashes: &Vec<InfoHash>
-){
-    println!("# benchmark: handle_announce_requests\n");
+) -> (f64, f64) {
+    println!("## benchmark: handle_announce_requests\n");
 
     println!("generating data..");
 
@@ -40,7 +40,7 @@ pub fn bench(
 
     let announce_requests = announce_requests.drain(..);
 
-    ::std::thread::sleep(Duration::from_secs(1));
+    ::std::thread::sleep(Duration::from_millis(100));
 
     let now = Instant::now();
 
@@ -54,8 +54,11 @@ pub fn bench(
 
     let duration = Instant::now() - now;
 
-    println!("\nrequests/second: {:.2}", ANNOUNCE_REQUESTS as f64 / (duration.as_millis() as f64 / 1000.0));
-    println!("time per request: {:.2}ns", duration.as_nanos() as f64 / ANNOUNCE_REQUESTS as f64);
+    let requests_per_second = ANNOUNCE_REQUESTS as f64 / (duration.as_millis() as f64 / 1000.0);
+    let time_per_request = duration.as_nanos() as f64 / ANNOUNCE_REQUESTS as f64;
+
+    println!("\nrequests/second: {:.2}", requests_per_second);
+    println!("time per request: {:.2}ns", time_per_request);
 
     let mut total_num_peers = 0.0f64;
     let mut max_num_peers = 0.0f64;
@@ -77,6 +80,8 @@ pub fn bench(
 
     println!("avg num peers returned: {:.2}", total_num_peers / ANNOUNCE_REQUESTS as f64);
     println!("max num peers returned: {:.2}", max_num_peers);
+
+    (requests_per_second, time_per_request)
 }
 
 
