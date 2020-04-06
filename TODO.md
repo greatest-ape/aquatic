@@ -6,9 +6,9 @@
     * Cleaner code
     * Stack-allocated vector?
 * Benchmarks
+    * Nicer progress output
     * Better black_box (or make sure to consume data)
     * Send in connect reponse ids to other functions as integration test
-* target-cpu=native
 
 ## Don't do
 
