@@ -16,6 +16,7 @@ use num_format::{Locale, ToFormattedString};
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
 
 use aquatic::common::*;
+use aquatic::config::Config;
 
 
 mod announce;
@@ -76,6 +77,7 @@ fn main(){
 
     let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
     let info_hashes = create_info_hashes(&mut rng);
+    let config = Config::default();
 
     let state_for_scrape: State = {
         let requests = announce::create_requests(
@@ -103,7 +105,7 @@ fn main(){
                 state.connections.insert(key, time);
             }
 
-            let d = announce::bench(&state, requests.clone());
+            let d = announce::bench(&state, &config, requests.clone());
             announce_data.0 += d.0;
             announce_data.1 += d.1;
 

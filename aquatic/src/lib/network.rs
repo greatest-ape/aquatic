@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::time::Duration;
 use std::io::ErrorKind;
 
 use mio::{Events, Poll, Interest, Token};
@@ -11,16 +10,13 @@ use bittorrent_udp::types::IpVersion;
 use bittorrent_udp::converters::{response_to_bytes, request_from_bytes};
 
 use crate::common::*;
+use crate::config::Config;
 use crate::handlers::*;
 
 
-pub fn create_socket(
-    addr: SocketAddr,
-    recv_buffer_size: usize,
-) -> ::std::net::UdpSocket {
-
+pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     let mut builder = &{
-        if addr.is_ipv4(){
+        if config.address.is_ipv4(){
             UdpBuilder::new_v4().expect("socket: build")
         } else {
             UdpBuilder::new_v6().expect("socket: build")
@@ -30,16 +26,16 @@ pub fn create_socket(
     builder = builder.reuse_port(true)
         .expect("socket: set reuse port");
 
-    let socket = builder.bind(&addr)
-        .expect(&format!("socket: bind to {}", addr));
+    let socket = builder.bind(&config.address)
+        .expect(&format!("socket: bind to {}", &config.address));
 
     socket.set_nonblocking(true)
         .expect("socket: set nonblocking");
     
-    if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size){
+    if let Err(err) = socket.set_recv_buffer_size(config.recv_buffer_size){
         eprintln!(
             "socket: failed setting recv buffer to {}: {:?}",
-            recv_buffer_size,
+            config.recv_buffer_size,
             err
         );
     }
@@ -50,9 +46,9 @@ pub fn create_socket(
 
 pub fn run_event_loop(
     state: State,
+    config: Config,
     socket: ::std::net::UdpSocket,
     token_num: usize,
-    poll_timeout: Duration,
 ){
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
@@ -73,7 +69,7 @@ pub fn run_event_loop(
     let mut responses: Vec<(Response, SocketAddr)> = Vec::with_capacity(1024);
 
     loop {
-        poll.poll(&mut events, Some(poll_timeout))
+        poll.poll(&mut events, None)
             .expect("failed polling");
 
         for event in events.iter(){
@@ -83,6 +79,7 @@ pub fn run_event_loop(
                 if event.is_readable(){
                     handle_readable_socket(
                         &state,
+                        &config,
                         &mut socket,
                         &mut buffer,
                         &mut responses,
@@ -104,6 +101,7 @@ pub fn run_event_loop(
 /// Read requests, generate and send back responses
 fn handle_readable_socket(
     state: &State,
+    config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
     responses: &mut Vec<(Response, SocketAddr)>,
@@ -116,7 +114,7 @@ fn handle_readable_socket(
             Ok((amt, src)) => {
                 let request = request_from_bytes(
                     &buffer[..amt],
-                    255u8 // FIXME
+                    config.max_scrape_torrents
                 );
 
                 match request {
@@ -162,6 +160,7 @@ fn handle_readable_socket(
     );
     handle_announce_requests(
         state,
+        config,
         responses,
         announce_requests.drain(..),
     );

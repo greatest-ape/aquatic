@@ -6,6 +6,7 @@ use rand_distr::Pareto;
 
 use aquatic::handlers::*;
 use aquatic::common::*;
+use aquatic::config::Config;
 use aquatic_bench::*;
 
 use crate::common::*;
@@ -16,6 +17,7 @@ const ANNOUNCE_REQUESTS: usize = 1_000_000;
 
 pub fn bench(
     state: &State,
+    config: &Config,
     requests: Vec<(AnnounceRequest, SocketAddr)>,
 ) -> (f64, f64) {
     let mut responses = Vec::with_capacity(ANNOUNCE_REQUESTS);
@@ -26,6 +28,7 @@ pub fn bench(
 
     handle_announce_requests(
         &state,
+        config,
         &mut responses,
         requests,
     );

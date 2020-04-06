@@ -8,6 +8,7 @@ use rand::{Rng, SeedableRng, rngs::SmallRng, thread_rng};
 use bittorrent_udp::types::*;
 
 use crate::common::*;
+use crate::config::Config;
 
 
 pub fn handle_connect_requests(
@@ -42,6 +43,7 @@ pub fn handle_connect_requests(
 
 pub fn handle_announce_requests(
     state: &State,
+    config: &Config,
     responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
 ){
@@ -100,8 +102,8 @@ pub fn handle_announce_requests(
         let response_peers = extract_response_peers(
             &mut rng,
             &torrent_data.peers,
-            255
-        ); // FIXME num peers
+            config.max_response_peers,
+        ); // FIXME: check how many peers announcing peer wants
 
         let response = Response::Announce(AnnounceResponse {
             transaction_id: request.transaction_id,

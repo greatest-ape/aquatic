@@ -1,25 +1,27 @@
 use std::time::Duration;
 
 pub mod common;
+pub mod config;
 pub mod handlers;
 pub mod network;
 pub mod tasks;
 
+use config::Config;
 use common::State;
 
 
 pub fn run(){
-    let addr = ([127, 0, 0, 1], 3000).into();
+    let config = Config::default();
     let state = State::new();
-    let socket = network::create_socket(addr, 4096 * 8);
-    let socket_timeout = Duration::from_millis(1000);
+    let socket = network::create_socket(&config);
 
     for i in 0..4 {
         let socket = socket.try_clone().unwrap();
         let state = state.clone();
+        let config = config.clone();
 
         ::std::thread::spawn(move || {
-            network::run_event_loop(state, socket, i, socket_timeout);
+            network::run_event_loop(state, config, socket, i);
         });
     }
 
