@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::net::SocketAddr;
 
 use rand::Rng;
@@ -15,41 +15,19 @@ const ANNOUNCE_REQUESTS: usize = 1_000_000;
 
 
 pub fn bench(
-    rng: &mut impl Rng,
     state: &State,
-    info_hashes: &Vec<InfoHash>
+    requests: Vec<(AnnounceRequest, SocketAddr)>,
 ) -> (f64, f64) {
-    println!("## benchmark: handle_announce_requests\n");
-
-    println!("generating data..");
-
     let mut responses = Vec::with_capacity(ANNOUNCE_REQUESTS);
-
-    let mut announce_requests = create_announce_requests(rng, &info_hashes);
-
-    let time = Time(Instant::now());
-
-    for (request, src) in announce_requests.iter() {
-        let key = ConnectionKey {
-            connection_id: request.connection_id,
-            socket_addr: *src,
-        };
-
-        state.connections.insert(key, time);
-    }
-
-    let announce_requests = announce_requests.drain(..);
-
-    ::std::thread::sleep(Duration::from_millis(100));
+    let mut requests = requests;
+    let requests = requests.drain(..);
 
     let now = Instant::now();
-
-    println!("running benchmark..");
 
     handle_announce_requests(
         &state,
         &mut responses,
-        announce_requests,
+        requests,
     );
 
     let duration = Instant::now() - now;
@@ -57,19 +35,17 @@ pub fn bench(
     let requests_per_second = ANNOUNCE_REQUESTS as f64 / (duration.as_millis() as f64 / 1000.0);
     let time_per_request = duration.as_nanos() as f64 / ANNOUNCE_REQUESTS as f64;
 
-    println!("\nrequests/second: {:.2}", requests_per_second);
-    println!("time per request: {:.2}ns", time_per_request);
+    // println!("\nrequests/second: {:.2}", requests_per_second);
+    // println!("time per request: {:.2}ns", time_per_request);
 
-    let mut total_num_peers = 0.0f64;
-    let mut max_num_peers = 0.0f64;
+    // let mut total_num_peers = 0.0f64;
     let mut num_responses: usize = 0;
     
     for (response, _src) in responses.drain(..) {
-        if let Response::Announce(response) = response {
-            let n = response.peers.len() as f64;
+        if let Response::Announce(_response) = response {
+            // let n = response.peers.len() as f64;
 
-            total_num_peers += n;
-            max_num_peers = max_num_peers.max(n);
+            // total_num_peers += n;
             num_responses += 1;
         }
     }
@@ -78,15 +54,14 @@ pub fn bench(
         println!("ERROR: only {} responses received", num_responses);
     }
 
-    println!("avg num peers returned: {:.2}", total_num_peers / ANNOUNCE_REQUESTS as f64);
-    println!("max num peers returned: {:.2}", max_num_peers);
+    // println!("avg num peers returned: {:.2}", total_num_peers / ANNOUNCE_REQUESTS as f64);
 
     (requests_per_second, time_per_request)
 }
 
 
 
-fn create_announce_requests(
+pub fn create_requests(
     rng: &mut impl Rng,
     info_hashes: &Vec<InfoHash>
 ) -> Vec<(AnnounceRequest, SocketAddr)> {

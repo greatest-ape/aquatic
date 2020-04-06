@@ -6,12 +6,13 @@
     * Cleaner code
     * Stack-allocated vector?
 * Benchmarks
-    * Seperate setup so actual benchmarks can be run after each other,
-      enabling better profiling
+    * Move to own crate (aquatic_bench)
+    * Better black_box (or make sure to consume data)
     * Show standard deviation?
     * Send in connect reponse ids to other functions as integration test
+* target-cpu=native
 
 ## Don't do
 
-* Other hash algorithms: seemingly not worthwhile
+* Other hash algorithms: seemingly not worthwhile (might be with AVX though)
 * `sendmmsg`: can't send to multiple socket addresses, so doesn't help

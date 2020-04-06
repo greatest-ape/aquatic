@@ -2,14 +2,13 @@
 //! 
 //! Example summary output:
 //! ```
-//! # Average results over 20 rounds
-//! 
-//! connect handler:   3 365 415 requests/second,   297.41 ns/request
-//! announce handler:    346 650 requests/second,  2921.76 ns/request
-//! scrape handler:    1 313 100 requests/second,   762.47 ns/request
+//! # Average results over 100 rounds
+//! connect handler:   3 201 147 requests/second,   312.66 ns/request
+//! announce handler:    330 958 requests/second,  3029.13 ns/request
+//! scrape handler:    1 242 478 requests/second,   805.62 ns/request
 //! ```
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use num_format::{Locale, ToFormattedString};
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
@@ -44,43 +43,98 @@ macro_rules! print_results {
 
 
 fn main(){
-    let num_rounds = 20;
+    let num_rounds = 100;
 
     let mut connect_data = (0.0, 0.0);
     let mut announce_data = (0.0, 0.0);
     let mut scrape_data = (0.0, 0.0);
 
-    for round in 0..num_rounds {
-        println!("# Round {}/{}\n", round + 1, num_rounds);
+    {
+        let requests = connect::create_requests();
 
-        let d = connect::bench();
-        connect_data.0 += d.0;
-        connect_data.1 += d.1;
+        ::std::thread::sleep(Duration::from_secs(1));
 
-        println!("");
+        for round in 0..num_rounds {
+            println!("# Round {}/{}\n", round + 1, num_rounds);
 
-        ::std::thread::sleep(Duration::from_millis(100));
-
-        let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
-        let info_hashes = create_info_hashes(&mut rng);
-        let state = State::new();
-
-        let d = announce::bench(&mut rng, &state, &info_hashes);
-        announce_data.0 += d.0;
-        announce_data.1 += d.1;
-
-        state.connections.clear();
-
-        println!("");
-
-        ::std::thread::sleep(Duration::from_millis(100));
-
-        let d = scrape::bench(&mut rng, &state, &info_hashes);
-        scrape_data.0 += d.0;
-        scrape_data.1 += d.1;
-
-        println!();
+            let d = connect::bench(requests.clone());
+            connect_data.0 += d.0;
+            connect_data.1 += d.1;
+        }
     }
+
+    let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
+    let info_hashes = create_info_hashes(&mut rng);
+
+    let state_for_scrape: State = {
+        let requests = announce::create_requests(
+            &mut rng,
+            &info_hashes
+        );
+
+        let mut state_for_scrape = State::new();
+
+        ::std::thread::sleep(Duration::from_secs(1));
+
+        for round in 0..num_rounds {
+            println!("# Round {}/{}\n", round + 1, num_rounds);
+
+            let state = State::new();
+
+            let time = Time(Instant::now());
+
+            for (request, src) in requests.iter() {
+                let key = ConnectionKey {
+                    connection_id: request.connection_id,
+                    socket_addr: *src,
+                };
+
+                state.connections.insert(key, time);
+            }
+
+            let d = announce::bench(&state, requests.clone());
+            announce_data.0 += d.0;
+            announce_data.1 += d.1;
+
+            if round == num_rounds - 1 {
+                state_for_scrape = state.clone();
+            }
+        }
+
+        state_for_scrape
+    };
+
+    state_for_scrape.connections.clear();
+
+    {
+        let state = state_for_scrape;
+
+        let requests = scrape::create_requests(&mut rng, &info_hashes);
+
+        let time = Time(Instant::now());
+
+        for (request, src) in requests.iter() {
+            let key = ConnectionKey {
+                connection_id: request.connection_id,
+                socket_addr: *src,
+            };
+
+            state.connections.insert(key, time);
+        }
+
+        ::std::thread::sleep(Duration::from_secs(1));
+
+        for round in 0..num_rounds {
+            println!("# Round {}/{}\n", round + 1, num_rounds);
+
+            let d = scrape::bench(&state, requests.clone());
+            scrape_data.0 += d.0;
+            scrape_data.1 += d.1;
+
+            println!();
+        }
+    }
+
 
     println!("# Average results over {} rounds\n", num_rounds);
 

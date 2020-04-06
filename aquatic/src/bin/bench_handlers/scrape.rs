@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::net::SocketAddr;
 
 use rand::Rng;
@@ -16,31 +16,12 @@ const SCRAPE_NUM_HASHES: usize = 10;
 
 
 pub fn bench(
-    rng: &mut impl Rng,
     state: &State,
-    info_hashes: &Vec<InfoHash>
+    requests: Vec<(ScrapeRequest, SocketAddr)>,
 ) -> (f64, f64) {
-    println!("## benchmark: handle_scrape_requests\n");
-    println!("generating data..");
-
     let mut responses = Vec::with_capacity(SCRAPE_REQUESTS);
-
-    let mut scrape_requests = create_scrape_requests(rng, &info_hashes);
-
-    let time = Time(Instant::now());
-
-    for (request, src) in scrape_requests.iter() {
-        let key = ConnectionKey {
-            connection_id: request.connection_id,
-            socket_addr: *src,
-        };
-
-        state.connections.insert(key, time);
-    }
-
+    let mut scrape_requests = requests;
     let scrape_requests = scrape_requests.drain(..);
-
-    ::std::thread::sleep(Duration::from_millis(100));
 
     let now = Instant::now();
 
@@ -57,18 +38,18 @@ pub fn bench(
     let requests_per_second = SCRAPE_REQUESTS as f64 / (duration.as_millis() as f64 / 1000.0);
     let time_per_request = duration.as_nanos() as f64 / SCRAPE_REQUESTS as f64;
 
-    println!("\nrequests/second: {:.2}", requests_per_second);
-    println!("time per request: {:.2}ns", time_per_request);
+    // println!("\nrequests/second: {:.2}", requests_per_second);
+    // println!("time per request: {:.2}ns", time_per_request);
 
-    let mut total_num_peers = 0.0f64;
+    // let mut total_num_peers = 0.0f64;
     let mut num_responses: usize = 0;
 
     for (response, _src) in responses.drain(..){
-        if let Response::Scrape(response) = response {
-            for stats in response.torrent_stats {
-                total_num_peers += f64::from(stats.seeders.0);
-                total_num_peers += f64::from(stats.leechers.0);
-            }
+        if let Response::Scrape(_response) = response {
+            // for stats in response.torrent_stats {
+            //     total_num_peers += f64::from(stats.seeders.0);
+            //     total_num_peers += f64::from(stats.leechers.0);
+            // }
 
             num_responses += 1;
         }
@@ -78,13 +59,13 @@ pub fn bench(
         println!("ERROR: only {} responses received", num_responses);
     }
 
-    println!("avg num peers reported: {:.2}", total_num_peers / (SCRAPE_REQUESTS as f64 * SCRAPE_NUM_HASHES as f64));
+    // println!("avg num peers reported: {:.2}", total_num_peers / (SCRAPE_REQUESTS as f64 * SCRAPE_NUM_HASHES as f64));
 
     (requests_per_second, time_per_request)
 }
 
 
-fn create_scrape_requests(
+pub fn create_requests(
     rng: &mut impl Rng,
     info_hashes: &Vec<InfoHash>
 ) -> Vec<(ScrapeRequest, SocketAddr)> {

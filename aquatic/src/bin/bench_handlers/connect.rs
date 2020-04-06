@@ -1,4 +1,4 @@
-use std::time::{Instant, Duration};
+use std::time::Instant;
 use std::net::SocketAddr;
 
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
@@ -10,18 +10,13 @@ use aquatic::handlers::handle_connect_requests;
 const ITERATIONS: usize = 10_000_000;
 
 
-pub fn bench() -> (f64, f64){
-    println!("## benchmark: handle_connect_requests\n");
-
+pub fn bench(
+    requests: Vec<(ConnectRequest, SocketAddr)>
+) -> (f64, f64){
     let state = State::new();
-    let mut responses = Vec::new();
-
-    let mut requests = create_requests();
+    let mut responses = Vec::with_capacity(ITERATIONS);
+    let mut requests = requests;
     let requests = requests.drain(..);
-
-    println!("running benchmark..");
-
-    ::std::thread::sleep(Duration::from_millis(100));
 
     let now = Instant::now();
 
@@ -32,8 +27,8 @@ pub fn bench() -> (f64, f64){
     let requests_per_second = ITERATIONS as f64 / (duration.as_millis() as f64 / 1000.0);
     let time_per_request = duration.as_nanos() as f64 / ITERATIONS as f64;
 
-    println!("\nrequests/second: {:.2}", requests_per_second);
-    println!("time per request: {:.2}ns", time_per_request);
+    // println!("\nrequests/second: {:.2}", requests_per_second);
+    // println!("time per request: {:.2}ns", time_per_request);
 
     let mut dummy = 0usize;
     let mut num_responses: usize = 0;
@@ -60,7 +55,7 @@ pub fn bench() -> (f64, f64){
 }
 
 
-fn create_requests() -> Vec<(ConnectRequest, SocketAddr)> {
+pub fn create_requests() -> Vec<(ConnectRequest, SocketAddr)> {
     let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
 
     let mut requests = Vec::new();
