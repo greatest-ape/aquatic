@@ -6,8 +6,12 @@
     * Cleaner code
     * Stack-allocated vector?
 * Benchmarks
+    * num_rounds command line argument
     * Better black_box (or make sure to consume data)
     * Send in connect reponse ids to other functions as integration test
+* Performance
+    * cpu-target=native good?
+    * mialloc good?
 
 ## Don't do
 
