@@ -1,6 +1,7 @@
 # TODO
 
 * Configuration, cli
+    * Config behind Arc in state?
 * Tests
 * extract_response_peers
     * Cleaner code
