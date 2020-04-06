@@ -16,6 +16,7 @@ name = "plot_pareto"
 
 [dependencies]
 aquatic = { path = "../aquatic" }
+indicatif = "0.14"
 mimalloc = "0.1"
 num-format = "0.4"
 plotly = "0.4"

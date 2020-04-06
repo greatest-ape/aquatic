@@ -25,8 +25,6 @@ pub fn bench(
 
     let now = Instant::now();
 
-    println!("running benchmark..");
-
     handle_scrape_requests(
         &state,
         &mut responses,

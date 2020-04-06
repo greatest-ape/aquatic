@@ -10,6 +10,7 @@
 
 use std::time::{Duration, Instant};
 
+use indicatif::{ProgressBar, ProgressStyle, ProgressIterator};
 use num_format::{Locale, ToFormattedString};
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
 
@@ -49,14 +50,23 @@ fn main(){
     let mut announce_data = (0.0, 0.0);
     let mut scrape_data = (0.0, 0.0);
 
+    fn create_progress_bar(name: &str, iterations: u64) -> ProgressBar {
+        let t = format!("{:<16} {}", name, "{wide_bar} {pos:>2}/{len:>2}");
+        let style = ProgressStyle::default_bar().template(&t);
+
+        ProgressBar::new(iterations).with_style(style)
+    }
+
+    println!("# Benchmarking request handlers\n");
+
     {
         let requests = connect::create_requests();
 
         ::std::thread::sleep(Duration::from_secs(1));
 
-        for round in 0..num_rounds {
-            println!("# Round {}/{}\n", round + 1, num_rounds);
+        let pb = create_progress_bar("Connect handler", num_rounds);
 
+        for _ in (0..num_rounds).progress_with(pb){
             let d = connect::bench(requests.clone());
             connect_data.0 += d.0;
             connect_data.1 += d.1;
@@ -76,9 +86,9 @@ fn main(){
 
         ::std::thread::sleep(Duration::from_secs(1));
 
-        for round in 0..num_rounds {
-            println!("# Round {}/{}\n", round + 1, num_rounds);
+        let pb = create_progress_bar("Announce handler", num_rounds);
 
+        for round in (0..num_rounds).progress_with(pb) {
             let state = State::new();
 
             let time = Time(Instant::now());
@@ -124,23 +134,20 @@ fn main(){
 
         ::std::thread::sleep(Duration::from_secs(1));
 
-        for round in 0..num_rounds {
-            println!("# Round {}/{}\n", round + 1, num_rounds);
+        let pb = create_progress_bar("Scrape handler", num_rounds);
 
+        for _ in (0..num_rounds).progress_with(pb) {
             let d = scrape::bench(&state, requests.clone());
             scrape_data.0 += d.0;
             scrape_data.1 += d.1;
-
-            println!();
         }
     }
 
+    println!("\n## Average results over {} rounds\n", num_rounds);
 
-    println!("# Average results over {} rounds\n", num_rounds);
-
-    print_results!("connect handler: ", num_rounds, connect_data);
-    print_results!("announce handler:", num_rounds, announce_data);
-    print_results!("scrape handler:  ", num_rounds, scrape_data);
+    print_results!("Connect handler: ", num_rounds, connect_data);
+    print_results!("Announce handler:", num_rounds, announce_data);
+    print_results!("Scrape handler:  ", num_rounds, scrape_data);
 }
 
 
