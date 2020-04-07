@@ -19,7 +19,7 @@ impl Default for Config {
             address: SocketAddr::from(([127, 0, 0, 1], 3000)),
             num_threads: 4,
             poll_event_capacity: 4096,
-            recv_buffer_size: 4096 * 16,
+            recv_buffer_size: 4096 * 128,
             max_scrape_torrents: 255,
             max_response_peers: 255,
             statistics_interval: 5,
