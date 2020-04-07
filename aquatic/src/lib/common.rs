@@ -9,7 +9,6 @@ use indexmap::IndexMap;
 pub use bittorrent_udp::types::*;
 
 
-pub const EVENT_CAPACITY: usize = 4096;
 pub const MAX_PACKET_SIZE: usize = 4096;
 
 

@@ -62,7 +62,7 @@ pub fn run_event_loop(
         .register(&mut socket, Token(token_num), interests)
         .unwrap();
 
-    let mut events = Events::with_capacity(EVENT_CAPACITY);
+    let mut events = Events::with_capacity(config.poll_event_capacity);
 
     let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::with_capacity(1024);
     let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::with_capacity(1024);
