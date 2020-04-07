@@ -14,10 +14,9 @@ use common::State;
 pub fn run(){
     let config = Config::default();
     let state = State::new();
-    let socket = network::create_socket(&config);
 
     for i in 0..config.num_threads {
-        let socket = socket.try_clone().unwrap();
+        let socket = network::create_socket(&config);
         let state = state.clone();
         let config = config.clone();
 
