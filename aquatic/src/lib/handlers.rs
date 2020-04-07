@@ -99,11 +99,14 @@ pub fn handle_announce_requests(
             }
         }
 
+        let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
+            .min(config.max_response_peers);
+
         let response_peers = extract_response_peers(
             &mut rng,
             &torrent_data.peers,
-            config.max_response_peers,
-        ); // FIXME: check how many peers announcing peer wants
+            max_num_peers_to_take,
+        );
 
         let response = Response::Announce(AnnounceResponse {
             transaction_id: request.transaction_id,
@@ -167,16 +170,16 @@ pub fn handle_scrape_requests(
 pub fn extract_response_peers(
     rng: &mut impl Rng,
     peer_map: &PeerMap,
-    number_of_peers_to_take: usize,
+    max_num_peers_to_take: usize,
 ) -> Vec<ResponsePeer> {
     let peer_map_len = peer_map.len();
 
-    if peer_map_len <= number_of_peers_to_take {
+    if peer_map_len <= max_num_peers_to_take {
         peer_map.values()
             .map(Peer::to_response_peer)
             .collect()
     } else {
-        let half_num_to_take = number_of_peers_to_take / 2;
+        let half_num_to_take = max_num_peers_to_take / 2;
         let half_peer_map_len = peer_map_len / 2;
 
         let offset_first_half = rng.gen_range(
@@ -189,9 +192,9 @@ pub fn extract_response_peers(
         );
 
         let end_first_half = offset_first_half + half_num_to_take;
-        let end_second_half = offset_second_half + half_num_to_take + (number_of_peers_to_take % 2);
+        let end_second_half = offset_second_half + half_num_to_take + (max_num_peers_to_take % 2);
 
-        let mut peers: Vec<ResponsePeer> = Vec::with_capacity(number_of_peers_to_take);
+        let mut peers: Vec<ResponsePeer> = Vec::with_capacity(max_num_peers_to_take);
 
         for i in offset_first_half..end_first_half {
             if let Some((_, peer)) = peer_map.get_index(i){
@@ -204,7 +207,7 @@ pub fn extract_response_peers(
             }
         }
         
-        debug_assert_eq!(peers.len(), number_of_peers_to_take);
+        debug_assert_eq!(peers.len(), max_num_peers_to_take);
 
         peers
     }
