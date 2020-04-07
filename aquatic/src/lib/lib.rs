@@ -16,7 +16,7 @@ pub fn run(){
     let state = State::new();
     let socket = network::create_socket(&config);
 
-    for i in 0..4 {
+    for i in 0..config.num_threads {
         let socket = socket.try_clone().unwrap();
         let state = state.clone();
         let config = config.clone();
