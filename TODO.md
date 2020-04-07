@@ -7,7 +7,6 @@
     * Stack-allocated vector?
 * Benchmarks
     * num_rounds command line argument
-    * Better black_box (or make sure to consume data)
     * Send in connect reponse ids to other functions as integration test
     * Save last results, check if difference is significant?
     * ProgressBar: `[{elapsed_precise}]` and eta_precise?
@@ -15,6 +14,7 @@
 * Performance
     * cpu-target=native good?
     * mialloc good?
+    * https://docs.rs/zerocopy/0.3.0/zerocopy/index.html for requests and responses?
 * bittorrent_udp
     * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid allocating in conversion to bytes, send in a mutable buffer

@@ -39,6 +39,7 @@ name = "aquatic_bench"
 version = "0.1.0"
 dependencies = [
  "aquatic",
+ "bittorrent_udp",
  "indicatif",
  "mimalloc",
  "num-format",

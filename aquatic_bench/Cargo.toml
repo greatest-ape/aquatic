@@ -16,6 +16,7 @@ name = "plot_pareto"
 
 [dependencies]
 aquatic = { path = "../aquatic" }
+bittorrent_udp = { path = "../bittorrent_udp" }
 indicatif = "0.14"
 mimalloc = { version = "0.1", default-features = false }
 num-format = "0.4"

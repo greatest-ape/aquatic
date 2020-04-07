@@ -2,14 +2,16 @@
 //! 
 //! Example summary output:
 //! ```
-//! ## Average results over 100 rounds
+//! ## Average results over 50 rounds
 //! 
-//! Connect handler:   3 459 722 requests/second,   289.22 ns/request
-//! Announce handler:    390 674 requests/second,  2568.55 ns/request
-//! Scrape handler:    1 039 374 requests/second,   963.02 ns/request
+//! Connect handler:   2 514 978 requests/second,   397.87 ns/request
+//! Announce handler:    246 744 requests/second,  4054.58 ns/request
+//! Scrape handler:      499 385 requests/second,  2007.23 ns/request
 //! ```
 
 use std::time::{Duration, Instant};
+use std::io::Cursor;
+use std::net::SocketAddr;
 
 use indicatif::{ProgressBar, ProgressStyle, ProgressIterator};
 use num_format::{Locale, ToFormattedString};
@@ -17,12 +19,15 @@ use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
 
 use aquatic::common::*;
 use aquatic::config::Config;
+use bittorrent_udp::converters::*;
 
 
 mod announce;
 mod common;
 mod connect;
 mod scrape;
+
+use common::*;
 
 
 #[global_allocator]
@@ -46,7 +51,7 @@ macro_rules! print_results {
 
 
 fn main(){
-    let num_rounds = 100;
+    let num_rounds = 50;
 
     let mut connect_data = (0.0, 0.0);
     let mut announce_data = (0.0, 0.0);
@@ -64,12 +69,30 @@ fn main(){
     {
         let requests = connect::create_requests();
 
+        let requests: Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)> = requests.into_iter()
+            .map(|(request, src)| {
+                let mut buffer = [0u8; MAX_REQUEST_BYTES];
+                let mut cursor = Cursor::new(buffer.as_mut());
+
+                request_to_bytes(&mut cursor, Request::Connect(request));
+
+                (buffer, src)
+            })
+            .collect();
+
         ::std::thread::sleep(Duration::from_secs(1));
 
         let pb = create_progress_bar("Connect handler", num_rounds);
 
         for _ in (0..num_rounds).progress_with(pb){
-            let d = connect::bench(requests.clone());
+            let requests = requests.clone();
+
+            ::std::thread::sleep(Duration::from_millis(200));
+
+            let d = connect::bench(requests);
+
+            ::std::thread::sleep(Duration::from_millis(200));
+
             connect_data.0 += d.0;
             connect_data.1 += d.1;
         }
@@ -85,6 +108,30 @@ fn main(){
             &info_hashes
         );
 
+        let state = State::new();
+
+        let time = Time(Instant::now());
+
+        for (request, src) in requests.iter() {
+            let key = ConnectionKey {
+                connection_id: request.connection_id,
+                socket_addr: *src,
+            };
+
+            state.connections.insert(key, time);
+        }
+
+        let requests: Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)> = requests.into_iter()
+            .map(|(request, src)| {
+                let mut buffer = [0u8; MAX_REQUEST_BYTES];
+                let mut cursor = Cursor::new(buffer.as_mut());
+
+                request_to_bytes(&mut cursor, Request::Announce(request));
+
+                (buffer, src)
+            })
+            .collect();
+
         let mut state_for_scrape = State::new();
 
         ::std::thread::sleep(Duration::from_secs(1));
@@ -92,20 +139,14 @@ fn main(){
         let pb = create_progress_bar("Announce handler", num_rounds);
 
         for round in (0..num_rounds).progress_with(pb) {
-            let state = State::new();
+            let requests = requests.clone();
 
-            let time = Time(Instant::now());
+            ::std::thread::sleep(Duration::from_millis(200));
 
-            for (request, src) in requests.iter() {
-                let key = ConnectionKey {
-                    connection_id: request.connection_id,
-                    socket_addr: *src,
-                };
+            let d = announce::bench(&state, &config, requests);
 
-                state.connections.insert(key, time);
-            }
+            ::std::thread::sleep(Duration::from_millis(200));
 
-            let d = announce::bench(&state, &config, requests.clone());
             announce_data.0 += d.0;
             announce_data.1 += d.1;
 
@@ -135,12 +176,30 @@ fn main(){
             state.connections.insert(key, time);
         }
 
+        let requests: Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)> = requests.into_iter()
+            .map(|(request, src)| {
+                let mut buffer = [0u8; MAX_REQUEST_BYTES];
+                let mut cursor = Cursor::new(buffer.as_mut());
+
+                request_to_bytes(&mut cursor, Request::Scrape(request));
+
+                (buffer, src)
+            })
+            .collect();
+
         ::std::thread::sleep(Duration::from_secs(1));
 
         let pb = create_progress_bar("Scrape handler", num_rounds);
 
         for _ in (0..num_rounds).progress_with(pb) {
-            let d = scrape::bench(&state, requests.clone());
+            let requests = requests.clone();
+
+            ::std::thread::sleep(Duration::from_millis(200));
+
+            let d = scrape::bench(&state, requests);
+
+            ::std::thread::sleep(Duration::from_millis(200));
+
             scrape_data.0 += d.0;
             scrape_data.1 += d.1;
         }

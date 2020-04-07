@@ -1,3 +1,4 @@
+use std::io::Cursor;
 use std::time::Instant;
 use std::net::SocketAddr;
 
@@ -8,6 +9,7 @@ use aquatic::handlers::*;
 use aquatic::common::*;
 use aquatic::config::Config;
 use aquatic_bench::*;
+use bittorrent_udp::converters::*;
 
 use crate::common::*;
 
@@ -18,13 +20,28 @@ const ANNOUNCE_REQUESTS: usize = 1_000_000;
 pub fn bench(
     state: &State,
     config: &Config,
-    requests: Vec<(AnnounceRequest, SocketAddr)>,
+    requests: Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>
 ) -> (f64, f64) {
     let mut responses = Vec::with_capacity(ANNOUNCE_REQUESTS);
-    let mut requests = requests;
-    let requests = requests.drain(..);
+
+    let mut buffer = [0u8; MAX_PACKET_SIZE];
+    let mut cursor = Cursor::new(buffer.as_mut());
+    let mut num_responses: usize = 0;
+    let mut dummy = 0u8;
 
     let now = Instant::now();
+
+    let mut requests: Vec<(AnnounceRequest, SocketAddr)> = requests.into_iter()
+        .map(|(request_bytes, src)| {
+            if let Request::Announce(r) = request_from_bytes(&request_bytes, 255).unwrap() {
+                (r, src)
+            } else {
+                unreachable!()
+            }
+        })
+        .collect();
+    
+    let requests = requests.drain(..);
 
     handle_announce_requests(
         &state,
@@ -32,32 +49,29 @@ pub fn bench(
         &mut responses,
         requests,
     );
+    
+    for (response, _) in responses.drain(..) {
+        if let Response::Announce(_) = response {
+            num_responses += 1;
+        }
+
+        cursor.set_position(0);
+
+        response_to_bytes(&mut cursor, response, IpVersion::IPv4);
+
+        dummy ^= cursor.get_ref()[0];
+    }
 
     let duration = Instant::now() - now;
 
-    let requests_per_second = ANNOUNCE_REQUESTS as f64 / (duration.as_millis() as f64 / 1000.0);
+    let requests_per_second = ANNOUNCE_REQUESTS as f64 / (duration.as_micros() as f64 / 1000000.0);
     let time_per_request = duration.as_nanos() as f64 / ANNOUNCE_REQUESTS as f64;
 
-    // println!("\nrequests/second: {:.2}", requests_per_second);
-    // println!("time per request: {:.2}ns", time_per_request);
+    assert_eq!(num_responses, ANNOUNCE_REQUESTS);
 
-    // let mut total_num_peers = 0.0f64;
-    let mut num_responses: usize = 0;
-    
-    for (response, _src) in responses.drain(..) {
-        if let Response::Announce(_response) = response {
-            // let n = response.peers.len() as f64;
-
-            // total_num_peers += n;
-            num_responses += 1;
-        }
+    if dummy == 123u8 {
+        println!("dummy info");
     }
-
-    if num_responses != ANNOUNCE_REQUESTS {
-        println!("ERROR: only {} responses received", num_responses);
-    }
-
-    // println!("avg num peers returned: {:.2}", total_num_peers / ANNOUNCE_REQUESTS as f64);
 
     (requests_per_second, time_per_request)
 }

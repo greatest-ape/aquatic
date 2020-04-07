@@ -1,18 +1,17 @@
 use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
 
 use std::io;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv6Addr, Ipv4Addr};
 
 use crate::types;
 
 
 pub fn response_to_bytes(
-    response: &types::Response,
+    bytes: &mut impl Write,
+    response: types::Response,
     ip_version: types::IpVersion
-) -> Vec<u8> {
-    let mut bytes = Vec::new();
-
+){
     match response {
         types::Response::Connect(r) => {
             bytes.write_i32::<NetworkEndian>(0).unwrap();
@@ -29,19 +28,21 @@ pub fn response_to_bytes(
 
             // Write peer IPs and ports. Silently ignore peers with wrong
             // IP version
-            for peer in r.peers.iter(){
+            for peer in r.peers {
                 let mut correct = false;
 
                 match peer.ip_address {
                     IpAddr::V4(ip) => {
                         if let types::IpVersion::IPv4 = ip_version {
-                            bytes.extend(&ip.octets());
+                            bytes.write_all(&ip.octets()).unwrap();
+
                             correct = true;
                         }
                     },
                     IpAddr::V6(ip) => {
                         if let types::IpVersion::IPv6 = ip_version {
-                            bytes.extend(&ip.octets());
+                            bytes.write_all(&ip.octets()).unwrap();
+
                             correct = true;
                         }
                     }
@@ -57,7 +58,7 @@ pub fn response_to_bytes(
             bytes.write_i32::<NetworkEndian>(2).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
 
-            for torrent_stat in r.torrent_stats.iter(){
+            for torrent_stat in r.torrent_stats {
                 bytes.write_i32::<NetworkEndian>(torrent_stat.seeders.0)
                     .unwrap();
                 bytes.write_i32::<NetworkEndian>(torrent_stat.completed.0)
@@ -71,11 +72,9 @@ pub fn response_to_bytes(
             bytes.write_i32::<NetworkEndian>(3).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
 
-            bytes.extend(r.message.as_bytes().iter());
+            bytes.write_all(r.message.as_bytes()).unwrap();
         },
     }
-
-    bytes
 }
 
 

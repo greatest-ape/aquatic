@@ -1,7 +1,7 @@
 use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
 
 use std::io;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::Ipv4Addr;
 
 use crate::types;
@@ -12,9 +12,10 @@ use super::common::*;
 const MAGIC_NUMBER: i64 = 4_497_486_125_440;
 
 
-pub fn request_to_bytes(request: &types::Request) -> Vec<u8> {
-    let mut bytes = Vec::new();
-
+pub fn request_to_bytes(
+    bytes: &mut impl Write,
+    request: types::Request
+){
     match request {
         types::Request::Connect(r) => {
             bytes.write_i64::<NetworkEndian>(MAGIC_NUMBER).unwrap();
@@ -27,8 +28,8 @@ pub fn request_to_bytes(request: &types::Request) -> Vec<u8> {
             bytes.write_i32::<NetworkEndian>(1).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
 
-            bytes.extend(r.info_hash.0.iter());
-            bytes.extend(r.peer_id.0.iter());
+            bytes.write_all(&r.info_hash.0).unwrap();
+            bytes.write_all(&r.peer_id.0).unwrap();
 
             bytes.write_i64::<NetworkEndian>(r.bytes_downloaded.0).unwrap();
             bytes.write_i64::<NetworkEndian>(r.bytes_left.0).unwrap();
@@ -36,7 +37,7 @@ pub fn request_to_bytes(request: &types::Request) -> Vec<u8> {
 
             bytes.write_i32::<NetworkEndian>(event_to_i32(r.event)).unwrap();
 
-            bytes.extend(&r.ip_address.map_or([0; 4], |ip| ip.octets()));
+            bytes.write_all(&r.ip_address.map_or([0; 4], |ip| ip.octets())).unwrap();
 
             bytes.write_u32::<NetworkEndian>(0).unwrap(); // IP
             bytes.write_u32::<NetworkEndian>(r.key.0).unwrap();
@@ -50,14 +51,12 @@ pub fn request_to_bytes(request: &types::Request) -> Vec<u8> {
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
 
             for info_hash in &r.info_hashes {
-                bytes.extend(info_hash.0.iter());
+                bytes.write_all(&info_hash.0).unwrap();
             }
         }
 
         _ => () // Invalid requests should never happen
     }
-
-    bytes
 }
 
 
@@ -65,7 +64,6 @@ pub fn request_from_bytes(
     bytes: &[u8],
     max_scrape_torrents: u8,
 ) -> Result<types::Request,io::Error> {
-
     let mut bytes = io::Cursor::new(bytes);
 
     let connection_id =  bytes.read_i64::<NetworkEndian>()?;

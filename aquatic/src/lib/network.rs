@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 use std::net::SocketAddr;
-use std::io::ErrorKind;
+use std::io::{Cursor, ErrorKind};
 
 use mio::{Events, Poll, Interest, Token};
 use mio::net::UdpSocket;
@@ -115,7 +115,7 @@ fn handle_readable_socket(
     let mut responses_sent: usize = 0;
 
     loop {
-        match socket.recv_from(buffer) {
+        match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
                 let request = request_from_bytes(
                     &buffer[..amt],
@@ -179,10 +179,16 @@ fn handle_readable_socket(
         scrape_requests.drain(..),
     );
 
-    for (response, src) in responses.drain(..) {
-        let bytes = response_to_bytes(&response, IpVersion::IPv4);
+    let mut cursor = Cursor::new(buffer);
 
-        match socket.send_to(&bytes[..], src){
+    for (response, src) in responses.drain(..) {
+        cursor.set_position(0);
+
+        response_to_bytes(&mut cursor, response, IpVersion::IPv4);
+
+        let amt = cursor.position() as usize;
+
+        match socket.send_to(&cursor.get_ref()[..amt], src){
             Ok(_bytes_sent) => {
                 responses_sent += 1;
             },
