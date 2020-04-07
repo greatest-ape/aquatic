@@ -24,6 +24,7 @@ version = "0.1.0"
 dependencies = [
  "bittorrent_udp",
  "dashmap",
+ "histogram",
  "indexmap",
  "mimalloc",
  "mio",
@@ -243,6 +244,12 @@ checksum = "725cf19794cf90aa94e65050cb4191ff5d8fa87a498383774c47b332e3af952e"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "histogram"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12cb882ccb290b8646e554b157ab0b71e64e8d5bef775cd66b6531e52d302669"
 
 [[package]]
 name = "humansize"

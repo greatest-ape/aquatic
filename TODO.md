@@ -15,12 +15,6 @@
 * Performance
     * cpu-target=native good?
     * mialloc good?
-    * use DashMap readable view when accessing torrent stats and possibly
-      also after modification of announcing peer and during collection
-      of response peers
-* Statistics
-    * Print stats for number of peers per torrent (median, 95th, 99th
-      percentile.) Use histogram crate?
 * bittorrent_udp
     * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid allocating in conversion to bytes, send in a mutable buffer
