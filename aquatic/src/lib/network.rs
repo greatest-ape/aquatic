@@ -15,45 +15,14 @@ use crate::config::Config;
 use crate::handlers::*;
 
 
-pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
-    let mut builder = &{
-        if config.address.is_ipv4(){
-            UdpBuilder::new_v4().expect("socket: build")
-        } else {
-            UdpBuilder::new_v6().expect("socket: build")
-        }
-    };
-
-    builder = builder.reuse_port(true)
-        .expect("socket: set reuse port");
-
-    let socket = builder.bind(&config.address)
-        .expect(&format!("socket: bind to {}", &config.address));
-
-    socket.set_nonblocking(true)
-        .expect("socket: set nonblocking");
-    
-    if let Err(err) = socket.set_recv_buffer_size(config.recv_buffer_size){
-        eprintln!(
-            "socket: failed setting recv buffer to {}: {:?}",
-            config.recv_buffer_size,
-            err
-        );
-    }
-
-    socket
-}
-
-
 pub fn run_event_loop(
     state: State,
     config: Config,
-    socket: ::std::net::UdpSocket,
     token_num: usize,
 ){
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
-    let mut socket = UdpSocket::from_std(socket);
+    let mut socket = UdpSocket::from_std(create_socket(&config));
     let mut poll = Poll::new().expect("create poll");
 
     let interests = Interest::READABLE;
@@ -96,6 +65,36 @@ pub fn run_event_loop(
             }
         }
     }
+}
+
+
+fn create_socket(config: &Config) -> ::std::net::UdpSocket {
+    let mut builder = &{
+        if config.address.is_ipv4(){
+            UdpBuilder::new_v4().expect("socket: build")
+        } else {
+            UdpBuilder::new_v6().expect("socket: build")
+        }
+    };
+
+    builder = builder.reuse_port(true)
+        .expect("socket: set reuse port");
+
+    let socket = builder.bind(&config.address)
+        .expect(&format!("socket: bind to {}", &config.address));
+
+    socket.set_nonblocking(true)
+        .expect("socket: set nonblocking");
+    
+    if let Err(err) = socket.set_recv_buffer_size(config.recv_buffer_size){
+        eprintln!(
+            "socket: failed setting recv buffer to {}: {:?}",
+            config.recv_buffer_size,
+            err
+        );
+    }
+
+    socket
 }
 
 

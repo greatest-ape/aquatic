@@ -16,12 +16,11 @@ pub fn run(){
     let state = State::new();
 
     for i in 0..config.num_threads {
-        let socket = network::create_socket(&config);
         let state = state.clone();
         let config = config.clone();
 
         ::std::thread::spawn(move || {
-            network::run_event_loop(state, config, socket, i);
+            network::run_event_loop(state, config, i);
         });
     }
 
