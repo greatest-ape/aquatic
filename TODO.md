@@ -15,8 +15,7 @@
 * Performance
     * cpu-target=native good?
     * mialloc good?
-* Track received requests and sent responses, as well as bytes transferred,
-  in atomic u64 / usize (repurposed to hold f64 for bytes)?
+* Track bytes transferred?
 
 ## Don't do
 

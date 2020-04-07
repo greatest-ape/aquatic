@@ -7,6 +7,7 @@ pub struct Config {
     pub recv_buffer_size: usize,
     pub max_scrape_torrents: u8,
     pub max_response_peers: usize,
+    pub statistics_interval: u64,
 }
 
 
@@ -17,6 +18,7 @@ impl Default for Config {
             recv_buffer_size: 4096 * 16,
             max_scrape_torrents: 255,
             max_response_peers: 255,
+            statistics_interval: 5,
         }
     }
 }

@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::net::SocketAddr;
 use std::io::ErrorKind;
 
@@ -109,6 +110,9 @@ fn handle_readable_socket(
     announce_requests: &mut Vec<(AnnounceRequest, SocketAddr)>,
     scrape_requests: &mut Vec<(ScrapeRequest, SocketAddr)>,
 ){
+    let mut requests_received: usize = 0;
+    let mut responses_sent: usize = 0;
+
     loop {
         match socket.recv_from(buffer) {
             Ok((amt, src)) => {
@@ -116,6 +120,10 @@ fn handle_readable_socket(
                     &buffer[..amt],
                     config.max_scrape_torrents
                 );
+
+                if request.is_ok(){
+                    requests_received += 1;
+                }
 
                 match request {
                     Ok(Request::Connect(r)) => {
@@ -175,6 +183,7 @@ fn handle_readable_socket(
 
         match socket.send_to(&bytes[..], src){
             Ok(_bytes_sent) => {
+                responses_sent += 1;
             },
             Err(err) => {
                 match err.kind(){
@@ -188,4 +197,9 @@ fn handle_readable_socket(
             }
         }
     }
+
+    state.statistics.requests_received
+        .fetch_add(requests_received, Ordering::SeqCst);
+    state.statistics.responses_sent
+        .fetch_add(responses_sent, Ordering::SeqCst);
 }

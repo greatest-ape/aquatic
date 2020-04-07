@@ -117,10 +117,20 @@ impl Default for TorrentData {
 pub type TorrentMap = DashMap<InfoHash, TorrentData>;
 
 
+#[derive(Default)]
+pub struct Statistics {
+    pub requests_received: AtomicUsize,
+    pub responses_sent: AtomicUsize,
+}
+
+
+
+
 #[derive(Clone)]
 pub struct State {
     pub connections: Arc<ConnectionMap>,
     pub torrents: Arc<TorrentMap>,
+    pub statistics: Arc<Statistics>,
 }
 
 impl State {
@@ -128,6 +138,7 @@ impl State {
         Self {
             connections: Arc::new(DashMap::new()),
             torrents: Arc::new(DashMap::new()),
+            statistics: Arc::new(Statistics::default()),
         }
     }
 }
