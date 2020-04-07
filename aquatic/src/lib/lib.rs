@@ -33,15 +33,27 @@ pub fn run(){
             loop {
                 ::std::thread::sleep(Duration::from_secs(interval));
 
-                let requests_per_second: f64 = state.statistics.requests_received
-                    .fetch_and(0, Ordering::SeqCst) as f64 / interval as f64;
-                let responses_per_second: f64 = state.statistics.responses_sent
-                    .fetch_and(0, Ordering::SeqCst) as f64 / interval as f64;
+                let requests_received: f64 = state.statistics.requests_received
+                    .fetch_and(0, Ordering::SeqCst) as f64;
+                let responses_sent: f64 = state.statistics.responses_sent
+                    .fetch_and(0, Ordering::SeqCst) as f64;
+
+                let requests_per_second = requests_received / interval as f64;
+                let responses_per_second: f64 = responses_sent / interval as f64;
+
+                let readable_events: f64 = state.statistics.readable_events
+                    .fetch_and(0, Ordering::SeqCst) as f64;
+                let requests_per_readable_event = if readable_events == 0.0 {
+                    0.0
+                } else {
+                    requests_received / readable_events
+                };
 
                 println!(
-                    "stats: {} requests/second, {} responses/second",
+                    "stats: {:.2} requests/second, {:.2} responses/second, {:.2} requests/readable event",
                     requests_per_second,
-                    responses_per_second
+                    responses_per_second,
+                    requests_per_readable_event
                 );
             }
         });

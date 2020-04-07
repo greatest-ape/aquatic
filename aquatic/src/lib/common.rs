@@ -120,6 +120,7 @@ pub type TorrentMap = DashMap<InfoHash, TorrentData>;
 pub struct Statistics {
     pub requests_received: AtomicUsize,
     pub responses_sent: AtomicUsize,
+    pub readable_events: AtomicUsize,
 }
 
 

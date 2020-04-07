@@ -58,6 +58,8 @@ pub fn run_event_loop(
                         &mut scrape_requests
                     );
 
+                    state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
+
                     poll.registry()
                         .reregister(&mut socket, token, interests)
                         .unwrap();
