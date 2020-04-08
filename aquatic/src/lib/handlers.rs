@@ -259,9 +259,7 @@ mod tests {
             peer_id,
         };
         let value = Peer {
-            connection_id: ConnectionId(0),
             ip_address,
-            id: peer_id,
             port: Port(1),
             status: PeerStatus::Leeching,
             last_announce: Time(Instant::now()),

@@ -22,6 +22,7 @@ pub struct ConnectionKey {
     pub socket_addr: SocketAddr
 }
 
+
 pub type ConnectionMap = DashMap<ConnectionKey, Time>;
 
 
@@ -32,13 +33,14 @@ pub enum PeerStatus {
     Stopped
 }
 
+
 impl PeerStatus {
     /// Determine peer status from announce event and number of bytes left.
     /// 
     /// Likely, the last branch will be taken most of the time.
     #[inline]
     pub fn from_event_and_bytes_left(
-        event:      AnnounceEvent,
+        event: AnnounceEvent,
         bytes_left: NumberOfBytes
     ) -> Self {
         if event == AnnounceEvent::Stopped {
@@ -51,10 +53,9 @@ impl PeerStatus {
     }
 }
 
+
 #[derive(Clone, Debug)]
 pub struct Peer {
-    pub id: PeerId,
-    pub connection_id: ConnectionId,
     pub ip_address: IpAddr,
     pub port: Port,
     pub status: PeerStatus,
@@ -75,19 +76,20 @@ impl Peer {
         announce_request: &AnnounceRequest,
         ip_address: IpAddr
     ) -> Self {
+        let status = PeerStatus::from_event_and_bytes_left(
+            announce_request.event,
+            announce_request.bytes_left
+        );
+
         Self {
-            id: announce_request.peer_id,
-            connection_id: announce_request.connection_id,
             ip_address,
             port: announce_request.port,
-            status: PeerStatus::from_event_and_bytes_left(
-                announce_request.event,
-                announce_request.bytes_left
-            ),
+            status,
             last_announce: Time(Instant::now())
         }
     }
 }
+
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct PeerMapKey {
@@ -97,6 +99,7 @@ pub struct PeerMapKey {
 
 
 pub type PeerMap = IndexMap<PeerMapKey, Peer>;
+
 
 pub struct TorrentData {
     pub peers: PeerMap,
@@ -127,8 +130,6 @@ pub struct Statistics {
     pub bytes_received: AtomicUsize,
     pub bytes_sent: AtomicUsize,
 }
-
-
 
 
 #[derive(Clone)]
