@@ -113,6 +113,8 @@ fn handle_readable_socket(
 ){
     let mut requests_received: usize = 0;
     let mut responses_sent: usize = 0;
+    let mut bytes_received: usize = 0;
+    let mut bytes_sent: usize = 0;
 
     loop {
         match socket.recv_from(&mut buffer[..]) {
@@ -121,6 +123,8 @@ fn handle_readable_socket(
                     &buffer[..amt],
                     config.max_scrape_torrents
                 );
+
+                bytes_received += amt;
 
                 if request.is_ok(){
                     requests_received += 1;
@@ -189,8 +193,9 @@ fn handle_readable_socket(
         let amt = cursor.position() as usize;
 
         match socket.send_to(&cursor.get_ref()[..amt], src){
-            Ok(_bytes_sent) => {
+            Ok(amt) => {
                 responses_sent += 1;
+                bytes_sent += amt;
             },
             Err(err) => {
                 match err.kind(){
@@ -209,4 +214,8 @@ fn handle_readable_socket(
         .fetch_add(requests_received, Ordering::SeqCst);
     state.statistics.responses_sent
         .fetch_add(responses_sent, Ordering::SeqCst);
+    state.statistics.bytes_received
+        .fetch_add(bytes_received, Ordering::SeqCst);
+    state.statistics.bytes_sent
+        .fetch_add(bytes_sent, Ordering::SeqCst);
 }
