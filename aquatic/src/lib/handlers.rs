@@ -84,43 +84,47 @@ pub fn handle_announce_requests(
         let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
             .min(config.max_response_peers);
 
-        let torrent_data = state.torrents.get(&request.info_hash).unwrap();
-        
-        match peer_status {
-            PeerStatus::Leeching => {
-                torrent_data.num_leechers.fetch_add(1, Ordering::SeqCst);
-            },
-            PeerStatus::Seeding => {
-                torrent_data.num_seeders.fetch_add(1, Ordering::SeqCst);
-            },
-            PeerStatus::Stopped => {}
-        };
+        // Since there is a miniscule risk of the torrent having been removed
+        // by now, don't unwrap the result.
+        if let Some(torrent_data) = state.torrents.get(&request.info_hash){
+            match peer_status {
+                PeerStatus::Leeching => {
+                    torrent_data.num_leechers.fetch_add(1, Ordering::SeqCst);
+                },
+                PeerStatus::Seeding => {
+                    torrent_data.num_seeders.fetch_add(1, Ordering::SeqCst);
+                },
+                PeerStatus::Stopped => {}
+            };
 
-        match opt_removed_peer_status {
-            Some(PeerStatus::Leeching) => {
-                torrent_data.num_leechers.fetch_sub(1, Ordering::SeqCst);
-            },
-            Some(PeerStatus::Seeding) => {
-                torrent_data.num_seeders.fetch_sub(1, Ordering::SeqCst);
-            },
-            _ => {}
+            match opt_removed_peer_status {
+                Some(PeerStatus::Leeching) => {
+                    torrent_data.num_leechers.fetch_sub(1, Ordering::SeqCst);
+                },
+                Some(PeerStatus::Seeding) => {
+                    torrent_data.num_seeders.fetch_sub(1, Ordering::SeqCst);
+                },
+                _ => {}
+            }
+
+            let response_peers = extract_response_peers(
+                &mut rng,
+                &torrent_data.peers,
+                max_num_peers_to_take,
+            );
+
+            let response = Response::Announce(AnnounceResponse {
+                transaction_id: request.transaction_id,
+                announce_interval: AnnounceInterval(600), // FIXME
+                leechers: NumberOfPeers(torrent_data.num_leechers.load(Ordering::SeqCst) as i32),
+                seeders: NumberOfPeers(torrent_data.num_seeders.load(Ordering::SeqCst) as i32),
+                peers: response_peers
+            });
+
+            Some((response, src))
+        } else {
+            None
         }
-
-        let response_peers = extract_response_peers(
-            &mut rng,
-            &torrent_data.peers,
-            max_num_peers_to_take,
-        );
-
-        let response = Response::Announce(AnnounceResponse {
-            transaction_id: request.transaction_id,
-            announce_interval: AnnounceInterval(600), // FIXME
-            leechers: NumberOfPeers(torrent_data.num_leechers.load(Ordering::SeqCst) as i32),
-            seeders: NumberOfPeers(torrent_data.num_seeders.load(Ordering::SeqCst) as i32),
-            peers: response_peers
-        });
-
-        Some((response, src))
     }));
 }
 
