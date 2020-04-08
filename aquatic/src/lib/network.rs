@@ -31,7 +31,7 @@ pub fn run_event_loop(
         .register(&mut socket, Token(token_num), interests)
         .unwrap();
 
-    let mut events = Events::with_capacity(config.poll_event_capacity);
+    let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
     let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::with_capacity(1024);
     let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::with_capacity(1024);
@@ -72,7 +72,7 @@ pub fn run_event_loop(
 
 fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     let mut builder = &{
-        if config.address.is_ipv4(){
+        if config.network.address.is_ipv4(){
             UdpBuilder::new_v4().expect("socket: build")
         } else {
             UdpBuilder::new_v6().expect("socket: build")
@@ -82,16 +82,16 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     builder = builder.reuse_port(true)
         .expect("socket: set reuse port");
 
-    let socket = builder.bind(&config.address)
-        .expect(&format!("socket: bind to {}", &config.address));
+    let socket = builder.bind(&config.network.address)
+        .expect(&format!("socket: bind to {}", &config.network.address));
 
     socket.set_nonblocking(true)
         .expect("socket: set nonblocking");
     
-    if let Err(err) = socket.set_recv_buffer_size(config.recv_buffer_size){
+    if let Err(err) = socket.set_recv_buffer_size(config.network.recv_buffer_size){
         eprintln!(
             "socket: failed setting recv buffer to {}: {:?}",
-            config.recv_buffer_size,
+            config.network.recv_buffer_size,
             err
         );
     }
