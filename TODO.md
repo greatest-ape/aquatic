@@ -12,14 +12,19 @@
     * ProgressBar: `[{elapsed_precise}]` and eta_precise?
     * Test server over udp socket instead?
     * Run multiple threads to test performance when contested?
+    * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
+    * Generic bench function since current functions are almost identical
 * Performance
     * cpu-target=native good?
     * mialloc good?
+    * Use less bytes from PeerId for hashing? Would need to implement
+      "faulty" PartialEq too.
 * bittorrent_udp
     * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid heap allocation in general if it can be avoided?
     * quickcheck tests for conversions
     * other unit tests?
+* Socket errors could be handled better (don't print only error kind)
 
 ## Don't do
 
