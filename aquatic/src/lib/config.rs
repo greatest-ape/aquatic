@@ -15,6 +15,7 @@ pub struct Config {
 #[derive(Clone)]
 pub struct NetworkConfig {
     pub address: SocketAddr,
+    pub peer_announce_interval: i32,
     pub recv_buffer_size: usize,
     pub poll_event_capacity: usize,
 }
@@ -52,6 +53,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([127, 0, 0, 1], 3000)),
+            peer_announce_interval: 60 * 15,
             poll_event_capacity: 4096,
             recv_buffer_size: 4096 * 128,
         }

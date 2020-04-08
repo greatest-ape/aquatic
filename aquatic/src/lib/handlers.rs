@@ -115,7 +115,7 @@ pub fn handle_announce_requests(
 
             let response = Response::Announce(AnnounceResponse {
                 transaction_id: request.transaction_id,
-                announce_interval: AnnounceInterval(600), // FIXME
+                announce_interval: AnnounceInterval(config.network.peer_announce_interval), // FIXME
                 leechers: NumberOfPeers(torrent_data.num_leechers.load(Ordering::SeqCst) as i32),
                 seeders: NumberOfPeers(torrent_data.num_seeders.load(Ordering::SeqCst) as i32),
                 peers: response_peers
