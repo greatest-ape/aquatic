@@ -18,21 +18,27 @@
     * cpu-target=native good?
     * mialloc good?
     * Use less bytes from PeerId for hashing? Would need to implement
-      "faulty" PartialEq too.
+      "faulty" PartialEq too (on PeerMapKey, which would be OK)
 * bittorrent_udp
     * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid heap allocation in general if it can be avoided?
+        * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
     * quickcheck tests for conversions
     * other unit tests?
-* Socket errors could be handled better (don't print only error kind)
 
 ## Don't do
+
+### aquatic
 
 * Other HashMap hashers (such as SeaHash): seemingly not worthwhile (might be
   with AVX though)
 * `sendmmsg`: can't send to multiple socket addresses, so doesn't help
 * Config behind Arc in state: it is likely better to be able to pass it around
   without state
+
+### bittorrent_udp
+
 * Use `bytes` crate for bittorrent_udp: seems to worsen performance somewhat
 * Zerocopy (https://docs.rs/zerocopy/0.3.0/zerocopy/index.html) for requests
   and responses? Doesn't work on Vec etc
+* New array buffer each time in response_to_bytes: doesn't help performance
