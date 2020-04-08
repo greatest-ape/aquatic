@@ -94,9 +94,9 @@ pub fn run(){
                         peers_per_torrent.percentile(99.9).unwrap(),
                         peers_per_torrent.maximum().unwrap(),
                     );
-
-                    println!();
                 }
+
+                println!();
             }
         });
     }
