@@ -59,10 +59,6 @@ pub fn handle_announce_requests(
             return None;
         }
 
-        let mut torrent_data = state.torrents
-            .entry(request.info_hash)
-            .or_insert_with(|| TorrentData::default());
-
         let peer_key = PeerMapKey {
             ip: src.ip(),
             peer_id: request.peer_id,
@@ -70,12 +66,25 @@ pub fn handle_announce_requests(
 
         let peer = Peer::from_announce_and_ip(&request, src.ip());
         let peer_status = peer.status;
-        
-        let opt_removed_peer = if peer.status == PeerStatus::Stopped {
-            torrent_data.peers.remove(&peer_key)
-        } else {
-            torrent_data.peers.insert(peer_key, peer)
+
+        let opt_removed_peer_status = {
+            let mut torrent_data = state.torrents
+                .entry(request.info_hash)
+                .or_insert_with(|| TorrentData::default());
+            
+            if peer_status == PeerStatus::Stopped {
+                torrent_data.peers.remove(&peer_key)
+                    .map(|peer| peer.status)
+            } else {
+                torrent_data.peers.insert(peer_key, peer)
+                    .map(|peer| peer.status)
+            }
         };
+
+        let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
+            .min(config.max_response_peers);
+
+        let torrent_data = state.torrents.get(&request.info_hash).unwrap();
         
         match peer_status {
             PeerStatus::Leeching => {
@@ -87,20 +96,15 @@ pub fn handle_announce_requests(
             PeerStatus::Stopped => {}
         };
 
-        if let Some(removed_peer) = opt_removed_peer {
-            match removed_peer.status {
-                PeerStatus::Leeching => {
-                    torrent_data.num_leechers.fetch_sub(1, Ordering::SeqCst);
-                },
-                PeerStatus::Seeding => {
-                    torrent_data.num_seeders.fetch_sub(1, Ordering::SeqCst);
-                },
-                PeerStatus::Stopped => {}
-            }
+        match opt_removed_peer_status {
+            Some(PeerStatus::Leeching) => {
+                torrent_data.num_leechers.fetch_sub(1, Ordering::SeqCst);
+            },
+            Some(PeerStatus::Seeding) => {
+                torrent_data.num_seeders.fetch_sub(1, Ordering::SeqCst);
+            },
+            _ => {}
         }
-
-        let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
-            .min(config.max_response_peers);
 
         let response_peers = extract_response_peers(
             &mut rng,

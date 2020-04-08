@@ -17,9 +17,6 @@
 * Performance
     * cpu-target=native good?
     * mialloc good?
-    * TorrentMap: mutable access only to insert peer, then drop reference
-      and get read-only access to gather peers. This could speed up
-      multi-threaded performance a lot
     * Use less bytes from PeerId for hashing? Would need to implement
       "faulty" PartialEq too (on PeerMapKey, which would be OK)
 * bittorrent_udp
