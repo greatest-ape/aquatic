@@ -206,12 +206,14 @@ fn handle_readable_socket(
         }
     }
 
-    state.statistics.requests_received
-        .fetch_add(requests_received, Ordering::SeqCst);
-    state.statistics.responses_sent
-        .fetch_add(responses_sent, Ordering::SeqCst);
-    state.statistics.bytes_received
-        .fetch_add(bytes_received, Ordering::SeqCst);
-    state.statistics.bytes_sent
-        .fetch_add(bytes_sent, Ordering::SeqCst);
+    if config.statistics.interval != 0 {
+        state.statistics.requests_received
+            .fetch_add(requests_received, Ordering::SeqCst);
+        state.statistics.responses_sent
+            .fetch_add(responses_sent, Ordering::SeqCst);
+        state.statistics.bytes_received
+            .fetch_add(bytes_received, Ordering::SeqCst);
+        state.statistics.bytes_sent
+            .fetch_add(bytes_sent, Ordering::SeqCst);
+    }
 }
