@@ -121,7 +121,7 @@ fn handle_readable_socket(
             Ok((amt, src)) => {
                 let request = request_from_bytes(
                     &buffer[..amt],
-                    config.max_scrape_torrents
+                    config.network.max_scrape_torrents
                 );
 
                 bytes_received += amt;

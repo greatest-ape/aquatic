@@ -82,7 +82,7 @@ pub fn handle_announce_requests(
         };
 
         let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
-            .min(config.max_response_peers);
+            .min(config.network.max_response_peers);
 
         // Since there is a miniscule risk of the torrent having been removed
         // by now, don't unwrap the result.
