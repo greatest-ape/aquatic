@@ -2,18 +2,23 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use crate::common::*;
+use crate::config::Config;
 
 
-pub fn clean_connections(state: &State){
-    let limit = Instant::now() - Duration::from_secs(300);
+pub fn clean_connections(state: &State, config: &Config){
+    let limit = Instant::now() - Duration::from_secs(
+        config.cleaning.max_connection_age
+    );
 
     state.connections.retain(|_, v| v.0 > limit);
     state.connections.shrink_to_fit();
 }
 
 
-pub fn clean_torrents(state: &State){
-    let limit = Instant::now() - Duration::from_secs(1200);
+pub fn clean_torrents(state: &State, config: &Config){
+    let limit = Instant::now() - Duration::from_secs(
+        config.cleaning.max_peer_age
+    );
 
     state.torrents.retain(|_, torrent| {
         let num_seeders = &torrent.num_seeders;

@@ -26,11 +26,12 @@ pub fn run(){
         });
     }
 
-    {
+    if config.statistics.interval != 0 {
         let state = state.clone();
+        let config = config.clone();
 
         ::std::thread::spawn(move || {
-            let interval = config.statistics_interval;
+            let interval = config.statistics.interval;
 
             loop {
                 ::std::thread::sleep(Duration::from_secs(interval));
@@ -102,9 +103,9 @@ pub fn run(){
     }
 
     loop {
-        ::std::thread::sleep(Duration::from_secs(30));
+        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_connections(&state);
-        tasks::clean_torrents(&state);
+        tasks::clean_connections(&state, &config);
+        tasks::clean_torrents(&state, &config);
     }
 }
