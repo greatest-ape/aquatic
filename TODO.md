@@ -14,9 +14,13 @@
     * Run multiple threads to test performance when contested?
     * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
     * Generic bench function since current functions are almost identical
+    * State is now accumulated over runs. Is this good?
 * Performance
     * cpu-target=native good?
     * mialloc good?
+    * TorrentMap: mutable access only to insert peer, then drop reference
+      and get read-only access to gather peers. This could speed up
+      multi-threaded performance a lot
     * Use less bytes from PeerId for hashing? Would need to implement
       "faulty" PartialEq too (on PeerMapKey, which would be OK)
 * bittorrent_udp
