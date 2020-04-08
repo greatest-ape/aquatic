@@ -154,14 +154,11 @@ fn handle_readable_socket(
                 }
             },
             Err(err) => {
-                match err.kind() {
-                    ErrorKind::WouldBlock => {
-                        break;
-                    },
-                    err => {
-                        eprintln!("recv_from error: {:?}", err);
-                    }
+                if err.kind() == ErrorKind::WouldBlock {
+                    break;
                 }
+
+                eprintln!("recv_from error: {}", err);
             }
         }
     }
@@ -198,14 +195,11 @@ fn handle_readable_socket(
                 bytes_sent += amt;
             },
             Err(err) => {
-                match err.kind(){
-                    ErrorKind::WouldBlock => {
-                        break;
-                    },
-                    err => {
-                        eprintln!("send_to error: {:?}", err);
-                    }
+                if err.kind() == ErrorKind::WouldBlock {
+                    break;
                 }
+
+                eprintln!("send_to error: {}", err);
             }
         }
     }
