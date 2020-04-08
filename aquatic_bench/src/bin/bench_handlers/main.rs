@@ -2,11 +2,11 @@
 //! 
 //! Example summary output:
 //! ```
-//! ## Average results over 50 rounds
-//! 
-//! Connect handler:   2 437 769 requests/second,   410.28 ns/request
-//! Announce handler:    252 314 requests/second,  3963.73 ns/request
-//! Scrape handler:      466 856 requests/second,  2142.51 ns/request
+//! ## Average results over 10 rounds
+//!
+//! Connect handler:   2 351 042 requests/second,   425.85 ns/request
+//! Announce handler:    266 609 requests/second,  3754.52 ns/request
+//! Scrape handler:      463 222 requests/second,  2161.85 ns/request
 //! ```
 
 use std::time::{Duration, Instant};
@@ -51,7 +51,7 @@ macro_rules! print_results {
 
 
 fn main(){
-    let num_rounds = 50;
+    let num_rounds = 10;
 
     let mut connect_data = (0.0, 0.0);
     let mut announce_data = (0.0, 0.0);
@@ -66,6 +66,7 @@ fn main(){
 
     println!("# Benchmarking request handlers\n");
 
+    // Benchmark connect handler
     {
         let requests = connect::create_requests();
 
@@ -102,13 +103,16 @@ fn main(){
     let info_hashes = create_info_hashes(&mut rng);
     let config = Config::default();
 
-    let state_for_scrape: State = {
+    // Benchmark announce handler
+    let last_state: State = {
+        let state = State::new();
+
         let requests = announce::create_requests(
             &mut rng,
             &info_hashes
         );
 
-        let state = State::new();
+        // Create connections in state
 
         let time = Time(Instant::now());
 
@@ -132,14 +136,14 @@ fn main(){
             })
             .collect();
 
-        let mut state_for_scrape = State::new();
-
         ::std::thread::sleep(Duration::from_secs(1));
 
         let pb = create_progress_bar("Announce handler", num_rounds);
 
-        for round in (0..num_rounds).progress_with(pb) {
+        for _ in (0..num_rounds).progress_with(pb) {
             let requests = requests.clone();
+            state.torrents.clear();
+            state.torrents.shrink_to_fit();
 
             ::std::thread::sleep(Duration::from_millis(200));
 
@@ -149,21 +153,20 @@ fn main(){
 
             announce_data.0 += d.0;
             announce_data.1 += d.1;
-
-            if round == num_rounds - 1 {
-                state_for_scrape = state.clone();
-            }
         }
 
-        state_for_scrape
+        state
     };
 
-    state_for_scrape.connections.clear();
-
+    // Benchmark scrape handler
     {
-        let state = state_for_scrape;
+        let state = last_state;
+
+        state.connections.clear();
 
         let requests = scrape::create_requests(&mut rng, &info_hashes);
+
+        // Create connections in state
 
         let time = Time(Instant::now());
 

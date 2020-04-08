@@ -14,7 +14,6 @@
     * Run multiple threads to test performance when contested?
     * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
     * Generic bench function since current functions are almost identical
-    * State is now accumulated over runs. Is this good?
 * Performance
     * cpu-target=native good?
     * mialloc good?
