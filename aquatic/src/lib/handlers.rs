@@ -141,7 +141,10 @@ pub fn handle_scrape_requests(
         if !state.connections.contains_key(&connection_key){
             return None;
         }
-        let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(256);
+
+        let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(
+            request.info_hashes.len()
+        );
 
         for info_hash in request.info_hashes.iter() {
             if let Some(torrent_data) = state.torrents.get(info_hash){
