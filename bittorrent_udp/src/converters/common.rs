@@ -1,6 +1,7 @@
 use crate::types;
 
 
+#[inline]
 pub fn event_from_i32(i: i32) -> types::AnnounceEvent {
     match i {
         1 => types::AnnounceEvent::Completed,
@@ -11,6 +12,7 @@ pub fn event_from_i32(i: i32) -> types::AnnounceEvent {
 }
 
 
+#[inline]
 pub fn event_to_i32(event: types::AnnounceEvent) -> i32 {
     match event {
         types::AnnounceEvent::None => 0,

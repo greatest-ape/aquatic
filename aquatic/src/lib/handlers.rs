@@ -214,6 +214,7 @@ pub fn extract_response_peers(
 }
 
 
+#[inline(always)]
 pub fn create_torrent_scrape_statistics(
     seeders: i32,
     leechers: i32

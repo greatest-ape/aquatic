@@ -12,6 +12,7 @@ use super::common::*;
 const MAGIC_NUMBER: i64 = 4_497_486_125_440;
 
 
+#[inline]
 pub fn request_to_bytes(
     bytes: &mut impl Write,
     request: types::Request
@@ -60,6 +61,7 @@ pub fn request_to_bytes(
 }
 
 
+#[inline]
 pub fn request_from_bytes(
     bytes: &[u8],
     max_scrape_torrents: u8,
@@ -110,9 +112,8 @@ pub fn request_from_bytes(
 
             let opt_ip = if ip == [0; 4] {
                 None
-            }
-            else {
-                Some(Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]))
+            } else {
+                Some(Ipv4Addr::from(ip))
             };
 
             Ok(types::Request::Announce(types::AnnounceRequest {

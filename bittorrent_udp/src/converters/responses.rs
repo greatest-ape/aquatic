@@ -7,6 +7,7 @@ use std::net::{IpAddr, Ipv6Addr, Ipv4Addr};
 use crate::types;
 
 
+#[inline]
 pub fn response_to_bytes(
     bytes: &mut impl Write,
     response: types::Response,
@@ -78,6 +79,7 @@ pub fn response_to_bytes(
 }
 
 
+#[inline]
 pub fn response_from_bytes(
     bytes: &[u8],
     ip_version: types::IpVersion,

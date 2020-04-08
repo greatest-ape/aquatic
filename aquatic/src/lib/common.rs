@@ -36,6 +36,7 @@ impl PeerStatus {
     /// Determine peer status from announce event and number of bytes left.
     /// 
     /// Likely, the last branch will be taken most of the time.
+    #[inline]
     pub fn from_event_and_bytes_left(
         event:      AnnounceEvent,
         bytes_left: NumberOfBytes
@@ -62,12 +63,14 @@ pub struct Peer {
 
 
 impl Peer {
+    #[inline(always)]
     pub fn to_response_peer(&self) -> ResponsePeer {
         ResponsePeer {
             ip_address: self.ip_address,
             port: self.port
         }
     }
+    #[inline]
     pub fn from_announce_and_ip(
         announce_request: &AnnounceRequest,
         ip_address: IpAddr
