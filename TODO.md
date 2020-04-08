@@ -1,7 +1,14 @@
 # TODO
 
 * Configuration, cli
-* Tests
+* Benchmarks
+  * Run multiple threads to test performance when contested?
+  * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
+  * Generic bench function since current functions are almost identical
+* Tests of aquatic and bittorrent_udp (quickcheck, test cases)
+
+## Not important
+
 * extract_response_peers
     * Cleaner code
     * Stack-allocated vector?
@@ -11,9 +18,6 @@
     * Save last results, check if difference is significant?
     * ProgressBar: `[{elapsed_precise}]` and eta_precise?
     * Test server over udp socket instead?
-    * Run multiple threads to test performance when contested?
-    * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
-    * Generic bench function since current functions are almost identical
 * Performance
     * cpu-target=native good?
     * mialloc good?
@@ -23,12 +27,10 @@
     * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid heap allocation in general if it can be avoided?
         * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
-    * quickcheck tests for conversions
-    * other unit tests?
 
-## Don't do
+# Don't do
 
-### aquatic
+## aquatic
 
 * Other HashMap hashers (such as SeaHash): seemingly not worthwhile (might be
   with AVX though)
@@ -36,7 +38,7 @@
 * Config behind Arc in state: it is likely better to be able to pass it around
   without state
 
-### bittorrent_udp
+## bittorrent_udp
 
 * Use `bytes` crate for bittorrent_udp: seems to worsen performance somewhat
 * Zerocopy (https://docs.rs/zerocopy/0.3.0/zerocopy/index.html) for requests
