@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 
 #[derive(Clone)]
 pub struct Config {
+    /// Spawn this number of threads for workers
     pub num_threads: usize,
     pub network: NetworkConfig,
     pub statistics: StatisticsConfig,
@@ -12,11 +13,15 @@ pub struct Config {
 
 #[derive(Clone)]
 pub struct NetworkConfig {
+    /// Bind to this address
     pub address: SocketAddr,
+    /// Maximum number of torrents to accept in scrape request
     pub max_scrape_torrents: u8,
+    /// Maximum number of peers to return in announce response
     pub max_response_peers: usize,
+    /// Ask peers to announce this often (seconds)
     pub peer_announce_interval: i32,
-    /// When value is zero, use OS default (don't set on socket)
+    /// Setting on socket. When value is zero, don't set (use OS default)
     pub recv_buffer_size: usize,
     pub poll_event_capacity: usize,
 }
@@ -24,14 +29,18 @@ pub struct NetworkConfig {
 
 #[derive(Clone)]
 pub struct StatisticsConfig {
+    /// Print statistics this often (seconds). Don't print when set to zero.
     pub interval: u64,
 }
 
 
 #[derive(Clone)]
 pub struct CleaningConfig {
+    /// Clean torrents and connections this often (seconds)
     pub interval: u64,
+    /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
+    /// Remove connections that are older than this (seconds)
     pub max_connection_age: u64,
 }
 
