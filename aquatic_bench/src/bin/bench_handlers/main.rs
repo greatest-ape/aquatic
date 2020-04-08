@@ -34,19 +34,21 @@ use common::*;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 
-macro_rules! print_results {
-    ($request_type:expr, $num_rounds:expr, $data:expr) => {
-        let per_second = (
-            ($data.0 / ($num_rounds as f64)
-        ) as usize).to_formatted_string(&Locale::se);
+fn print_results(
+    request_type: &str,
+    num_rounds: u64,
+    data: (f64, f64)
+) {
+    let per_second = (
+        (data.0 / (num_rounds as f64)
+    ) as usize).to_formatted_string(&Locale::se);
 
-        println!(
-            "{} {:>10} requests/second, {:>8.2} ns/request",
-            $request_type,
-            per_second,
-            $data.1 / ($num_rounds as f64)
-        );
-    };
+    println!(
+        "{} {:>10} requests/second, {:>8.2} ns/request",
+        request_type,
+        per_second,
+        data.1 / (num_rounds as f64)
+    );
 }
 
 
@@ -210,9 +212,9 @@ fn main(){
 
     println!("\n## Average results over {} rounds\n", num_rounds);
 
-    print_results!("Connect handler: ", num_rounds, connect_data);
-    print_results!("Announce handler:", num_rounds, announce_data);
-    print_results!("Scrape handler:  ", num_rounds, scrape_data);
+    print_results("Connect handler: ", num_rounds, connect_data);
+    print_results("Announce handler:", num_rounds, announce_data);
+    print_results("Scrape handler:  ", num_rounds, scrape_data);
 }
 
 
