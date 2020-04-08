@@ -16,6 +16,7 @@ pub struct NetworkConfig {
     pub max_scrape_torrents: u8,
     pub max_response_peers: usize,
     pub peer_announce_interval: i32,
+    /// When value is zero, use OS default (don't set on socket)
     pub recv_buffer_size: usize,
     pub poll_event_capacity: usize,
 }
