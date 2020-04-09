@@ -5,7 +5,7 @@ use std::io;
 use std::io::{Read, Write};
 use std::net::Ipv4Addr;
 
-use crate::types::{self, *};
+use crate::types::*;
 
 use super::common::*;
 
@@ -16,16 +16,16 @@ const MAGIC_NUMBER: i64 = 4_497_486_125_440;
 #[inline]
 pub fn request_to_bytes(
     bytes: &mut impl Write,
-    request: types::Request
+    request: Request
 ){
     match request {
-        types::Request::Connect(r) => {
+        Request::Connect(r) => {
             bytes.write_i64::<NetworkEndian>(MAGIC_NUMBER).unwrap();
             bytes.write_i32::<NetworkEndian>(0).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
         },
 
-        types::Request::Announce(r) => {
+        Request::Announce(r) => {
             bytes.write_i64::<NetworkEndian>(r.connection_id.0).unwrap();
             bytes.write_i32::<NetworkEndian>(1).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
@@ -47,7 +47,7 @@ pub fn request_to_bytes(
             bytes.write_u16::<NetworkEndian>(r.port.0).unwrap();
         },
 
-        types::Request::Scrape(r) => {
+        Request::Scrape(r) => {
             bytes.write_i64::<NetworkEndian>(r.connection_id.0).unwrap();
             bytes.write_i32::<NetworkEndian>(2).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
@@ -66,7 +66,7 @@ pub fn request_to_bytes(
 pub fn request_from_bytes(
     bytes: &[u8],
     max_scrape_torrents: u8,
-) -> Result<types::Request,io::Error> {
+) -> Result<Request,io::Error> {
     let mut bytes = io::Cursor::new(bytes);
 
     let connection_id =  bytes.read_i64::<NetworkEndian>()?;
@@ -77,13 +77,13 @@ pub fn request_from_bytes(
         // Connect
         0 => {
             if connection_id == MAGIC_NUMBER {
-                Ok(types::Request::Connect(types::ConnectRequest {
-                    transaction_id:types::TransactionId(transaction_id)
+                Ok(Request::Connect(ConnectRequest {
+                    transaction_id:TransactionId(transaction_id)
                 }))
             }
             else {
-                Ok(types::Request::Invalid(types::InvalidRequest {
-                    transaction_id:types::TransactionId(transaction_id),
+                Ok(Request::Invalid(InvalidRequest {
+                    transaction_id:TransactionId(transaction_id),
                     message:
                         "Please send protocol identifier in connect request"
                         .to_string()
@@ -101,15 +101,15 @@ pub fn request_from_bytes(
             bytes.read_exact(&mut peer_id)?;
 
             let bytes_downloaded = bytes.read_i64::<NetworkEndian>()?;
-            let bytes_left       = bytes.read_i64::<NetworkEndian>()?;
-            let bytes_uploaded   = bytes.read_i64::<NetworkEndian>()?;
-            let event            = bytes.read_i32::<NetworkEndian>()?;
+            let bytes_left = bytes.read_i64::<NetworkEndian>()?;
+            let bytes_uploaded = bytes.read_i64::<NetworkEndian>()?;
+            let event = bytes.read_i32::<NetworkEndian>()?;
 
             bytes.read_exact(&mut ip)?;
 
-            let key              = bytes.read_u32::<NetworkEndian>()?;
-            let peers_wanted     = bytes.read_i32::<NetworkEndian>()?;
-            let port             = bytes.read_u16::<NetworkEndian>()?;
+            let key = bytes.read_u32::<NetworkEndian>()?;
+            let peers_wanted = bytes.read_i32::<NetworkEndian>()?;
+            let port = bytes.read_u16::<NetworkEndian>()?;
 
             let opt_ip = if ip == [0; 4] {
                 None
@@ -117,19 +117,19 @@ pub fn request_from_bytes(
                 Some(Ipv4Addr::from(ip))
             };
 
-            Ok(types::Request::Announce(types::AnnounceRequest {
-                connection_id:    types::ConnectionId(connection_id),
-                transaction_id:   types::TransactionId(transaction_id),
-                info_hash:        types::InfoHash(info_hash),
-                peer_id:          types::PeerId(peer_id),
-                bytes_downloaded: types::NumberOfBytes(bytes_downloaded),
-                bytes_uploaded:   types::NumberOfBytes(bytes_uploaded),
-                bytes_left:       types::NumberOfBytes(bytes_left),
-                event:            event_from_i32(event),
-                ip_address:       opt_ip,
-                key:              types::PeerKey(key),
-                peers_wanted:     types::NumberOfPeers(peers_wanted),
-                port:             types::Port(port)
+            Ok(Request::Announce(AnnounceRequest {
+                connection_id: ConnectionId(connection_id),
+                transaction_id: TransactionId(transaction_id),
+                info_hash: InfoHash(info_hash),
+                peer_id: PeerId(peer_id),
+                bytes_downloaded: NumberOfBytes(bytes_downloaded),
+                bytes_uploaded: NumberOfBytes(bytes_uploaded),
+                bytes_left: NumberOfBytes(bytes_left),
+                event: event_from_i32(event),
+                ip_address: opt_ip,
+                key: PeerKey(key),
+                peers_wanted: NumberOfPeers(peers_wanted),
+                port: Port(port)
             }))
         },
 
@@ -150,8 +150,8 @@ pub fn request_from_bytes(
             }))
         }
 
-        _ => Ok(types::Request::Invalid(types::InvalidRequest {
-            transaction_id: types::TransactionId(transaction_id),
+        _ => Ok(Request::Invalid(InvalidRequest {
+            transaction_id: TransactionId(transaction_id),
             message: "Invalid action".to_string()
         }))
     }
