@@ -1,26 +1,25 @@
-use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
-
-use std::io;
-use std::io::{Cursor, Write};
+use std::io::{self, Cursor, Write};
 use std::net::{IpAddr, Ipv6Addr, Ipv4Addr};
 
-use crate::types::{self, *};
+use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
+
+use crate::types::*;
 
 
 #[inline]
 pub fn response_to_bytes(
     bytes: &mut impl Write,
-    response: types::Response,
-    ip_version: types::IpVersion
+    response: Response,
+    ip_version: IpVersion
 ){
     match response {
-        types::Response::Connect(r) => {
+        Response::Connect(r) => {
             bytes.write_i32::<NetworkEndian>(0).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
             bytes.write_i64::<NetworkEndian>(r.connection_id.0).unwrap();
         },
 
-        types::Response::Announce(r) => {
+        Response::Announce(r) => {
             bytes.write_i32::<NetworkEndian>(1).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
             bytes.write_i32::<NetworkEndian>(r.announce_interval.0).unwrap();
@@ -29,33 +28,24 @@ pub fn response_to_bytes(
 
             // Write peer IPs and ports. Silently ignore peers with wrong
             // IP version
-            for peer in r.peers {
-                let mut correct = false;
-
-                match peer.ip_address {
-                    IpAddr::V4(ip) => {
-                        if let types::IpVersion::IPv4 = ip_version {
-                            bytes.write_all(&ip.octets()).unwrap();
-
-                            correct = true;
-                        }
-                    },
-                    IpAddr::V6(ip) => {
-                        if let types::IpVersion::IPv6 = ip_version {
-                            bytes.write_all(&ip.octets()).unwrap();
-
-                            correct = true;
-                        }
+            if ip_version == IpVersion::IPv4 {
+                for peer in r.peers {
+                    if let IpAddr::V4(ip) = peer.ip_address {
+                        bytes.write_all(&ip.octets()).unwrap();
+                        bytes.write_u16::<NetworkEndian>(peer.port.0).unwrap();
                     }
                 }
-
-                if correct {
-                    bytes.write_u16::<NetworkEndian>(peer.port.0).unwrap();
+            } else {
+                for peer in r.peers {
+                    if let IpAddr::V6(ip) = peer.ip_address {
+                        bytes.write_all(&ip.octets()).unwrap();
+                        bytes.write_u16::<NetworkEndian>(peer.port.0).unwrap();
+                    }
                 }
             }
         },
 
-        types::Response::Scrape(r) => {
+        Response::Scrape(r) => {
             bytes.write_i32::<NetworkEndian>(2).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
 
@@ -69,7 +59,7 @@ pub fn response_to_bytes(
             }
         },
 
-        types::Response::Error(r) => {
+        Response::Error(r) => {
             bytes.write_i32::<NetworkEndian>(3).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
 
