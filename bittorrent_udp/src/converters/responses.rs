@@ -1,7 +1,7 @@
 use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
 
 use std::io;
-use std::io::{Read, Write};
+use std::io::{Cursor, Write};
 use std::net::{IpAddr, Ipv6Addr, Ipv4Addr};
 
 use crate::types;
@@ -108,64 +108,51 @@ pub fn response_from_bytes(
             let leechers =  bytes.read_i32::<NetworkEndian>()?;
             let seeders =  bytes.read_i32::<NetworkEndian>()?;
 
-            let mut peers = Vec::new();
+            let position = bytes.position() as usize;
+            let inner = bytes.into_inner();
 
-            loop {
-                let mut opt_ip_address = None;
+            let peers = if ip_version == types::IpVersion::IPv4 {
+                inner[position..].chunks_exact(6).map(|chunk| {
+                    let ip_address = IpAddr::V4(
+                        Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3])
+                    );
 
-                match ip_version {
-                    types::IpVersion::IPv4 => {
-                        let mut ip_bytes = [0; 4];
+                    let port = (&chunk[4..]).read_u16::<NetworkEndian>().unwrap();
 
-                        if bytes.read_exact(&mut ip_bytes).is_ok() {
-                            opt_ip_address = Some(IpAddr::V4(Ipv4Addr::new(
-                                ip_bytes[0],
-                                ip_bytes[1],
-                                ip_bytes[2],
-                                ip_bytes[3],
-                            )));
-                        }
-                    },
-                    types::IpVersion::IPv6 => {
-                        let mut ip_bytes = [0; 16];
-
-                        if bytes.read_exact(&mut ip_bytes).is_ok() {
-                            let mut ip_bytes_ref = &ip_bytes[..];
-
-                            opt_ip_address = Some(IpAddr::V6(Ipv6Addr::new(
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                                ip_bytes_ref.read_u16::<NetworkEndian>()?,
-                            )));
-                        }
-                    },
-                }
-                if let Some(ip_address) = opt_ip_address {
-                    if let Ok(port) = bytes.read_u16::<NetworkEndian>() {
-                        peers.push(types::ResponsePeer {
-                            ip_address,
-                            port: types::Port(port),
-                        });
+                    types::ResponsePeer {
+                        ip_address,
+                        port: types::Port(port),
                     }
-                    else {
-                        break;
+                }).collect()
+            } else {
+                inner[position..].chunks_exact(18).map(|chunk| {
+                    let mut cursor: Cursor<&[u8]> = Cursor::new(&chunk[..]);
+
+                    let ip_address = IpAddr::V6(Ipv6Addr::new(
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                        cursor.read_u16::<NetworkEndian>().unwrap(),
+                    ));
+
+                    let port = cursor.read_u16::<NetworkEndian>().unwrap();
+
+                    types::ResponsePeer {
+                        ip_address,
+                        port: types::Port(port),
                     }
-                }
-                else {
-                    break;
-                }
-            }
+                }).collect()
+            };
 
             Ok(types::Response::Announce(types::AnnounceResponse {
-                transaction_id:    types::TransactionId(transaction_id),
+                transaction_id: types::TransactionId(transaction_id),
                 announce_interval: types::AnnounceInterval(announce_interval),
-                leechers:          types::NumberOfPeers(leechers),
-                seeders:           types::NumberOfPeers(seeders),
+                leechers: types::NumberOfPeers(leechers),
+                seeders: types::NumberOfPeers(seeders),
                 peers
             }))
 
