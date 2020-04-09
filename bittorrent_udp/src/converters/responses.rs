@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::io::{self, Cursor, Write};
 use std::net::{IpAddr, Ipv6Addr, Ipv4Addr};
 
@@ -100,10 +101,8 @@ pub fn response_from_bytes(
 
             let peers = if ip_version == IpVersion::IPv4 {
                 inner[position..].chunks_exact(6).map(|chunk| {
-                    let ip_address = IpAddr::V4(
-                        Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3])
-                    );
-
+                    let ip_bytes: [u8; 4] = (&chunk[..4]).try_into().unwrap();
+                    let ip_address = IpAddr::V4(Ipv4Addr::from(ip_bytes));
                     let port = (&chunk[4..]).read_u16::<NetworkEndian>().unwrap();
 
                     ResponsePeer {
