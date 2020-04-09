@@ -5,6 +5,7 @@
   * Run multiple threads to test performance when contested?
   * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
   * Generic bench function since current functions are almost identical
+  * Show percentile stats for peers per torrent
 * Tests of aquatic and bittorrent_udp (quickcheck, test cases)
 
 ## Not important
@@ -26,7 +27,9 @@
 * bittorrent_udp
     * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid heap allocation in general if it can be avoided?
-        * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
+      * request from bytes for scrape: use arrayvec with some max size for
+        torrents? With Vec, allocation takes quite a bit of CPU time
+      * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
 
 # Don't do
 
