@@ -2,11 +2,11 @@
 //! 
 //! Example summary output:
 //! ```
-//! ## Average results over 10 rounds
-//!
-//! Connect handler:   2 280 522 requests/second,   439.29 ns/request
-//! Announce handler:    267 790 requests/second,  3736.05 ns/request
-//! Scrape handler:      570 958 requests/second,  1751.89 ns/request
+//! ## Average results over 50 rounds
+//! 
+//! Connect handler:   2 613 265 requests/second,   383.21 ns/request
+//! Announce handler:    293 403 requests/second,  3427.20 ns/request
+//! Scrape handler:      670 001 requests/second,  1492.61 ns/request
 //! ```
 
 use std::time::{Duration, Instant};

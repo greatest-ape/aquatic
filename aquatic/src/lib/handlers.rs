@@ -11,6 +11,7 @@ use crate::common::*;
 use crate::config::Config;
 
 
+#[inline]
 pub fn handle_connect_requests(
     state: &State,
     rng: &mut StdRng,
@@ -41,6 +42,7 @@ pub fn handle_connect_requests(
 }
 
 
+#[inline]
 pub fn handle_announce_requests(
     state: &State,
     config: &Config,
@@ -128,6 +130,7 @@ pub fn handle_announce_requests(
 }
 
 
+#[inline]
 pub fn handle_scrape_requests(
     state: &State,
     responses: &mut Vec<(Response, SocketAddr)>,
@@ -177,6 +180,7 @@ pub fn handle_scrape_requests(
 /// in order to avoid returning too homogeneous peers.
 /// 
 /// Don't care if we send back announcing peer.
+#[inline]
 pub fn extract_response_peers(
     rng: &mut impl Rng,
     peer_map: &PeerMap,

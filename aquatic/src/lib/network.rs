@@ -109,6 +109,7 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
 
 
 /// Read requests, generate and send back responses
+#[inline]
 fn handle_readable_socket(
     state: &State,
     config: &Config,
