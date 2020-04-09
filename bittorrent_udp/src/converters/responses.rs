@@ -173,21 +173,20 @@ pub fn response_from_bytes(
 
         // Scrape
         2 => {
-            let mut stats = Vec::new();
+            let position = bytes.position() as usize;
+            let inner = bytes.into_inner();
 
-            let mut buf = [0u8; 12];
+            let stats = inner[position..].chunks_exact(12).map(|chunk| {
+                let seeders = (&chunk[0..4]).read_i32::<NetworkEndian>().unwrap();
+                let downloads = (&chunk[4..8]).read_i32::<NetworkEndian>().unwrap();
+                let leechers = (&chunk[8..12]).read_i32::<NetworkEndian>().unwrap();
 
-            while let Ok(()) = bytes.read_exact(&mut buf){
-                let seeders = (&buf[0..4]).read_i32::<NetworkEndian>().unwrap();
-                let downloads = (&buf[4..8]).read_i32::<NetworkEndian>().unwrap();
-                let leechers = (&buf[8..12]).read_i32::<NetworkEndian>().unwrap();
-
-                stats.push(types::TorrentScrapeStatistics {
+                types::TorrentScrapeStatistics {
                     seeders: types::NumberOfPeers(seeders),
                     completed: types::NumberOfDownloads(downloads),
                     leechers:types::NumberOfPeers(leechers)
-                })
-            }
+                }
+            }).collect();
 
             Ok(types::Response::Scrape(types::ScrapeResponse {
                 transaction_id: types::TransactionId(transaction_id),
@@ -197,18 +196,12 @@ pub fn response_from_bytes(
 
         // Error
         3 => {
-            let mut message_bytes = Vec::new();
-
-            bytes.read_to_end(&mut message_bytes)?;
-
-            let message = match String::from_utf8(message_bytes) {
-                Ok(message) => message,
-                Err(_)      => "".to_string()
-            };
+            let position = bytes.position() as usize;
+            let inner = bytes.into_inner();
 
             Ok(types::Response::Error(types::ErrorResponse {
                 transaction_id: types::TransactionId(transaction_id),
-                message
+                message: String::from_utf8_lossy(&inner[position..]).into()
             }))
         },
 

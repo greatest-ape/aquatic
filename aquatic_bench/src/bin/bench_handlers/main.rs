@@ -53,7 +53,7 @@ fn print_results(
 
 
 fn main(){
-    let num_rounds = 10;
+    let num_rounds = 1;
 
     let mut connect_data = (0.0, 0.0);
     let mut announce_data = (0.0, 0.0);
