@@ -2,7 +2,7 @@ use std::io::Cursor;
 use std::time::Instant;
 use std::net::SocketAddr;
 
-use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
+use rand::{Rng, SeedableRng, thread_rng, rngs::{SmallRng, StdRng}};
 
 use aquatic::common::*;
 use aquatic::handlers::handle_connect_requests;
@@ -25,6 +25,8 @@ pub fn bench(
     let mut num_responses: usize = 0;
     let mut dummy = 0u8;
 
+    let mut rng = StdRng::from_rng(thread_rng()).unwrap();
+
     let now = Instant::now();
 
     let mut requests: Vec<(ConnectRequest, SocketAddr)> = requests.into_iter()
@@ -39,7 +41,7 @@ pub fn bench(
     
     let requests = requests.drain(..);
 
-    handle_connect_requests(&state, &mut responses, requests);
+    handle_connect_requests(&state, &mut rng, &mut responses, requests);
 
     for (response, _) in responses.drain(..){
         if let Response::Connect(_) = response {

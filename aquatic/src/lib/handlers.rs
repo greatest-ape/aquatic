@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 use std::vec::Drain;
 
-use rand::{Rng, SeedableRng, rngs::SmallRng, thread_rng};
+use rand::{Rng, rngs::{SmallRng, StdRng}};
 
 use bittorrent_udp::types::*;
 
@@ -13,11 +13,11 @@ use crate::config::Config;
 
 pub fn handle_connect_requests(
     state: &State,
+    rng: &mut StdRng,
     responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(ConnectRequest, SocketAddr)>,
 ){
     let now = Time(Instant::now());
-    let mut rng = thread_rng();
 
     responses.extend(requests.map(|(request, src)| {
         let connection_id = ConnectionId(rng.gen());
@@ -44,11 +44,10 @@ pub fn handle_connect_requests(
 pub fn handle_announce_requests(
     state: &State,
     config: &Config,
+    rng: &mut SmallRng,
     responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
 ){
-    let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
-
     responses.extend(requests.filter_map(|(request, src)| {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
@@ -108,7 +107,7 @@ pub fn handle_announce_requests(
             }
 
             let response_peers = extract_response_peers(
-                &mut rng,
+                rng,
                 &torrent_data.peers,
                 max_num_peers_to_take,
             );

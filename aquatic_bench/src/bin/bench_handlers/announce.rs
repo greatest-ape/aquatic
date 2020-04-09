@@ -2,7 +2,7 @@ use std::io::Cursor;
 use std::time::Instant;
 use std::net::SocketAddr;
 
-use rand::Rng;
+use rand::{Rng, SeedableRng, thread_rng, rngs::SmallRng};
 use rand_distr::Pareto;
 
 use aquatic::handlers::*;
@@ -29,6 +29,8 @@ pub fn bench(
     let mut num_responses: usize = 0;
     let mut dummy = 0u8;
 
+    let mut small_rng = SmallRng::from_rng(thread_rng()).unwrap();
+
     let now = Instant::now();
 
     let mut requests: Vec<(AnnounceRequest, SocketAddr)> = requests.into_iter()
@@ -46,6 +48,7 @@ pub fn bench(
     handle_announce_requests(
         &state,
         config,
+        &mut small_rng,
         &mut responses,
         requests,
     );

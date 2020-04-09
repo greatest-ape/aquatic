@@ -6,6 +6,7 @@ use mio::{Events, Poll, Interest, Token};
 use mio::net::UdpSocket;
 use net2::{UdpSocketExt, UdpBuilder};
 use net2::unix::UnixUdpBuilderExt;
+use rand::{SeedableRng, rngs::{SmallRng, StdRng}};
 
 use bittorrent_udp::types::IpVersion;
 use bittorrent_udp::converters::{response_to_bytes, request_from_bytes};
@@ -38,6 +39,9 @@ pub fn run_event_loop(
     let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::new();
     let mut responses: Vec<(Response, SocketAddr)> = Vec::new();
 
+    let mut std_rng = StdRng::from_entropy();
+    let mut small_rng = SmallRng::from_rng(&mut std_rng).unwrap();
+
     loop {
         poll.poll(&mut events, None)
             .expect("failed polling");
@@ -51,6 +55,8 @@ pub fn run_event_loop(
                         &state,
                         &config,
                         &mut socket,
+                        &mut std_rng,
+                        &mut small_rng,
                         &mut buffer,
                         &mut responses,
                         &mut connect_requests,
@@ -107,6 +113,8 @@ fn handle_readable_socket(
     state: &State,
     config: &Config,
     socket: &mut UdpSocket,
+    std_rng: &mut StdRng,
+    small_rng: &mut SmallRng,
     buffer: &mut [u8],
     responses: &mut Vec<(Response, SocketAddr)>,
     connect_requests: &mut Vec<(ConnectRequest, SocketAddr)>,
@@ -167,12 +175,14 @@ fn handle_readable_socket(
 
     handle_connect_requests(
         state,
+        std_rng,
         responses,
         connect_requests.drain(..)
     );
     handle_announce_requests(
         state,
         config,
+        small_rng,
         responses,
         announce_requests.drain(..),
     );
