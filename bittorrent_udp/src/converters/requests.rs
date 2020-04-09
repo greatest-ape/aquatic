@@ -1,8 +1,7 @@
 use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
 
 use std::convert::TryInto;
-use std::io;
-use std::io::{Read, Write};
+use std::io::{self, Cursor, Read, Write};
 use std::net::Ipv4Addr;
 
 use crate::types::*;
@@ -10,7 +9,7 @@ use crate::types::*;
 use super::common::*;
 
 
-const MAGIC_NUMBER: i64 = 4_497_486_125_440;
+const PROTOCOL_IDENTIFIER: i64 = 4_497_486_125_440;
 
 
 #[inline]
@@ -20,7 +19,7 @@ pub fn request_to_bytes(
 ){
     match request {
         Request::Connect(r) => {
-            bytes.write_i64::<NetworkEndian>(MAGIC_NUMBER).unwrap();
+            bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER).unwrap();
             bytes.write_i32::<NetworkEndian>(0).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
         },
@@ -39,7 +38,10 @@ pub fn request_to_bytes(
 
             bytes.write_i32::<NetworkEndian>(event_to_i32(r.event)).unwrap();
 
-            bytes.write_all(&r.ip_address.map_or([0; 4], |ip| ip.octets())).unwrap();
+            bytes.write_all(&r.ip_address.map_or(
+                [0; 4],
+                |ip| ip.octets()
+            )).unwrap();
 
             bytes.write_u32::<NetworkEndian>(0).unwrap(); // IP
             bytes.write_u32::<NetworkEndian>(r.key.0).unwrap();
@@ -52,7 +54,7 @@ pub fn request_to_bytes(
             bytes.write_i32::<NetworkEndian>(2).unwrap();
             bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
 
-            for info_hash in &r.info_hashes {
+            for info_hash in r.info_hashes {
                 bytes.write_all(&info_hash.0).unwrap();
             }
         }
@@ -67,23 +69,22 @@ pub fn request_from_bytes(
     bytes: &[u8],
     max_scrape_torrents: u8,
 ) -> Result<Request,io::Error> {
-    let mut bytes = io::Cursor::new(bytes);
+    let mut cursor = Cursor::new(bytes);
 
-    let connection_id =  bytes.read_i64::<NetworkEndian>()?;
-    let action =         bytes.read_i32::<NetworkEndian>()?;
-    let transaction_id = bytes.read_i32::<NetworkEndian>()?;
+    let connection_id = cursor.read_i64::<NetworkEndian>()?;
+    let action = cursor.read_i32::<NetworkEndian>()?;
+    let transaction_id = cursor.read_i32::<NetworkEndian>()?;
 
     match action {
         // Connect
         0 => {
-            if connection_id == MAGIC_NUMBER {
+            if connection_id == PROTOCOL_IDENTIFIER {
                 Ok(Request::Connect(ConnectRequest {
-                    transaction_id:TransactionId(transaction_id)
+                    transaction_id: TransactionId(transaction_id)
                 }))
-            }
-            else {
+            } else {
                 Ok(Request::Invalid(InvalidRequest {
-                    transaction_id:TransactionId(transaction_id),
+                    transaction_id: TransactionId(transaction_id),
                     message:
                         "Please send protocol identifier in connect request"
                         .to_string()
@@ -97,19 +98,19 @@ pub fn request_from_bytes(
             let mut peer_id = [0; 20];
             let mut ip = [0; 4];
 
-            bytes.read_exact(&mut info_hash)?;
-            bytes.read_exact(&mut peer_id)?;
+            cursor.read_exact(&mut info_hash)?;
+            cursor.read_exact(&mut peer_id)?;
 
-            let bytes_downloaded = bytes.read_i64::<NetworkEndian>()?;
-            let bytes_left = bytes.read_i64::<NetworkEndian>()?;
-            let bytes_uploaded = bytes.read_i64::<NetworkEndian>()?;
-            let event = bytes.read_i32::<NetworkEndian>()?;
+            let bytes_downloaded = cursor.read_i64::<NetworkEndian>()?;
+            let bytes_left = cursor.read_i64::<NetworkEndian>()?;
+            let bytes_uploaded = cursor.read_i64::<NetworkEndian>()?;
+            let event = cursor.read_i32::<NetworkEndian>()?;
 
-            bytes.read_exact(&mut ip)?;
+            cursor.read_exact(&mut ip)?;
 
-            let key = bytes.read_u32::<NetworkEndian>()?;
-            let peers_wanted = bytes.read_i32::<NetworkEndian>()?;
-            let port = bytes.read_u16::<NetworkEndian>()?;
+            let key = cursor.read_u32::<NetworkEndian>()?;
+            let peers_wanted = cursor.read_i32::<NetworkEndian>()?;
+            let port = cursor.read_u16::<NetworkEndian>()?;
 
             let opt_ip = if ip == [0; 4] {
                 None
@@ -135,8 +136,8 @@ pub fn request_from_bytes(
 
         // Scrape
         2 => {
-            let position = bytes.position() as usize;
-            let inner = bytes.into_inner();
+            let position = cursor.position() as usize;
+            let inner = cursor.into_inner();
 
             let info_hashes = (&inner[position..]).chunks_exact(20)
                 .take(max_scrape_torrents as usize)
