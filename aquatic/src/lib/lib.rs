@@ -10,8 +10,7 @@ use config::Config;
 use common::State;
 
 
-pub fn run(){
-    let config = Config::default();
+pub fn run(config: Config){
     let state = State::new();
 
     for i in 0..config.num_threads {

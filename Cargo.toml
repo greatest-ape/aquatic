@@ -1,9 +1,10 @@
 [workspace]
 
 members = [ 
-    "bittorrent_udp",
     "aquatic",
     "aquatic_bench",
+    "bittorrent_udp",
+    "cli_helpers",
 ]
 
 [profile.release]

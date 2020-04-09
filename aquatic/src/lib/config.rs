@@ -1,7 +1,9 @@
 use std::net::SocketAddr;
 
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone)]
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
     /// Spawn this number of threads for workers
     pub num_threads: usize,
@@ -11,7 +13,7 @@ pub struct Config {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
@@ -27,14 +29,14 @@ pub struct NetworkConfig {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatisticsConfig {
     /// Print statistics this often (seconds). Don't print when set to zero.
     pub interval: u64,
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CleaningConfig {
     /// Clean torrents and connections this often (seconds)
     pub interval: u64,

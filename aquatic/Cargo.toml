@@ -13,6 +13,7 @@ name = "aquatic"
 
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
+cli_helpers = { path = "../cli_helpers" }
 dashmap = "3"
 histogram = "0.6"
 indexmap = "1"
@@ -20,6 +21,7 @@ mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 net2 = "0.2"
 rand = { version = "0.7", features = ["small_rng"] }
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 quickcheck = "0.9"
