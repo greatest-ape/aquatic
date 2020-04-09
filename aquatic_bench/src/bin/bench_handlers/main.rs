@@ -4,9 +4,9 @@
 //! ```
 //! ## Average results over 50 rounds
 //! 
-//! Connect handler:   2 613 265 requests/second,   383.21 ns/request
-//! Announce handler:    293 403 requests/second,  3427.20 ns/request
-//! Scrape handler:      670 001 requests/second,  1492.61 ns/request
+//! Connect handler:   2 530 072 requests/second,   395.38 ns/request
+//! Announce handler:    309 719 requests/second,  3229.87 ns/request
+//! Scrape handler:      595 259 requests/second,  1680.01 ns/request
 //! ```
 
 use std::time::{Duration, Instant};

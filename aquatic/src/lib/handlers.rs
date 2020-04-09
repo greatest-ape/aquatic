@@ -68,64 +68,60 @@ pub fn handle_announce_requests(
         let peer = Peer::from_announce_and_ip(&request, src.ip());
         let peer_status = peer.status;
 
-        let opt_removed_peer_status = {
-            let mut torrent_data = state.torrents
-                .entry(request.info_hash)
-                .or_insert_with(|| TorrentData::default());
-            
-            if peer_status == PeerStatus::Stopped {
-                torrent_data.peers.remove(&peer_key)
-                    .map(|peer| peer.status)
-            } else {
-                torrent_data.peers.insert(peer_key, peer)
-                    .map(|peer| peer.status)
-            }
+        let mut torrent_data = state.torrents
+            .entry(request.info_hash)
+            .or_default();
+        
+        let opt_removed_peer_status = if peer_status == PeerStatus::Stopped {
+            torrent_data.peers.remove(&peer_key)
+                .map(|peer| peer.status)
+        } else {
+            torrent_data.peers.insert(peer_key, peer)
+                .map(|peer| peer.status)
         };
+
+        // Downgrade ref since we don't need write access anymore, so that
+        // other threads can access torrent
+        let torrent_data = torrent_data.downgrade();
 
         let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
             .min(config.network.max_response_peers);
 
-        // Since there is a miniscule risk of the torrent having been removed
-        // by now, don't unwrap the result.
-        if let Some(torrent_data) = state.torrents.get(&request.info_hash){
-            match peer_status {
-                PeerStatus::Leeching => {
-                    torrent_data.num_leechers.fetch_add(1, Ordering::SeqCst);
-                },
-                PeerStatus::Seeding => {
-                    torrent_data.num_seeders.fetch_add(1, Ordering::SeqCst);
-                },
-                PeerStatus::Stopped => {}
-            };
+        match peer_status {
+            PeerStatus::Leeching => {
+                torrent_data.num_leechers.fetch_add(1, Ordering::SeqCst);
+            },
+            PeerStatus::Seeding => {
+                torrent_data.num_seeders.fetch_add(1, Ordering::SeqCst);
+            },
+            PeerStatus::Stopped => {}
+        };
 
-            match opt_removed_peer_status {
-                Some(PeerStatus::Leeching) => {
-                    torrent_data.num_leechers.fetch_sub(1, Ordering::SeqCst);
-                },
-                Some(PeerStatus::Seeding) => {
-                    torrent_data.num_seeders.fetch_sub(1, Ordering::SeqCst);
-                },
-                _ => {}
-            }
-
-            let response_peers = extract_response_peers(
-                rng,
-                &torrent_data.peers,
-                max_num_peers_to_take,
-            );
-
-            let response = Response::Announce(AnnounceResponse {
-                transaction_id: request.transaction_id,
-                announce_interval: AnnounceInterval(config.network.peer_announce_interval), // FIXME
-                leechers: NumberOfPeers(torrent_data.num_leechers.load(Ordering::SeqCst) as i32),
-                seeders: NumberOfPeers(torrent_data.num_seeders.load(Ordering::SeqCst) as i32),
-                peers: response_peers
-            });
-
-            Some((response, src))
-        } else {
-            None
+        match opt_removed_peer_status {
+            Some(PeerStatus::Leeching) => {
+                torrent_data.num_leechers.fetch_sub(1, Ordering::SeqCst);
+            },
+            Some(PeerStatus::Seeding) => {
+                torrent_data.num_seeders.fetch_sub(1, Ordering::SeqCst);
+            },
+            _ => {}
         }
+
+        let response_peers = extract_response_peers(
+            rng,
+            &torrent_data.peers,
+            max_num_peers_to_take,
+        );
+
+        let response = Response::Announce(AnnounceResponse {
+            transaction_id: request.transaction_id,
+            announce_interval: AnnounceInterval(config.network.peer_announce_interval), // FIXME
+            leechers: NumberOfPeers(torrent_data.num_leechers.load(Ordering::SeqCst) as i32),
+            seeders: NumberOfPeers(torrent_data.num_seeders.load(Ordering::SeqCst) as i32),
+            peers: response_peers
+        });
+
+        Some((response, src))
     }));
 }
 
