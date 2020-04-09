@@ -4,7 +4,7 @@ use std::io;
 use std::io::{Cursor, Write};
 use std::net::{IpAddr, Ipv6Addr, Ipv4Addr};
 
-use crate::types;
+use crate::types::{self, *};
 
 
 #[inline]
@@ -82,36 +82,33 @@ pub fn response_to_bytes(
 #[inline]
 pub fn response_from_bytes(
     bytes: &[u8],
-    ip_version: types::IpVersion,
-) -> Result<types::Response, io::Error> {
+    ip_version: IpVersion,
+) -> Result<Response, io::Error> {
+    let mut cursor = Cursor::new(bytes);
 
-    let mut bytes = io::Cursor::new(bytes);
-
-    let action         = bytes.read_i32::<NetworkEndian>()?;
-    let transaction_id = bytes.read_i32::<NetworkEndian>()?;
+    let action = cursor.read_i32::<NetworkEndian>()?;
+    let transaction_id = cursor.read_i32::<NetworkEndian>()?;
 
     match action {
-
         // Connect
         0 => {
-            let connection_id =  bytes.read_i64::<NetworkEndian>()?;
+            let connection_id = cursor.read_i64::<NetworkEndian>()?;
 
-            Ok(types::Response::Connect(types::ConnectResponse {
-                connection_id:  types::ConnectionId(connection_id),
-                transaction_id: types::TransactionId(transaction_id)
+            Ok(Response::Connect(ConnectResponse {
+                connection_id: ConnectionId(connection_id),
+                transaction_id: TransactionId(transaction_id)
             }))
         },
-
         // Announce
         1 => {
-            let announce_interval =  bytes.read_i32::<NetworkEndian>()?;
-            let leechers =  bytes.read_i32::<NetworkEndian>()?;
-            let seeders =  bytes.read_i32::<NetworkEndian>()?;
+            let announce_interval = cursor.read_i32::<NetworkEndian>()?;
+            let leechers = cursor.read_i32::<NetworkEndian>()?;
+            let seeders = cursor.read_i32::<NetworkEndian>()?;
 
-            let position = bytes.position() as usize;
-            let inner = bytes.into_inner();
+            let position = cursor.position() as usize;
+            let inner = cursor.into_inner();
 
-            let peers = if ip_version == types::IpVersion::IPv4 {
+            let peers = if ip_version == IpVersion::IPv4 {
                 inner[position..].chunks_exact(6).map(|chunk| {
                     let ip_address = IpAddr::V4(
                         Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3])
@@ -119,9 +116,9 @@ pub fn response_from_bytes(
 
                     let port = (&chunk[4..]).read_u16::<NetworkEndian>().unwrap();
 
-                    types::ResponsePeer {
+                    ResponsePeer {
                         ip_address,
-                        port: types::Port(port),
+                        port: Port(port),
                     }
                 }).collect()
             } else {
@@ -141,60 +138,59 @@ pub fn response_from_bytes(
 
                     let port = cursor.read_u16::<NetworkEndian>().unwrap();
 
-                    types::ResponsePeer {
+                    ResponsePeer {
                         ip_address,
-                        port: types::Port(port),
+                        port: Port(port),
                     }
                 }).collect()
             };
 
-            Ok(types::Response::Announce(types::AnnounceResponse {
-                transaction_id: types::TransactionId(transaction_id),
-                announce_interval: types::AnnounceInterval(announce_interval),
-                leechers: types::NumberOfPeers(leechers),
-                seeders: types::NumberOfPeers(seeders),
+            Ok(Response::Announce(AnnounceResponse {
+                transaction_id: TransactionId(transaction_id),
+                announce_interval: AnnounceInterval(announce_interval),
+                leechers: NumberOfPeers(leechers),
+                seeders: NumberOfPeers(seeders),
                 peers
             }))
 
         },
-
         // Scrape
         2 => {
-            let position = bytes.position() as usize;
-            let inner = bytes.into_inner();
+            let position = cursor.position() as usize;
+            let inner = cursor.into_inner();
 
             let stats = inner[position..].chunks_exact(12).map(|chunk| {
-                let seeders = (&chunk[0..4]).read_i32::<NetworkEndian>().unwrap();
-                let downloads = (&chunk[4..8]).read_i32::<NetworkEndian>().unwrap();
-                let leechers = (&chunk[8..12]).read_i32::<NetworkEndian>().unwrap();
+                let mut cursor: Cursor<&[u8]> = Cursor::new(&chunk[..]);
 
-                types::TorrentScrapeStatistics {
-                    seeders: types::NumberOfPeers(seeders),
-                    completed: types::NumberOfDownloads(downloads),
-                    leechers:types::NumberOfPeers(leechers)
+                let seeders = cursor.read_i32::<NetworkEndian>().unwrap();
+                let downloads = cursor.read_i32::<NetworkEndian>().unwrap();
+                let leechers = cursor.read_i32::<NetworkEndian>().unwrap();
+
+                TorrentScrapeStatistics {
+                    seeders: NumberOfPeers(seeders),
+                    completed: NumberOfDownloads(downloads),
+                    leechers:NumberOfPeers(leechers)
                 }
             }).collect();
 
-            Ok(types::Response::Scrape(types::ScrapeResponse {
-                transaction_id: types::TransactionId(transaction_id),
+            Ok(Response::Scrape(ScrapeResponse {
+                transaction_id: TransactionId(transaction_id),
                 torrent_stats: stats
             }))
         },
-
         // Error
         3 => {
-            let position = bytes.position() as usize;
-            let inner = bytes.into_inner();
+            let position = cursor.position() as usize;
+            let inner = cursor.into_inner();
 
-            Ok(types::Response::Error(types::ErrorResponse {
-                transaction_id: types::TransactionId(transaction_id),
+            Ok(Response::Error(ErrorResponse {
+                transaction_id: TransactionId(transaction_id),
                 message: String::from_utf8_lossy(&inner[position..]).into()
             }))
         },
-
         _ => {
-            Ok(types::Response::Error(types::ErrorResponse {
-                transaction_id: types::TransactionId(transaction_id),
+            Ok(Response::Error(ErrorResponse {
+                transaction_id: TransactionId(transaction_id),
                 message: "Invalid action".to_string()
             }))
         }
