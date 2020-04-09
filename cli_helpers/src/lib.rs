@@ -36,11 +36,11 @@ fn default_config_as_toml<T>() -> String
 }
 
 
-pub fn run_with_cli_and_config<T, F>(
+pub fn run_with_cli_and_config<T>(
     title: &str,
     // Function that takes config file and runs application
-    f: F,
-) where T: Default + Serialize + DeserializeOwned, F: Fn(T) {
+    f: fn(T),
+) where T: Default + Serialize + DeserializeOwned {
     let args: Vec<String> = ::std::env::args().collect();
 
     match AppOptions::parse_args_default(&args[1..]){
