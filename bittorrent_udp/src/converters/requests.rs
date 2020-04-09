@@ -43,7 +43,6 @@ pub fn request_to_bytes(
                 |ip| ip.octets()
             )).unwrap();
 
-            bytes.write_u32::<NetworkEndian>(0).unwrap(); // IP
             bytes.write_u32::<NetworkEndian>(r.key.0).unwrap();
             bytes.write_i32::<NetworkEndian>(r.peers_wanted.0).unwrap();
             bytes.write_u16::<NetworkEndian>(r.port.0).unwrap();
