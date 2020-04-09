@@ -175,33 +175,23 @@ pub fn response_from_bytes(
         2 => {
             let mut stats = Vec::new();
 
-            // TODO: transition to while let && when available
-            loop {
-                if let Ok(seeders) = bytes.read_i32::<NetworkEndian>() {
-                    if let Ok(downloaded) = bytes.read_i32::<NetworkEndian>() {
-                        if let Ok(leechers) = bytes.read_i32::<NetworkEndian>() {
-                            stats.push(types::TorrentScrapeStatistics {
-                                seeders:   types::NumberOfPeers(seeders),
-                                completed: types::NumberOfDownloads(downloaded),
-                                leechers:  types::NumberOfPeers(leechers)
-                            });
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                    else {
-                        break;
-                    }
-                }
-                else {
-                    break;
-                }
+            let mut buf = [0u8; 12];
+
+            while let Ok(()) = bytes.read_exact(&mut buf){
+                let seeders = (&buf[0..4]).read_i32::<NetworkEndian>().unwrap();
+                let downloads = (&buf[4..8]).read_i32::<NetworkEndian>().unwrap();
+                let leechers = (&buf[8..12]).read_i32::<NetworkEndian>().unwrap();
+
+                stats.push(types::TorrentScrapeStatistics {
+                    seeders: types::NumberOfPeers(seeders),
+                    completed: types::NumberOfDownloads(downloads),
+                    leechers:types::NumberOfPeers(leechers)
+                })
             }
 
             Ok(types::Response::Scrape(types::ScrapeResponse {
                 transaction_id: types::TransactionId(transaction_id),
-                torrent_stats:  stats
+                torrent_stats: stats
             }))
         },
 
