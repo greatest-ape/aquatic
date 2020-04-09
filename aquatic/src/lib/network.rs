@@ -33,10 +33,10 @@ pub fn run_event_loop(
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
-    let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::with_capacity(1024);
-    let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::with_capacity(1024);
-    let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::with_capacity(1024);
-    let mut responses: Vec<(Response, SocketAddr)> = Vec::with_capacity(1024);
+    let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::new();
+    let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::new();
+    let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::new();
+    let mut responses: Vec<(Response, SocketAddr)> = Vec::new();
 
     loop {
         poll.poll(&mut events, None)
