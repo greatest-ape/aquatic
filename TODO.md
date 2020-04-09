@@ -1,11 +1,11 @@
 # TODO
 
-* Configuration, cli
 * Benchmarks
   * Run multiple threads to test performance when contested?
   * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
+  * Configuration, cli
 * Tests of aquatic and bittorrent_udp (quickcheck, test cases)
 
 ## Not important
