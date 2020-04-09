@@ -1,10 +1,11 @@
 use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
 
+use std::convert::TryInto;
 use std::io;
 use std::io::{Read, Write};
 use std::net::Ipv4Addr;
 
-use crate::types;
+use crate::types::{self, *};
 
 use super::common::*;
 
@@ -134,34 +135,17 @@ pub fn request_from_bytes(
 
         // Scrape
         2 => {
-            let mut info_hashes = Vec::new();
-            let mut info_hash = [0; 20];
+            let position = bytes.position() as usize;
+            let inner = bytes.into_inner();
 
-            let mut i = 0;
+            let info_hashes = (&inner[position..]).chunks_exact(20)
+                .take(max_scrape_torrents as usize)
+                .map(|chunk| InfoHash(chunk.try_into().unwrap()))
+                .collect();
 
-            loop {
-                if i > max_scrape_torrents {
-                    return Ok(types::Request::Invalid(types::InvalidRequest {
-                        transaction_id:   types::TransactionId(transaction_id),
-                        message: format!(
-                            "Too many torrents. Maximum is {}",
-                            max_scrape_torrents
-                        )
-                    }));
-                }
-
-                if bytes.read_exact(&mut info_hash).is_err(){
-                    break
-                }
-
-                info_hashes.push(types::InfoHash(info_hash));
-
-                i += 1;
-            }
-
-            Ok(types::Request::Scrape(types::ScrapeRequest {
-                connection_id:  types::ConnectionId(connection_id),
-                transaction_id: types::TransactionId(transaction_id),
+            Ok(Request::Scrape(ScrapeRequest {
+                connection_id: ConnectionId(connection_id),
+                transaction_id: TransactionId(transaction_id),
                 info_hashes
             }))
         }
