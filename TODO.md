@@ -7,6 +7,8 @@
   * Show percentile stats for peers per torrent
   * Configuration, cli
 * Tests of aquatic and bittorrent_udp (quickcheck, test cases)
+* bittorrent_udp
+  * Check if announce response to bytes code changed caused slowdown
 
 ## Not important
 
