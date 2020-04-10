@@ -112,20 +112,9 @@ pub fn response_from_bytes(
                 }).collect()
             } else {
                 inner[position..].chunks_exact(18).map(|chunk| {
-                    let mut cursor: Cursor<&[u8]> = Cursor::new(&chunk[..]);
-
-                    let ip_address = IpAddr::V6(Ipv6Addr::new(
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                        cursor.read_u16::<NetworkEndian>().unwrap(),
-                    ));
-
-                    let port = cursor.read_u16::<NetworkEndian>().unwrap();
+                    let ip_bytes: [u8; 16] = (&chunk[..16]).try_into().unwrap();
+                    let ip_address = IpAddr::V6(Ipv6Addr::from(ip_bytes));
+                    let port = (&chunk[16..]).read_u16::<NetworkEndian>().unwrap();
 
                     ResponsePeer {
                         ip_address,
