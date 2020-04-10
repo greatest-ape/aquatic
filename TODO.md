@@ -6,9 +6,12 @@
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
   * Configuration, cli
-* Tests of aquatic and bittorrent_udp (quickcheck, test cases)
+* Tests of aquatic
 * bittorrent_udp
+  * quickcheck request byte conversion
+  * other test cases
   * Check if announce response to bytes code changed caused slowdown
+  * thiserror errors instead of InvalidRequest
 
 ## Not important
 
