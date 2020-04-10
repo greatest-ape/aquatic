@@ -12,54 +12,87 @@ use super::common::*;
 const PROTOCOL_IDENTIFIER: i64 = 4_497_486_125_440;
 
 
+#[derive(Debug)]
+pub struct RequestParseError {
+    pub transaction_id: Option<TransactionId>,
+    pub message: Option<String>,
+    pub error: Option<io::Error>,
+}
+
+
+impl RequestParseError {
+    pub fn new(err: io::Error, transaction_id: i32) -> Self {
+        Self {
+            transaction_id: Some(TransactionId(transaction_id)),
+            message: None,
+            error: Some(err)
+        }
+    }
+    pub fn io(err: io::Error) -> Self {
+        Self {
+            transaction_id: None,
+            message: None,
+            error: Some(err)
+        }
+    }
+    pub fn text(transaction_id: i32, message: &str) -> Self {
+        Self {
+            transaction_id: Some(TransactionId(transaction_id)),
+            message: Some(message.to_string()),
+            error: None,
+        }
+    }
+}
+
+
 #[inline]
 pub fn request_to_bytes(
     bytes: &mut impl Write,
     request: Request
-){
+) -> Result<(), io::Error> {
     match request {
         Request::Connect(r) => {
-            bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER).unwrap();
-            bytes.write_i32::<NetworkEndian>(0).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
+            bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER)?;
+            bytes.write_i32::<NetworkEndian>(0)?;
+            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
         },
 
         Request::Announce(r) => {
-            bytes.write_i64::<NetworkEndian>(r.connection_id.0).unwrap();
-            bytes.write_i32::<NetworkEndian>(1).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
+            bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
+            bytes.write_i32::<NetworkEndian>(1)?;
+            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
 
-            bytes.write_all(&r.info_hash.0).unwrap();
-            bytes.write_all(&r.peer_id.0).unwrap();
+            bytes.write_all(&r.info_hash.0)?;
+            bytes.write_all(&r.peer_id.0)?;
 
-            bytes.write_i64::<NetworkEndian>(r.bytes_downloaded.0).unwrap();
-            bytes.write_i64::<NetworkEndian>(r.bytes_left.0).unwrap();
-            bytes.write_i64::<NetworkEndian>(r.bytes_uploaded.0).unwrap();
+            bytes.write_i64::<NetworkEndian>(r.bytes_downloaded.0)?;
+            bytes.write_i64::<NetworkEndian>(r.bytes_left.0)?;
+            bytes.write_i64::<NetworkEndian>(r.bytes_uploaded.0)?;
 
-            bytes.write_i32::<NetworkEndian>(event_to_i32(r.event)).unwrap();
+            bytes.write_i32::<NetworkEndian>(event_to_i32(r.event))?;
 
             bytes.write_all(&r.ip_address.map_or(
                 [0; 4],
                 |ip| ip.octets()
-            )).unwrap();
+            ))?;
 
-            bytes.write_u32::<NetworkEndian>(r.key.0).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.peers_wanted.0).unwrap();
-            bytes.write_u16::<NetworkEndian>(r.port.0).unwrap();
+            bytes.write_u32::<NetworkEndian>(r.key.0)?;
+            bytes.write_i32::<NetworkEndian>(r.peers_wanted.0)?;
+            bytes.write_u16::<NetworkEndian>(r.port.0)?;
         },
 
         Request::Scrape(r) => {
-            bytes.write_i64::<NetworkEndian>(r.connection_id.0).unwrap();
-            bytes.write_i32::<NetworkEndian>(2).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
+            bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
+            bytes.write_i32::<NetworkEndian>(2)?;
+            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
 
             for info_hash in r.info_hashes {
-                bytes.write_all(&info_hash.0).unwrap();
+                bytes.write_all(&info_hash.0)?;
             }
         }
-
-        _ => () // Invalid requests should never happen
     }
+
+    Ok(())
 }
 
 
@@ -67,12 +100,15 @@ pub fn request_to_bytes(
 pub fn request_from_bytes(
     bytes: &[u8],
     max_scrape_torrents: u8,
-) -> Result<Request,io::Error> {
+) -> Result<Request, RequestParseError> {
     let mut cursor = Cursor::new(bytes);
 
-    let connection_id = cursor.read_i64::<NetworkEndian>()?;
-    let action = cursor.read_i32::<NetworkEndian>()?;
-    let transaction_id = cursor.read_i32::<NetworkEndian>()?;
+    let connection_id = cursor.read_i64::<NetworkEndian>()
+        .map_err(RequestParseError::io)?;
+    let action = cursor.read_i32::<NetworkEndian>()
+        .map_err(RequestParseError::io)?;
+    let transaction_id = cursor.read_i32::<NetworkEndian>()
+        .map_err(RequestParseError::io)?;
 
     match action {
         // Connect
@@ -82,12 +118,10 @@ pub fn request_from_bytes(
                     transaction_id: TransactionId(transaction_id)
                 }).into())
             } else {
-                Ok(Request::Invalid(InvalidRequest {
-                    transaction_id: TransactionId(transaction_id),
-                    message:
-                        "Please send protocol identifier in connect request"
-                        .to_string()
-                }))
+                Err(RequestParseError::text(
+                    transaction_id,
+                    "Protocol identifier missing"
+                ))
             }
         },
 
@@ -97,19 +131,29 @@ pub fn request_from_bytes(
             let mut peer_id = [0; 20];
             let mut ip = [0; 4];
 
-            cursor.read_exact(&mut info_hash)?;
-            cursor.read_exact(&mut peer_id)?;
+            cursor.read_exact(&mut info_hash)
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
+            cursor.read_exact(&mut peer_id)
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
 
-            let bytes_downloaded = cursor.read_i64::<NetworkEndian>()?;
-            let bytes_left = cursor.read_i64::<NetworkEndian>()?;
-            let bytes_uploaded = cursor.read_i64::<NetworkEndian>()?;
-            let event = cursor.read_i32::<NetworkEndian>()?;
+            let bytes_downloaded = cursor.read_i64::<NetworkEndian>()
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
+            let bytes_left = cursor.read_i64::<NetworkEndian>()
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
+            let bytes_uploaded = cursor.read_i64::<NetworkEndian>()
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
+            let event = cursor.read_i32::<NetworkEndian>()
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
 
-            cursor.read_exact(&mut ip)?;
+            cursor.read_exact(&mut ip)
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
 
-            let key = cursor.read_u32::<NetworkEndian>()?;
-            let peers_wanted = cursor.read_i32::<NetworkEndian>()?;
-            let port = cursor.read_u16::<NetworkEndian>()?;
+            let key = cursor.read_u32::<NetworkEndian>()
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
+            let peers_wanted = cursor.read_i32::<NetworkEndian>()
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
+            let port = cursor.read_u16::<NetworkEndian>()
+                .map_err(|err| RequestParseError::new(err, transaction_id))?;
 
             let opt_ip = if ip == [0; 4] {
                 None
@@ -150,9 +194,6 @@ pub fn request_from_bytes(
             }).into())
         }
 
-        _ => Ok(Request::Invalid(InvalidRequest {
-            transaction_id: TransactionId(transaction_id),
-            message: "Invalid action".to_string()
-        }))
+        _ => Err(RequestParseError::text(transaction_id, "Invalid action"))
     }
 }

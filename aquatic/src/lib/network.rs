@@ -151,16 +151,27 @@ fn handle_readable_socket(
                     Ok(Request::Scrape(r)) => {
                         scrape_requests.push((r, src));
                     },
-                    Ok(Request::Invalid(r)) => {
-                        let response = Response::Error(ErrorResponse {
-                            transaction_id: r.transaction_id,
-                            message: "Invalid request".to_string(),
-                        });
-
-                        responses.push((response, src));
-                    },
                     Err(err) => {
                         eprintln!("request_from_bytes error: {:?}", err);
+
+                        if let Some(transaction_id) = err.transaction_id {
+                            let opt_message = if err.error.is_some() {
+                                Some("Parse error".to_string())
+                            } else if let Some(message) = err.message {
+                                Some(message)
+                            } else {
+                                None
+                            };
+
+                            if let Some(message) = opt_message {
+                                let response = ErrorResponse {
+                                    transaction_id,
+                                    message,
+                                };
+
+                                responses.push((response.into(), src));
+                            }
+                        }
                     },
                 }
             },

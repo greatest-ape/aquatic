@@ -2,11 +2,11 @@
 //! 
 //! Example summary output:
 //! ```
-//! ## Average results over 50 rounds
+//! ## Average results over 20 rounds
 //! 
-//! Connect handler:   2 530 072 requests/second,   395.38 ns/request
-//! Announce handler:    309 719 requests/second,  3229.87 ns/request
-//! Scrape handler:      595 259 requests/second,  1680.01 ns/request
+//! Connect handler:   2 473 860 requests/second,   404.94 ns/request
+//! Announce handler:    302 665 requests/second,  3306.17 ns/request
+//! Scrape handler:      745 598 requests/second,  1341.30 ns/request
 //! ```
 
 use std::time::{Duration, Instant};
@@ -77,7 +77,7 @@ fn main(){
                 let mut buffer = [0u8; MAX_REQUEST_BYTES];
                 let mut cursor = Cursor::new(buffer.as_mut());
 
-                request_to_bytes(&mut cursor, Request::Connect(request));
+                request_to_bytes(&mut cursor, Request::Connect(request)).unwrap();
 
                 (buffer, src)
             })
@@ -132,7 +132,7 @@ fn main(){
                 let mut buffer = [0u8; MAX_REQUEST_BYTES];
                 let mut cursor = Cursor::new(buffer.as_mut());
 
-                request_to_bytes(&mut cursor, Request::Announce(request));
+                request_to_bytes(&mut cursor, Request::Announce(request)).unwrap();
 
                 (buffer, src)
             })
@@ -186,7 +186,7 @@ fn main(){
                 let mut buffer = [0u8; MAX_REQUEST_BYTES];
                 let mut cursor = Cursor::new(buffer.as_mut());
 
-                request_to_bytes(&mut cursor, Request::Scrape(request));
+                request_to_bytes(&mut cursor, Request::Scrape(request)).unwrap();
 
                 (buffer, src)
             })

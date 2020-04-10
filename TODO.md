@@ -11,7 +11,6 @@
   * quickcheck request byte conversion
   * other test cases
   * Check if announce response to bytes code changed caused slowdown
-  * thiserror errors instead of InvalidRequest
 
 ## Not important
 

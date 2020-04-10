@@ -39,19 +39,12 @@ pub struct ScrapeRequest {
     pub info_hashes:      Vec<InfoHash>
 }
 
-/// This is used for returning specific errors from the parser
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct InvalidRequest { 
-    pub transaction_id:   TransactionId,
-    pub message:          String
-}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Request {
     Connect(ConnectRequest),
     Announce(AnnounceRequest),
     Scrape(ScrapeRequest),
-    Invalid(InvalidRequest),
 }
 
 
