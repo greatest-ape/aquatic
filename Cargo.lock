@@ -130,6 +130,8 @@ name = "bittorrent_udp"
 version = "0.1.0"
 dependencies = [
  "byteorder",
+ "quickcheck",
+ "quickcheck_macros",
 ]
 
 [[package]]

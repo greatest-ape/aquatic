@@ -185,3 +185,61 @@ pub fn response_from_bytes(
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use quickcheck::{TestResult, quickcheck};
+
+    use super::*;
+
+    fn same_after_conversion(response: Response, ip_version: IpVersion) -> bool {
+        let mut buf = Vec::new();
+
+        response_to_bytes(&mut buf, response.clone(), ip_version);
+        let r2 = response_from_bytes(&buf[..], ip_version).unwrap();
+
+        let success = response == r2;
+
+        if !success {
+            println!("before: {:#?}\nafter: {:#?}", response, r2);
+        }
+
+        success
+    }
+
+    #[test]
+    fn test_convert_identity_connect_response(){
+        fn prop(response: ConnectResponse) -> TestResult {
+            TestResult::from_bool(same_after_conversion(Response::Connect(response), IpVersion::IPv4))
+        }   
+
+        quickcheck(prop as fn(ConnectResponse) -> TestResult);
+    }
+
+    #[test]
+    fn test_convert_identity_announce_response(){
+        fn prop(data: (AnnounceResponse, IpVersion)) -> TestResult {
+            let mut r = data.0;
+
+            if data.1 == IpVersion::IPv4 {
+                r.peers.retain(|peer| peer.ip_address.is_ipv4());
+            } else {
+                r.peers.retain(|peer| peer.ip_address.is_ipv6());
+            }
+
+            TestResult::from_bool(same_after_conversion(Response::Announce(r), data.1))
+        }   
+
+        quickcheck(prop as fn((AnnounceResponse, IpVersion)) -> TestResult);
+    }
+
+    #[test]
+    fn test_convert_identity_scrape_response(){
+        fn prop(response: ScrapeResponse) -> TestResult {
+            TestResult::from_bool(same_after_conversion(Response::Scrape(response), IpVersion::IPv4))
+        }   
+
+        quickcheck(prop as fn(ScrapeResponse) -> TestResult);
+    }
+}

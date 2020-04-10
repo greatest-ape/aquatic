@@ -6,3 +6,7 @@ edition = "2018"
 
 [dependencies]
 byteorder = "1"
+
+[dev-dependencies]
+quickcheck = "0.9"
+quickcheck_macros = "0.9"

@@ -43,3 +43,59 @@ pub enum Response {
     Scrape(ScrapeResponse),
     Error(ErrorResponse),
 }
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for TorrentScrapeStatistics {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        Self {
+            seeders: NumberOfPeers(i32::arbitrary(g)),
+            completed: NumberOfDownloads(i32::arbitrary(g)),
+            leechers: NumberOfPeers(i32::arbitrary(g)),
+        }
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for ConnectResponse {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        Self {
+            connection_id: ConnectionId(i64::arbitrary(g)),
+            transaction_id: TransactionId(i32::arbitrary(g)),
+        }
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for AnnounceResponse {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        let peers = (0..u8::arbitrary(g)).map(|_| {
+            ResponsePeer::arbitrary(g)
+        }).collect();
+
+        Self {
+            transaction_id: TransactionId(i32::arbitrary(g)),
+            announce_interval: AnnounceInterval(i32::arbitrary(g)),
+            leechers: NumberOfPeers(i32::arbitrary(g)),
+            seeders: NumberOfPeers(i32::arbitrary(g)),
+            peers,
+        }
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for ScrapeResponse {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        let torrent_stats = (0..u8::arbitrary(g)).map(|_| {
+            TorrentScrapeStatistics::arbitrary(g)
+        }).collect();
+
+        Self {
+            transaction_id: TransactionId(i32::arbitrary(g)),
+            torrent_stats,
+        }
+    }
+}

@@ -48,3 +48,26 @@ pub struct ResponsePeer {
     pub ip_address:    net::IpAddr,
     pub port:          Port,
 }
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for IpVersion {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        if bool::arbitrary(g) {
+            IpVersion::IPv4
+        } else {
+            IpVersion::IPv6
+        }
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for ResponsePeer {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        Self {
+            ip_address: ::std::net::IpAddr::arbitrary(g),
+            port: Port(u16::arbitrary(g)),
+        }
+    }
+}
