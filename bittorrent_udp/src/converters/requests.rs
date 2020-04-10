@@ -78,9 +78,9 @@ pub fn request_from_bytes(
         // Connect
         0 => {
             if connection_id == PROTOCOL_IDENTIFIER {
-                Ok(Request::Connect(ConnectRequest {
+                Ok((ConnectRequest {
                     transaction_id: TransactionId(transaction_id)
-                }))
+                }).into())
             } else {
                 Ok(Request::Invalid(InvalidRequest {
                     transaction_id: TransactionId(transaction_id),
@@ -117,7 +117,7 @@ pub fn request_from_bytes(
                 Some(Ipv4Addr::from(ip))
             };
 
-            Ok(Request::Announce(AnnounceRequest {
+            Ok((AnnounceRequest {
                 connection_id: ConnectionId(connection_id),
                 transaction_id: TransactionId(transaction_id),
                 info_hash: InfoHash(info_hash),
@@ -130,7 +130,7 @@ pub fn request_from_bytes(
                 key: PeerKey(key),
                 peers_wanted: NumberOfPeers(peers_wanted),
                 port: Port(port)
-            }))
+            }).into())
         },
 
         // Scrape
@@ -143,11 +143,11 @@ pub fn request_from_bytes(
                 .map(|chunk| InfoHash(chunk.try_into().unwrap()))
                 .collect();
 
-            Ok(Request::Scrape(ScrapeRequest {
+            Ok((ScrapeRequest {
                 connection_id: ConnectionId(connection_id),
                 transaction_id: TransactionId(transaction_id),
                 info_hashes
-            }))
+            }).into())
         }
 
         _ => Ok(Request::Invalid(InvalidRequest {

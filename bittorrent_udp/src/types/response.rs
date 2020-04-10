@@ -45,6 +45,34 @@ pub enum Response {
 }
 
 
+impl From<ConnectResponse> for Response {
+    fn from(r: ConnectResponse) -> Self {
+        Self::Connect(r)
+    }
+}
+
+
+impl From<AnnounceResponse> for Response {
+    fn from(r: AnnounceResponse) -> Self {
+        Self::Announce(r)
+    }
+}
+
+
+impl From<ScrapeResponse> for Response {
+    fn from(r: ScrapeResponse) -> Self {
+        Self::Scrape(r)
+    }
+}
+
+
+impl From<ErrorResponse> for Response {
+    fn from(r: ErrorResponse) -> Self {
+        Self::Error(r)
+    }
+}
+
+
 #[cfg(test)]
 impl quickcheck::Arbitrary for TorrentScrapeStatistics {
     fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {

@@ -85,10 +85,10 @@ pub fn response_from_bytes(
         0 => {
             let connection_id = cursor.read_i64::<NetworkEndian>()?;
 
-            Ok(Response::Connect(ConnectResponse {
+            Ok((ConnectResponse {
                 connection_id: ConnectionId(connection_id),
                 transaction_id: TransactionId(transaction_id)
-            }))
+            }).into())
         },
         // Announce
         1 => {
@@ -123,13 +123,13 @@ pub fn response_from_bytes(
                 }).collect()
             };
 
-            Ok(Response::Announce(AnnounceResponse {
+            Ok((AnnounceResponse {
                 transaction_id: TransactionId(transaction_id),
                 announce_interval: AnnounceInterval(announce_interval),
                 leechers: NumberOfPeers(leechers),
                 seeders: NumberOfPeers(seeders),
                 peers
-            }))
+            }).into())
 
         },
         // Scrape
@@ -151,26 +151,26 @@ pub fn response_from_bytes(
                 }
             }).collect();
 
-            Ok(Response::Scrape(ScrapeResponse {
+            Ok((ScrapeResponse {
                 transaction_id: TransactionId(transaction_id),
                 torrent_stats: stats
-            }))
+            }).into())
         },
         // Error
         3 => {
             let position = cursor.position() as usize;
             let inner = cursor.into_inner();
 
-            Ok(Response::Error(ErrorResponse {
+            Ok((ErrorResponse {
                 transaction_id: TransactionId(transaction_id),
                 message: String::from_utf8_lossy(&inner[position..]).into()
-            }))
+            }).into())
         },
         _ => {
-            Ok(Response::Error(ErrorResponse {
+            Ok((ErrorResponse {
                 transaction_id: TransactionId(transaction_id),
                 message: "Invalid action".to_string()
-            }))
+            }).into())
         }
     }
 }
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn test_convert_identity_connect_response(){
         fn prop(response: ConnectResponse) -> TestResult {
-            TestResult::from_bool(same_after_conversion(Response::Connect(response), IpVersion::IPv4))
+            TestResult::from_bool(same_after_conversion(response.into(), IpVersion::IPv4))
         }   
 
         quickcheck(prop as fn(ConnectResponse) -> TestResult);
@@ -217,7 +217,7 @@ mod tests {
                 r.peers.retain(|peer| peer.ip_address.is_ipv6());
             }
 
-            TestResult::from_bool(same_after_conversion(Response::Announce(r), data.1))
+            TestResult::from_bool(same_after_conversion(r.into(), data.1))
         }   
 
         quickcheck(prop as fn((AnnounceResponse, IpVersion)) -> TestResult);
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn test_convert_identity_scrape_response(){
         fn prop(response: ScrapeResponse) -> TestResult {
-            TestResult::from_bool(same_after_conversion(Response::Scrape(response), IpVersion::IPv4))
+            TestResult::from_bool(same_after_conversion(response.into(), IpVersion::IPv4))
         }   
 
         quickcheck(prop as fn(ScrapeResponse) -> TestResult);

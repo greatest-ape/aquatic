@@ -53,3 +53,25 @@ pub enum Request {
     Scrape(ScrapeRequest),
     Invalid(InvalidRequest),
 }
+
+
+
+impl From<ConnectRequest> for Request {
+    fn from(r: ConnectRequest) -> Self {
+        Self::Connect(r)
+    }
+}
+
+
+impl From<AnnounceRequest> for Request {
+    fn from(r: AnnounceRequest) -> Self {
+        Self::Announce(r)
+    }
+}
+
+
+impl From<ScrapeRequest> for Request {
+    fn from(r: ScrapeRequest) -> Self {
+        Self::Scrape(r)
+    }
+}
