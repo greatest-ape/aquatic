@@ -1,5 +1,4 @@
-use std::net;
-
+use std::net::IpAddr;
 
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -45,8 +44,8 @@ pub struct PeerKey (pub u32);
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ResponsePeer {
-    pub ip_address:    net::IpAddr,
-    pub port:          Port,
+    pub ip_address: IpAddr,
+    pub port: Port,
 }
 
 

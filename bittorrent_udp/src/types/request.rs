@@ -13,30 +13,30 @@ pub enum AnnounceEvent {
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ConnectRequest {
-    pub transaction_id:   TransactionId
+    pub transaction_id: TransactionId
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct AnnounceRequest {
-    pub connection_id:    ConnectionId,
-    pub transaction_id:   TransactionId,
-    pub info_hash:        InfoHash,
-    pub peer_id:          PeerId,
+    pub connection_id: ConnectionId,
+    pub transaction_id: TransactionId,
+    pub info_hash: InfoHash,
+    pub peer_id: PeerId,
     pub bytes_downloaded: NumberOfBytes,
-    pub bytes_uploaded:   NumberOfBytes,
-    pub bytes_left:       NumberOfBytes,
-    pub event:            AnnounceEvent,
-    pub ip_address:       Option<Ipv4Addr>, 
-    pub key:              PeerKey,
-    pub peers_wanted:     NumberOfPeers,
-    pub port:             Port
+    pub bytes_uploaded: NumberOfBytes,
+    pub bytes_left: NumberOfBytes,
+    pub event: AnnounceEvent,
+    pub ip_address: Option<Ipv4Addr>, 
+    pub key: PeerKey,
+    pub peers_wanted: NumberOfPeers,
+    pub port: Port
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ScrapeRequest {
-    pub connection_id:    ConnectionId,
-    pub transaction_id:   TransactionId,
-    pub info_hashes:      Vec<InfoHash>
+    pub connection_id: ConnectionId,
+    pub transaction_id: TransactionId,
+    pub info_hashes: Vec<InfoHash>
 }
 
 
