@@ -48,12 +48,14 @@ version = "0.1.0"
 dependencies = [
  "aquatic",
  "bittorrent_udp",
+ "cli_helpers",
  "indicatif",
  "mimalloc",
  "num-format",
  "plotly",
  "rand",
  "rand_distr",
+ "serde",
 ]
 
 [[package]]

@@ -17,9 +17,11 @@ name = "plot_pareto"
 [dependencies]
 aquatic = { path = "../aquatic" }
 bittorrent_udp = { path = "../bittorrent_udp" }
+cli_helpers = { path = "../cli_helpers" }
 indicatif = "0.14"
 mimalloc = { version = "0.1", default-features = false }
 num-format = "0.4"
 plotly = "0.4"
 rand = { version = "0.7", features = ["small_rng"] }
 rand_distr = "0.2"
+serde = { version = "1", features = ["derive"] }

@@ -20,14 +20,17 @@ use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
 use aquatic::common::*;
 use aquatic::config::Config;
 use bittorrent_udp::converters::*;
+use cli_helpers::run_app_with_cli_and_config;
 
 
 mod announce;
 mod common;
+mod config;
 mod connect;
 mod scrape;
 
 use common::*;
+use config::BenchConfig;
 
 
 #[global_allocator]
@@ -53,7 +56,15 @@ fn print_results(
 
 
 fn main(){
-    let num_rounds = 20;
+    run_app_with_cli_and_config::<BenchConfig>(
+        "aquatic benchmarker",
+        run
+    )
+}
+
+
+fn run(bench_config: BenchConfig){
+    let num_rounds = bench_config.num_rounds;
 
     let mut connect_data = (0.0, 0.0);
     let mut announce_data = (0.0, 0.0);
