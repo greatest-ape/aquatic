@@ -5,7 +5,6 @@
   * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
-  * Configuration, cli
 * aquatic
   * Tests
   * Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
