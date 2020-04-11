@@ -55,7 +55,7 @@ pub fn bench(
 
         cursor.set_position(0);
 
-        response_to_bytes(&mut cursor, response, IpVersion::IPv4);
+        response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();
 
         dummy ^= cursor.get_ref()[0];
     }

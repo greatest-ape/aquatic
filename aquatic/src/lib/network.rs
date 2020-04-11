@@ -209,7 +209,7 @@ fn handle_readable_socket(
     for (response, src) in responses.drain(..) {
         cursor.set_position(0);
 
-        response_to_bytes(&mut cursor, response, IpVersion::IPv4);
+        response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();
 
         let amt = cursor.position() as usize;
 

@@ -12,61 +12,57 @@ pub fn response_to_bytes(
     bytes: &mut impl Write,
     response: Response,
     ip_version: IpVersion
-){
+) -> Result<(), io::Error> {
     match response {
         Response::Connect(r) => {
-            bytes.write_i32::<NetworkEndian>(0).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
-            bytes.write_i64::<NetworkEndian>(r.connection_id.0).unwrap();
+            bytes.write_i32::<NetworkEndian>(0)?;
+            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
+            bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
         },
-
         Response::Announce(r) => {
-            bytes.write_i32::<NetworkEndian>(1).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.announce_interval.0).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.leechers.0).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.seeders.0).unwrap();
+            bytes.write_i32::<NetworkEndian>(1)?;
+            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
+            bytes.write_i32::<NetworkEndian>(r.announce_interval.0)?;
+            bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
+            bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
 
             // Write peer IPs and ports. Silently ignore peers with wrong
             // IP version
             if ip_version == IpVersion::IPv4 {
                 for peer in r.peers {
                     if let IpAddr::V4(ip) = peer.ip_address {
-                        bytes.write_all(&ip.octets()).unwrap();
-                        bytes.write_u16::<NetworkEndian>(peer.port.0).unwrap();
+                        bytes.write_all(&ip.octets())?;
+                        bytes.write_u16::<NetworkEndian>(peer.port.0)?;
                     }
                 }
             } else {
                 for peer in r.peers {
                     if let IpAddr::V6(ip) = peer.ip_address {
-                        bytes.write_all(&ip.octets()).unwrap();
-                        bytes.write_u16::<NetworkEndian>(peer.port.0).unwrap();
+                        bytes.write_all(&ip.octets())?;
+                        bytes.write_u16::<NetworkEndian>(peer.port.0)?;
                     }
                 }
             }
         },
-
         Response::Scrape(r) => {
-            bytes.write_i32::<NetworkEndian>(2).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
+            bytes.write_i32::<NetworkEndian>(2)?;
+            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
 
             for torrent_stat in r.torrent_stats {
-                bytes.write_i32::<NetworkEndian>(torrent_stat.seeders.0)
-                    .unwrap();
-                bytes.write_i32::<NetworkEndian>(torrent_stat.completed.0)
-                    .unwrap();
-                bytes.write_i32::<NetworkEndian>(torrent_stat.leechers.0)
-                    .unwrap();
+                bytes.write_i32::<NetworkEndian>(torrent_stat.seeders.0)?;
+                bytes.write_i32::<NetworkEndian>(torrent_stat.completed.0)?;
+                bytes.write_i32::<NetworkEndian>(torrent_stat.leechers.0)?;
             }
         },
-
         Response::Error(r) => {
-            bytes.write_i32::<NetworkEndian>(3).unwrap();
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0).unwrap();
+            bytes.write_i32::<NetworkEndian>(3)?;
+            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
 
-            bytes.write_all(r.message.as_bytes()).unwrap();
+            bytes.write_all(r.message.as_bytes())?;
         },
     }
+
+    Ok(())
 }
 
 
@@ -186,7 +182,7 @@ mod tests {
     ) -> bool {
         let mut buf = Vec::new();
 
-        response_to_bytes(&mut buf, response.clone(), ip_version);
+        response_to_bytes(&mut buf, response.clone(), ip_version).unwrap();
         let r2 = response_from_bytes(&buf[..], ip_version).unwrap();
 
         let success = response == r2;
