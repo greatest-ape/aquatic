@@ -1,11 +1,15 @@
 # TODO
 
 * Benchmarks
+  * Fix issues since switch to socket and handler workers
   * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
 * aquatic
-  * https://docs.rs/crossbeam/0.7.3/crossbeam/utils/struct.Backoff.html#method.is_completed
+  * Park handler threads when really inactive? Or generally avoid utilizing
+    CPU needlessly. See https://docs.rs/crossbeam/0.7.3/crossbeam/utils/struct.Backoff.html#method.is_completed
+  * Lock whole torrent map over many requests in handlers? Could use HashMap
+    in Mutex instead of DashMap maybe (parking lot mutex?)
   * Tests
   * Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
     use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
