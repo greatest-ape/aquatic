@@ -8,8 +8,6 @@ pub struct Config {
     /// Spawn this number of threads for workers
     pub socket_workers: usize,
     pub response_workers: usize,
-    pub request_queue_len: usize,
-    pub response_queue_len: usize,
     pub network: NetworkConfig,
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
@@ -55,8 +53,6 @@ impl Default for Config {
         Self {
             socket_workers: 1,
             response_workers: 1,
-            request_queue_len: 4096,
-            response_queue_len: 4096 * 4,
             network: NetworkConfig::default(),
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),

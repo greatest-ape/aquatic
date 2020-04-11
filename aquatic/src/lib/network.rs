@@ -127,11 +127,7 @@ fn read_requests(
 
                 match request {
                     Ok(request) => {
-                        let res = state.request_queue.push((request, src));
-
-                        if let Err(err) = res {
-                            eprintln!("couldn't push request to queue: {}", err);
-                        }
+                        state.request_queue.push((request, src));
                     },
                     Err(err) => {
                         eprintln!("request_from_bytes error: {:?}", err);

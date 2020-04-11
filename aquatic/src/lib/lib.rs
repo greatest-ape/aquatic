@@ -11,7 +11,7 @@ use common::State;
 
 
 pub fn run(config: Config){
-    let state = State::new(&config);
+    let state = State::new();
 
     for _ in 0..config.response_workers {
         let state = state.clone();

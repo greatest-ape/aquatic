@@ -51,7 +51,7 @@ pub fn bench(
         requests,
     );
     
-    while let Ok((response, src)) = state.response_queue.pop(){
+    while let Ok((response, _)) = state.response_queue.pop(){
         if let Response::Announce(_) = response {
             num_responses += 1;
         }

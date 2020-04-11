@@ -88,9 +88,7 @@ pub fn handle_connect_requests(
             }
         );
         
-        if let Err(err) = state.response_queue.push((response, src)){
-            eprintln!("couldn't push to response queue: {}", err);
-        }
+        state.response_queue.push((response, src));
     }
 }
 
@@ -114,9 +112,7 @@ pub fn handle_announce_requests(
                 message: "Connection invalid or expired".to_string()
             };
 
-            if let Err(err) = state.response_queue.push((response.into(), src)){
-                eprintln!("couldn't push to response queue: {}", err);
-            }
+            state.response_queue.push((response.into(), src));
         }
 
         let peer_key = PeerMapKey {
@@ -180,9 +176,7 @@ pub fn handle_announce_requests(
             peers: response_peers
         });
 
-        if let Err(err) = state.response_queue.push((response, src)){
-            eprintln!("couldn't push to response queue: {}", err);
-        }
+        state.response_queue.push((response, src));
     }
 }
 
@@ -206,9 +200,7 @@ pub fn handle_scrape_requests(
                 message: "Connection invalid or expired".to_string()
             };
 
-            if let Err(err) = state.response_queue.push((response.into(), src)){
-                eprintln!("couldn't push to response queue: {}", err);
-            }
+            state.response_queue.push((response.into(), src));
         }
 
         let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(
@@ -231,9 +223,7 @@ pub fn handle_scrape_requests(
             torrent_stats: stats,
         });
 
-        if let Err(err) = state.response_queue.push((response, src)){
-            eprintln!("couldn't push to response queue: {}", err);
-        }
+        state.response_queue.push((response, src));
     };
 }
 

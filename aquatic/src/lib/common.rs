@@ -3,13 +3,11 @@ use std::sync::atomic::AtomicUsize;
 use std::net::{SocketAddr, IpAddr};
 use std::time::Instant;
 
-use crossbeam_queue::ArrayQueue;
+use crossbeam_queue::SegQueue;
 use dashmap::DashMap;
 use indexmap::IndexMap;
 
 pub use bittorrent_udp::types::*;
-
-use crate::config::Config;
 
 
 pub const MAX_PACKET_SIZE: usize = 4096;
@@ -140,18 +138,18 @@ pub struct State {
     pub connections: Arc<ConnectionMap>,
     pub torrents: Arc<TorrentMap>,
     pub statistics: Arc<Statistics>,
-    pub request_queue: Arc<ArrayQueue<(Request, SocketAddr)>>,
-    pub response_queue: Arc<ArrayQueue<(Response, SocketAddr)>>,
+    pub request_queue: Arc<SegQueue<(Request, SocketAddr)>>,
+    pub response_queue: Arc<SegQueue<(Response, SocketAddr)>>,
 }
 
 impl State {
-    pub fn new(config: &Config) -> Self {
+    pub fn new() -> Self {
         Self {
             connections: Arc::new(DashMap::new()),
             torrents: Arc::new(DashMap::new()),
             statistics: Arc::new(Statistics::default()),
-            request_queue: Arc::new(ArrayQueue::new(config.request_queue_len)),
-            response_queue: Arc::new(ArrayQueue::new(config.response_queue_len)),
+            request_queue: Arc::new(SegQueue::new()),
+            response_queue: Arc::new(SegQueue::new()),
         }
     }
 }
