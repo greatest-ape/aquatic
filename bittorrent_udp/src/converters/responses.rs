@@ -178,11 +178,12 @@ pub fn response_from_bytes(
 
 #[cfg(test)]
 mod tests {
-    use quickcheck::{TestResult, quickcheck};
-
     use super::*;
 
-    fn same_after_conversion(response: Response, ip_version: IpVersion) -> bool {
+    fn same_after_conversion(
+        response: Response,
+        ip_version: IpVersion
+    ) -> bool {
         let mut buf = Vec::new();
 
         response_to_bytes(&mut buf, response.clone(), ip_version);
@@ -197,38 +198,32 @@ mod tests {
         success
     }
 
-    #[test]
-    fn test_convert_identity_connect_response(){
-        fn prop(response: ConnectResponse) -> TestResult {
-            TestResult::from_bool(same_after_conversion(response.into(), IpVersion::IPv4))
-        }   
+    #[quickcheck]
+    fn test_connect_response_convert_identity(
+        response: ConnectResponse
+    ) -> bool {
+        same_after_conversion(response.into(), IpVersion::IPv4)
+    }   
 
-        quickcheck(prop as fn(ConnectResponse) -> TestResult);
-    }
+    #[quickcheck]
+    fn test_announce_response_convert_identity(
+        data: (AnnounceResponse, IpVersion)
+    ) -> bool {
+        let mut r = data.0;
 
-    #[test]
-    fn test_convert_identity_announce_response(){
-        fn prop(data: (AnnounceResponse, IpVersion)) -> TestResult {
-            let mut r = data.0;
+        if data.1 == IpVersion::IPv4 {
+            r.peers.retain(|peer| peer.ip_address.is_ipv4());
+        } else {
+            r.peers.retain(|peer| peer.ip_address.is_ipv6());
+        }
 
-            if data.1 == IpVersion::IPv4 {
-                r.peers.retain(|peer| peer.ip_address.is_ipv4());
-            } else {
-                r.peers.retain(|peer| peer.ip_address.is_ipv6());
-            }
+        same_after_conversion(r.into(), data.1)
+    }   
 
-            TestResult::from_bool(same_after_conversion(r.into(), data.1))
-        }   
-
-        quickcheck(prop as fn((AnnounceResponse, IpVersion)) -> TestResult);
-    }
-
-    #[test]
-    fn test_convert_identity_scrape_response(){
-        fn prop(response: ScrapeResponse) -> TestResult {
-            TestResult::from_bool(same_after_conversion(response.into(), IpVersion::IPv4))
-        }   
-
-        quickcheck(prop as fn(ScrapeResponse) -> TestResult);
-    }
+    #[quickcheck]
+    fn test_scrape_response_convert_identity(
+        response: ScrapeResponse
+    ) -> bool {
+        same_after_conversion(response.into(), IpVersion::IPv4)
+    }   
 }
