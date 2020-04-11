@@ -6,7 +6,11 @@
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
   * Configuration, cli
-* Tests of aquatic
+* aquatic
+  * Tests
+  * Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
+    use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
+    ones, have to check.
 * bittorrent_udp
   * quickcheck request byte conversion
   * other test cases
@@ -44,6 +48,9 @@
 * `sendmmsg`: can't send to multiple socket addresses, so doesn't help
 * Config behind Arc in state: it is likely better to be able to pass it around
   without state
+* Responses: make vecors iteretor references so we dont have run .collect().
+  Doesn't work since it means conversion to bytes must be done while holding
+  readable reference to entry in torrent map, hurting concurrency.
 
 ## bittorrent_udp
 
