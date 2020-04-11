@@ -6,7 +6,10 @@ use serde::{Serialize, Deserialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
     /// Spawn this number of threads for workers
-    pub num_threads: usize,
+    pub socket_workers: usize,
+    pub response_workers: usize,
+    pub request_queue_len: usize,
+    pub response_queue_len: usize,
     pub network: NetworkConfig,
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
@@ -50,7 +53,10 @@ pub struct CleaningConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            num_threads: 4,
+            socket_workers: 1,
+            response_workers: 1,
+            request_queue_len: 4096,
+            response_queue_len: 4096 * 4,
             network: NetworkConfig::default(),
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),

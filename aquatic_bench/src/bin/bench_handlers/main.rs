@@ -73,6 +73,8 @@ fn run(bench_config: BenchConfig){
     let mut announce_data = (0usize, Duration::new(0, 0));
     let mut scrape_data = (0usize, Duration::new(0, 0));
 
+    let config = Config::default();
+
     println!("# Benchmarking request handlers\n");
 
     // Benchmark connect handler
@@ -95,7 +97,7 @@ fn run(bench_config: BenchConfig){
         let pb = create_progress_bar("Connect handler", bench_config.num_rounds);
 
         for _ in (0..bench_config.num_rounds).progress_with(pb){
-            let state = State::new();
+            let state = State::new(&config);
 
             let handles: Vec<_> = (0..bench_config.num_threads).map(|_| {
                 let requests = requests.clone();
@@ -115,7 +117,6 @@ fn run(bench_config: BenchConfig){
 
     let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
     let info_hashes = create_info_hashes(&mut rng);
-    let config = Config::default();
 
     // Benchmark announce handler
     let last_torrents: Option<Arc<TorrentMap>> = {
@@ -156,7 +157,7 @@ fn run(bench_config: BenchConfig){
         let mut last_torrents = None;
 
         for i in (0..bench_config.num_rounds).progress_with(pb){
-            let mut state = State::new();
+            let mut state = State::new(&config);
 
             state.connections = connections.clone();
 
@@ -185,7 +186,7 @@ fn run(bench_config: BenchConfig){
 
     // Benchmark scrape handler
     {
-        let mut state = State::new();
+        let mut state = State::new(&config);
         state.torrents = last_torrents.unwrap();
 
         let requests = scrape::create_requests(&mut rng, &info_hashes);

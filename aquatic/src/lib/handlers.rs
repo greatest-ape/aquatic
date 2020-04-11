@@ -3,7 +3,8 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 use std::vec::Drain;
 
-use rand::{Rng, rngs::{SmallRng, StdRng}};
+use rand::{SeedableRng, Rng, rngs::{SmallRng, StdRng}};
+use crossbeam_utils::Backoff;
 
 use bittorrent_udp::types::*;
 
@@ -11,16 +12,66 @@ use crate::common::*;
 use crate::config::Config;
 
 
+pub fn handle(
+    state: State,
+    config: Config,
+){
+    let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::new();
+    let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::new();
+    let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::new();
+
+    let mut std_rng = StdRng::from_entropy();
+    let mut small_rng = SmallRng::from_rng(&mut std_rng).unwrap();
+
+    let backoff = Backoff::new();
+
+    loop {
+        if state.request_queue.is_empty(){
+            backoff.snooze();
+        } else {
+            while let Ok((request, src)) = state.request_queue.pop(){
+                match request {
+                    Request::Connect(r) => {
+                        connect_requests.push((r, src))
+                    },
+                    Request::Announce(r) => {
+                        announce_requests.push((r, src))
+                    },
+                    Request::Scrape(r) => {
+                        scrape_requests.push((r, src))
+                    },
+                }
+            }
+
+            handle_connect_requests(
+                &state,
+                &mut std_rng,
+                connect_requests.drain(..)
+            );
+            handle_announce_requests(
+                &state,
+                &config,
+                &mut small_rng,
+                announce_requests.drain(..),
+            );
+            handle_scrape_requests(
+                &state,
+                scrape_requests.drain(..),
+            );
+        }
+    }
+}
+
+
 #[inline]
 pub fn handle_connect_requests(
     state: &State,
     rng: &mut StdRng,
-    responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(ConnectRequest, SocketAddr)>,
 ){
     let now = Time(Instant::now());
 
-    responses.extend(requests.map(|(request, src)| {
+    for (request, src) in requests {
         let connection_id = ConnectionId(rng.gen());
 
         let key = ConnectionKey {
@@ -37,8 +88,10 @@ pub fn handle_connect_requests(
             }
         );
         
-        (response, src)
-    }));
+        if let Err(err) = state.response_queue.push((response, src)){
+            eprintln!("couldn't push to response queue: {}", err);
+        }
+    }
 }
 
 
@@ -47,20 +100,23 @@ pub fn handle_announce_requests(
     state: &State,
     config: &Config,
     rng: &mut SmallRng,
-    responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
 ){
-    responses.extend(requests.map(|(request, src)| {
+    for (request, src) in requests {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
             socket_addr: src,
         };
 
         if !state.connections.contains_key(&connection_key){
-            return ((ErrorResponse {
+            let response = ErrorResponse {
                 transaction_id: request.transaction_id,
                 message: "Connection invalid or expired".to_string()
-            }).into(), src);
+            };
+
+            if let Err(err) = state.response_queue.push((response.into(), src)){
+                eprintln!("couldn't push to response queue: {}", err);
+            }
         }
 
         let peer_key = PeerMapKey {
@@ -124,30 +180,35 @@ pub fn handle_announce_requests(
             peers: response_peers
         });
 
-        (response, src)
-    }));
+        if let Err(err) = state.response_queue.push((response, src)){
+            eprintln!("couldn't push to response queue: {}", err);
+        }
+    }
 }
 
 
 #[inline]
 pub fn handle_scrape_requests(
     state: &State,
-    responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(ScrapeRequest, SocketAddr)>,
 ){
     let empty_stats = create_torrent_scrape_statistics(0, 0);
 
-    responses.extend(requests.map(|(request, src)| {
+    for (request, src) in requests {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
             socket_addr: src,
         };
 
         if !state.connections.contains_key(&connection_key){
-            return ((ErrorResponse {
+            let response = ErrorResponse {
                 transaction_id: request.transaction_id,
                 message: "Connection invalid or expired".to_string()
-            }).into(), src);
+            };
+
+            if let Err(err) = state.response_queue.push((response.into(), src)){
+                eprintln!("couldn't push to response queue: {}", err);
+            }
         }
 
         let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(
@@ -170,8 +231,10 @@ pub fn handle_scrape_requests(
             torrent_stats: stats,
         });
 
-        (response, src)
-    }));
+        if let Err(err) = state.response_queue.push((response, src)){
+            eprintln!("couldn't push to response queue: {}", err);
+        }
+    };
 }
 
 

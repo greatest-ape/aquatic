@@ -19,8 +19,6 @@ pub fn bench(
     state: State,
     requests: Arc<Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>>
 ) -> (usize, Duration){
-    let mut responses = Vec::with_capacity(ITERATIONS);
-
     let mut buffer = [0u8; MAX_PACKET_SIZE];
     let mut cursor = Cursor::new(buffer.as_mut());
     let mut num_responses: usize = 0;
@@ -42,9 +40,9 @@ pub fn bench(
     
     let requests = requests.drain(..);
 
-    handle_connect_requests(&state, &mut rng, &mut responses, requests);
+    handle_connect_requests(&state, &mut rng, requests);
 
-    for (response, _) in responses.drain(..){
+    while let Ok((response, _)) = state.response_queue.pop(){
         if let Response::Connect(_) = response {
             num_responses += 1;
         }

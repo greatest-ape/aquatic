@@ -22,8 +22,6 @@ pub fn bench(
     state: &State,
     requests: Arc<Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>>
 ) -> (usize, Duration){
-    let mut responses = Vec::with_capacity(SCRAPE_REQUESTS);
-
     let mut buffer = [0u8; MAX_PACKET_SIZE];
     let mut cursor = Cursor::new(buffer.as_mut());
     let mut num_responses: usize = 0;
@@ -45,11 +43,10 @@ pub fn bench(
 
     handle_scrape_requests(
         &state,
-        &mut responses,
         requests,
     );
 
-    for (response, _src) in responses.drain(..){
+    while let Ok((response, _)) = state.response_queue.pop(){
         if let Response::Scrape(_) = response {
             num_responses += 1;
         }

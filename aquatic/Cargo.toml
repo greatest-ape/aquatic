@@ -14,6 +14,8 @@ name = "aquatic"
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }
+crossbeam-queue = "0.2"
+crossbeam-utils = "0.7"
 dashmap = "3"
 histogram = "0.6"
 indexmap = "1"

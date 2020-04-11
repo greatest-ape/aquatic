@@ -11,9 +11,18 @@ use common::State;
 
 
 pub fn run(config: Config){
-    let state = State::new();
+    let state = State::new(&config);
 
-    for i in 0..config.num_threads {
+    for _ in 0..config.response_workers {
+        let state = state.clone();
+        let config = config.clone();
+
+        ::std::thread::spawn(move || {
+            handlers::handle(state, config);
+        });
+    }
+
+    for i in 0..config.socket_workers {
         let state = state.clone();
         let config = config.clone();
 

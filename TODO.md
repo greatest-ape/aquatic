@@ -5,6 +5,7 @@
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
 * aquatic
+  * https://docs.rs/crossbeam/0.7.3/crossbeam/utils/struct.Backoff.html#method.is_completed
   * Tests
   * Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
     use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4

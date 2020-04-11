@@ -1,19 +1,17 @@
 use std::sync::atomic::Ordering;
-use std::net::SocketAddr;
 use std::io::{Cursor, ErrorKind};
+use std::time::Duration;
 
 use mio::{Events, Poll, Interest, Token};
 use mio::net::UdpSocket;
 use net2::{UdpSocketExt, UdpBuilder};
 use net2::unix::UnixUdpBuilderExt;
-use rand::{SeedableRng, rngs::{SmallRng, StdRng}};
 
 use bittorrent_udp::types::IpVersion;
 use bittorrent_udp::converters::{response_to_bytes, request_from_bytes};
 
 use crate::common::*;
 use crate::config::Config;
-use crate::handlers::*;
 
 
 pub fn run_event_loop(
@@ -34,16 +32,10 @@ pub fn run_event_loop(
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
-    let mut connect_requests: Vec<(ConnectRequest, SocketAddr)> = Vec::new();
-    let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::new();
-    let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::new();
-    let mut responses: Vec<(Response, SocketAddr)> = Vec::new();
-
-    let mut std_rng = StdRng::from_entropy();
-    let mut small_rng = SmallRng::from_rng(&mut std_rng).unwrap();
+    let timeout = Duration::from_millis(1);
 
     loop {
-        poll.poll(&mut events, None)
+        poll.poll(&mut events, Some(timeout))
             .expect("failed polling");
 
         for event in events.iter(){
@@ -51,17 +43,11 @@ pub fn run_event_loop(
 
             if token.0 == token_num {
                 if event.is_readable(){
-                    handle_readable_socket(
+                    read_requests(
                         &state,
                         &config,
                         &mut socket,
-                        &mut std_rng,
-                        &mut small_rng,
                         &mut buffer,
-                        &mut responses,
-                        &mut connect_requests,
-                        &mut announce_requests,
-                        &mut scrape_requests
                     );
 
                     state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
@@ -72,6 +58,13 @@ pub fn run_event_loop(
                 }
             }
         }
+
+        send_responses(
+            &state,
+            &config,
+            &mut socket,
+            &mut buffer,
+        );
     }
 }
 
@@ -108,24 +101,15 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
 }
 
 
-/// Read requests, generate and send back responses
 #[inline]
-fn handle_readable_socket(
+fn read_requests(
     state: &State,
     config: &Config,
     socket: &mut UdpSocket,
-    std_rng: &mut StdRng,
-    small_rng: &mut SmallRng,
     buffer: &mut [u8],
-    responses: &mut Vec<(Response, SocketAddr)>,
-    connect_requests: &mut Vec<(ConnectRequest, SocketAddr)>,
-    announce_requests: &mut Vec<(AnnounceRequest, SocketAddr)>,
-    scrape_requests: &mut Vec<(ScrapeRequest, SocketAddr)>,
 ){
     let mut requests_received: usize = 0;
-    let mut responses_sent: usize = 0;
     let mut bytes_received: usize = 0;
-    let mut bytes_sent: usize = 0;
 
     loop {
         match socket.recv_from(&mut buffer[..]) {
@@ -142,14 +126,12 @@ fn handle_readable_socket(
                 }
 
                 match request {
-                    Ok(Request::Connect(r)) => {
-                        connect_requests.push((r, src)); 
-                    },
-                    Ok(Request::Announce(r)) => {
-                        announce_requests.push((r, src));
-                    },
-                    Ok(Request::Scrape(r)) => {
-                        scrape_requests.push((r, src));
+                    Ok(request) => {
+                        let res = state.request_queue.push((request, src));
+
+                        if let Err(err) = res {
+                            eprintln!("couldn't push request to queue: {}", err);
+                        }
                     },
                     Err(err) => {
                         eprintln!("request_from_bytes error: {:?}", err);
@@ -169,7 +151,7 @@ fn handle_readable_socket(
                                     message,
                                 };
 
-                                responses.push((response.into(), src));
+                                // responses.push((response.into(), src)); // FIXME
                             }
                         }
                     },
@@ -185,28 +167,28 @@ fn handle_readable_socket(
         }
     }
 
-    handle_connect_requests(
-        state,
-        std_rng,
-        responses,
-        connect_requests.drain(..)
-    );
-    handle_announce_requests(
-        state,
-        config,
-        small_rng,
-        responses,
-        announce_requests.drain(..),
-    );
-    handle_scrape_requests(
-        state,
-        responses,
-        scrape_requests.drain(..),
-    );
+    if config.statistics.interval != 0 {
+        state.statistics.requests_received
+            .fetch_add(requests_received, Ordering::SeqCst);
+        state.statistics.bytes_received
+            .fetch_add(bytes_received, Ordering::SeqCst);
+    }
+}
+
+
+#[inline]
+fn send_responses(
+    state: &State,
+    config: &Config,
+    socket: &mut UdpSocket,
+    buffer: &mut [u8],
+){
+    let mut responses_sent: usize = 0;
+    let mut bytes_sent: usize = 0;
 
     let mut cursor = Cursor::new(buffer);
 
-    for (response, src) in responses.drain(..) {
+    while let Ok((response, src)) = state.response_queue.pop(){
         cursor.set_position(0);
 
         response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();
@@ -229,12 +211,8 @@ fn handle_readable_socket(
     }
 
     if config.statistics.interval != 0 {
-        state.statistics.requests_received
-            .fetch_add(requests_received, Ordering::SeqCst);
         state.statistics.responses_sent
             .fetch_add(responses_sent, Ordering::SeqCst);
-        state.statistics.bytes_received
-            .fetch_add(bytes_received, Ordering::SeqCst);
         state.statistics.bytes_sent
             .fetch_add(bytes_sent, Ordering::SeqCst);
     }
