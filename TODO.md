@@ -1,21 +1,23 @@
 # TODO
 
-* Benchmarks
-  * Fix issues since switch to socket and handler workers
-  * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
-  * Generic bench function since current functions are almost identical
-  * Show percentile stats for peers per torrent
-* aquatic
-  * Lock whole torrent map over many requests in handlers? Could use HashMap
-    in Mutex instead of DashMap maybe (parking lot mutex?)
-  * Tests
-  * Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
-    use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
-    ones, have to check.
-* bittorrent_udp
-  * other test cases
+## aquatic
+* Lock connections and torrents together? Maybe don't stop collecting
+  requests if mutex is locked?
+* Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
+  use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
+  ones, have to check.
+* More tests
 
-## Not important
+## aquatic_bench
+* Fix issues since switch to socket and handler workers, removal of dashmap
+* Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
+* Generic bench function since current functions are almost identical
+* Show percentile stats for peers per torrent
+
+## bittorrent_udp
+* Tests with good known byte sequences
+
+# Not important
 
 * extract_response_peers
     * Cleaner code
