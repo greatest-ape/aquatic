@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use crossbeam_channel::unbounded;
+
 pub mod common;
 pub mod config;
 pub mod handlers;
@@ -13,21 +15,28 @@ use common::State;
 pub fn run(config: Config){
     let state = State::new();
 
+    let (request_sender, request_receiver) = unbounded();
+    let (response_sender, response_receiver) = unbounded();
+
     for _ in 0..config.response_workers {
         let state = state.clone();
         let config = config.clone();
+        let request_receiver = request_receiver.clone();
+        let response_sender = response_sender.clone();
 
         ::std::thread::spawn(move || {
-            handlers::handle(state, config);
+            handlers::handle(state, config, request_receiver, response_sender);
         });
     }
 
     for i in 0..config.socket_workers {
         let state = state.clone();
         let config = config.clone();
+        let request_sender = request_sender.clone();
+        let response_receiver = response_receiver.clone();
 
         ::std::thread::spawn(move || {
-            network::run_event_loop(state, config, i);
+            network::run_event_loop(state, config, i, request_sender, response_receiver);
         });
     }
 

@@ -3,7 +3,6 @@ use std::sync::atomic::AtomicUsize;
 use std::net::{SocketAddr, IpAddr};
 use std::time::Instant;
 
-use crossbeam_queue::SegQueue;
 use dashmap::DashMap;
 use indexmap::IndexMap;
 
@@ -138,8 +137,6 @@ pub struct State {
     pub connections: Arc<ConnectionMap>,
     pub torrents: Arc<TorrentMap>,
     pub statistics: Arc<Statistics>,
-    pub request_queue: Arc<SegQueue<(Request, SocketAddr)>>,
-    pub response_queue: Arc<SegQueue<(Response, SocketAddr)>>,
 }
 
 impl State {
@@ -148,8 +145,6 @@ impl State {
             connections: Arc::new(DashMap::new()),
             torrents: Arc::new(DashMap::new()),
             statistics: Arc::new(Statistics::default()),
-            request_queue: Arc::new(SegQueue::new()),
-            response_queue: Arc::new(SegQueue::new()),
         }
     }
 }

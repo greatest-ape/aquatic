@@ -1,7 +1,9 @@
 use std::sync::atomic::Ordering;
 use std::io::{Cursor, ErrorKind};
+use std::net::SocketAddr;
 use std::time::Duration;
 
+use crossbeam_channel::{Sender, Receiver};
 use mio::{Events, Poll, Interest, Token};
 use mio::net::UdpSocket;
 use net2::{UdpSocketExt, UdpBuilder};
@@ -18,6 +20,8 @@ pub fn run_event_loop(
     state: State,
     config: Config,
     token_num: usize,
+    request_sender: Sender<(Request, SocketAddr)>,
+    response_receiver: Receiver<(Response, SocketAddr)>,
 ){
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
@@ -32,7 +36,7 @@ pub fn run_event_loop(
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
-    let timeout = Duration::from_millis(1);
+    let timeout = Duration::from_millis(50);
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -48,6 +52,7 @@ pub fn run_event_loop(
                         &config,
                         &mut socket,
                         &mut buffer,
+                        &request_sender,
                     );
 
                     state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
@@ -64,6 +69,7 @@ pub fn run_event_loop(
             &config,
             &mut socket,
             &mut buffer,
+            &response_receiver,
         );
     }
 }
@@ -107,6 +113,7 @@ fn read_requests(
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
+    request_sender: &Sender<(Request, SocketAddr)>,
 ){
     let mut requests_received: usize = 0;
     let mut bytes_received: usize = 0;
@@ -127,7 +134,7 @@ fn read_requests(
 
                 match request {
                     Ok(request) => {
-                        state.request_queue.push((request, src));
+                        request_sender.try_send((request, src));
                     },
                     Err(err) => {
                         eprintln!("request_from_bytes error: {:?}", err);
@@ -178,13 +185,14 @@ fn send_responses(
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
+    response_receiver: &Receiver<(Response, SocketAddr)>,
 ){
     let mut responses_sent: usize = 0;
     let mut bytes_sent: usize = 0;
 
     let mut cursor = Cursor::new(buffer);
 
-    while let Ok((response, src)) = state.response_queue.pop(){
+    for (response, src) in response_receiver.try_iter(){
         cursor.set_position(0);
 
         response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();

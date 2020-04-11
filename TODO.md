@@ -6,8 +6,6 @@
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
 * aquatic
-  * Park handler threads when really inactive? Or generally avoid utilizing
-    CPU needlessly. See https://docs.rs/crossbeam/0.7.3/crossbeam/utils/struct.Backoff.html#method.is_completed
   * Lock whole torrent map over many requests in handlers? Could use HashMap
     in Mutex instead of DashMap maybe (parking lot mutex?)
   * Tests
@@ -16,7 +14,6 @@
     ones, have to check.
 * bittorrent_udp
   * other test cases
-  * Check if announce response to bytes code changed caused slowdown
 
 ## Not important
 
