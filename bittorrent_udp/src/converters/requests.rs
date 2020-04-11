@@ -197,3 +197,45 @@ pub fn request_from_bytes(
         _ => Err(RequestParseError::text(transaction_id, "Invalid action"))
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn same_after_conversion(request: Request) -> bool {
+        let mut buf = Vec::new();
+
+        request_to_bytes(&mut buf, request.clone()).unwrap();
+        let r2 = request_from_bytes(&buf[..], ::std::u8::MAX).unwrap();
+
+        let success = request == r2;
+
+        if !success {
+            println!("before: {:#?}\nafter: {:#?}", request, r2);
+        }
+
+        success
+    }
+
+    #[quickcheck]
+    fn test_connect_request_convert_identity(
+        request: ConnectRequest
+    ) -> bool {
+        same_after_conversion(request.into())
+    }   
+
+    #[quickcheck]
+    fn test_announce_request_convert_identity(
+        request: AnnounceRequest
+    ) -> bool {
+        same_after_conversion(request.into())
+    }   
+
+    #[quickcheck]
+    fn test_scrape_request_convert_identity(
+        request: ScrapeRequest
+    ) -> bool {
+        same_after_conversion(request.into())
+    }   
+}
