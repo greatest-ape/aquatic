@@ -12,8 +12,10 @@ pub fn clean_connections(state: &State, config: &Config){
         config.cleaning.max_connection_age
     );
 
-    state.connections.retain(|_, v| v.0 > limit);
-    state.connections.shrink_to_fit();
+    let mut connections = state.connections.lock();
+
+    connections.retain(|_, v| v.0 > limit);
+    connections.shrink_to_fit();
 }
 
 
@@ -22,7 +24,9 @@ pub fn clean_torrents(state: &State, config: &Config){
         config.cleaning.max_peer_age
     );
 
-    state.torrents.retain(|_, torrent| {
+    let mut torrents = state.torrents.lock();
+
+    torrents.retain(|_, torrent| {
         let num_seeders = &torrent.num_seeders;
         let num_leechers = &torrent.num_leechers;
 
@@ -47,7 +51,7 @@ pub fn clean_torrents(state: &State, config: &Config){
         !torrent.peers.is_empty()
     });
 
-    state.torrents.shrink_to_fit();
+    torrents.shrink_to_fit();
 }
 
 
@@ -94,7 +98,9 @@ pub fn gather_and_print_statistics(
 
     let mut peers_per_torrent = Histogram::new();
 
-    for torrent in state.torrents.iter(){
+    let torrents = state.torrents.lock();
+
+    for torrent in torrents.values(){
         let num_seeders = torrent.num_seeders.load(Ordering::SeqCst);
         let num_leechers = torrent.num_leechers.load(Ordering::SeqCst);
 

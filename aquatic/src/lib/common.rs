@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::collections::HashMap;
 use std::net::{SocketAddr, IpAddr};
+use std::sync::{Arc, atomic::AtomicUsize};
 use std::time::Instant;
 
-use dashmap::DashMap;
+use parking_lot::Mutex;
 use indexmap::IndexMap;
 
 pub use bittorrent_udp::types::*;
@@ -23,7 +23,7 @@ pub struct ConnectionKey {
 }
 
 
-pub type ConnectionMap = DashMap<ConnectionKey, Time>;
+pub type ConnectionMap = HashMap<ConnectionKey, Time>;
 
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -119,7 +119,7 @@ impl Default for TorrentData {
 }
 
 
-pub type TorrentMap = DashMap<InfoHash, TorrentData>;
+pub type TorrentMap = HashMap<InfoHash, TorrentData>;
 
 
 #[derive(Default)]
@@ -134,16 +134,16 @@ pub struct Statistics {
 
 #[derive(Clone)]
 pub struct State {
-    pub connections: Arc<ConnectionMap>,
-    pub torrents: Arc<TorrentMap>,
+    pub connections: Arc<Mutex<ConnectionMap>>,
+    pub torrents: Arc<Mutex<TorrentMap>>,
     pub statistics: Arc<Statistics>,
 }
 
 impl State {
     pub fn new() -> Self {
         Self {
-            connections: Arc::new(DashMap::new()),
-            torrents: Arc::new(DashMap::new()),
+            connections: Arc::new(Mutex::new(HashMap::new())),
+            torrents: Arc::new(Mutex::new(HashMap::new())),
             statistics: Arc::new(Statistics::default()),
         }
     }

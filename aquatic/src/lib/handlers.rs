@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
+use parking_lot::{Mutex, MutexGuard};
 use crossbeam_channel::{Sender, Receiver};
 use rand::{SeedableRng, Rng, rngs::{SmallRng, StdRng}};
 
@@ -54,21 +55,28 @@ pub fn handle(
             }
         }
 
+        let mut connections = state.connections.lock();
+
         handle_connect_requests(
-            &state,
+            &mut connections,
             &mut std_rng,
             connect_requests.drain(..),
             &response_sender
         );
+
+        let mut torrents = state.torrents.lock();
+
         handle_announce_requests(
-            &state,
+            &connections,
+            &mut torrents,
             &config,
             &mut small_rng,
             announce_requests.drain(..),
             &response_sender
         );
         handle_scrape_requests(
-            &state,
+            &connections,
+            &mut torrents,
             scrape_requests.drain(..),
             &response_sender
         );
@@ -78,7 +86,7 @@ pub fn handle(
 
 #[inline]
 pub fn handle_connect_requests(
-    state: &State,
+    connections: &mut MutexGuard<ConnectionMap>,
     rng: &mut StdRng,
     requests: Drain<(ConnectRequest, SocketAddr)>,
     response_sender: &Sender<(Response, SocketAddr)>,
@@ -93,7 +101,7 @@ pub fn handle_connect_requests(
             socket_addr: src,
         };
 
-        state.connections.insert(key, now);
+        connections.insert(key, now);
 
         let response = Response::Connect(
             ConnectResponse {
@@ -109,7 +117,8 @@ pub fn handle_connect_requests(
 
 #[inline]
 pub fn handle_announce_requests(
-    state: &State,
+    connections: &MutexGuard<ConnectionMap>,
+    torrents: &mut MutexGuard<TorrentMap>,
     config: &Config,
     rng: &mut SmallRng,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
@@ -121,7 +130,7 @@ pub fn handle_announce_requests(
             socket_addr: src,
         };
 
-        if !state.connections.contains_key(&connection_key){
+        if !connections.contains_key(&connection_key){
             let response = ErrorResponse {
                 transaction_id: request.transaction_id,
                 message: "Connection invalid or expired".to_string()
@@ -138,7 +147,7 @@ pub fn handle_announce_requests(
         let peer = Peer::from_announce_and_ip(&request, src.ip());
         let peer_status = peer.status;
 
-        let mut torrent_data = state.torrents
+        let mut torrent_data = torrents
             .entry(request.info_hash)
             .or_default();
         
@@ -149,10 +158,6 @@ pub fn handle_announce_requests(
             torrent_data.peers.insert(peer_key, peer)
                 .map(|peer| peer.status)
         };
-
-        // Downgrade ref since we don't need write access anymore, so that
-        // other threads can access torrent
-        let torrent_data = torrent_data.downgrade();
 
         let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
             .min(config.network.max_response_peers);
@@ -198,7 +203,8 @@ pub fn handle_announce_requests(
 
 #[inline]
 pub fn handle_scrape_requests(
-    state: &State,
+    connections: &MutexGuard<ConnectionMap>,
+    torrents: &MutexGuard<TorrentMap>,
     requests: Drain<(ScrapeRequest, SocketAddr)>,
     response_sender: &Sender<(Response, SocketAddr)>,
 ){
@@ -210,7 +216,7 @@ pub fn handle_scrape_requests(
             socket_addr: src,
         };
 
-        if !state.connections.contains_key(&connection_key){
+        if !connections.contains_key(&connection_key){
             let response = ErrorResponse {
                 transaction_id: request.transaction_id,
                 message: "Connection invalid or expired".to_string()
@@ -224,7 +230,7 @@ pub fn handle_scrape_requests(
         );
 
         for info_hash in request.info_hashes.iter() {
-            if let Some(torrent_data) = state.torrents.get(info_hash){
+            if let Some(torrent_data) = torrents.get(info_hash){
                 stats.push(create_torrent_scrape_statistics(
                     torrent_data.num_seeders.load(Ordering::SeqCst) as i32,
                     torrent_data.num_leechers.load(Ordering::SeqCst) as i32,
