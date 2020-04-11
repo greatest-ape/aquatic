@@ -50,14 +50,17 @@ pub fn handle_announce_requests(
     responses: &mut Vec<(Response, SocketAddr)>,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
 ){
-    responses.extend(requests.filter_map(|(request, src)| {
+    responses.extend(requests.map(|(request, src)| {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
             socket_addr: src,
         };
 
         if !state.connections.contains_key(&connection_key){
-            return None;
+            return ((ErrorResponse {
+                transaction_id: request.transaction_id,
+                message: "Connection invalid or expired".to_string()
+            }).into(), src);
         }
 
         let peer_key = PeerMapKey {
@@ -115,13 +118,13 @@ pub fn handle_announce_requests(
 
         let response = Response::Announce(AnnounceResponse {
             transaction_id: request.transaction_id,
-            announce_interval: AnnounceInterval(config.network.peer_announce_interval), // FIXME
+            announce_interval: AnnounceInterval(config.network.peer_announce_interval),
             leechers: NumberOfPeers(torrent_data.num_leechers.load(Ordering::SeqCst) as i32),
             seeders: NumberOfPeers(torrent_data.num_seeders.load(Ordering::SeqCst) as i32),
             peers: response_peers
         });
 
-        Some((response, src))
+        (response, src)
     }));
 }
 
@@ -134,14 +137,17 @@ pub fn handle_scrape_requests(
 ){
     let empty_stats = create_torrent_scrape_statistics(0, 0);
 
-    responses.extend(requests.filter_map(|(request, src)| {
+    responses.extend(requests.map(|(request, src)| {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
             socket_addr: src,
         };
 
         if !state.connections.contains_key(&connection_key){
-            return None;
+            return ((ErrorResponse {
+                transaction_id: request.transaction_id,
+                message: "Connection invalid or expired".to_string()
+            }).into(), src);
         }
 
         let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(
@@ -164,7 +170,7 @@ pub fn handle_scrape_requests(
             torrent_stats: stats,
         });
 
-        Some((response, src))
+        (response, src)
     }));
 }
 
