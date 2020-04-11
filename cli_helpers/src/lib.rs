@@ -36,10 +36,10 @@ fn default_config_as_toml<T>() -> String
 }
 
 
-pub fn run_with_cli_and_config<T>(
+pub fn run_app_with_cli_and_config<T>(
     title: &str,
     // Function that takes config file and runs application
-    f: fn(T),
+    app_fn: fn(T),
 ) where T: Default + Serialize + DeserializeOwned {
     let args: Vec<String> = ::std::env::args().collect();
 
@@ -51,7 +51,7 @@ pub fn run_with_cli_and_config<T>(
                 print!("{}", default_config_as_toml::<T>());
             } else if let Some(config_file) = opts.config_file {
                 match config_from_toml_file(config_file){
-                    Ok(config) => f(config),
+                    Ok(config) => app_fn(config),
                     Err(err) => {
                         eprintln!("Error while reading config file: {}", err);
 
@@ -59,7 +59,7 @@ pub fn run_with_cli_and_config<T>(
                     }
                 }
             } else {
-                f(T::default())
+                app_fn(T::default())
             }
         },
         Err(err) => {
