@@ -2,17 +2,19 @@
 //! 
 //! Example summary output:
 //! ```
-//! ## Average results over 20 rounds
+//! ## Average results over 20 rounds in 4 threads
 //! 
-//! Connect handler:   2 473 860 requests/second,   404.94 ns/request
-//! Announce handler:    302 665 requests/second,  3306.17 ns/request
-//! Scrape handler:      745 598 requests/second,  1341.30 ns/request
+//! Connect handler:   2 543 896 requests/second,   393.10 ns/request
+//! Announce handler:    382 055 requests/second,  2617.42 ns/request
+//! Scrape handler:    1 168 651 requests/second,   855.69 ns/request
 //! ```
 
 use std::time::{Duration, Instant};
 use std::io::Cursor;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
+use dashmap::DashMap;
 use indicatif::{ProgressBar, ProgressStyle, ProgressIterator};
 use num_format::{Locale, ToFormattedString};
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
@@ -39,18 +41,21 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn print_results(
     request_type: &str,
-    num_rounds: u64,
-    data: (f64, f64)
+    config: &BenchConfig,
+    num_items: usize,
+    duration: Duration,
 ) {
     let per_second = (
-        (data.0 / (num_rounds as f64)
+        ((config.num_threads as f64 * num_items as f64) / (duration.as_micros() as f64 / 1000000.0)
     ) as usize).to_formatted_string(&Locale::se);
+
+    let time_per_request = duration.as_nanos() as f64 / (config.num_threads as f64 * num_items as f64);
 
     println!(
         "{} {:>10} requests/second, {:>8.2} ns/request",
         request_type,
         per_second,
-        data.1 / (num_rounds as f64)
+        time_per_request,
     );
 }
 
@@ -64,18 +69,9 @@ fn main(){
 
 
 fn run(bench_config: BenchConfig){
-    let num_rounds = bench_config.num_rounds;
-
-    let mut connect_data = (0.0, 0.0);
-    let mut announce_data = (0.0, 0.0);
-    let mut scrape_data = (0.0, 0.0);
-
-    fn create_progress_bar(name: &str, iterations: u64) -> ProgressBar {
-        let t = format!("{:<16} {}", name, "{wide_bar} {pos:>2}/{len:>2}");
-        let style = ProgressStyle::default_bar().template(&t);
-
-        ProgressBar::new(iterations).with_style(style)
-    }
+    let mut connect_data = (0usize, Duration::new(0, 0));
+    let mut announce_data = (0usize, Duration::new(0, 0));
+    let mut scrape_data = (0usize, Duration::new(0, 0));
 
     println!("# Benchmarking request handlers\n");
 
@@ -94,21 +90,26 @@ fn run(bench_config: BenchConfig){
             })
             .collect();
 
-        ::std::thread::sleep(Duration::from_secs(1));
+        let requests = Arc::new(requests);
 
-        let pb = create_progress_bar("Connect handler", num_rounds);
+        let pb = create_progress_bar("Connect handler", bench_config.num_rounds);
 
-        for _ in (0..num_rounds).progress_with(pb){
-            let requests = requests.clone();
+        for _ in (0..bench_config.num_rounds).progress_with(pb){
+            let state = State::new();
 
-            ::std::thread::sleep(Duration::from_millis(200));
+            let handles: Vec<_> = (0..bench_config.num_threads).map(|_| {
+                let requests = requests.clone();
+                let state = state.clone();
 
-            let d = connect::bench(requests);
+                ::std::thread::spawn(|| connect::bench(state, requests))
+            }).collect();
 
-            ::std::thread::sleep(Duration::from_millis(200));
+            for handle in handles {
+                let (iterations, duration) = handle.join().unwrap();
 
-            connect_data.0 += d.0;
-            connect_data.1 += d.1;
+                connect_data.0 += iterations;
+                connect_data.1 += duration;
+            }
         }
     }
 
@@ -117,16 +118,15 @@ fn run(bench_config: BenchConfig){
     let config = Config::default();
 
     // Benchmark announce handler
-    let last_state: State = {
-        let state = State::new();
-
+    let last_torrents: Option<Arc<TorrentMap>> = {
         let requests = announce::create_requests(
             &mut rng,
             &info_hashes
         );
 
-        // Create connections in state
+        // Create connections
 
+        let connections = Arc::new(DashMap::new());
         let time = Time(Instant::now());
 
         for (request, src) in requests.iter() {
@@ -135,7 +135,7 @@ fn run(bench_config: BenchConfig){
                 socket_addr: *src,
             };
 
-            state.connections.insert(key, time);
+            connections.insert(key, time);
         }
 
         let requests: Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)> = requests.into_iter()
@@ -148,34 +148,45 @@ fn run(bench_config: BenchConfig){
                 (buffer, src)
             })
             .collect();
+        
+        let requests = Arc::new(requests);
 
-        ::std::thread::sleep(Duration::from_secs(1));
+        let pb = create_progress_bar("Announce handler", bench_config.num_rounds);
 
-        let pb = create_progress_bar("Announce handler", num_rounds);
+        let mut last_torrents = None;
 
-        for _ in (0..num_rounds).progress_with(pb) {
-            let requests = requests.clone();
-            state.torrents.clear();
-            state.torrents.shrink_to_fit();
+        for i in (0..bench_config.num_rounds).progress_with(pb){
+            let mut state = State::new();
 
-            ::std::thread::sleep(Duration::from_millis(200));
+            state.connections = connections.clone();
 
-            let d = announce::bench(&state, &config, requests);
+            let handles: Vec<_> = (0..bench_config.num_threads).map(|_| {
+                let requests = requests.clone();
+                let state = state.clone();
+                let config = config.clone();
 
-            ::std::thread::sleep(Duration::from_millis(200));
+                ::std::thread::spawn(move || announce::bench(&state, &config, requests))
+            }).collect();
 
-            announce_data.0 += d.0;
-            announce_data.1 += d.1;
+            for handle in handles {
+                let (iterations, duration) = handle.join().unwrap();
+
+                announce_data.0 += iterations;
+                announce_data.1 += duration;
+            }
+
+            if i + 1 == bench_config.num_rounds {
+                last_torrents = Some(state.torrents);
+            }
         }
 
-        state
+        last_torrents
     };
 
     // Benchmark scrape handler
     {
-        let state = last_state;
-
-        state.connections.clear();
+        let mut state = State::new();
+        state.torrents = last_torrents.unwrap();
 
         let requests = scrape::create_requests(&mut rng, &info_hashes);
 
@@ -202,30 +213,37 @@ fn run(bench_config: BenchConfig){
                 (buffer, src)
             })
             .collect();
+        
+        let requests = Arc::new(requests);
 
-        ::std::thread::sleep(Duration::from_secs(1));
+        let pb = create_progress_bar("Scrape handler", bench_config.num_rounds);
 
-        let pb = create_progress_bar("Scrape handler", num_rounds);
+        for _ in (0..bench_config.num_rounds).progress_with(pb){
+            let handles: Vec<_> = (0..bench_config.num_threads).map(|_| {
+                let requests = requests.clone();
+                let state = state.clone();
 
-        for _ in (0..num_rounds).progress_with(pb) {
-            let requests = requests.clone();
+                ::std::thread::spawn(move || scrape::bench(&state, requests))
+            }).collect();
 
-            ::std::thread::sleep(Duration::from_millis(200));
+            for handle in handles {
+                let (iterations, duration) = handle.join().unwrap();
 
-            let d = scrape::bench(&state, requests);
-
-            ::std::thread::sleep(Duration::from_millis(200));
-
-            scrape_data.0 += d.0;
-            scrape_data.1 += d.1;
+                scrape_data.0 += iterations;
+                scrape_data.1 += duration;
+            }
         }
     }
 
-    println!("\n## Average results over {} rounds\n", num_rounds);
+    println!(
+        "\n## Average results over {} rounds in {} threads\n",
+        bench_config.num_rounds,
+        bench_config.num_threads
+    );
 
-    print_results("Connect handler: ", num_rounds, connect_data);
-    print_results("Announce handler:", num_rounds, announce_data);
-    print_results("Scrape handler:  ", num_rounds, scrape_data);
+    print_results("Connect handler: ", &bench_config, connect_data.0, connect_data.1);
+    print_results("Announce handler:", &bench_config, announce_data.0, announce_data.1);
+    print_results("Scrape handler:  ", &bench_config, scrape_data.0, scrape_data.1);
 }
 
 
@@ -237,4 +255,12 @@ fn create_info_hashes(rng: &mut impl Rng) -> Vec<InfoHash> {
     }
 
     info_hashes
+}
+
+
+fn create_progress_bar(name: &str, iterations: u64) -> ProgressBar {
+    let t = format!("{:<16} {}", name, "{wide_bar} {pos:>2}/{len:>2}");
+    let style = ProgressStyle::default_bar().template(&t);
+
+    ProgressBar::new(iterations).with_style(style)
 }

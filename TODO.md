@@ -1,7 +1,6 @@
 # TODO
 
 * Benchmarks
-  * Run multiple threads to test performance when contested?
   * Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
   * Generic bench function since current functions are almost identical
   * Show percentile stats for peers per torrent
@@ -30,6 +29,9 @@
     * mialloc good?
     * Use less bytes from PeerId for hashing? Would need to implement
       "faulty" PartialEq too (on PeerMapKey, which would be OK)
+    * Seperate dashmap for torrent stats, meaning there will be no
+      contention across announce and scrape requests. Will however
+      require two lookups in announce requests. Do this?
 * bittorrent_udp
     * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid heap allocation in general if it can be avoided?

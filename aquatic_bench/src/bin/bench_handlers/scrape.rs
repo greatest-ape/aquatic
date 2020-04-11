@@ -1,6 +1,7 @@
 use std::io::Cursor;
 use std::net::SocketAddr;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use std::sync::Arc;
 
 use rand::Rng;
 use rand_distr::Pareto;
@@ -19,8 +20,8 @@ const SCRAPE_NUM_HASHES: usize = 10;
 
 pub fn bench(
     state: &State,
-    requests: Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>
-) -> (f64, f64) {
+    requests: Arc<Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>>
+) -> (usize, Duration){
     let mut responses = Vec::with_capacity(SCRAPE_REQUESTS);
 
     let mut buffer = [0u8; MAX_PACKET_SIZE];
@@ -30,10 +31,10 @@ pub fn bench(
 
     let now = Instant::now();
 
-    let mut requests: Vec<(ScrapeRequest, SocketAddr)> = requests.into_iter()
+    let mut requests: Vec<(ScrapeRequest, SocketAddr)> = requests.iter()
         .map(|(request_bytes, src)| {
-            if let Request::Scrape(r) = request_from_bytes(&request_bytes, 255).unwrap() {
-                (r, src)
+            if let Request::Scrape(r) = request_from_bytes(request_bytes, 255).unwrap() {
+                (r, *src)
             } else {
                 unreachable!()
             }
@@ -62,16 +63,13 @@ pub fn bench(
 
     let duration = Instant::now() - now;
 
-    let requests_per_second = SCRAPE_REQUESTS as f64 / (duration.as_micros() as f64 / 1000000.0);
-    let time_per_request = duration.as_nanos() as f64 / SCRAPE_REQUESTS as f64;
-
     assert_eq!(num_responses, SCRAPE_REQUESTS);
 
     if dummy == 123u8 {
         println!("dummy info");
     }
 
-    (requests_per_second, time_per_request)
+    (SCRAPE_REQUESTS, duration)
 }
 
 

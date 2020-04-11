@@ -49,6 +49,7 @@ dependencies = [
  "aquatic",
  "bittorrent_udp",
  "cli_helpers",
+ "dashmap",
  "indicatif",
  "mimalloc",
  "num-format",

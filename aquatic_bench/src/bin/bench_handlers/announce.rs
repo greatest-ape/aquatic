@@ -1,6 +1,7 @@
 use std::io::Cursor;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use rand::{Rng, SeedableRng, thread_rng, rngs::SmallRng};
 use rand_distr::Pareto;
@@ -20,8 +21,8 @@ const ANNOUNCE_REQUESTS: usize = 1_000_000;
 pub fn bench(
     state: &State,
     config: &Config,
-    requests: Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>
-) -> (f64, f64) {
+    requests: Arc<Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>>
+) -> (usize, Duration){
     let mut responses = Vec::with_capacity(ANNOUNCE_REQUESTS);
 
     let mut buffer = [0u8; MAX_PACKET_SIZE];
@@ -33,10 +34,10 @@ pub fn bench(
 
     let now = Instant::now();
 
-    let mut requests: Vec<(AnnounceRequest, SocketAddr)> = requests.into_iter()
+    let mut requests: Vec<(AnnounceRequest, SocketAddr)> = requests.iter()
         .map(|(request_bytes, src)| {
-            if let Request::Announce(r) = request_from_bytes(&request_bytes, 255).unwrap() {
-                (r, src)
+            if let Request::Announce(r) = request_from_bytes(request_bytes, 255).unwrap() {
+                (r, *src)
             } else {
                 unreachable!()
             }
@@ -67,16 +68,13 @@ pub fn bench(
 
     let duration = Instant::now() - now;
 
-    let requests_per_second = ANNOUNCE_REQUESTS as f64 / (duration.as_micros() as f64 / 1000000.0);
-    let time_per_request = duration.as_nanos() as f64 / ANNOUNCE_REQUESTS as f64;
-
     assert_eq!(num_responses, ANNOUNCE_REQUESTS);
 
     if dummy == 123u8 {
         println!("dummy info");
     }
 
-    (requests_per_second, time_per_request)
+    (ANNOUNCE_REQUESTS, duration)
 }
 
 
