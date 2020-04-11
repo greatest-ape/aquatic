@@ -11,7 +11,6 @@
     use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
     ones, have to check.
 * bittorrent_udp
-  * quickcheck request byte conversion
   * other test cases
   * Check if announce response to bytes code changed caused slowdown
 
