@@ -62,6 +62,34 @@ impl quickcheck::Arbitrary for IpVersion {
 
 
 #[cfg(test)]
+impl quickcheck::Arbitrary for InfoHash {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        let mut bytes = [0u8; 20];
+
+        for byte in bytes.iter_mut() {
+            *byte = u8::arbitrary(g);
+        }
+
+        Self(bytes)
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for PeerId {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        let mut bytes = [0u8; 20];
+
+        for byte in bytes.iter_mut() {
+            *byte = u8::arbitrary(g);
+        }
+
+        Self(bytes)
+    }
+}
+
+
+#[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeer {
     fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
         Self {
