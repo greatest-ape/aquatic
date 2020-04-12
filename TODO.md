@@ -18,26 +18,33 @@
 
 # Not important
 
+## aquatic
+
 * No overflow on instant + duration arithmetic now, hopefully?
 * extract_response_peers
     * Cleaner code
     * Stack-allocated vector?
-* Benchmarks
-    * num_rounds command line argument
-    * Send in connect reponse ids to other functions as integration test
-    * Save last results, check if difference is significant?
-    * ProgressBar: `[{elapsed_precise}]` and eta_precise?
-    * Test server over udp socket instead?
+* Use log crate for errors, including logging thread names? I could probably
+  use code from old rs_news project for that.
 * Performance
     * cpu-target=native good?
     * mialloc good?
-    * Use less bytes from PeerId for hashing? Would need to implement
-      "faulty" PartialEq too (on PeerMapKey, which would be OK)
-* bittorrent_udp
-    * Avoid heap allocation in general if it can be avoided?
-      * request from bytes for scrape: use arrayvec with some max size for
-        torrents? With Vec, allocation takes quite a bit of CPU time
-      * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
+    * Use less bytes from PeerId for hashing? (If yes, only save half of them
+      or so in PeerMapKey). Might improve performance, but probably not worth
+      it.
+
+## aquatic_bench
+* num_rounds command line argument
+* Send in connect reponse ids to other functions as integration test
+* Save last results, check if difference is significant?
+* ProgressBar: `[{elapsed_precise}]` and eta_precise?
+* Test server over udp socket instead?
+
+## bittorrent_udp
+* Avoid heap allocation in general if it can be avoided?
+  * request from bytes for scrape: use arrayvec with some max size for
+    torrents? With Vec, allocation takes quite a bit of CPU time
+  * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
 
 # Don't do
 
