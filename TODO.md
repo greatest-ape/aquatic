@@ -35,11 +35,7 @@
     * mialloc good?
     * Use less bytes from PeerId for hashing? Would need to implement
       "faulty" PartialEq too (on PeerMapKey, which would be OK)
-    * Seperate dashmap for torrent stats, meaning there will be no
-      contention across announce and scrape requests. Will however
-      require two lookups in announce requests. Do this?
 * bittorrent_udp
-    * ParseError enum maybe, with `Option<TransactionId>`
     * Avoid heap allocation in general if it can be avoided?
       * request from bytes for scrape: use arrayvec with some max size for
         torrents? With Vec, allocation takes quite a bit of CPU time
