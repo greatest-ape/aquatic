@@ -93,11 +93,13 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     socket.set_nonblocking(true)
         .expect("socket: set nonblocking");
     
-    if config.network.recv_buffer_size != 0 {
-        if let Err(err) = socket.set_recv_buffer_size(config.network.recv_buffer_size){
+    let recv_buffer_size = config.network.socket_recv_buffer_size;
+    
+    if recv_buffer_size != 0 {
+        if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size){
             eprintln!(
                 "socket: failed setting recv buffer to {}: {:?}",
-                config.network.recv_buffer_size,
+                recv_buffer_size,
                 err
             );
         }

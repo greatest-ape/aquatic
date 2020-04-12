@@ -26,7 +26,7 @@ pub struct NetworkConfig {
     /// Ask peers to announce this often (seconds)
     pub peer_announce_interval: i32,
     /// Setting on socket. When value is zero, don't set (use OS default)
-    pub recv_buffer_size: usize,
+    pub socket_recv_buffer_size: usize,
     pub poll_event_capacity: usize,
 }
 
@@ -78,7 +78,7 @@ impl Default for NetworkConfig {
             max_response_peers: 255,
             peer_announce_interval: 60 * 15,
             poll_event_capacity: 4096,
-            recv_buffer_size: 4096 * 128,
+            socket_recv_buffer_size: 4096 * 128,
         }
     }
 }
