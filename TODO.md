@@ -1,7 +1,7 @@
 # TODO
 
 ## aquatic
-* Use hashbrown HashMap for faster hasher (or try SeaHash?)
+* thread 'main' panicked at 'overflow when subtracting duration from instant', src/libstd/time.rs:374:9
 * Put connections and torrent in a struct behind a commong lock. Add
   functionality for checking if mutex is unlocked before quitting to
   collect requests from channel (try_recv) up to a limit.

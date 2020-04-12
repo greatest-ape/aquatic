@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use std::net::{SocketAddr, IpAddr};
 use std::sync::{Arc, atomic::AtomicUsize};
 use std::time::Instant;
 
-use parking_lot::Mutex;
+use hashbrown::HashMap;
 use indexmap::IndexMap;
+use parking_lot::Mutex;
 
 pub use bittorrent_udp::types::*;
 

@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::MutexGuard;
 use crossbeam_channel::{Sender, Receiver};
 use rand::{SeedableRng, Rng, rngs::{SmallRng, StdRng}};
 

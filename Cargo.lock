@@ -31,6 +31,7 @@ dependencies = [
  "bittorrent_udp",
  "cli_helpers",
  "crossbeam-channel",
+ "hashbrown",
  "histogram",
  "indexmap",
  "mimalloc",
@@ -315,6 +316,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "479e9d9a1a3f8c489868a935b557ab5710e3e223836da2ecd52901d88935cb56"
+dependencies = [
+ "ahash",
+ "autocfg",
 ]
 
 [[package]]
