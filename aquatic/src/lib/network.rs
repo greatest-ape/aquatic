@@ -16,7 +16,7 @@ use crate::common::*;
 use crate::config::Config;
 
 
-pub fn run_event_loop(
+pub fn run_socket_worker(
     state: State,
     config: Config,
     token_num: usize,

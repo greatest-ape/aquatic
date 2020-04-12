@@ -13,7 +13,7 @@ use crate::common::*;
 use crate::config::Config;
 
 
-pub fn handle(
+pub fn run_request_worker(
     state: State,
     config: Config,
     request_receiver: Receiver<(Request, SocketAddr)>,

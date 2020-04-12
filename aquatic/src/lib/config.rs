@@ -5,9 +5,13 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
-    /// Spawn this number of threads for workers
+    /// Socket workers receive requests from the socket, parse them and send
+    /// them on to the request workers. They then recieve responses from the
+    /// request workers, encode them and send them back over the socket.
     pub socket_workers: usize,
-    pub response_workers: usize,
+    /// Request workers receive a number of requests from socket workers,
+    /// generate responses and send them back to the socket workers.
+    pub request_workers: usize,
     pub network: NetworkConfig,
     pub handlers: HandlerConfig,
     pub statistics: StatisticsConfig,
@@ -62,7 +66,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             socket_workers: 1,
-            response_workers: 1,
+            request_workers: 1,
             network: NetworkConfig::default(),
             handlers: HandlerConfig::default(),
             statistics: StatisticsConfig::default(),
