@@ -1,12 +1,10 @@
 # TODO
 
 ## aquatic
-* thread 'main' panicked at 'overflow when subtracting duration from instant', src/libstd/time.rs:374:9
+* `thread 'main' panicked at 'overflow when subtracting duration from instant', src/libstd/time.rs:374:9`
 * Put connections and torrent in a struct behind a commong lock. Add
   functionality for checking if mutex is unlocked before quitting to
   collect requests from channel (try_recv) up to a limit.
-* Add config variable like "handler_max_requests" (default 1024?)
-* Shorter timeout on handler channel collector (1ms?)
 * Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
   use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
   ones, have to check.

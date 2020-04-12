@@ -9,6 +9,7 @@ pub struct Config {
     pub socket_workers: usize,
     pub response_workers: usize,
     pub network: NetworkConfig,
+    pub handlers: HandlerConfig,
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
 }
@@ -27,6 +28,13 @@ pub struct NetworkConfig {
     /// Setting on socket. When value is zero, don't set (use OS default)
     pub recv_buffer_size: usize,
     pub poll_event_capacity: usize,
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandlerConfig {
+    pub max_requests_per_iter: usize,
+    pub channel_recv_timeout_ms: u64,
 }
 
 
@@ -54,6 +62,7 @@ impl Default for Config {
             socket_workers: 1,
             response_workers: 1,
             network: NetworkConfig::default(),
+            handlers: HandlerConfig::default(),
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),
         }
@@ -70,6 +79,16 @@ impl Default for NetworkConfig {
             peer_announce_interval: 60 * 15,
             poll_event_capacity: 4096,
             recv_buffer_size: 4096 * 128,
+        }
+    }
+}
+
+
+impl Default for HandlerConfig {
+    fn default() -> Self {
+        Self {
+            max_requests_per_iter: 2048,
+            channel_recv_timeout_ms: 1,
         }
     }
 }

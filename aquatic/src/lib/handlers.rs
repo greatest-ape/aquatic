@@ -26,10 +26,12 @@ pub fn handle(
     let mut std_rng = StdRng::from_entropy();
     let mut small_rng = SmallRng::from_rng(&mut std_rng).unwrap();
 
-    let timeout = Duration::from_millis(10);
+    let timeout = Duration::from_millis(
+        config.handlers.channel_recv_timeout_ms
+    );
 
     loop {
-        for i in 0..1000 {
+        for i in 0..config.handlers.max_requests_per_iter {
             let (request, src): (Request, SocketAddr) = if i == 0 {
                 match request_receiver.recv(){
                     Ok(r) => r,
