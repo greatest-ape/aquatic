@@ -33,6 +33,8 @@ pub struct NetworkConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HandlerConfig {
+    /// Maximum number of requests to receive from channel before locking
+    /// mutex and starting work
     pub max_requests_per_iter: usize,
     pub channel_recv_timeout_ms: u64,
 }
