@@ -1,5 +1,5 @@
 use std::sync::atomic::Ordering;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use histogram::Histogram;
 
@@ -7,17 +7,12 @@ use crate::common::*;
 use crate::config::Config;
 
 
-pub fn clean_connections_and_torrents(state: &State, config: &Config){
-    let connection_limit = Instant::now() - Duration::from_secs(
-        config.cleaning.max_connection_age
-    );
-    let peer_limit = Instant::now() - Duration::from_secs(
-        config.cleaning.max_peer_age
-    );
+pub fn clean_connections_and_torrents(state: &State){
+    let now = Instant::now();
 
     let mut data = state.handler_data.lock();
 
-    data.connections.retain(|_, v| v.0 > connection_limit);
+    data.connections.retain(|_, v| v.0 > now);
     data.connections.shrink_to_fit();
 
     data.torrents.retain(|_, torrent| {
@@ -25,7 +20,7 @@ pub fn clean_connections_and_torrents(state: &State, config: &Config){
         let num_leechers = &torrent.num_leechers;
 
         torrent.peers.retain(|_, peer| {
-            let keep = peer.last_announce.0 > peer_limit;
+            let keep = peer.valid_until.0 > now;
 
             if !keep {
                 match peer.status {

@@ -1,6 +1,6 @@
 use std::net::{SocketAddr, IpAddr};
 use std::sync::{Arc, atomic::AtomicUsize};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -12,8 +12,19 @@ pub use bittorrent_udp::types::*;
 pub const MAX_PACKET_SIZE: usize = 4096;
 
 
+/// Peer or connection valid until this instant
+/// 
+/// Used instead of "last seen" or similar to hopefully prevent arithmetic
+/// overflow when cleaning.
 #[derive(Debug, Clone, Copy)]
-pub struct Time(pub Instant);
+pub struct ValidUntil(pub Instant);
+
+
+impl ValidUntil {
+    pub fn new(offset_seconds: u64) -> Self {
+        Self(Instant::now() + Duration::from_secs(offset_seconds))
+    }
+}
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -23,7 +34,7 @@ pub struct ConnectionKey {
 }
 
 
-pub type ConnectionMap = HashMap<ConnectionKey, Time>;
+pub type ConnectionMap = HashMap<ConnectionKey, ValidUntil>;
 
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -59,7 +70,7 @@ pub struct Peer {
     pub ip_address: IpAddr,
     pub port: Port,
     pub status: PeerStatus,
-    pub last_announce: Time
+    pub valid_until: ValidUntil
 }
 
 
@@ -69,23 +80,6 @@ impl Peer {
         ResponsePeer {
             ip_address: self.ip_address,
             port: self.port
-        }
-    }
-    #[inline]
-    pub fn from_announce_and_ip(
-        announce_request: &AnnounceRequest,
-        ip_address: IpAddr
-    ) -> Self {
-        let status = PeerStatus::from_event_and_bytes_left(
-            announce_request.event,
-            announce_request.bytes_left
-        );
-
-        Self {
-            ip_address,
-            port: announce_request.port,
-            status,
-            last_announce: Time(Instant::now())
         }
     }
 }

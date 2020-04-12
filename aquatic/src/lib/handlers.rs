@@ -1,10 +1,10 @@
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::vec::Drain;
 
-use parking_lot::MutexGuard;
 use crossbeam_channel::{Sender, Receiver};
+use parking_lot::MutexGuard;
 use rand::{SeedableRng, Rng, rngs::{SmallRng, StdRng}};
 
 use bittorrent_udp::types::*;
@@ -79,6 +79,7 @@ pub fn run_request_worker(
         );
 
         handle_connect_requests(
+            &config,
             &mut data,
             &mut std_rng,
             connect_requests.drain(..),
@@ -86,8 +87,8 @@ pub fn run_request_worker(
         );
 
         handle_announce_requests(
-            &mut data,
             &config,
+            &mut data,
             &mut small_rng,
             announce_requests.drain(..),
             &mut responses
@@ -111,12 +112,13 @@ pub fn run_request_worker(
 
 #[inline]
 pub fn handle_connect_requests(
+    config: &Config,
     data: &mut MutexGuard<HandlerData>,
     rng: &mut StdRng,
     requests: Drain<(ConnectRequest, SocketAddr)>,
     responses: &mut Vec<(Response, SocketAddr)>,
 ){
-    let now = Time(Instant::now());
+    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
     responses.extend(requests.map(|(request, src)| {
         let connection_id = ConnectionId(rng.gen());
@@ -126,7 +128,7 @@ pub fn handle_connect_requests(
             socket_addr: src,
         };
 
-        data.connections.insert(key, now);
+        data.connections.insert(key, valid_until);
 
         let response = Response::Connect(
             ConnectResponse {
@@ -142,12 +144,14 @@ pub fn handle_connect_requests(
 
 #[inline]
 pub fn handle_announce_requests(
-    data: &mut MutexGuard<HandlerData>,
     config: &Config,
+    data: &mut MutexGuard<HandlerData>,
     rng: &mut SmallRng,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
     responses: &mut Vec<(Response, SocketAddr)>,
 ){
+    let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+
     responses.extend(requests.map(|(request, src)| {
         let connection_key = ConnectionKey {
             connection_id: request.connection_id,
@@ -163,13 +167,24 @@ pub fn handle_announce_requests(
             return (response.into(), src);
         }
 
+        let peer_ip = src.ip();
+
         let peer_key = PeerMapKey {
-            ip: src.ip(),
+            ip: peer_ip,
             peer_id: request.peer_id,
         };
 
-        let peer = Peer::from_announce_and_ip(&request, src.ip());
-        let peer_status = peer.status;
+        let peer_status = PeerStatus::from_event_and_bytes_left(
+            request.event,
+            request.bytes_left
+        );
+
+        let peer = Peer {
+            ip_address: peer_ip,
+            port: request.port,
+            status: peer_status,
+            valid_until: peer_valid_until,
+        };
 
         let torrent_data = data.torrents
             .entry(request.info_hash)
@@ -343,7 +358,6 @@ pub fn create_torrent_scrape_statistics(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
     use std::net::IpAddr;
     use std::collections::HashSet;
 
@@ -365,7 +379,7 @@ mod tests {
             ip_address,
             port: Port(1),
             status: PeerStatus::Leeching,
-            last_announce: Time(Instant::now()),
+            valid_until: ValidUntil::new(0),
         };
 
         (key, value)

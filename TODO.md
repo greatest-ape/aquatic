@@ -1,7 +1,6 @@
 # TODO
 
 ## aquatic
-* `thread 'main' panicked at 'overflow when subtracting duration from instant', src/libstd/time.rs:374:9`
 * Use bounded request channel?
 * Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
   use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
@@ -19,6 +18,7 @@
 
 # Not important
 
+* No overflow on instant + duration arithmetic now, hopefully?
 * extract_response_peers
     * Cleaner code
     * Stack-allocated vector?
