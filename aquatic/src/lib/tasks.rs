@@ -7,31 +7,25 @@ use crate::common::*;
 use crate::config::Config;
 
 
-pub fn clean_connections(state: &State, config: &Config){
-    let limit = Instant::now() - Duration::from_secs(
+pub fn clean_connections_and_torrents(state: &State, config: &Config){
+    let connection_limit = Instant::now() - Duration::from_secs(
         config.cleaning.max_connection_age
     );
-
-    let mut connections = state.connections.lock();
-
-    connections.retain(|_, v| v.0 > limit);
-    connections.shrink_to_fit();
-}
-
-
-pub fn clean_torrents(state: &State, config: &Config){
-    let limit = Instant::now() - Duration::from_secs(
+    let peer_limit = Instant::now() - Duration::from_secs(
         config.cleaning.max_peer_age
     );
 
-    let mut torrents = state.torrents.lock();
+    let mut data = state.handler_data.lock();
 
-    torrents.retain(|_, torrent| {
+    data.connections.retain(|_, v| v.0 > connection_limit);
+    data.connections.shrink_to_fit();
+
+    data.torrents.retain(|_, torrent| {
         let num_seeders = &torrent.num_seeders;
         let num_leechers = &torrent.num_leechers;
 
         torrent.peers.retain(|_, peer| {
-            let keep = peer.last_announce.0 > limit;
+            let keep = peer.last_announce.0 > peer_limit;
 
             if !keep {
                 match peer.status {
@@ -51,7 +45,7 @@ pub fn clean_torrents(state: &State, config: &Config){
         !torrent.peers.is_empty()
     });
 
-    torrents.shrink_to_fit();
+    data.torrents.shrink_to_fit();
 }
 
 
@@ -98,7 +92,7 @@ pub fn gather_and_print_statistics(
 
     let mut peers_per_torrent = Histogram::new();
 
-    let torrents = state.torrents.lock();
+    let torrents = &mut state.handler_data.lock().torrents;
 
     for torrent in torrents.values(){
         let num_seeders = torrent.num_seeders.load(Ordering::SeqCst);

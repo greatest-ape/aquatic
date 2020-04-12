@@ -132,18 +132,33 @@ pub struct Statistics {
 }
 
 
+pub struct HandlerData {
+    pub connections: ConnectionMap,
+    pub torrents: TorrentMap,
+}
+
+
+impl Default for HandlerData {
+    fn default() -> Self {
+        Self {
+            connections: HashMap::new(),
+            torrents: HashMap::new(),
+        }
+    }
+}
+
+
 #[derive(Clone)]
 pub struct State {
-    pub connections: Arc<Mutex<ConnectionMap>>,
-    pub torrents: Arc<Mutex<TorrentMap>>,
+    pub handler_data: Arc<Mutex<HandlerData>>,
     pub statistics: Arc<Statistics>,
 }
+
 
 impl State {
     pub fn new() -> Self {
         Self {
-            connections: Arc::new(Mutex::new(HashMap::new())),
-            torrents: Arc::new(Mutex::new(HashMap::new())),
+            handler_data: Arc::new(Mutex::new(HandlerData::default())),
             statistics: Arc::new(Statistics::default()),
         }
     }

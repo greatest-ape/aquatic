@@ -31,16 +31,31 @@ pub fn handle(
     );
 
     loop {
+        let mut opt_data = None;
+
+        // Collect requests from channel, divide them by type
+        //
+        // Collect a maximum number of request. Stop collecting before that
+        // number is reached if having waited for too long for a request, but
+        // only if HandlerData mutex isn't locked.
         for i in 0..config.handlers.max_requests_per_iter {
             let (request, src): (Request, SocketAddr) = if i == 0 {
                 match request_receiver.recv(){
                     Ok(r) => r,
-                    Err(_) => break,
+                    Err(_) => break, // Really shouldn't happen
                 }
             } else {
                 match request_receiver.recv_timeout(timeout){
                     Ok(r) => r,
-                    Err(_) => break,
+                    Err(_) => {
+                        if let Some(data) = state.handler_data.try_lock(){
+                            opt_data = Some(data);
+
+                            break
+                        } else {
+                            continue
+                        }
+                    },
                 }
             };
 
@@ -57,28 +72,26 @@ pub fn handle(
             }
         }
 
-        let mut connections = state.connections.lock();
+        let mut data: MutexGuard<HandlerData> = opt_data.unwrap_or_else(||
+            state.handler_data.lock()
+        );
 
         handle_connect_requests(
-            &mut connections,
+            &mut data,
             &mut std_rng,
             connect_requests.drain(..),
             &response_sender
         );
 
-        let mut torrents = state.torrents.lock();
-
         handle_announce_requests(
-            &connections,
-            &mut torrents,
+            &mut data,
             &config,
             &mut small_rng,
             announce_requests.drain(..),
             &response_sender
         );
         handle_scrape_requests(
-            &connections,
-            &mut torrents,
+            &mut data,
             scrape_requests.drain(..),
             &response_sender
         );
@@ -88,7 +101,7 @@ pub fn handle(
 
 #[inline]
 pub fn handle_connect_requests(
-    connections: &mut MutexGuard<ConnectionMap>,
+    data: &mut MutexGuard<HandlerData>,
     rng: &mut StdRng,
     requests: Drain<(ConnectRequest, SocketAddr)>,
     response_sender: &Sender<(Response, SocketAddr)>,
@@ -103,7 +116,7 @@ pub fn handle_connect_requests(
             socket_addr: src,
         };
 
-        connections.insert(key, now);
+        data.connections.insert(key, now);
 
         let response = Response::Connect(
             ConnectResponse {
@@ -119,8 +132,7 @@ pub fn handle_connect_requests(
 
 #[inline]
 pub fn handle_announce_requests(
-    connections: &MutexGuard<ConnectionMap>,
-    torrents: &mut MutexGuard<TorrentMap>,
+    data: &mut MutexGuard<HandlerData>,
     config: &Config,
     rng: &mut SmallRng,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
@@ -132,7 +144,7 @@ pub fn handle_announce_requests(
             socket_addr: src,
         };
 
-        if !connections.contains_key(&connection_key){
+        if !data.connections.contains_key(&connection_key){
             let response = ErrorResponse {
                 transaction_id: request.transaction_id,
                 message: "Connection invalid or expired".to_string()
@@ -149,7 +161,7 @@ pub fn handle_announce_requests(
         let peer = Peer::from_announce_and_ip(&request, src.ip());
         let peer_status = peer.status;
 
-        let mut torrent_data = torrents
+        let mut torrent_data = data.torrents
             .entry(request.info_hash)
             .or_default();
         
@@ -205,8 +217,7 @@ pub fn handle_announce_requests(
 
 #[inline]
 pub fn handle_scrape_requests(
-    connections: &MutexGuard<ConnectionMap>,
-    torrents: &MutexGuard<TorrentMap>,
+    data: &mut MutexGuard<HandlerData>,
     requests: Drain<(ScrapeRequest, SocketAddr)>,
     response_sender: &Sender<(Response, SocketAddr)>,
 ){
@@ -218,7 +229,7 @@ pub fn handle_scrape_requests(
             socket_addr: src,
         };
 
-        if !connections.contains_key(&connection_key){
+        if !data.connections.contains_key(&connection_key){
             let response = ErrorResponse {
                 transaction_id: request.transaction_id,
                 message: "Connection invalid or expired".to_string()
@@ -232,7 +243,7 @@ pub fn handle_scrape_requests(
         );
 
         for info_hash in request.info_hashes.iter() {
-            if let Some(torrent_data) = torrents.get(info_hash){
+            if let Some(torrent_data) = data.torrents.get(info_hash){
                 stats.push(create_torrent_scrape_statistics(
                     torrent_data.num_seeders.load(Ordering::SeqCst) as i32,
                     torrent_data.num_leechers.load(Ordering::SeqCst) as i32,

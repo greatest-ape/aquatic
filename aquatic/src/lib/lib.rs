@@ -58,7 +58,6 @@ pub fn run(config: Config){
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_connections(&state, &config);
-        tasks::clean_torrents(&state, &config);
+        tasks::clean_connections_and_torrents(&state, &config);
     }
 }
