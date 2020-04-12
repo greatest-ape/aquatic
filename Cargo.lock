@@ -51,7 +51,7 @@ dependencies = [
  "aquatic",
  "bittorrent_udp",
  "cli_helpers",
- "dashmap",
+ "crossbeam-channel",
  "indicatif",
  "mimalloc",
  "num-format",
@@ -258,17 +258,6 @@ dependencies = [
  "autocfg",
  "cfg-if",
  "lazy_static",
-]
-
-[[package]]
-name = "dashmap"
-version = "3.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0899c830f359a74834c84ed43b4c0cb6fd714a6fa64e20ab78c78f8cf86d8fc0"
-dependencies = [
- "ahash",
- "cfg-if",
- "num_cpus",
 ]
 
 [[package]]
@@ -581,16 +570,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c62be47e61d1842b9170f0fdeec8eba98e60e90e5446449a0545e5152acd7096"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "num_cpus"
-version = "1.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46203554f085ff89c235cd12f7075f3233af9b11ed7c9e16dfe2560d03313ce6"
-dependencies = [
- "hermit-abi",
- "libc",
 ]
 
 [[package]]

@@ -1,77 +1,101 @@
-use std::io::Cursor;
-use std::time::{Duration, Instant};
+use std::time::Instant;
+
+use crossbeam_channel::unbounded;
+use indicatif::ProgressIterator;
+use rand::{Rng, SeedableRng, thread_rng, rngs::SmallRng};
 use std::net::SocketAddr;
-use std::sync::Arc;
 
-use rand::{Rng, SeedableRng, thread_rng, rngs::{SmallRng, StdRng}};
-
+use aquatic::handlers;
 use aquatic::common::*;
-use aquatic::handlers::handle_connect_requests;
-use bittorrent_udp::converters::*;
+use aquatic::config::Config;
 
 use crate::common::*;
+use crate::config::BenchConfig;
 
 
-const ITERATIONS: usize = 10_000_000;
+pub fn bench_connect_handler(bench_config: BenchConfig){
+    // Setup common state, spawn request handlers
 
+    let state = State::new();
+    let aquatic_config = Config::default();
 
-pub fn bench(
-    state: State,
-    requests: Arc<Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>>
-) -> (usize, Duration){
-    let mut buffer = [0u8; MAX_PACKET_SIZE];
-    let mut cursor = Cursor::new(buffer.as_mut());
-    let mut num_responses: usize = 0;
-    let mut dummy = 0u8;
+    let (request_sender, request_receiver) = unbounded();
+    let (response_sender, response_receiver) = unbounded();
 
-    let mut rng = StdRng::from_rng(thread_rng()).unwrap();
+    for _ in 0..bench_config.num_threads {
+        let state = state.clone();
+        let config = aquatic_config.clone();
+        let request_receiver = request_receiver.clone();
+        let response_sender = response_sender.clone();
 
-    let now = Instant::now();
+        ::std::thread::spawn(move || {
+            handlers::run_request_worker(
+                state,
+                config,
+                request_receiver,
+                response_sender
+            )
+        });
+    }
 
-    let mut requests: Vec<(ConnectRequest, SocketAddr)> = requests.iter()
-        .map(|(request_bytes, src)| {
-            if let Request::Connect(r) = request_from_bytes(request_bytes, 255).unwrap() {
-                (r, *src)
-            } else {
-                unreachable!()
+    // Setup connect benchmark data
+
+    let requests = create_requests(
+        bench_config.num_connect_requests
+    );
+
+    let p = aquatic_config.handlers.max_requests_per_iter * bench_config.num_threads;
+    let mut num_responses = 0usize;
+
+    let mut dummy: i64 = thread_rng().gen();
+
+    let pb = create_progress_bar("Connect handler", bench_config.num_rounds as u64);
+
+    // Start connect benchmark
+
+    let before = Instant::now();
+
+    for round in (0..bench_config.num_rounds).progress_with(pb){
+        for request_chunk in requests.chunks(p){
+            for (request, src) in request_chunk {
+                request_sender.send((request.clone().into(), *src)).unwrap();
             }
-        })
-        .collect();
-    
-    let requests = requests.drain(..);
 
-    handle_connect_requests(&state, &mut rng, requests);
-
-    while let Ok((response, _)) = state.response_queue.pop(){
-        if let Response::Connect(_) = response {
-            num_responses += 1;
+            while let Ok((Response::Connect(r), _)) = response_receiver.try_recv() {
+                num_responses += 1;
+                dummy ^= r.connection_id.0;
+            }
         }
 
-        cursor.set_position(0);
+        let total = bench_config.num_connect_requests * (round + 1);
 
-        response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();
-
-        dummy ^= cursor.get_ref()[0];
+        while num_responses < total {
+            match response_receiver.recv(){
+                Ok((Response::Connect(r), _)) => {
+                    num_responses += 1;
+                    dummy ^= r.connection_id.0;
+                },
+                _ => {}
+            }
+        }
     }
 
-    let duration = Instant::now() - now;
+    let elapsed = before.elapsed();
 
-    assert_eq!(num_responses, ITERATIONS);
+    print_results("Connect handler:", num_responses, elapsed);
 
-    if dummy == 123u8 {
-        println!("dummy info");
+    if dummy == 0 {
+        println!("dummy dummy");
     }
-
-    (ITERATIONS, duration)
 }
 
 
-pub fn create_requests() -> Vec<(ConnectRequest, SocketAddr)> {
+pub fn create_requests(number: usize) -> Vec<(ConnectRequest, SocketAddr)> {
     let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
 
     let mut requests = Vec::new();
 
-    for _ in 0..ITERATIONS {
+    for _ in 0..number {
         let request = ConnectRequest {
             transaction_id: TransactionId(rng.gen()),
         };

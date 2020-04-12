@@ -14,7 +14,6 @@ use std::io::Cursor;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use dashmap::DashMap;
 use indicatif::{ProgressBar, ProgressStyle, ProgressIterator};
 use num_format::{Locale, ToFormattedString};
 use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
@@ -25,11 +24,11 @@ use bittorrent_udp::converters::*;
 use cli_helpers::run_app_with_cli_and_config;
 
 
-mod announce;
+// mod announce;
 mod common;
 mod config;
 mod connect;
-mod scrape;
+// mod scrape;
 
 use common::*;
 use config::BenchConfig;
@@ -39,34 +38,17 @@ use config::BenchConfig;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 
-fn print_results(
-    request_type: &str,
-    config: &BenchConfig,
-    num_items: usize,
-    duration: Duration,
-) {
-    let per_second = (
-        ((config.num_threads as f64 * num_items as f64) / (duration.as_micros() as f64 / 1000000.0)
-    ) as usize).to_formatted_string(&Locale::se);
-
-    let time_per_request = duration.as_nanos() as f64 / (config.num_threads as f64 * num_items as f64);
-
-    println!(
-        "{} {:>10} requests/second, {:>8.2} ns/request",
-        request_type,
-        per_second,
-        time_per_request,
-    );
-}
-
-
 fn main(){
     run_app_with_cli_and_config::<BenchConfig>(
         "aquatic benchmarker",
-        run
+        connect::bench_connect_handler
     )
 }
 
+
+
+
+/*
 
 fn run(bench_config: BenchConfig){
     let mut connect_data = (0usize, Duration::new(0, 0));
@@ -94,7 +76,7 @@ fn run(bench_config: BenchConfig){
 
         let requests = Arc::new(requests);
 
-        let pb = create_progress_bar("Connect handler", bench_config.num_rounds);
+        let pb = create_progress_bar("Connect handler", bench_config.num_rounds as u64);
 
         for _ in (0..bench_config.num_rounds).progress_with(pb){
             let state = State::new();
@@ -265,3 +247,5 @@ fn create_progress_bar(name: &str, iterations: u64) -> ProgressBar {
 
     ProgressBar::new(iterations).with_style(style)
 }
+
+*/
