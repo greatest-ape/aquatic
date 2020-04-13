@@ -1,26 +1,25 @@
 # TODO
 
 ## aquatic
-* Use bounded request channel?
-* Handle Ipv4 and Ipv6 peers. Probably split state. Ipv4 peers can't make
-  use of Ipv6 ones. Ipv6 ones may or may note be able to make use of Ipv4
-  ones, have to check.
-* More tests
+* mio: set oneshot for epoll and kqueue?
+* Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
+  can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
+  use of Ipv4 ones, I have to check.
+* More tests?
 
 ## aquatic_bench
-* Fix issues since switch to socket and handler workers, removal of dashmap
-* Iterate over whole returned buffer and run e.g. xor on it (.iter().fold())
 * Generic bench function since current functions are almost identical
 * Show percentile stats for peers per torrent
 
 ## bittorrent_udp
-* Tests with good known byte sequences
+* Tests with good known byte sequences (requests and responses)
 
 # Not important
 
 ## aquatic
 
-* No overflow on instant + duration arithmetic now, hopefully?
+* No overflow on instant + duration arithmetic now, hopefully? Possibly,
+  checked_add should be used.
 * extract_response_peers
     * Cleaner code
     * Stack-allocated vector?
@@ -34,8 +33,7 @@
       it.
 
 ## aquatic_bench
-* num_rounds command line argument
-* Send in connect reponse ids to other functions as integration test
+* Config vars as command line arguments too?
 * Save last results, check if difference is significant?
 * ProgressBar: `[{elapsed_precise}]` and eta_precise?
 * Test server over udp socket instead?
