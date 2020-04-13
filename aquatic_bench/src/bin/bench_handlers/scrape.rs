@@ -96,9 +96,9 @@ pub fn create_requests(
 
     let max_index = info_hashes.len() - 1;
 
-    let d = state.handler_data.lock();
+    let connections = state.connections.lock();
 
-    let connection_keys: Vec<ConnectionKey> = d.connections.keys()
+    let connection_keys: Vec<ConnectionKey> = connections.keys()
         .take(number)
         .cloned()
         .collect();

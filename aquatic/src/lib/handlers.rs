@@ -33,13 +33,13 @@ pub fn run_request_worker(
     );
 
     loop {
-        let mut opt_data = None;
+        let mut opt_connections = None;
 
         // Collect requests from channel, divide them by type
         //
         // Collect a maximum number of request. Stop collecting before that
         // number is reached if having waited for too long for a request, but
-        // only if HandlerData mutex isn't locked.
+        // only if ConnectionMap mutex isn't locked.
         for i in 0..config.handlers.max_requests_per_iter {
             let (request, src): (Request, SocketAddr) = if i == 0 {
                 match request_receiver.recv(){
@@ -50,8 +50,8 @@ pub fn run_request_worker(
                 match request_receiver.recv_timeout(timeout){
                     Ok(r) => r,
                     Err(_) => {
-                        if let Some(data) = state.handler_data.try_lock(){
-                            opt_data = Some(data);
+                        if let Some(guard) = state.connections.try_lock(){
+                            opt_connections = Some(guard);
 
                             break
                         } else {
@@ -74,32 +74,76 @@ pub fn run_request_worker(
             }
         }
 
-        let mut data: MutexGuard<HandlerData> = opt_data.unwrap_or_else(||
-            state.handler_data.lock()
+        let mut connections: MutexGuard<ConnectionMap> = opt_connections.unwrap_or_else(||
+            state.connections.lock()
         );
 
         handle_connect_requests(
             &config,
-            &mut data,
+            &mut connections,
             &mut std_rng,
             connect_requests.drain(..),
             &mut responses
         );
 
-        handle_announce_requests(
-            &config,
-            &mut data,
-            &mut small_rng,
-            announce_requests.drain(..),
-            &mut responses
-        );
-        handle_scrape_requests(
-            &mut data,
-            scrape_requests.drain(..),
-            &mut responses
-        );
+        announce_requests.retain(|(request, src)| {
+            let connection_key = ConnectionKey {
+                connection_id: request.connection_id,
+                socket_addr: *src,
+            };
+    
+            if connections.contains_key(&connection_key){
+                true
+            } else {
+                let response = ErrorResponse {
+                    transaction_id: request.transaction_id,
+                    message: "Connection invalid or expired".to_string()
+                };
+    
+                responses.push((response.into(), *src));
 
-        ::std::mem::drop(data);
+                false
+            }
+        });
+
+        scrape_requests.retain(|(request, src)| {
+            let connection_key = ConnectionKey {
+                connection_id: request.connection_id,
+                socket_addr: *src,
+            };
+    
+            if connections.contains_key(&connection_key){
+                true
+            } else {
+                let response = ErrorResponse {
+                    transaction_id: request.transaction_id,
+                    message: "Connection invalid or expired".to_string()
+                };
+    
+                responses.push((response.into(), *src));
+
+                false
+            }
+        });
+
+        ::std::mem::drop(connections);
+
+        if !(announce_requests.is_empty() && scrape_requests.is_empty()){
+            let mut torrents = state.torrents.lock();
+
+            handle_announce_requests(
+                &config,
+                &mut torrents,
+                &mut small_rng,
+                announce_requests.drain(..),
+                &mut responses
+            );
+            handle_scrape_requests(
+                &mut torrents,
+                scrape_requests.drain(..),
+                &mut responses
+            );
+        }
 
         for r in responses.drain(..){
             if let Err(err) = response_sender.send(r){
@@ -113,7 +157,7 @@ pub fn run_request_worker(
 #[inline]
 pub fn handle_connect_requests(
     config: &Config,
-    data: &mut MutexGuard<HandlerData>,
+    connections: &mut MutexGuard<ConnectionMap>,
     rng: &mut StdRng,
     requests: Drain<(ConnectRequest, SocketAddr)>,
     responses: &mut Vec<(Response, SocketAddr)>,
@@ -128,7 +172,7 @@ pub fn handle_connect_requests(
             socket_addr: src,
         };
 
-        data.connections.insert(key, valid_until);
+        connections.insert(key, valid_until);
 
         let response = Response::Connect(
             ConnectResponse {
@@ -145,7 +189,7 @@ pub fn handle_connect_requests(
 #[inline]
 pub fn handle_announce_requests(
     config: &Config,
-    data: &mut MutexGuard<HandlerData>,
+    torrents: &mut MutexGuard<TorrentMap>,
     rng: &mut SmallRng,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
     responses: &mut Vec<(Response, SocketAddr)>,
@@ -153,20 +197,6 @@ pub fn handle_announce_requests(
     let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     responses.extend(requests.map(|(request, src)| {
-        let connection_key = ConnectionKey {
-            connection_id: request.connection_id,
-            socket_addr: src,
-        };
-
-        if !data.connections.contains_key(&connection_key){
-            let response = ErrorResponse {
-                transaction_id: request.transaction_id,
-                message: "Connection invalid or expired".to_string()
-            };
-
-            return (response.into(), src);
-        }
-
         let peer_ip = src.ip();
 
         let peer_key = PeerMapKey {
@@ -186,7 +216,7 @@ pub fn handle_announce_requests(
             valid_until: peer_valid_until,
         };
 
-        let torrent_data = data.torrents
+        let torrent_data = torrents
             .entry(request.info_hash)
             .or_default();
         
@@ -242,33 +272,19 @@ pub fn handle_announce_requests(
 
 #[inline]
 pub fn handle_scrape_requests(
-    data: &mut MutexGuard<HandlerData>,
+    torrents: &mut MutexGuard<TorrentMap>,
     requests: Drain<(ScrapeRequest, SocketAddr)>,
     responses: &mut Vec<(Response, SocketAddr)>,
 ){
     let empty_stats = create_torrent_scrape_statistics(0, 0);
 
     responses.extend(requests.map(|(request, src)|{
-        let connection_key = ConnectionKey {
-            connection_id: request.connection_id,
-            socket_addr: src,
-        };
-
-        if !data.connections.contains_key(&connection_key){
-            let response = ErrorResponse {
-                transaction_id: request.transaction_id,
-                message: "Connection invalid or expired".to_string()
-            };
-
-            return (response.into(), src);
-        }
-
         let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(
             request.info_hashes.len()
         );
 
         for info_hash in request.info_hashes.iter() {
-            if let Some(torrent_data) = data.torrents.get(info_hash){
+            if let Some(torrent_data) = torrents.get(info_hash){
                 stats.push(create_torrent_scrape_statistics(
                     torrent_data.num_seeders.load(Ordering::SeqCst) as i32,
                     torrent_data.num_leechers.load(Ordering::SeqCst) as i32,

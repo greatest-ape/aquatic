@@ -95,9 +95,9 @@ pub fn create_requests(
 
     let mut requests = Vec::new();
 
-    let d = state.handler_data.lock();
+    let connections = state.connections.lock();
 
-    let connection_keys: Vec<ConnectionKey> = d.connections.keys()
+    let connection_keys: Vec<ConnectionKey> = connections.keys()
         .take(number)
         .cloned()
         .collect();

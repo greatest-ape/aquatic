@@ -10,12 +10,16 @@ use crate::config::Config;
 pub fn clean_connections_and_torrents(state: &State){
     let now = Instant::now();
 
-    let mut data = state.handler_data.lock();
+    let mut connections = state.connections.lock();
 
-    data.connections.retain(|_, v| v.0 > now);
-    data.connections.shrink_to_fit();
+    connections.retain(|_, v| v.0 > now);
+    connections.shrink_to_fit();
 
-    data.torrents.retain(|_, torrent| {
+    ::std::mem::drop(connections);
+
+    let mut torrents = state.torrents.lock();
+
+    torrents.retain(|_, torrent| {
         let num_seeders = &torrent.num_seeders;
         let num_leechers = &torrent.num_leechers;
 
@@ -40,7 +44,7 @@ pub fn clean_connections_and_torrents(state: &State){
         !torrent.peers.is_empty()
     });
 
-    data.torrents.shrink_to_fit();
+    torrents.shrink_to_fit();
 }
 
 
@@ -87,7 +91,7 @@ pub fn gather_and_print_statistics(
 
     let mut peers_per_torrent = Histogram::new();
 
-    let torrents = &mut state.handler_data.lock().torrents;
+    let torrents = &mut state.torrents.lock();
 
     for torrent in torrents.values(){
         let num_seeders = torrent.num_seeders.load(Ordering::SeqCst);
@@ -99,6 +103,8 @@ pub fn gather_and_print_statistics(
             eprintln!("error incrementing peers_per_torrent histogram: {}", err)
         }
     }
+
+    ::std::mem::drop(torrents);
 
     if peers_per_torrent.entries() != 0 {
         println!(
