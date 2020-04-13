@@ -228,8 +228,10 @@ pub fn handle_announce_requests(
                 .map(|peer| peer.status)
         };
 
-        let max_num_peers_to_take = (request.peers_wanted.0.max(0) as usize)
-            .min(config.network.max_response_peers);
+        let max_num_peers_to_take = calc_number_of_peers_to_take(
+            config,
+            request.peers_wanted.0
+        );
 
         match peer_status {
             PeerStatus::Leeching => {
@@ -355,6 +357,22 @@ pub fn extract_response_peers(
         debug_assert_eq!(peers.len(), max_num_peers_to_take);
 
         peers
+    }
+}
+
+
+#[inline]
+fn calc_number_of_peers_to_take(
+    config: &Config,
+    peers_wanted: i32,
+) -> usize {
+    if peers_wanted <= 0 {
+        config.network.max_response_peers as usize
+    } else {
+        ::std::cmp::min(
+            config.network.max_response_peers as usize,
+            peers_wanted as usize
+        )
     }
 }
 
