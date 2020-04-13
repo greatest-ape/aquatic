@@ -21,6 +21,7 @@ pub fn run_socket_worker(
     config: Config,
     token_num: usize,
     request_sender: Sender<(Request, SocketAddr)>,
+    response_sender: Sender<(Response, SocketAddr)>,
     response_receiver: Receiver<(Response, SocketAddr)>,
 ){
     let mut buffer = [0u8; MAX_PACKET_SIZE];
@@ -53,6 +54,7 @@ pub fn run_socket_worker(
                         &mut socket,
                         &mut buffer,
                         &request_sender,
+                        &response_sender
                     );
 
                     state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
@@ -116,6 +118,7 @@ fn read_requests(
     socket: &mut UdpSocket,
     buffer: &mut [u8],
     request_sender: &Sender<(Request, SocketAddr)>,
+    response_sender: &Sender<(Response, SocketAddr)>,
 ){
     let mut requests_received: usize = 0;
     let mut bytes_received: usize = 0;
@@ -156,7 +159,7 @@ fn read_requests(
                                     message,
                                 };
 
-                                // responses.push((response.into(), src)); // FIXME
+                                response_sender.try_send((response.into(), src));
                             }
                         }
                     },

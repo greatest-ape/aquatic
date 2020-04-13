@@ -39,6 +39,7 @@ pub fn run(config: Config){
         let state = state.clone();
         let config = config.clone();
         let request_sender = request_sender.clone();
+        let response_sender = response_sender.clone();
         let response_receiver = response_receiver.clone();
 
         Builder::new().name(format!("socket-worker-{}", i + 1)).spawn(move ||
@@ -47,7 +48,8 @@ pub fn run(config: Config){
                 config,
                 i,
                 request_sender,
-                response_receiver
+                response_sender,
+                response_receiver,
             )
         ).expect("spawn socket worker");
     }
