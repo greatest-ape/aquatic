@@ -1,11 +1,10 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{Sender, Receiver};
 use indicatif::ProgressIterator;
 use rand::{Rng, SeedableRng, thread_rng, rngs::SmallRng};
 use std::net::SocketAddr;
 
-use aquatic::handlers;
 use aquatic::common::*;
 use aquatic::config::Config;
 
@@ -13,33 +12,12 @@ use crate::common::*;
 use crate::config::BenchConfig;
 
 
-pub fn bench_connect_handler(bench_config: BenchConfig){
-    // Setup common state, spawn request handlers
-
-    let state = State::new();
-    let aquatic_config = Config::default();
-
-    let (request_sender, request_receiver) = unbounded();
-    let (response_sender, response_receiver) = unbounded();
-
-    for _ in 0..bench_config.num_threads {
-        let state = state.clone();
-        let config = aquatic_config.clone();
-        let request_receiver = request_receiver.clone();
-        let response_sender = response_sender.clone();
-
-        ::std::thread::spawn(move || {
-            handlers::run_request_worker(
-                state,
-                config,
-                request_receiver,
-                response_sender
-            )
-        });
-    }
-
-    // Setup connect benchmark data
-
+pub fn bench_connect_handler(
+    bench_config: &BenchConfig,
+    aquatic_config: &Config,
+    request_sender: &Sender<(Request, SocketAddr)>,
+    response_receiver: &Receiver<(Response, SocketAddr)>,
+) -> (usize, Duration) {
     let requests = create_requests(
         bench_config.num_connect_requests
     );
@@ -49,7 +27,7 @@ pub fn bench_connect_handler(bench_config: BenchConfig){
 
     let mut dummy: i64 = thread_rng().gen();
 
-    let pb = create_progress_bar("Connect handler", bench_config.num_rounds as u64);
+    let pb = create_progress_bar("Connect", bench_config.num_rounds as u64);
 
     // Start connect benchmark
 
@@ -82,11 +60,11 @@ pub fn bench_connect_handler(bench_config: BenchConfig){
 
     let elapsed = before.elapsed();
 
-    print_results("Connect handler:", num_responses, elapsed);
-
     if dummy == 0 {
         println!("dummy dummy");
     }
+
+    (num_responses, elapsed)
 }
 
 

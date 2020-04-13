@@ -1,100 +1,127 @@
-use std::io::Cursor;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-use std::sync::Arc;
 
+use crossbeam_channel::{Sender, Receiver};
+use indicatif::ProgressIterator;
 use rand::Rng;
 use rand_distr::Pareto;
 
-use aquatic::handlers::*;
 use aquatic::common::*;
-use aquatic_bench::*;
-use bittorrent_udp::converters::*;
+use aquatic::config::Config;
+
+use aquatic_bench::pareto_usize;
 
 use crate::common::*;
+use crate::config::BenchConfig;
 
 
-const SCRAPE_REQUESTS: usize = 1_000_000;
-const SCRAPE_NUM_HASHES: usize = 10;
-
-
-pub fn bench(
+pub fn bench_scrape_handler(
     state: &State,
-    requests: Arc<Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>>
-) -> (usize, Duration){
-    let mut buffer = [0u8; MAX_PACKET_SIZE];
-    let mut cursor = Cursor::new(buffer.as_mut());
-    let mut num_responses: usize = 0;
-    let mut dummy = 0u8;
-
-    let now = Instant::now();
-
-    let mut requests: Vec<(ScrapeRequest, SocketAddr)> = requests.iter()
-        .map(|(request_bytes, src)| {
-            if let Request::Scrape(r) = request_from_bytes(request_bytes, 255).unwrap() {
-                (r, *src)
-            } else {
-                unreachable!()
-            }
-        })
-        .collect();
-    
-    let requests = requests.drain(..);
-
-    handle_scrape_requests(
-        &state,
-        requests,
+    bench_config: &BenchConfig,
+    aquatic_config: &Config,
+    request_sender: &Sender<(Request, SocketAddr)>,
+    response_receiver: &Receiver<(Response, SocketAddr)>,
+    rng: &mut impl Rng,
+    info_hashes: &Vec<InfoHash>,
+) -> (usize, Duration) {
+    let requests = create_requests(
+        state,
+        rng,
+        info_hashes,
+        bench_config.num_scrape_requests,
+        bench_config.num_hashes_per_scrape_request,
     );
 
-    while let Ok((response, _)) = state.response_queue.pop(){
-        if let Response::Scrape(_) = response {
-            num_responses += 1;
+    let p = aquatic_config.handlers.max_requests_per_iter * bench_config.num_threads;
+    let mut num_responses = 0usize;
+
+    let mut dummy: i32 = rng.gen();
+
+    let pb = create_progress_bar("Scrape", bench_config.num_rounds as u64);
+
+    // Start benchmark
+
+    let before = Instant::now();
+
+    for round in (0..bench_config.num_rounds).progress_with(pb){
+        for request_chunk in requests.chunks(p){
+            for (request, src) in request_chunk {
+                request_sender.send((request.clone().into(), *src)).unwrap();
+            }
+
+            while let Ok((Response::Scrape(r), _)) = response_receiver.try_recv() {
+                num_responses += 1;
+
+                if let Some(stat) = r.torrent_stats.last(){
+                    dummy ^= stat.leechers.0;
+                }
+            }
         }
 
-        cursor.set_position(0);
+        let total = bench_config.num_scrape_requests * (round + 1);
 
-        response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();
+        while num_responses < total {
+            match response_receiver.recv(){
+                Ok((Response::Scrape(r), _)) => {
+                    num_responses += 1;
 
-        dummy ^= cursor.get_ref()[0];
+                    if let Some(stat) = r.torrent_stats.last(){
+                        dummy ^= stat.leechers.0;
+                    }
+                },
+                _ => {}
+            }
+        }
     }
 
-    let duration = Instant::now() - now;
+    let elapsed = before.elapsed();
 
-    assert_eq!(num_responses, SCRAPE_REQUESTS);
-
-    if dummy == 123u8 {
-        println!("dummy info");
+    if dummy == 0 {
+        println!("dummy dummy");
     }
 
-    (SCRAPE_REQUESTS, duration)
+    (num_responses, elapsed)
 }
 
 
+
 pub fn create_requests(
+    state: &State,
     rng: &mut impl Rng,
-    info_hashes: &Vec<InfoHash>
+    info_hashes: &Vec<InfoHash>,
+    number: usize,
+    hashes_per_request: usize,
 ) -> Vec<(ScrapeRequest, SocketAddr)> {
     let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
 
     let max_index = info_hashes.len() - 1;
 
+    let d = state.handler_data.lock();
+
+    let connection_keys: Vec<ConnectionKey> = d.connections.keys()
+        .take(number)
+        .cloned()
+        .collect();
+
     let mut requests = Vec::new();
 
-    for _ in 0..SCRAPE_REQUESTS {
+    for i in 0..number {
         let mut request_info_hashes = Vec::new();
 
-        for _ in 0..SCRAPE_NUM_HASHES {
+        for _ in 0..hashes_per_request {
             let info_hash_index = pareto_usize(rng, pareto, max_index);
             request_info_hashes.push(info_hashes[info_hash_index])
         }
 
+        // Will panic if less connection requests than scrape requests
+        let connection_id = connection_keys[i].connection_id; 
+        let src = connection_keys[i].socket_addr;
+
         let request = ScrapeRequest {
-            connection_id: ConnectionId(rng.gen()),
+            connection_id,
             transaction_id: TransactionId(rng.gen()),
             info_hashes: request_info_hashes,
         };
-
-        let src = SocketAddr::from(([rng.gen(), rng.gen(), rng.gen(), rng.gen()], rng.gen()));
 
         requests.push((request, src));
     }

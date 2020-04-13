@@ -1,84 +1,93 @@
-use std::io::Cursor;
-use std::time::{Duration, Instant};
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use rand::{Rng, SeedableRng, thread_rng, rngs::SmallRng};
+use crossbeam_channel::{Sender, Receiver};
+use indicatif::ProgressIterator;
+use rand::Rng;
 use rand_distr::Pareto;
 
-use aquatic::handlers::*;
 use aquatic::common::*;
 use aquatic::config::Config;
-use aquatic_bench::*;
-use bittorrent_udp::converters::*;
+
+use aquatic_bench::pareto_usize;
 
 use crate::common::*;
+use crate::config::BenchConfig;
 
 
-const ANNOUNCE_REQUESTS: usize = 1_000_000;
-
-
-pub fn bench(
+pub fn bench_announce_handler(
     state: &State,
-    config: &Config,
-    requests: Arc<Vec<([u8; MAX_REQUEST_BYTES], SocketAddr)>>
-) -> (usize, Duration){
-    let mut buffer = [0u8; MAX_PACKET_SIZE];
-    let mut cursor = Cursor::new(buffer.as_mut());
-    let mut num_responses: usize = 0;
-    let mut dummy = 0u8;
-
-    let mut small_rng = SmallRng::from_rng(thread_rng()).unwrap();
-
-    let now = Instant::now();
-
-    let mut requests: Vec<(AnnounceRequest, SocketAddr)> = requests.iter()
-        .map(|(request_bytes, src)| {
-            if let Request::Announce(r) = request_from_bytes(request_bytes, 255).unwrap() {
-                (r, *src)
-            } else {
-                unreachable!()
-            }
-        })
-        .collect();
-    
-    let requests = requests.drain(..);
-
-    handle_announce_requests(
-        &state,
-        config,
-        &mut small_rng,
-        requests,
+    bench_config: &BenchConfig,
+    aquatic_config: &Config,
+    request_sender: &Sender<(Request, SocketAddr)>,
+    response_receiver: &Receiver<(Response, SocketAddr)>,
+    rng: &mut impl Rng,
+    info_hashes: &Vec<InfoHash>,
+) -> (usize, Duration) {
+    let requests = create_requests(
+        state,
+        rng,
+        info_hashes,
+        bench_config.num_announce_requests
     );
-    
-    while let Ok((response, _)) = state.response_queue.pop(){
-        if let Response::Announce(_) = response {
-            num_responses += 1;
+
+    let p = aquatic_config.handlers.max_requests_per_iter * bench_config.num_threads;
+    let mut num_responses = 0usize;
+
+    let mut dummy: u16 = rng.gen();
+
+    let pb = create_progress_bar("Announce", bench_config.num_rounds as u64);
+
+    // Start benchmark
+
+    let before = Instant::now();
+
+    for round in (0..bench_config.num_rounds).progress_with(pb){
+        for request_chunk in requests.chunks(p){
+            for (request, src) in request_chunk {
+                request_sender.send((request.clone().into(), *src)).unwrap();
+            }
+
+            while let Ok((Response::Announce(r), _)) = response_receiver.try_recv() {
+                num_responses += 1;
+
+                if let Some(last_peer) = r.peers.last(){
+                    dummy ^= last_peer.port.0;
+                }
+            }
         }
 
-        cursor.set_position(0);
+        let total = bench_config.num_announce_requests * (round + 1);
 
-        response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();
+        while num_responses < total {
+            match response_receiver.recv(){
+                Ok((Response::Announce(r), _)) => {
+                    num_responses += 1;
 
-        dummy ^= cursor.get_ref()[0];
+                    if let Some(last_peer) = r.peers.last(){
+                        dummy ^= last_peer.port.0;
+                    }
+                },
+                _ => {}
+            }
+        }
     }
 
-    let duration = Instant::now() - now;
+    let elapsed = before.elapsed();
 
-    assert_eq!(num_responses, ANNOUNCE_REQUESTS);
-
-    if dummy == 123u8 {
-        println!("dummy info");
+    if dummy == 0 {
+        println!("dummy dummy");
     }
 
-    (ANNOUNCE_REQUESTS, duration)
+    (num_responses, elapsed)
 }
 
 
-
 pub fn create_requests(
+    state: &State,
     rng: &mut impl Rng,
-    info_hashes: &Vec<InfoHash>
+    info_hashes: &Vec<InfoHash>,
+    number: usize,
 ) -> Vec<(AnnounceRequest, SocketAddr)> {
     let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
 
@@ -86,11 +95,22 @@ pub fn create_requests(
 
     let mut requests = Vec::new();
 
-    for _ in 0..ANNOUNCE_REQUESTS {
+    let d = state.handler_data.lock();
+
+    let connection_keys: Vec<ConnectionKey> = d.connections.keys()
+        .take(number)
+        .cloned()
+        .collect();
+
+    for i in 0..number {
         let info_hash_index = pareto_usize(rng, pareto, max_index);
 
+        // Will panic if less connection requests than announce requests
+        let connection_id = connection_keys[i].connection_id; 
+        let src = connection_keys[i].socket_addr;
+
         let request = AnnounceRequest {
-            connection_id: ConnectionId(rng.gen()),
+            connection_id,
             transaction_id: TransactionId(rng.gen()),
             info_hash: info_hashes[info_hash_index],
             peer_id: PeerId(rng.gen()),
@@ -103,8 +123,6 @@ pub fn create_requests(
             peers_wanted: NumberOfPeers(rng.gen()),
             port: Port(rng.gen())
         };
-
-        let src = SocketAddr::from(([rng.gen(), rng.gen(), rng.gen(), rng.gen()], rng.gen()));
 
         requests.push((request, src));
     }
