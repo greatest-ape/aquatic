@@ -28,8 +28,8 @@ pub fn run_request_worker(
     let mut std_rng = StdRng::from_entropy();
     let mut small_rng = SmallRng::from_rng(&mut std_rng).unwrap();
 
-    let timeout = Duration::from_millis(
-        config.handlers.channel_recv_timeout_ms
+    let timeout = Duration::from_micros(
+        config.handlers.channel_recv_timeout_microseconds
     );
 
     loop {
