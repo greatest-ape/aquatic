@@ -221,14 +221,12 @@ pub fn handle_announce_requests(
             .or_default();
         
         let opt_removed_peer_status = if peer_status == PeerStatus::Stopped {
-            torrent_data.peers.remove(&peer_key)
-                .map(|peer| peer.status)
+            torrent_data.peers.remove(&peer_key).map(|peer| peer.status)
         } else {
-            torrent_data.peers.insert(peer_key, peer)
-                .map(|peer| peer.status)
+            torrent_data.peers.insert(peer_key, peer).map(|peer| peer.status)
         };
 
-        let max_num_peers_to_take = calc_number_of_peers_to_take(
+        let max_num_peers_to_take = calc_max_num_peers_to_take(
             config,
             request.peers_wanted.0
         );
@@ -308,7 +306,7 @@ pub fn handle_scrape_requests(
 
 /// Extract response peers
 /// 
-/// If there are more peers in map that `number_of_peers_to_take`, do a
+/// If there are more peers in map than `max_num_peers_to_take`, do a
 /// half-random selection of peers from first and second halves of map,
 /// in order to avoid returning too homogeneous peers.
 /// 
@@ -362,7 +360,7 @@ pub fn extract_response_peers(
 
 
 #[inline]
-fn calc_number_of_peers_to_take(
+fn calc_max_num_peers_to_take(
     config: &Config,
     peers_wanted: i32,
 ) -> usize {
