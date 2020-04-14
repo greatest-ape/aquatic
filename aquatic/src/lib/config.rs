@@ -4,6 +4,7 @@ use serde::{Serialize, Deserialize};
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
     /// them on to the request workers. They then recieve responses from the
@@ -20,6 +21,7 @@ pub struct Config {
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
@@ -36,6 +38,7 @@ pub struct NetworkConfig {
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct HandlerConfig {
     /// Maximum number of requests to receive from channel before locking
     /// mutex and starting work
@@ -45,6 +48,7 @@ pub struct HandlerConfig {
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct StatisticsConfig {
     /// Print statistics this often (seconds). Don't print when set to zero.
     pub interval: u64,
@@ -52,6 +56,7 @@ pub struct StatisticsConfig {
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct CleaningConfig {
     /// Clean torrents and connections this often (seconds)
     pub interval: u64,
