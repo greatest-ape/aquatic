@@ -44,6 +44,8 @@
   * request from bytes for scrape: use arrayvec with some max size for
     torrents? With Vec, allocation takes quite a bit of CPU time
   * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
+* Don't do endian conversion where unnecessary, such as for connection id and
+  transaction id?
 
 # Don't do
 
