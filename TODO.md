@@ -28,6 +28,7 @@
 * Performance
     * cpu-target=native good?
     * mialloc good?
+    * Try using flume (MPSC) or multiqueue2 (MPMC) instead of crossbeam channel
     * Use less bytes from PeerId for hashing? (If yes, only save half of them
       or so in PeerMapKey). Might improve performance, but probably not worth
       it.
