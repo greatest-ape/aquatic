@@ -27,18 +27,7 @@ Server responses per second, best result in bold:
 |    6    |  __309k__   |     109k    |
 |    8    |  __408k__   |      96k    |
 
-### Details
-
-- System: Hetzner CCX41 VPS (16 dedicated vCPUs, Skylake)
-- OS: Debian 10, kernel 4.19.0-8-amd64
-- aquatic commit: 61841fff
-- opentracker also has a single threaded event mode. It didn't perform as well (143k responses/second) as blocking single-threaded mode.
-
-Default settings were used, except that:
-- load test duration = 120 seconds
-- load test multiple_client_ips = true
-- load test worker settings were tuned for best results for each trackers
-- aquatic request_workers was always = 1, only socket_workers setting was raised. Number in table corresponds to sum of both values
+(See `documents/aquatic-load-test-2020-04-19.pdf` for details.)
 
 ## Trivia
 
