@@ -16,7 +16,7 @@ There is currently no support for a info hash black- or whilelist.
 
 Performance was compared to [opentracker](http://erdgeist.org/arts/software/opentracker/) using `aquatic_load_test`.
 
-### Results (server responses per second), fastest in bold
+Server responses per second, best result in bold:
 
 | workers |   aquatic   | opentracker |
 | ------- | ----------- | ----------- |
