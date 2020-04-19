@@ -170,7 +170,7 @@ fn monitor_statistics(
             responses_scrape_per_second +
             responses_error_per_second;
 
-        report_avg_response_vec.push(responses_per_second * interval_f64);
+        report_avg_response_vec.push(responses_per_second);
 
         println!();
         println!("Requests out: {:.2}/second", requests_per_second);
