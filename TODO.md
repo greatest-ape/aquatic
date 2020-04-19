@@ -7,10 +7,6 @@
   use of Ipv4 ones, I have to check.
 * More tests?
 
-## aquatic_bench
-* Generic bench function since current functions are almost identical
-* Show percentile stats for peers per torrent
-
 ## bittorrent_udp
 * Tests with good known byte sequences (requests and responses)
 
@@ -38,6 +34,7 @@
 * Save last results, check if difference is significant?
 * ProgressBar: `[{elapsed_precise}]` and eta_precise?
 * Test server over udp socket instead?
+* Show percentile stats for peers per torrent
 
 ## bittorrent_udp
 * Avoid heap allocation in general if it can be avoided?
