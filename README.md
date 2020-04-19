@@ -10,7 +10,13 @@ Aims to implements the [UDP BitTorrent protocol](https://libtorrent.org/udp_trac
 
 Supports IPv4 and IPv6.
 
-There is currently no support for a info hash black- or whilelist.
+## Usage
+
+Install rust compiler (stable is fine) and cmake. Then, compile and run aquatic:
+
+```sh
+./scripts/run-server.sh
+```
 
 ## Benchmarks
 
