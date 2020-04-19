@@ -2,7 +2,6 @@
 
 ## aquatic
 * mio: set oneshot for epoll and kqueue?
-* Actually improving performance with more threads seems not to work too well
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
   use of Ipv4 ones, I have to check.
