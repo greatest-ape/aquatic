@@ -14,4 +14,4 @@ There is currently no support for a info hash black- or whilelist.
 
 ## Trivia
 
-The tracker is called aquatic because it thrives under a torrent of bits.
+The tracker is called aquatic because it thrives under a torrent of bits ;-)
