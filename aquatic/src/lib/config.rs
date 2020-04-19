@@ -31,7 +31,20 @@ pub struct NetworkConfig {
     pub max_response_peers: usize,
     /// Ask peers to announce this often (seconds)
     pub peer_announce_interval: i32,
-    /// Setting on socket. When value is zero, don't set (use OS default)
+    /// Size of socket recv buffer. Use 0 for OS default.
+    /// 
+    /// This setting can have a big impact on dropped packages. It might
+    /// require changing system defaults. Some examples of commands to set
+    /// recommended values for different operating systems:
+    ///
+    /// macOS:
+    /// $ sudo sysctl net.inet.udp.recvspace=6000000
+    /// $ sudo sysctl net.inet.udp.maxdgram=500000 # Not necessary, but recommended
+    /// $ sudo sysctl kern.ipc.maxsockbuf=8388608 # Not necessary, but recommended
+    ///
+    /// Linux:
+    /// $ sudo sysctl -w net.core.rmem_max=104857600
+    /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
     pub poll_event_capacity: usize,
 }
