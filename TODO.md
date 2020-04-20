@@ -1,7 +1,6 @@
 # TODO
 
 ## aquatic
-* check licenses of all dependencies with cargo deny
 * decide on a license (MIT?)
 * mio: set oneshot for epoll and kqueue?
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
