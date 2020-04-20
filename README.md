@@ -37,7 +37,9 @@ Server responses per second, best result in bold:
 
 ## License
 
-Apache 2.0 (see `LICENSE` file for details.)
+Copyright (c) 2020 Joakim Frostegård
+
+Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
 ## Trivia
 
