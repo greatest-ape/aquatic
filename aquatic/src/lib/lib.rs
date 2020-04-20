@@ -25,7 +25,7 @@ pub fn run(config: Config){
         let request_receiver = request_receiver.clone();
         let response_sender = response_sender.clone();
 
-        Builder::new().name(format!("request-worker-{}", i + 1)).spawn(move ||
+        Builder::new().name(format!("request-{:02}", i + 1)).spawn(move ||
             handlers::run_request_worker(
                 state,
                 config,
@@ -41,7 +41,7 @@ pub fn run(config: Config){
         let request_sender = request_sender.clone();
         let response_receiver = response_receiver.clone();
 
-        Builder::new().name(format!("socket-worker-{}", i + 1)).spawn(move ||
+        Builder::new().name(format!("socket-{:02}", i + 1)).spawn(move ||
             network::run_socket_worker(
                 state,
                 config,
