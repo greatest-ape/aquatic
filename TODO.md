@@ -1,7 +1,7 @@
 # TODO
 
 ## aquatic
-* mio: set oneshot for epoll and kqueue?
+* mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
   use of Ipv4 ones, I have to check.
@@ -29,20 +29,17 @@
       or so in PeerMapKey). Might improve performance, but probably not worth
       it.
 
-## aquatic_bench
-* Config vars as command line arguments too?
-* Save last results, check if difference is significant?
-* ProgressBar: `[{elapsed_precise}]` and eta_precise?
-* Test server over udp socket instead?
-* Show percentile stats for peers per torrent
-
 ## bittorrent_udp
 * Avoid heap allocation in general if it can be avoided?
-  * request from bytes for scrape: use arrayvec with some max size for
-    torrents? With Vec, allocation takes quite a bit of CPU time
-  * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
+    * request from bytes for scrape: use arrayvec with some max size for
+      torrents? With Vec, allocation takes quite a bit of CPU time
+    * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
 * Don't do endian conversion where unnecessary, such as for connection id and
   transaction id?
+
+## cli_helpers
+
+* Include config field comments in exported toml (likely quite a bit of work)
 
 # Don't do
 
