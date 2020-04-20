@@ -37,7 +37,7 @@ Server responses per second, best result in bold:
 
 ## License
 
-Apache 2.0 (see `LICENSE` file)
+Apache 2.0 (see `LICENSE` file for details.)
 
 ## Trivia
 
