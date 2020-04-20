@@ -35,6 +35,10 @@ Server responses per second, best result in bold:
 
 (See `documents/aquatic-load-test-2020-04-19.pdf` for details.)
 
+## License
+
+Apache 2.0 (see `LICENSE` file)
+
 ## Trivia
 
 The tracker is called aquatic because it thrives under a torrent of bits ;-)
