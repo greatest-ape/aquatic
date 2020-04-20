@@ -1,6 +1,6 @@
 # aquatic
 
-Fast, multi-threaded UDP BitTorrent tracker written in Rust.
+Blazingly fast, multi-threaded UDP BitTorrent tracker written in Rust.
 
 Aims to implements the [UDP BitTorrent protocol](https://libtorrent.org/udp_tracker_protocol.html), except that it:
 
