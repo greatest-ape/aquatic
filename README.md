@@ -10,12 +10,56 @@ Aims to implements the [UDP BitTorrent protocol](https://libtorrent.org/udp_trac
 
 Supports IPv4 and IPv6.
 
-## Usage
+## Installation and usage
 
-Install rust compiler (stable is fine) and cmake. Then, compile and run aquatic:
+Install rust  (stable is fine) with rustup, as well as cmake. Then, compile and run aquatic:
 
 ```sh
 ./scripts/run-server.sh
+```
+
+To print default configuration as toml, pass the "-p" flag to the binary:
+
+```sh
+./scripts/run-server.sh -p
+```
+
+Example output:
+
+```toml
+socket_workers = 1
+request_workers = 1
+
+[network]
+address = '127.0.0.1:3000'
+max_scrape_torrents = 100
+max_response_peers = 100
+peer_announce_interval = 900
+socket_recv_buffer_size = 524288
+poll_event_capacity = 4096
+
+[handlers]
+max_requests_per_iter = 2048
+channel_recv_timeout_ms = 1
+
+[statistics]
+interval = 5
+
+[cleaning]
+interval = 30
+max_peer_age = 1200
+max_connection_age = 300
+```
+
+To adjust the settings, save this text to a file and make your changes. The
+values you will most likely want to adjust are `socket_workers` (number of
+threads reading from and writing to sockets) and `network.address`. (Some
+documentation of the various options is available in source code file
+`aquatic/src/lib/config.rs`.) Then run aquatic with a "-c" argument pointing
+to the file, e.g.:
+
+```sh
+./scripts/run-server.sh -c "tmp/aquatic.toml"
 ```
 
 ## Benchmarks
@@ -35,7 +79,7 @@ Server responses per second, best result in bold:
 
 (See `documents/aquatic-load-test-2020-04-19.pdf` for details.)
 
-## License
+## Copyright and license
 
 Copyright (c) 2020 Joakim Frostegård
 
