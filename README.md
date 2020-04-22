@@ -32,15 +32,15 @@ request_workers = 1
 
 [network]
 address = '127.0.0.1:3000'
-max_scrape_torrents = 100
-max_response_peers = 100
+max_scrape_torrents = 255
+max_response_peers = 255
 peer_announce_interval = 900
 socket_recv_buffer_size = 524288
 poll_event_capacity = 4096
 
 [handlers]
-max_requests_per_iter = 2048
-channel_recv_timeout_ms = 1
+max_requests_per_iter = 10000
+channel_recv_timeout_microseconds = 200
 
 [statistics]
 interval = 5
