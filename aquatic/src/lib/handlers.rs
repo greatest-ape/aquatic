@@ -219,28 +219,23 @@ pub fn handle_announce_requests(
             .entry(request.info_hash)
             .or_default();
         
-        let opt_removed_peer_status = if peer_status == PeerStatus::Stopped {
-            torrent_data.peers.remove(&peer_key).map(|peer| peer.status)
-        } else {
-            torrent_data.peers.insert(peer_key, peer).map(|peer| peer.status)
-        };
-
-        let max_num_peers_to_take = calc_max_num_peers_to_take(
-            config,
-            request.peers_wanted.0
-        );
-
-        match peer_status {
+        let opt_removed_peer = match peer_status {
             PeerStatus::Leeching => {
                 torrent_data.num_leechers += 1;
+
+                torrent_data.peers.insert(peer_key, peer)
             },
             PeerStatus::Seeding => {
                 torrent_data.num_seeders += 1;
+
+                torrent_data.peers.insert(peer_key, peer)
             },
-            PeerStatus::Stopped => {}
+            PeerStatus::Stopped => {
+                torrent_data.peers.remove(&peer_key)
+            }
         };
 
-        match opt_removed_peer_status {
+        match opt_removed_peer.map(|peer| peer.status){
             Some(PeerStatus::Leeching) => {
                 torrent_data.num_leechers -= 1;
             },
@@ -249,6 +244,11 @@ pub fn handle_announce_requests(
             },
             _ => {}
         }
+
+        let max_num_peers_to_take = calc_max_num_peers_to_take(
+            config,
+            request.peers_wanted.0
+        );
 
         let response_peers = extract_response_peers(
             rng,
