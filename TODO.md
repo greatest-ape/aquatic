@@ -1,7 +1,6 @@
 # TODO
 
 ## aquatic
-* don't use atomic usizes in torrent state, doesn't make sense anymore
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make

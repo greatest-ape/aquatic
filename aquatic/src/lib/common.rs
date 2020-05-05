@@ -97,8 +97,8 @@ pub type PeerMap = IndexMap<PeerMapKey, Peer>;
 
 pub struct TorrentData {
     pub peers: PeerMap,
-    pub num_seeders: AtomicUsize,
-    pub num_leechers: AtomicUsize,
+    pub num_seeders: usize,
+    pub num_leechers: usize,
 }
 
 
@@ -106,8 +106,8 @@ impl Default for TorrentData {
     fn default() -> Self {
         Self {
             peers: IndexMap::new(),
-            num_seeders: AtomicUsize::new(0),
-            num_leechers: AtomicUsize::new(0),
+            num_seeders: 0,
+            num_leechers: 0,
         }
     }
 }

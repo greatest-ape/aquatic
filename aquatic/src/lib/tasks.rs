@@ -20,8 +20,8 @@ pub fn clean_connections_and_torrents(state: &State){
     let mut torrents = state.torrents.lock();
 
     torrents.retain(|_, torrent| {
-        let num_seeders = &torrent.num_seeders;
-        let num_leechers = &torrent.num_leechers;
+        let num_seeders = &mut torrent.num_seeders;
+        let num_leechers = &mut torrent.num_leechers;
 
         torrent.peers.retain(|_, peer| {
             let keep = peer.valid_until.0 > now;
@@ -29,10 +29,10 @@ pub fn clean_connections_and_torrents(state: &State){
             if !keep {
                 match peer.status {
                     PeerStatus::Seeding => {
-                        num_seeders.fetch_sub(1, Ordering::SeqCst);
+                        *num_seeders -= 1;
                     },
                     PeerStatus::Leeching => {
-                        num_leechers.fetch_sub(1, Ordering::SeqCst);
+                        *num_leechers -= 1;
                     },
                     _ => (),
                 };
@@ -94,10 +94,7 @@ pub fn gather_and_print_statistics(
     let torrents = &mut state.torrents.lock();
 
     for torrent in torrents.values(){
-        let num_seeders = torrent.num_seeders.load(Ordering::SeqCst);
-        let num_leechers = torrent.num_leechers.load(Ordering::SeqCst);
-
-        let num_peers = (num_seeders + num_leechers) as u64;
+        let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
         if let Err(err) = peers_per_torrent.increment(num_peers){
             eprintln!("error incrementing peers_per_torrent histogram: {}", err)

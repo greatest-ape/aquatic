@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::vec::Drain;
 
@@ -233,20 +232,20 @@ pub fn handle_announce_requests(
 
         match peer_status {
             PeerStatus::Leeching => {
-                torrent_data.num_leechers.fetch_add(1, Ordering::SeqCst);
+                torrent_data.num_leechers += 1;
             },
             PeerStatus::Seeding => {
-                torrent_data.num_seeders.fetch_add(1, Ordering::SeqCst);
+                torrent_data.num_seeders += 1;
             },
             PeerStatus::Stopped => {}
         };
 
         match opt_removed_peer_status {
             Some(PeerStatus::Leeching) => {
-                torrent_data.num_leechers.fetch_sub(1, Ordering::SeqCst);
+                torrent_data.num_leechers -= 1;
             },
             Some(PeerStatus::Seeding) => {
-                torrent_data.num_seeders.fetch_sub(1, Ordering::SeqCst);
+                torrent_data.num_seeders -= 1;
             },
             _ => {}
         }
@@ -260,8 +259,8 @@ pub fn handle_announce_requests(
         let response = Response::Announce(AnnounceResponse {
             transaction_id: request.transaction_id,
             announce_interval: AnnounceInterval(config.network.peer_announce_interval),
-            leechers: NumberOfPeers(torrent_data.num_leechers.load(Ordering::SeqCst) as i32),
-            seeders: NumberOfPeers(torrent_data.num_seeders.load(Ordering::SeqCst) as i32),
+            leechers: NumberOfPeers(torrent_data.num_leechers as i32),
+            seeders: NumberOfPeers(torrent_data.num_seeders as i32),
             peers: response_peers
         });
 
@@ -286,8 +285,8 @@ pub fn handle_scrape_requests(
         for info_hash in request.info_hashes.iter() {
             if let Some(torrent_data) = torrents.get(info_hash){
                 stats.push(create_torrent_scrape_statistics(
-                    torrent_data.num_seeders.load(Ordering::SeqCst) as i32,
-                    torrent_data.num_leechers.load(Ordering::SeqCst) as i32,
+                    torrent_data.num_seeders as i32,
+                    torrent_data.num_leechers as i32,
                 ));
             } else {
                 stats.push(empty_stats);
