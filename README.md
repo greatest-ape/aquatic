@@ -49,6 +49,11 @@ interval = 5
 interval = 30
 max_peer_age = 1200
 max_connection_age = 300
+
+[privileges]
+drop_privileges = false
+chroot_path = '.'
+user = 'nobody'
 ```
 
 To adjust the settings, save this text to a file and make your changes. The

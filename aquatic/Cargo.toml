@@ -23,6 +23,7 @@ mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 net2 = "0.2"
 parking_lot = "0.10"
+privdrop = "0.3"
 rand = { version = "0.7", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 

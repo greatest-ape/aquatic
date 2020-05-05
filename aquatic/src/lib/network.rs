@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::io::{Cursor, ErrorKind};
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -23,6 +23,7 @@ pub fn run_socket_worker(
     token_num: usize,
     request_sender: Sender<(Request, SocketAddr)>,
     response_receiver: Receiver<(Response, SocketAddr)>,
+    num_bound_sockets: Arc<AtomicUsize>,
 ){
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
@@ -34,6 +35,8 @@ pub fn run_socket_worker(
     poll.registry()
         .register(&mut socket, Token(token_num), interests)
         .unwrap();
+    
+    num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 

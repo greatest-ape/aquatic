@@ -1,7 +1,9 @@
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::time::Duration;
 use std::thread::Builder;
 
 use crossbeam_channel::unbounded;
+use privdrop::PrivDrop;
 
 pub mod common;
 pub mod config;
@@ -35,11 +37,14 @@ pub fn run(config: Config){
         ).expect("spawn request worker");
     }
 
+    let num_bound_sockets = Arc::new(AtomicUsize::new(0));
+
     for i in 0..config.socket_workers {
         let state = state.clone();
         let config = config.clone();
         let request_sender = request_sender.clone();
         let response_receiver = response_receiver.clone();
+        let num_bound_sockets = num_bound_sockets.clone();
 
         Builder::new().name(format!("socket-{:02}", i + 1)).spawn(move ||
             network::run_socket_worker(
@@ -48,6 +53,7 @@ pub fn run(config: Config){
                 i,
                 request_sender,
                 response_receiver,
+                num_bound_sockets,
             )
         ).expect("spawn socket worker");
     }
@@ -65,6 +71,24 @@ pub fn run(config: Config){
                 tasks::gather_and_print_statistics(&state, &config);
             }
         ).expect("spawn statistics thread");
+    }
+
+    if config.privileges.drop_privileges {
+        loop {
+            let sockets = num_bound_sockets.load(Ordering::SeqCst);
+
+            if sockets == config.socket_workers {
+                PrivDrop::default()
+                    .chroot(config.privileges.chroot_path)
+                    .user(config.privileges.user)
+                    .apply()
+                    .expect("drop privileges");
+
+                break;
+            }
+
+            ::std::thread::sleep(Duration::from_millis(10));
+        }
     }
 
     loop {
