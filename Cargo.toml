@@ -4,6 +4,7 @@ members = [
     "aquatic",
     "aquatic_bench",
     "aquatic_load_test",
+    "aquatic_ws",
     "bittorrent_udp",
     "cli_helpers",
 ]
