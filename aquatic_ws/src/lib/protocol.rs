@@ -22,6 +22,7 @@ pub struct ResponsePeer {
 
 
 #[derive(Clone, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum AnnounceEvent {
     Started,
     Stopped,
@@ -73,7 +74,9 @@ pub struct AnnounceRequestOffer {
 pub struct AnnounceRequest {
     pub info_hash: InfoHash, // FIXME: I think these are actually really just strings with 20 len, same with peer id
     pub peer_id: PeerId,
+    #[serde(rename = "left")]
     pub bytes_left: bool, // Just called "left" in protocol
+    #[serde(default)]
     pub event: AnnounceEvent, // Can be empty? Then, default is "update"
 
     // Length of this is number of peers wanted?
@@ -82,6 +85,7 @@ pub struct AnnounceRequest {
 
     /// If false, send response before sending offers (or possibly "skip sending update back"?)
     /// If true, send MiddlemanAnswerToPeer to peer with "to_peer_id" as peer_id.
+    #[serde(default)]
     pub answer: bool, 
     pub to_peer_id: Option<PeerId>, // Only parsed to hex if answer == true, probably undefined otherwise
 }
@@ -95,7 +99,8 @@ pub struct AnnounceResponse {
     // I suspect receivers don't care about this and rely on offers instead??
     // Also, what does it contain, exacly (not certain that it is ResponsePeer?)
     pub peers: Vec<ResponsePeer>,
-    pub interval: usize, // Default 2 min probably
+    #[serde(rename = "interval")]
+    pub announce_interval: usize, // Default 2 min probably
 
     // Sent to "to_peer_id" peer (?? or did I put this into MiddlemanAnswerToPeer instead?)
     // pub offer_id: (),
@@ -128,6 +133,7 @@ pub struct ScrapeResponse {
 
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Action {
     Announce,
     Scrape

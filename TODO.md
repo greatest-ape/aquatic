@@ -1,10 +1,8 @@
 # TODO
 
 ## aquatic_ws
-* serde
-    * AnnonunceWrapper or ActionWrapper or the like with an action field
-      and serde flatten on inner message
 * handler
+* test
 
 ## aquatic
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
