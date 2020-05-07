@@ -1,24 +1,29 @@
-use std::net::IpAddr;
-
 use hashbrown::HashMap;
 use serde::{Serialize, Deserialize};
 
 
+/// FIXME: This is really just string with 20 length
 #[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct PeerId(pub [u8; 20]);
 
 
+/// FIXME: This is really just string with 20 length
 #[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct InfoHash(pub [u8; 20]);
 
 
-#[derive(Clone, Serialize)]
-pub struct ResponsePeer {
-    pub peer_id: PeerId,
-    pub ip: IpAddr, // From src socket addr
-    pub port: u16, // From src port
-    pub complete: bool, // bytes_left == 0
-}
+/// FIXME: This is really just string with 20 length
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct OfferId(pub [u8; 20]);
+
+
+/// Some kind of nested structure from https://www.npmjs.com/package/simple-peer
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct JsonValue(pub ::serde_json::Value);
 
 
 #[derive(Clone, Deserialize)]
@@ -43,10 +48,14 @@ impl Default for AnnounceEvent {
 /// action = "announce"
 #[derive(Clone, Serialize)]
 pub struct MiddlemanOfferToPeer {
-    pub peer_id: PeerId, // Peer id of peer sending offer
+    /// Peer id of peer sending offer
+    /// Note: if equal to client peer_id, client ignores offer
+    pub peer_id: PeerId,
     pub info_hash: InfoHash,
-    pub offer: (), // Gets copied from AnnounceRequestOffer
-    pub offer_id: (), // Gets copied from AnnounceRequestOffer
+    /// Gets copied from AnnounceRequestOffer
+    pub offer: JsonValue, 
+    /// Gets copied from AnnounceRequestOffer
+    pub offer_id: OfferId,
 }
 
 
@@ -55,56 +64,62 @@ pub struct MiddlemanOfferToPeer {
 /// Action field should be 'announce'
 #[derive(Clone, Serialize)]
 pub struct MiddlemanAnswerToPeer {
+    /// Note: if equal to client peer_id, client ignores answer
     pub peer_id: PeerId,
     pub info_hash: InfoHash,
-    pub answer: bool,
-    pub offer_id: (),
+    pub answer: JsonValue,
+    pub offer_id: OfferId,
 }
 
 
 /// Element of AnnounceRequest.offers
 #[derive(Clone, Deserialize)]
 pub struct AnnounceRequestOffer {
-    pub offer: (), // TODO: Check client for what this is
-    pub offer_id: (), // TODO: Check client for what this is
+    pub offer: JsonValue,
+    pub offer_id: OfferId,
 }
 
 
 #[derive(Clone, Deserialize)]
 pub struct AnnounceRequest {
-    pub info_hash: InfoHash, // FIXME: I think these are actually really just strings with 20 len, same with peer id
+    pub info_hash: InfoHash,
     pub peer_id: PeerId,
+    /// Just called "left" in protocol
     #[serde(rename = "left")]
-    pub bytes_left: bool, // Just called "left" in protocol
+    pub bytes_left: bool, 
+    /// Can be empty. Then, default is "update"
     #[serde(default)]
-    pub event: AnnounceEvent, // Can be empty? Then, default is "update"
+    pub event: AnnounceEvent,
 
-    // Length of this is number of peers wanted?
-    // Only when this is an array offers are sent
+    /// Only when this is an array offers are sent to random peers
+    /// Length of this is number of peers wanted?
+    /// Max length of this is 10 in reference client code
+    /// Not sent when announce event is stopped or completed
     pub offers: Option<Vec<AnnounceRequestOffer>>, 
+    /// Seems to only get sent by client when sending offers, and is also same
+    /// as length of offers vector (or at least never less)
+    /// Max length of this is 10 in reference client code
+    /// Could probably be ignored, `offers.len()` should provide needed info
+    pub numwant: Option<usize>,
 
-    /// If false, send response before sending offers (or possibly "skip sending update back"?)
-    /// If true, send MiddlemanAnswerToPeer to peer with "to_peer_id" as peer_id.
-    #[serde(default)]
-    pub answer: bool, 
-    pub to_peer_id: Option<PeerId>, // Only parsed to hex if answer == true, probably undefined otherwise
+    /// If empty, send response before sending offers (or possibly "skip sending update back"?)
+    /// Else, send MiddlemanAnswerToPeer to peer with "to_peer_id" as peer_id.
+    /// I think using Option is good, it seems like this isn't always set
+    /// (same as `offers`)
+    pub answer: Option<JsonValue>, 
+    /// Only parsed to hex if answer == true, probably undefined otherwise
+    pub to_peer_id: Option<PeerId>, 
 }
 
 
 #[derive(Clone, Serialize)]
 pub struct AnnounceResponse {
     pub info_hash: InfoHash,
+    /// Client checks if this is null, not clear why
     pub complete: usize,
     pub incomplete: usize,
-    // I suspect receivers don't care about this and rely on offers instead??
-    // Also, what does it contain, exacly (not certain that it is ResponsePeer?)
-    pub peers: Vec<ResponsePeer>,
     #[serde(rename = "interval")]
     pub announce_interval: usize, // Default 2 min probably
-
-    // Sent to "to_peer_id" peer (?? or did I put this into MiddlemanAnswerToPeer instead?)
-    // pub offer_id: (),
-    // pub answer: bool,
 }
 
 
@@ -127,8 +142,9 @@ pub struct ScrapeStatistics {
 
 #[derive(Clone, Serialize)]
 pub struct ScrapeResponse {
-    pub files: HashMap<InfoHash, ScrapeStatistics>, // InfoHash to Scrape stats
-    pub flags: HashMap<String, usize>,
+    pub files: HashMap<InfoHash, ScrapeStatistics>,
+    // Looks like `flags` field is ignored in reference client
+    // pub flags: HashMap<String, usize>,
 }
 
 
@@ -140,6 +156,7 @@ pub enum Action {
 }
 
 
+/// Helper for serializing and deserializing messages
 #[derive(Clone, Serialize, Deserialize)]
 struct ActionWrapper<T> {
     pub action: Action,
@@ -184,18 +201,14 @@ impl InMessage {
 
         let res: Result<ActionWrapper<AnnounceRequest>, _> = serde_json::from_str(&text);
 
-        if let Ok(wrapper) = res {
-            if let Action::Announce = wrapper.action {
-                return Some(InMessage::AnnounceRequest(wrapper.inner));
-            }
+        if let Ok(ActionWrapper { action: Action::Announce, inner }) = res {
+            return Some(InMessage::AnnounceRequest(inner));
         }
         
         let res: Result<ActionWrapper<ScrapeRequest>, _> = serde_json::from_str(&text);
 
-        if let Ok(wrapper) = res {
-            if let Action::Scrape = wrapper.action {
-                return Some(InMessage::ScrapeRequest(wrapper.inner));
-            }
+        if let Ok(ActionWrapper { action: Action::Scrape, inner }) = res {
+            return Some(InMessage::ScrapeRequest(inner));
         }
 
         None

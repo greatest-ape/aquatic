@@ -32,14 +32,26 @@ pub fn run_request_worker(
         };
     }
 
+    // TODO: lock torrent mutex
+
+    // This should be separate function. Possibly requests should be separated
+    // above and one announce and one scrape handler used
     for (meta, in_message) in in_messages.drain(..){
+        // announce requests:
+        // if offers are set, fetch same number of peers, send offers to all of them
+        // if answer is set, fetch that peer, send answer to it
+        // finally, return announce response, seemingly
+
+        // scrape: just fetch stats for all info_hashes sent
+
         let out_message = OutMessage::ScrapeResponse(ScrapeResponse {
             files: HashMap::new(),
-            flags: HashMap::new(),
         });
 
         out_messages.push((meta, out_message));
     }
+
+    // TODO: unlock torrent mutex
 
     for (meta, out_message) in out_messages.drain(..){
         out_message_sender.send(meta, out_message);
