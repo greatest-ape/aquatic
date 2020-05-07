@@ -10,9 +10,11 @@ use common::*;
 
 
 pub fn run(){
+    let address: ::std::net::SocketAddr = "0.0.0.0:3000".parse().unwrap();
+
     let state = State::default();
 
-    let (in_message_sender, in_message_receiver): (InMessageSender, InMessageReceiver) = ::flume::unbounded();
+    let (in_message_sender, in_message_receiver) = ::flume::unbounded();
 
     let mut out_message_senders = Vec::new();
 
@@ -25,6 +27,7 @@ pub fn run(){
 
         ::std::thread::spawn(move || {
             network::run_socket_worker(
+                address,
                 i,
                 in_message_sender,
                 out_message_receiver,
@@ -43,6 +46,6 @@ pub fn run(){
     });
 
     loop {
-
+        ::std::thread::sleep(::std::time::Duration::from_secs(60));
     }
 }

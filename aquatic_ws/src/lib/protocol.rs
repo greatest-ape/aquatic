@@ -120,9 +120,23 @@ pub enum InMessage {
 }
 
 
+impl InMessage {
+    fn from_ws_message(ws_messge: tungstenite::Message) -> Result<Self, ()> {
+        unimplemented!()
+    }
+}
+
+
 pub enum OutMessage {
     AnnounceResponse(AnnounceResponse),
     ScrapeResponse(ScrapeResponse),
     Offer(MiddlemanOfferToPeer),
     Answer(MiddlemanAnswerToPeer),
+}
+
+
+impl OutMessage {
+    fn to_ws_message(self) -> tungstenite::Message {
+        unimplemented!()
+    }
 }

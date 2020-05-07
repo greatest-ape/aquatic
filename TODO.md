@@ -1,5 +1,9 @@
 # TODO
 
+## aquatic_ws
+* serde
+* handler
+
 ## aquatic
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers

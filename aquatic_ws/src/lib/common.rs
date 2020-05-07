@@ -15,11 +15,7 @@ pub struct Peer {
     pub peer_id: PeerId,
     pub complete: bool,
     pub valid_until: ValidUntil,
-
-    // FIXME: these three could probably be replaced with MessageMeta
-    pub socket_worker_index: usize,
-    pub socket_addr: SocketAddr,
-    pub connection_index: usize,
+    pub connection_meta: ConnectionMeta,
 }
 
 
@@ -50,32 +46,32 @@ impl Default for State {
 }
 
 
-pub struct MessageMeta {
-    /// Index of socket worker that read this request. Required for sending
-    /// back response through correct channel to correct worker.
+pub struct ConnectionMeta {
+    /// Index of socket worker responsible for this connection. Required for
+    /// sending back response through correct channel to correct worker.
     pub socket_worker_index: usize,
     /// SocketAddr of peer
     pub peer_socket_addr: SocketAddr,
     /// Slab index of PeerConnection
-    pub peer_connection_index: usize,
+    pub socket_worker_slab_index: usize,
 }
 
 
-pub type InMessageSender = Sender<(MessageMeta, InMessage)>;
-pub type InMessageReceiver = Receiver<(MessageMeta, InMessage)>;
-pub type OutMessageReceiver = Receiver<(MessageMeta, OutMessage)>;
+pub type InMessageSender = Sender<(ConnectionMeta, InMessage)>;
+pub type InMessageReceiver = Receiver<(ConnectionMeta, InMessage)>;
+pub type OutMessageReceiver = Receiver<(ConnectionMeta, OutMessage)>;
 
 
-pub struct OutMessageSender(Vec<Sender<(MessageMeta, OutMessage)>>);
+pub struct OutMessageSender(Vec<Sender<(ConnectionMeta, OutMessage)>>);
 
 
 impl OutMessageSender {
-    pub fn new(senders: Vec<Sender<(MessageMeta, OutMessage)>>) -> Self {
+    pub fn new(senders: Vec<Sender<(ConnectionMeta, OutMessage)>>) -> Self {
         Self(senders)
     }
     pub fn send(
         &self,
-        meta: MessageMeta,
+        meta: ConnectionMeta,
         message: OutMessage
     ){
         self.0[meta.socket_worker_index].send((meta, message));

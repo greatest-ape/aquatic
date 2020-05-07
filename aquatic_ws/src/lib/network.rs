@@ -21,12 +21,11 @@ pub struct PeerConnection {
 
 
 pub fn run_socket_worker(
+    address: SocketAddr,
     socket_worker_index: usize,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
 ){
-    let address: SocketAddr = "0.0.0.0:3000".parse().unwrap();
-
     let mut listener = TcpListener::bind(address).unwrap();
     let mut poll = Poll::new().expect("create poll");
 
@@ -90,15 +89,15 @@ pub fn run_socket_worker(
                     if let Some(Some(connection)) = connections.get_mut(token.0){
                         match connection.ws.read_message(){
                             Ok(message) => {
-                                // FIXME: parse message, send to handler
-                                // through channel (flume?)
+                                // TODO: convert tungstenite::Message to in_message
 
-                                let meta = MessageMeta {
+                                let meta = ConnectionMeta {
                                     socket_worker_index,
-                                    peer_connection_index: token.0,
+                                    socket_worker_slab_index: token.0,
                                     peer_socket_addr: connection.peer_socket_addr
                                 };
 
+                                // Dummy in_message
                                 let in_message = InMessage::ScrapeRequest(ScrapeRequest {
                                     info_hashes: None,
                                 });
@@ -116,7 +115,9 @@ pub fn run_socket_worker(
                             },
                             Err(tungstenite::Error::ConnectionClosed) => {
                                 // FIXME: necessary?
-                                poll.registry().deregister(connection.ws.get_mut()).unwrap();
+                                poll.registry()
+                                    .deregister(connection.ws.get_mut())
+                                    .unwrap();
 
                                 connections.remove(token.0);
                             },
@@ -164,21 +165,14 @@ pub fn run_socket_worker(
             true
         });
 
-        // TODO: loop through responses from channel, write them to wss or
-        // possibly register ws as writable (but this means event capacity
-        // must be adjusted accordingy and is limiting)
-
-        // How should IP's be handled? Send index and src to processing and
-        // lookup on return that entry is correct. Old ideas:
-        // Maybe use IndexMap<SocketAddr, WebSocket> and use numerical
-        // index for token? Removing element from IndexMap requires shifting
-        // or swapping indeces, so not very good.
-
+        // Read messages from channel, send to peers
+        // TODO: convert out_message to tungstenite::Message
         for (meta, out_message) in out_message_receiver.drain(){
+            // dummy message
             let message = Message::Text("test".to_string());
 
             let opt_connection = connections
-                .get_mut(meta.peer_connection_index);
+                .get_mut(meta.socket_worker_slab_index);
 
             if let Some(Some(connection)) = opt_connection {
                 if connection.peer_socket_addr != meta.peer_socket_addr {
@@ -202,7 +196,7 @@ pub fn run_socket_worker(
                             .deregister(connection.ws.get_mut())
                             .unwrap();
 
-                        connections.remove(meta.peer_connection_index);
+                        connections.remove(meta.socket_worker_slab_index);
                     },
                     Err(err) => {
                         eprint!("{}", err);
