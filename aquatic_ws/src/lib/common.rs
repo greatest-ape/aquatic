@@ -1,9 +1,11 @@
 use std::net::SocketAddr;
 use std::time::Instant;
+use std::sync::Arc;
 
 use flume::{Sender, Receiver};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
+use parking_lot::Mutex;
 
 use crate::protocol::*;
 
@@ -33,14 +35,14 @@ pub type TorrentMap = HashMap<InfoHash, TorrentData>;
 
 
 pub struct State {
-    pub torrents: TorrentMap,
+    pub torrents: Arc<Mutex<TorrentMap>>,
 }
 
 
 impl Default for State {
     fn default() -> Self {
         Self {
-            torrents: HashMap::new(),
+            torrents: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
