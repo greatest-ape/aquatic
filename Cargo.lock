@@ -97,6 +97,7 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "serde",
+ "serde_json",
  "slab",
  "tungstenite",
 ]
@@ -483,6 +484,7 @@ checksum = "96282e96bfcd3da0d3aa9938bedf1e50df3269b6db08b4876d2da0bb1a0841cf"
 dependencies = [
  "ahash",
  "autocfg",
+ "serde",
 ]
 
 [[package]]

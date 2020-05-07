@@ -17,7 +17,7 @@ path = "src/bin/main.rs"
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }
 flume = "0.7"
-hashbrown = "0.7"
+hashbrown = { version = "0.7", features = ["serde"] }
 histogram = "0.6"
 indexmap = "1"
 mimalloc = { version = "0.1", default-features = false }
@@ -27,6 +27,7 @@ parking_lot = "0.10"
 privdrop = "0.3"
 rand = { version = "0.7", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 slab = "0.4"
 tungstenite = "0.10"
 

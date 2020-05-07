@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use std::option::Option;
 
 use slab::Slab;
-use tungstenite::{Message, WebSocket};
+use tungstenite::WebSocket;
 
 use mio::{Events, Poll, Interest, Token};
 use mio::net::{TcpListener, TcpStream};
@@ -88,21 +88,16 @@ pub fn run_socket_worker(
                 loop {
                     if let Some(Some(connection)) = connections.get_mut(token.0){
                         match connection.ws.read_message(){
-                            Ok(message) => {
-                                // TODO: convert tungstenite::Message to in_message
+                            Ok(ws_message) => {
+                                if let Some(in_message) = InMessage::from_ws_message(ws_message){
+                                    let meta = ConnectionMeta {
+                                        socket_worker_index,
+                                        socket_worker_slab_index: token.0,
+                                        peer_socket_addr: connection.peer_socket_addr
+                                    };
 
-                                let meta = ConnectionMeta {
-                                    socket_worker_index,
-                                    socket_worker_slab_index: token.0,
-                                    peer_socket_addr: connection.peer_socket_addr
-                                };
-
-                                // Dummy in_message
-                                let in_message = InMessage::ScrapeRequest(ScrapeRequest {
-                                    info_hashes: None,
-                                });
-
-                                in_message_sender.send((meta, in_message));
+                                    in_message_sender.send((meta, in_message));
+                                }
 
                                 connection.valid_until = valid_until;
                             },
@@ -166,11 +161,7 @@ pub fn run_socket_worker(
         });
 
         // Read messages from channel, send to peers
-        // TODO: convert out_message to tungstenite::Message
         for (meta, out_message) in out_message_receiver.drain(){
-            // dummy message
-            let message = Message::Text("test".to_string());
-
             let opt_connection = connections
                 .get_mut(meta.socket_worker_slab_index);
 
@@ -181,7 +172,7 @@ pub fn run_socket_worker(
                     continue;
                 }
 
-                match connection.ws.write_message(message){
+                match connection.ws.write_message(out_message.to_ws_message()){
                     Ok(()) => {},
                     Err(tungstenite::Error::Io(err)) => {
                         if err.kind() == ErrorKind::WouldBlock {

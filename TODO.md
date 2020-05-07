@@ -2,6 +2,8 @@
 
 ## aquatic_ws
 * serde
+    * AnnonunceWrapper or ActionWrapper or the like with an action field
+      and serde flatten on inner message
 * handler
 
 ## aquatic
