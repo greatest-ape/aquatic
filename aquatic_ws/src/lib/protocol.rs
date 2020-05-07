@@ -3,19 +3,19 @@ use serde::{Serialize, Deserialize};
 
 
 /// FIXME: This is really just string with 20 length
-#[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(pub [u8; 20]);
 
 
 /// FIXME: This is really just string with 20 length
-#[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(pub [u8; 20]);
 
 
 /// FIXME: This is really just string with 20 length
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OfferId(pub [u8; 20]);
 
@@ -107,8 +107,10 @@ pub struct AnnounceRequest {
     /// I think using Option is good, it seems like this isn't always set
     /// (same as `offers`)
     pub answer: Option<JsonValue>, 
-    /// Only parsed to hex if answer == true, probably undefined otherwise
+    /// Likely undefined if !(answer == true)
     pub to_peer_id: Option<PeerId>, 
+    /// Sent if answer is set
+    pub offer_id: Option<OfferId>,
 }
 
 

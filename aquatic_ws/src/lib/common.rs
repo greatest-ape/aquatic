@@ -14,7 +14,7 @@ pub struct ValidUntil(pub Instant);
 
 
 pub struct Peer {
-    pub peer_id: PeerId,
+    pub peer_id: PeerId, // FIXME: maybe this field can be removed
     pub complete: bool,
     pub valid_until: ValidUntil,
     pub connection_meta: ConnectionMeta,
@@ -28,6 +28,17 @@ pub struct TorrentData {
     pub peers: PeerMap,
     pub seeders: usize,
     pub leechers: usize,
+}
+
+
+impl Default for TorrentData {
+    fn default() -> Self {
+        Self {
+            peers: IndexMap::new(),
+            seeders: 0,
+            leechers: 0,
+        }
+    }
 }
 
 
@@ -48,6 +59,7 @@ impl Default for State {
 }
 
 
+#[derive(Clone, Copy)]
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
