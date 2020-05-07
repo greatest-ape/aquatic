@@ -5,9 +5,9 @@ authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
 
-# [lib]
-# name = "aquatic_ws"
-# path = "src/lib/lib.rs"
+[lib]
+name = "aquatic_ws"
+path = "src/lib/lib.rs"
 
 [[bin]]
 name = "aquatic_ws"
