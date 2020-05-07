@@ -16,7 +16,7 @@ path = "src/bin/main.rs"
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }
-crossbeam-channel = "0.4"
+flume = "0.7"
 hashbrown = "0.7"
 histogram = "0.6"
 indexmap = "1"

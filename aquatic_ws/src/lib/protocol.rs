@@ -1,15 +1,19 @@
-use std::collections::HashMap;
 use std::net::IpAddr;
 
+use hashbrown::HashMap;
 
-/// TODO: will need to store socket worker index and connection index
-/// for middleman activities, also save SocketAddr instead of IP and port,
-/// maybe, for comparison in socket worker
-pub struct Peer {
-    pub complete: bool, // bytes_left == 0
-    pub peer_id: [u8; 20],
+
+pub struct PeerId(pub [u8; 20]);
+
+
+pub struct InfoHash(pub [u8; 20]);
+
+
+pub struct ResponsePeer {
+    pub peer_id: PeerId,
     pub ip: IpAddr, // From src socket addr
     pub port: u16, // From src port
+    pub complete: bool, // bytes_left == 0
 }
 
 
@@ -21,14 +25,21 @@ pub enum AnnounceEvent {
 }
 
 
+impl Default for AnnounceEvent {
+    fn default() -> Self {
+        Self::Update
+    }
+}
+
+
 /// Apparently, these are sent to a number of peers when they are set
 /// in an AnnounceRequest
 /// action = "announce"
 pub struct MiddlemanOfferToPeer {
+    pub peer_id: PeerId, // Peer id of peer sending offer
+    pub info_hash: InfoHash,
     pub offer: (), // Gets copied from AnnounceRequestOffer
     pub offer_id: (), // Gets copied from AnnounceRequestOffer
-    pub peer_id: [u8; 20], // Peer id of peer sending offer
-    pub info_hash: [u8; 20],
 }
 
 
@@ -36,10 +47,10 @@ pub struct MiddlemanOfferToPeer {
 /// peer id == "to_peer_id" field
 /// Action field should be 'announce'
 pub struct MiddlemanAnswerToPeer {
+    pub peer_id: PeerId,
+    pub info_hash: InfoHash,
     pub answer: bool,
     pub offer_id: (),
-    pub peer_id: [u8; 20],
-    pub info_hash: [u8; 20],
 }
 
 
@@ -51,8 +62,8 @@ pub struct AnnounceRequestOffer {
 
 
 pub struct AnnounceRequest {
-    pub info_hash: [u8; 20], // FIXME: I think these are actually really just strings with 20 len, same with peer id
-    pub peer_id: [u8; 20],
+    pub info_hash: InfoHash, // FIXME: I think these are actually really just strings with 20 len, same with peer id
+    pub peer_id: PeerId,
     pub bytes_left: bool, // Just called "left" in protocol
     pub event: AnnounceEvent, // Can be empty? Then, default is "update"
 
@@ -63,31 +74,30 @@ pub struct AnnounceRequest {
     /// If false, send response before sending offers (or possibly "skip sending update back"?)
     /// If true, send MiddlemanAnswerToPeer to peer with "to_peer_id" as peer_id.
     pub answer: bool, 
-    pub to_peer_id: Option<[u8; 20]>, // Only parsed to hex if answer == true, probably undefined otherwise
+    pub to_peer_id: Option<PeerId>, // Only parsed to hex if answer == true, probably undefined otherwise
 }
 
 
 pub struct AnnounceResponse {
-    pub info_hash: [u8; 20],
+    pub info_hash: InfoHash,
     pub complete: usize,
     pub incomplete: usize,
     // I suspect receivers don't care about this and rely on offers instead??
-    // Also, what does it contain, exacly?
-    pub peers: Vec<()>,
+    // Also, what does it contain, exacly (not certain that it is ResponsePeer?)
+    pub peers: Vec<ResponsePeer>,
     pub interval: usize, // Default 2 min probably
 
     // Sent to "to_peer_id" peer (?? or did I put this into MiddlemanAnswerToPeer instead?)
-    pub offer_id: (),
-    pub answer: bool,
+    // pub offer_id: (),
+    // pub answer: bool,
 }
-
 
 
 pub struct ScrapeRequest {
     // If omitted, scrape for all torrents, apparently
     // There is some kind of parsing here too which accepts a single info hash
     // and puts it into a vector
-    pub info_hashes: Option<Vec<[u8; 20]>>,
+    pub info_hashes: Option<Vec<InfoHash>>,
 }
 
 
@@ -99,10 +109,20 @@ pub struct ScrapeStatistics {
 
 
 pub struct ScrapeResponse {
-    pub files: HashMap<[u8; 20], ScrapeStatistics>, // InfoHash to Scrape stats
+    pub files: HashMap<InfoHash, ScrapeStatistics>, // InfoHash to Scrape stats
     pub flags: HashMap<String, usize>,
 }
-//pub struct ScrapeResponse {
-//    pub complete: usize,
-//    pub incomplete: usize,
-//}
+
+
+pub enum InMessage {
+    AnnounceRequest(AnnounceRequest),
+    ScrapeRequest(ScrapeRequest),
+}
+
+
+pub enum OutMessage {
+    AnnounceResponse(AnnounceResponse),
+    ScrapeResponse(ScrapeResponse),
+    Offer(MiddlemanOfferToPeer),
+    Answer(MiddlemanAnswerToPeer),
+}
