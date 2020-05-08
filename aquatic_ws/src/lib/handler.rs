@@ -3,6 +3,9 @@ use std::vec::Drain;
 
 use hashbrown::HashMap;
 use parking_lot::MutexGuard;
+use rand::{Rng, SeedableRng, rngs::SmallRng};
+
+use aquatic::handlers::{extract_response_peers};
 
 use crate::common::*;
 use crate::protocol::*;
@@ -17,6 +20,8 @@ pub fn run_request_worker(
 
     let mut announce_requests = Vec::new();
     let mut scrape_requests = Vec::new();
+
+    let mut rng = SmallRng::from_entropy();
 
     let timeout = Duration::from_micros(200);
 
@@ -51,6 +56,7 @@ pub fn run_request_worker(
             .unwrap_or_else(|| state.torrents.lock());
 
         handle_announce_requests(
+            &mut rng,
             &mut torrent_map_guard,
             &mut out_messages,
             announce_requests.drain(..)
@@ -72,20 +78,85 @@ pub fn run_request_worker(
 
 
 pub fn handle_announce_requests(
+    rng: &mut impl Rng,
     torrents: &mut TorrentMap,
     messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
     requests: Drain<(ConnectionMeta, AnnounceRequest)>,
 ){
+    let valid_until = ValidUntil::new(240);
+
     for (sender_meta, request) in requests {
         let torrent_data = torrents.entry(request.info_hash)
             .or_default();
-        
-        // TODO: insert peer, update stats etc
 
-        if let Some(offers) = request.offers {
-            // if offers are set, fetch same number of peers, send offers to all of them
+        let peer_status = PeerStatus::from_event_and_bytes_left(
+            request.event,
+            request.bytes_left
+        );
+
+        let peer = Peer {
+            connection_meta: sender_meta,
+            status: peer_status,
+            valid_until,
+        };
+        
+        let opt_removed_peer = match peer_status {
+            PeerStatus::Leeching => {
+                torrent_data.num_leechers += 1;
+
+                torrent_data.peers.insert(request.peer_id, peer)
+            },
+            PeerStatus::Seeding => {
+                torrent_data.num_seeders += 1;
+
+                torrent_data.peers.insert(request.peer_id, peer)
+            },
+            PeerStatus::Stopped => {
+                torrent_data.peers.remove(&request.peer_id)
+            }
+        };
+
+        match opt_removed_peer.map(|peer| peer.status){
+            Some(PeerStatus::Leeching) => {
+                torrent_data.num_leechers -= 1;
+            },
+            Some(PeerStatus::Seeding) => {
+                torrent_data.num_seeders -= 1;
+            },
+            _ => {}
         }
 
+        // If peer sent offers, send them on to random peers
+        if let Some(offers) = request.offers {
+            let max_num_peers_to_take = offers.len().min(10); // FIXME: config
+
+            fn f(peer: &Peer) -> Peer {
+                *peer
+            }
+
+            let peers = extract_response_peers(
+                rng,
+                &torrent_data.peers,
+                max_num_peers_to_take,
+                f
+            );
+
+            for (offer, peer) in offers.into_iter().zip(peers){
+                let middleman_offer = MiddlemanOfferToPeer {
+                    info_hash: request.info_hash,
+                    peer_id: request.peer_id,
+                    offer: offer.offer,
+                    offer_id: offer.offer_id,
+                };
+
+                messages_out.push((
+                    peer.connection_meta,
+                    OutMessage::Offer(middleman_offer)
+                ));
+            }
+        }
+
+        // If peer sent answer, send it on to relevant peer
         match (request.answer, request.to_peer_id, request.offer_id){
             (Some(answer), Some(to_peer_id), Some(offer_id)) => {
                 if let Some(to_peer) = torrent_data.peers.get(&to_peer_id){
@@ -107,9 +178,9 @@ pub fn handle_announce_requests(
 
         let response = OutMessage::AnnounceResponse(AnnounceResponse {
             info_hash: request.info_hash,
-            complete: torrent_data.seeders,
-            incomplete: torrent_data.leechers,
-            announce_interval: 120,
+            complete: torrent_data.num_seeders,
+            incomplete: torrent_data.num_leechers,
+            announce_interval: 120, // FIXME: config
         });
 
         messages_out.push((sender_meta, response));
@@ -138,9 +209,9 @@ pub fn handle_scrape_requests(
             for info_hash in info_hashes {
                 if let Some(torrent_data) = torrents.get(&info_hash){
                     let stats = ScrapeStatistics {
-                        complete: torrent_data.seeders,
+                        complete: torrent_data.num_seeders,
                         downloaded: 0, // No implementation planned
-                        incomplete: torrent_data.leechers,
+                        incomplete: torrent_data.num_leechers,
                     };
 
                     response.files.insert(info_hash, stats);

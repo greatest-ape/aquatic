@@ -82,6 +82,7 @@ dependencies = [
 name = "aquatic_ws"
 version = "0.1.0"
 dependencies = [
+ "aquatic",
  "bittorrent_udp",
  "cli_helpers",
  "flume",

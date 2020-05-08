@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::time::Instant;
 use std::sync::Arc;
 
 use flume::{Sender, Receiver};
@@ -7,17 +6,56 @@ use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 
+pub use aquatic::common::ValidUntil;
+
 use crate::protocol::*;
 
 
-pub struct ValidUntil(pub Instant);
+#[derive(Clone, Copy)]
+pub struct ConnectionMeta {
+    /// Index of socket worker responsible for this connection. Required for
+    /// sending back response through correct channel to correct worker.
+    pub socket_worker_index: usize,
+    /// SocketAddr of peer
+    pub peer_socket_addr: SocketAddr,
+    /// Slab index of PeerConnection
+    pub socket_worker_slab_index: usize,
+}
 
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum PeerStatus {
+    Seeding,
+    Leeching,
+    Stopped
+}
+
+
+impl PeerStatus {
+    /// Determine peer status from announce event and number of bytes left.
+    /// 
+    /// Likely, the last branch will be taken most of the time.
+    #[inline]
+    pub fn from_event_and_bytes_left(
+        event: AnnounceEvent,
+        bytes_left: usize
+    ) -> Self {
+        if let AnnounceEvent::Stopped = event {
+            Self::Stopped
+        } else if bytes_left == 0 {
+            Self::Seeding
+        } else {
+            Self::Leeching
+        }
+    }
+}
+
+
+#[derive(Clone, Copy)]
 pub struct Peer {
-    pub peer_id: PeerId, // FIXME: maybe this field can be removed
-    pub complete: bool,
-    pub valid_until: ValidUntil,
     pub connection_meta: ConnectionMeta,
+    pub status: PeerStatus,
+    pub valid_until: ValidUntil,
 }
 
 
@@ -26,8 +64,8 @@ pub type PeerMap = IndexMap<PeerId, Peer>;
 
 pub struct TorrentData {
     pub peers: PeerMap,
-    pub seeders: usize,
-    pub leechers: usize,
+    pub num_seeders: usize,
+    pub num_leechers: usize,
 }
 
 
@@ -35,8 +73,8 @@ impl Default for TorrentData {
     fn default() -> Self {
         Self {
             peers: IndexMap::new(),
-            seeders: 0,
-            leechers: 0,
+            num_seeders: 0,
+            num_leechers: 0,
         }
     }
 }
@@ -56,18 +94,6 @@ impl Default for State {
             torrents: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-}
-
-
-#[derive(Clone, Copy)]
-pub struct ConnectionMeta {
-    /// Index of socket worker responsible for this connection. Required for
-    /// sending back response through correct channel to correct worker.
-    pub socket_worker_index: usize,
-    /// SocketAddr of peer
-    pub peer_socket_addr: SocketAddr,
-    /// Slab index of PeerConnection
-    pub socket_worker_slab_index: usize,
 }
 
 
