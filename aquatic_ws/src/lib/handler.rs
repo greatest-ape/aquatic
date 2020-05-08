@@ -79,6 +79,8 @@ pub fn handle_announce_requests(
     for (sender_meta, request) in requests {
         let torrent_data = torrents.entry(request.info_hash)
             .or_default();
+        
+        // TODO: insert peer, update stats etc
 
         if let Some(offers) = request.offers {
             // if offers are set, fetch same number of peers, send offers to all of them
@@ -131,8 +133,7 @@ pub fn handle_scrape_requests(
         };
 
         // If request.info_hashes is None, don't return scrape for all
-        // torrents, even though that is done in reference server, it is
-        // too expensive.
+        // torrents, even though reference server does it. It is too expensive.
         if let Some(info_hashes) = request.info_hashes {
             for info_hash in info_hashes {
                 if let Some(torrent_data) = torrents.get(&info_hash){
