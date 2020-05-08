@@ -24,37 +24,27 @@ pub fn run_request_worker(
         let mut opt_torrent_map_guard: Option<MutexGuard<TorrentMap>> = None;
 
         for i in 0..1000 {
-            if i == 0 {
-                if let Ok((meta, in_message)) = in_message_receiver.recv(){
-                    match in_message {
-                        InMessage::AnnounceRequest(r) => {
-                            announce_requests.push((meta, r));
-                        },
-                        InMessage::ScrapeRequest(r) => {
-                            scrape_requests.push((meta, r));
-                        },
-                    }
-                }
+            let opt_in_message = if i == 0 {
+                in_message_receiver.recv().ok()
             } else {
-                let res_in_message = in_message_receiver.recv_timeout(timeout);
+                in_message_receiver.recv_timeout(timeout).ok()
+            };
 
-                if let Ok((meta, in_message)) = res_in_message {
-                    match in_message {
-                        InMessage::AnnounceRequest(r) => {
-                            announce_requests.push((meta, r));
-                        },
-                        InMessage::ScrapeRequest(r) => {
-                            scrape_requests.push((meta, r));
-                        },
-                    }
-                } else {
+            match opt_in_message {
+                Some((meta, InMessage::AnnounceRequest(r))) => {
+                    announce_requests.push((meta, r));
+                },
+                Some((meta, InMessage::ScrapeRequest(r))) => {
+                    scrape_requests.push((meta, r));
+                },
+                None => {
                     if let Some(torrent_guard) = state.torrents.try_lock(){
                         opt_torrent_map_guard = Some(torrent_guard);
 
                         break
                     }
                 }
-            };
+            }
         }
 
         let mut torrent_map_guard = opt_torrent_map_guard
