@@ -1,8 +1,12 @@
 # TODO
 
 ## aquatic_ws
-* handler
+* check protocol todo's etc
+* network
+  * open socket with so_reuseport and nonblocking
 * test
+* torrent state cleaning
+* config
 
 ## aquatic
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
