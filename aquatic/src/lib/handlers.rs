@@ -3,6 +3,7 @@ use std::time::Duration;
 use std::vec::Drain;
 
 use crossbeam_channel::{Sender, Receiver};
+use indexmap::IndexMap;
 use parking_lot::MutexGuard;
 use rand::{SeedableRng, Rng, rngs::{SmallRng, StdRng}};
 
@@ -254,6 +255,7 @@ pub fn handle_announce_requests(
             rng,
             &torrent_data.peers,
             max_num_peers_to_take,
+            Peer::to_response_peer
         );
 
         let response = Response::Announce(AnnounceResponse {
@@ -311,16 +313,22 @@ pub fn handle_scrape_requests(
 /// 
 /// Don't care if we send back announcing peer.
 #[inline]
-pub fn extract_response_peers(
+pub fn extract_response_peers<K, V, R, F>(
     rng: &mut impl Rng,
-    peer_map: &PeerMap,
+    peer_map: &IndexMap<K, V>,
     max_num_peers_to_take: usize,
-) -> Vec<ResponsePeer> {
+    peer_conversion_function: F
+) -> Vec<R>
+    where
+        K: Eq + ::std::hash::Hash,
+        F: Fn(&V) -> R
+
+{
     let peer_map_len = peer_map.len();
 
     if peer_map_len <= max_num_peers_to_take {
         peer_map.values()
-            .map(Peer::to_response_peer)
+            .map(peer_conversion_function)
             .collect()
     } else {
         let half_num_to_take = max_num_peers_to_take / 2;
@@ -338,16 +346,16 @@ pub fn extract_response_peers(
         let end_first_half = offset_first_half + half_num_to_take;
         let end_second_half = offset_second_half + half_num_to_take + (max_num_peers_to_take % 2);
 
-        let mut peers: Vec<ResponsePeer> = Vec::with_capacity(max_num_peers_to_take);
+        let mut peers: Vec<R> = Vec::with_capacity(max_num_peers_to_take);
 
         for i in offset_first_half..end_first_half {
             if let Some((_, peer)) = peer_map.get_index(i){
-                peers.push(peer.to_response_peer())
+                peers.push(peer_conversion_function(peer))
             }
         }
         for i in offset_second_half..end_second_half {
             if let Some((_, peer)) = peer_map.get_index(i){
-                peers.push(peer.to_response_peer())
+                peers.push(peer_conversion_function(peer))
             }
         }
         
@@ -435,7 +443,8 @@ mod tests {
             let peers = extract_response_peers(
                 &mut rng,
                 &peer_map,
-                req_num_peers
+                req_num_peers,
+                Peer::to_response_peer
             );
 
             // Check that number of returned peers is correct
