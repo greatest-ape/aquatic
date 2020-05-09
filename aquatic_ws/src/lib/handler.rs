@@ -194,28 +194,23 @@ pub fn handle_scrape_requests(
     requests: Drain<(ConnectionMeta, ScrapeRequest)>,
 ){
     messages_out.extend(requests.map(|(meta, request)| {
-        let num_info_hashes = request.info_hashes
-            .as_ref()
-            .map(|v| v.len())
-            .unwrap_or(0);
+        let num_info_hashes = request.info_hashes.len();
 
         let mut response = ScrapeResponse {
             files: HashMap::with_capacity(num_info_hashes),
         };
 
-        // If request.info_hashes is None, don't return scrape for all
+        // If request.info_hashes is empty, don't return scrape for all
         // torrents, even though reference server does it. It is too expensive.
-        if let Some(info_hashes) = request.info_hashes {
-            for info_hash in info_hashes {
-                if let Some(torrent_data) = torrents.get(&info_hash){
-                    let stats = ScrapeStatistics {
-                        complete: torrent_data.num_seeders,
-                        downloaded: 0, // No implementation planned
-                        incomplete: torrent_data.num_leechers,
-                    };
+        for info_hash in request.info_hashes {
+            if let Some(torrent_data) = torrents.get(&info_hash){
+                let stats = ScrapeStatistics {
+                    complete: torrent_data.num_seeders,
+                    downloaded: 0, // No implementation planned
+                    incomplete: torrent_data.num_leechers,
+                };
 
-                    response.files.insert(info_hash, stats);
-                }
+                response.files.insert(info_hash, stats);
             }
         }
 
