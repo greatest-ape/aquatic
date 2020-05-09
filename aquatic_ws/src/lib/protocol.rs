@@ -1,23 +1,66 @@
 use hashbrown::HashMap;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Deserializer, de::Visitor};
 
 
-/// FIXME: This is really just string with 20 length
+struct TwentyAsciiBytesVisitor;
+
+impl<'de> Visitor<'de> for TwentyAsciiBytesVisitor {
+    type Value = [u8; 20];
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("string consisting of 20 bytes")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: ::serde::de::Error,
+    {
+        let mut arr = [0u8; 20];
+
+        let bytes = value.as_bytes();
+
+        if value.is_ascii() && bytes.len() == 20 {
+            arr.copy_from_slice(&bytes);
+
+            Ok(arr)
+        } else {
+            Err(E::custom(format!("not 20 ascii bytes: {}", value)))
+        }
+    }
+}
+
+
+fn deserialize_20_ascii_bytes<'de, D>(
+    deserializer: D
+) -> Result<[u8; 20], D::Error>
+    where D: Deserializer<'de>
+{
+    deserializer.deserialize_any(TwentyAsciiBytesVisitor)
+}
+
+
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct PeerId(pub [u8; 20]);
+pub struct PeerId(
+    #[serde(deserialize_with = "deserialize_20_ascii_bytes")]
+    pub [u8; 20]
+);
 
 
-/// FIXME: This is really just string with 20 length
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct InfoHash(pub [u8; 20]);
+pub struct InfoHash(
+    #[serde(deserialize_with = "deserialize_20_ascii_bytes")]
+    pub [u8; 20]
+);
 
 
-/// FIXME: This is really just string with 20 length
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct OfferId(pub [u8; 20]);
+pub struct OfferId(
+    #[serde(deserialize_with = "deserialize_20_ascii_bytes")]
+    pub [u8; 20]
+);
 
 
 /// Some kind of nested structure from https://www.npmjs.com/package/simple-peer
