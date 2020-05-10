@@ -15,7 +15,13 @@ use crate::common::*;
 use crate::protocol::*;
 
 
-pub enum Connection {
+pub struct Connection {
+    valid_until: Option<ValidUntil>,
+    stage: ConnectionStage,
+}
+
+
+pub enum ConnectionStage {
     Stream(TcpStream),
     MidHandshake(MidHandshake<ServerHandshake<TcpStream, DebugCallback>>),
     Established(PeerConnection),
@@ -49,8 +55,13 @@ pub fn run_socket_worker(
 
     let mut connections: IndexMap<usize, Connection> = IndexMap::new();
 
+    let placeholder = Connection {
+        valid_until: None,
+        stage: ConnectionStage::Placeholder,
+    };
+
     // Insert empty first entry to prevent assignment of index 0
-    assert_eq!(connections.insert_full(0, Connection::Placeholder).0, 0);
+    assert_eq!(connections.insert_full(0, placeholder).0, 0);
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -139,7 +150,12 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                connections.insert(token.0, Connection::Stream(stream));
+                let connection = Connection {
+                    valid_until: Some(valid_until),
+                    stage: ConnectionStage::Stream(stream)
+                };
+
+                connections.insert(token.0, connection);
             },
             Err(err) => {
                 if err.kind() == ErrorKind::WouldBlock {
@@ -162,6 +178,7 @@ impl ::tungstenite::handshake::server::Callback for DebugCallback {
         response: ::tungstenite::handshake::server::Response,
     ) -> Result<::tungstenite::handshake::server::Response, ::tungstenite::handshake::server::ErrorResponse> {
         println!("request: {:#?}", request);
+        println!("response: {:#?}", response);
 
         Ok(response)
     }
@@ -179,19 +196,19 @@ pub fn read_and_forward_in_messages(
     println!("poll_token: {}", poll_token.0);
 
     loop {
-        let established = match connections.get_index(poll_token.0){
-            Some((_, Connection::Stream(_))) => false,
-            Some((_, Connection::MidHandshake(_))) => false,
-            Some((_, Connection::Established(_))) => true,
-            Some((_, Connection::Placeholder)) => unreachable!(),
+        let established = match connections.get_index(poll_token.0).map(|(_, v)| &v.stage){
+            Some(ConnectionStage::Stream(_)) => false,
+            Some(ConnectionStage::MidHandshake(_)) => false,
+            Some(ConnectionStage::Established(_)) => true,
+            Some(ConnectionStage::Placeholder) => unreachable!(),
             None => break,
         };
 
         if !established {
             let conn = connections.remove(&poll_token.0).unwrap();
 
-            match conn {
-                Connection::Stream(stream) => {
+            match conn.stage {
+                ConnectionStage::Stream(stream) => {
                     let peer_socket_addr = stream.peer_addr().unwrap();
 
                     match ::tungstenite::server::accept_hdr(stream, DebugCallback){
@@ -202,21 +219,32 @@ pub fn read_and_forward_in_messages(
                                 peer_socket_addr,
                                 valid_until,
                             };
+
+                            let connection = Connection {
+                                valid_until: Some(valid_until),
+                                stage: ConnectionStage::Established(peer_connection)
+                            };
             
-                            connections.insert(poll_token.0, Connection::Established(peer_connection));
+                            connections.insert(poll_token.0, connection);
                         },
                         Err(HandshakeError::Interrupted(handshake)) => {
                             println!("interrupted");
-                            connections.insert(poll_token.0, Connection::MidHandshake(handshake));
+
+                            let connection = Connection {
+                                valid_until: Some(valid_until),
+                                stage: ConnectionStage::MidHandshake(handshake),
+                            };
+
+                            connections.insert(poll_token.0, connection);
 
                             break;
                         },
                         Err(HandshakeError::Failure(err)) => {
-                            eprintln!("handshake: {}", err)
+                            dbg!(err);
                         }
                     }
                 },
-                Connection::MidHandshake(mut handshake) => {
+                ConnectionStage::MidHandshake(mut handshake) => {
                     let stream = handshake.get_mut().get_mut();
                     let peer_socket_addr = stream.peer_addr().unwrap();
 
@@ -228,25 +256,41 @@ pub fn read_and_forward_in_messages(
                                 peer_socket_addr,
                                 valid_until,
                             };
+
+                            let connection = Connection {
+                                valid_until: Some(valid_until),
+                                stage: ConnectionStage::Established(peer_connection)
+                            };
             
-                            connections.insert(poll_token.0, Connection::Established(peer_connection));
+                            connections.insert(poll_token.0, connection);
                         },
                         Err(HandshakeError::Interrupted(handshake)) => {
-                            connections.insert(poll_token.0, Connection::MidHandshake(handshake));
+                            let connection = Connection {
+                                valid_until: Some(valid_until),
+                                stage: ConnectionStage::MidHandshake(handshake),
+                            };
+
+                            connections.insert(poll_token.0, connection);
 
                             break;
                         },
-                        Err(err) => eprintln!("handshake: {}", err),
+                        Err(err) => {
+                            dbg!(err);
+                        },
                     }
                 },
                 _ => unreachable!(),
             }
-        } else if let Some(Connection::Established(connection)) = connections.get_mut(&poll_token.0){
+        } else if let Some(Connection{ stage: ConnectionStage::Established(connection), ..}) = connections.get_mut(&poll_token.0){
             println!("conn established");
 
             match connection.ws.read_message(){
                 Ok(ws_message) => {
+                    dbg!(ws_message.clone());
+
                     if let Some(in_message) = InMessage::from_ws_message(ws_message){
+                        dbg!(in_message.clone());
+
                         let meta = ConnectionMeta {
                             socket_worker_index,
                             socket_worker_slab_index: poll_token.0,
@@ -290,14 +334,17 @@ pub fn send_out_messages(
     // Read messages from channel, send to peers
     for (meta, out_message) in out_message_receiver {
         let opt_connection = connections
-            .get_mut(&meta.socket_worker_slab_index);
+            .get_mut(&meta.socket_worker_slab_index)
+            .map(|v| &mut v.stage);
 
-        if let Some(Connection::Established(connection)) = opt_connection {
+        if let Some(ConnectionStage::Established(connection)) = opt_connection {
             if connection.peer_socket_addr != meta.peer_socket_addr {
                 eprintln!("socket worker: peer socket addrs didn't match");
 
                 continue;
             }
+
+            dbg!(out_message.clone());
 
             match connection.ws.write_message(out_message.to_ws_message()){
                 Ok(()) => {},

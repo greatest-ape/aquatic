@@ -6,37 +6,37 @@ pub mod deserialize;
 use deserialize::*;
 
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(
     #[serde(deserialize_with = "deserialize_20_bytes")]
-    pub [u8; 20]
+    pub String
 );
 
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(deserialize_with = "deserialize_20_bytes")]
-    pub [u8; 20]
+    pub String
 );
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OfferId(
     #[serde(deserialize_with = "deserialize_20_bytes")]
-    pub [u8; 20]
+    pub String
 );
 
 
 /// Some kind of nested structure from https://www.npmjs.com/package/simple-peer
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct JsonValue(pub ::serde_json::Value);
 
 
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AnnounceEvent {
     Started,
@@ -56,7 +56,7 @@ impl Default for AnnounceEvent {
 /// Apparently, these are sent to a number of peers when they are set
 /// in an AnnounceRequest
 /// action = "announce"
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MiddlemanOfferToPeer {
     /// Peer id of peer sending offer
     /// Note: if equal to client peer_id, client ignores offer
@@ -72,7 +72,7 @@ pub struct MiddlemanOfferToPeer {
 /// If announce request has answer = true, send this to peer with
 /// peer id == "to_peer_id" field
 /// Action field should be 'announce'
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MiddlemanAnswerToPeer {
     /// Note: if equal to client peer_id, client ignores answer
     pub peer_id: PeerId,
@@ -83,20 +83,20 @@ pub struct MiddlemanAnswerToPeer {
 
 
 /// Element of AnnounceRequest.offers
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AnnounceRequestOffer {
     pub offer: JsonValue,
     pub offer_id: OfferId,
 }
 
 
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AnnounceRequest {
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
     /// Just called "left" in protocol
     #[serde(rename = "left")]
-    pub bytes_left: usize, // FIXME: I had this set as bool before, check!
+    pub bytes_left: Option<usize>, // FIXME: I had this set as bool before, check!
     /// Can be empty. Then, default is "update"
     #[serde(default)]
     pub event: AnnounceEvent,
@@ -124,7 +124,7 @@ pub struct AnnounceRequest {
 }
 
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AnnounceResponse {
     pub info_hash: InfoHash,
     /// Client checks if this is null, not clear why
@@ -135,7 +135,7 @@ pub struct AnnounceResponse {
 }
 
 
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ScrapeRequest {
     // If omitted, scrape for all torrents, apparently
     // There is some kind of parsing here too which accepts a single info hash
@@ -149,7 +149,7 @@ pub struct ScrapeRequest {
 }
 
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ScrapeStatistics {
     pub complete: usize,
     pub incomplete: usize,
@@ -157,7 +157,7 @@ pub struct ScrapeStatistics {
 }
 
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ScrapeResponse {
     pub files: HashMap<InfoHash, ScrapeStatistics>,
     // Looks like `flags` field is ignored in reference client
@@ -165,7 +165,7 @@ pub struct ScrapeResponse {
 }
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Action {
     Announce,
@@ -174,7 +174,7 @@ pub enum Action {
 
 
 /// Helper for serializing and deserializing messages
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ActionWrapper<T> {
     pub action: Action,
     #[serde(flatten)]
@@ -198,6 +198,7 @@ impl <T>ActionWrapper<T> {
 }
 
 
+#[derive(Debug, Clone)]
 pub enum InMessage {
     AnnounceRequest(AnnounceRequest),
     ScrapeRequest(ScrapeRequest),
@@ -220,6 +221,8 @@ impl InMessage {
 
         if let Ok(ActionWrapper { action: Action::Announce, inner }) = res {
             return Some(InMessage::AnnounceRequest(inner));
+        } else {
+            dbg!(res);
         }
         
         let res: Result<ActionWrapper<ScrapeRequest>, _> = serde_json::from_str(&text);
@@ -233,6 +236,7 @@ impl InMessage {
 }
 
 
+#[derive(Debug, Clone)]
 pub enum OutMessage {
     AnnounceResponse(AnnounceResponse),
     ScrapeResponse(ScrapeResponse),

@@ -86,44 +86,50 @@ pub fn handle_announce_requests(
     let valid_until = ValidUntil::new(240);
 
     for (sender_meta, request) in requests {
-        let torrent_data = torrents.entry(request.info_hash)
+        let info_hash = request.info_hash;
+        let peer_id = request.peer_id;
+
+        let torrent_data = torrents.entry(info_hash.clone())
             .or_default();
 
-        let peer_status = PeerStatus::from_event_and_bytes_left(
-            request.event,
-            request.bytes_left
-        );
+        // FIXME: correct to only update when bytes_left is Some?
+        if let Some(bytes_left) = request.bytes_left {
+            let peer_status = PeerStatus::from_event_and_bytes_left(
+                request.event,
+                bytes_left
+            );
 
-        let peer = Peer {
-            connection_meta: sender_meta,
-            status: peer_status,
-            valid_until,
-        };
-        
-        let opt_removed_peer = match peer_status {
-            PeerStatus::Leeching => {
-                torrent_data.num_leechers += 1;
+            let peer = Peer {
+                connection_meta: sender_meta,
+                status: peer_status,
+                valid_until,
+            };
+            
+            let opt_removed_peer = match peer_status {
+                PeerStatus::Leeching => {
+                    torrent_data.num_leechers += 1;
 
-                torrent_data.peers.insert(request.peer_id, peer)
-            },
-            PeerStatus::Seeding => {
-                torrent_data.num_seeders += 1;
+                    torrent_data.peers.insert(peer_id.clone(), peer)
+                },
+                PeerStatus::Seeding => {
+                    torrent_data.num_seeders += 1;
 
-                torrent_data.peers.insert(request.peer_id, peer)
-            },
-            PeerStatus::Stopped => {
-                torrent_data.peers.remove(&request.peer_id)
+                    torrent_data.peers.insert(peer_id.clone(), peer)
+                },
+                PeerStatus::Stopped => {
+                    torrent_data.peers.remove(&peer_id)
+                }
+            };
+
+            match opt_removed_peer.map(|peer| peer.status){
+                Some(PeerStatus::Leeching) => {
+                    torrent_data.num_leechers -= 1;
+                },
+                Some(PeerStatus::Seeding) => {
+                    torrent_data.num_seeders -= 1;
+                },
+                _ => {}
             }
-        };
-
-        match opt_removed_peer.map(|peer| peer.status){
-            Some(PeerStatus::Leeching) => {
-                torrent_data.num_leechers -= 1;
-            },
-            Some(PeerStatus::Seeding) => {
-                torrent_data.num_seeders -= 1;
-            },
-            _ => {}
         }
 
         // If peer sent offers, send them on to random peers
@@ -143,8 +149,8 @@ pub fn handle_announce_requests(
 
             for (offer, peer) in offers.into_iter().zip(peers){
                 let middleman_offer = MiddlemanOfferToPeer {
-                    info_hash: request.info_hash,
-                    peer_id: request.peer_id,
+                    info_hash: info_hash.clone(),
+                    peer_id: peer_id.clone(),
                     offer: offer.offer,
                     offer_id: offer.offer_id,
                 };
@@ -161,8 +167,8 @@ pub fn handle_announce_requests(
             (Some(answer), Some(to_peer_id), Some(offer_id)) => {
                 if let Some(to_peer) = torrent_data.peers.get(&to_peer_id){
                     let middleman_answer = MiddlemanAnswerToPeer {
-                        peer_id: request.peer_id,
-                        info_hash: request.info_hash,
+                        peer_id: peer_id,
+                        info_hash: info_hash.clone(),
                         answer,
                         offer_id,
                     };
@@ -177,7 +183,7 @@ pub fn handle_announce_requests(
         }
 
         let response = OutMessage::AnnounceResponse(AnnounceResponse {
-            info_hash: request.info_hash,
+            info_hash: info_hash,
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
             announce_interval: 120, // FIXME: config

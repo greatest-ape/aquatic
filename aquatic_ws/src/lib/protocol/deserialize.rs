@@ -6,7 +6,7 @@ use super::InfoHash;
 struct TwentyByteVisitor;
 
 impl<'de> Visitor<'de> for TwentyByteVisitor {
-    type Value = [u8; 20];
+    type Value = String;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("string consisting of 20 bytes")
@@ -15,24 +15,19 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
-        let mut arr = [0u8; 20];
-
-        let bytes = value.as_bytes();
-
-        if bytes.len() == 20 {
-            arr.copy_from_slice(&bytes);
-
-            Ok(arr)
+        if value.chars().count() == 20 { // FIXME
+            Ok(value.to_string())
         } else {
             Err(E::custom(format!("not 20 bytes: {}", value)))
         }
+        
     }
 }
 
 
 pub fn deserialize_20_bytes<'de, D>(
     deserializer: D
-) -> Result<[u8; 20], D::Error>
+) -> Result<String, D::Error>
     where D: Deserializer<'de>
 {
     deserializer.deserialize_any(TwentyByteVisitor)
@@ -100,11 +95,7 @@ mod tests {
     use super::*;
 
     fn info_hash_from_bytes(bytes: &[u8]) -> InfoHash {
-        let mut arr = [0u8; 20];
-
-        arr.copy_from_slice(bytes);
-
-        InfoHash(arr)
+        InfoHash(String::from_utf8_lossy(bytes).to_string())
     }
 
     #[test]
