@@ -140,7 +140,11 @@ pub struct ScrapeRequest {
     // If omitted, scrape for all torrents, apparently
     // There is some kind of parsing here too which accepts a single info hash
     // and puts it into a vector
-    #[serde(deserialize_with = "deserialize_info_hashes", default)]
+    #[serde(
+        rename = "info_hash",
+        deserialize_with = "deserialize_info_hashes",
+        default
+    )]
     pub info_hashes: Vec<InfoHash>,
 }
 
