@@ -18,7 +18,7 @@ pub fn run(){
 
     let mut out_message_senders = Vec::new();
 
-    for i in 0..2 {
+    for i in 0..1 {
         let in_message_sender = in_message_sender.clone();
 
         let (out_message_sender, out_message_receiver) = ::flume::unbounded();
