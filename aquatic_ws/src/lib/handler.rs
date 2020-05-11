@@ -92,6 +92,16 @@ pub fn handle_announce_requests(
         let torrent_data = torrents.entry(info_hash.clone())
             .or_default();
 
+        // If there is already a peer with this peer_id, check that socket
+        // addr is same as that of request sender. Otherwise, ignore request.
+        // Since peers have access to each others peer_id's, they could send
+        // requests using them, causing all sorts of issues.
+        if let Some(previous_peer) = torrent_data.peers.get(&peer_id){
+            if sender_meta.peer_socket_addr != previous_peer.connection_meta.peer_socket_addr {
+                continue;
+            }
+        }
+
         // FIXME: correct to only update when bytes_left is Some?
         if let Some(bytes_left) = request.bytes_left {
             let peer_status = PeerStatus::from_event_and_bytes_left(
@@ -104,7 +114,7 @@ pub fn handle_announce_requests(
                 status: peer_status,
                 valid_until,
             };
-            
+
             let opt_removed_peer = match peer_status {
                 PeerStatus::Leeching => {
                     torrent_data.num_leechers += 1;

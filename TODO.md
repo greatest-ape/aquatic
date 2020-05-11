@@ -7,8 +7,6 @@
 * test
 * torrent state cleaning
 * config
-* use src as field in addition to peer_id in peer map, since peers have
-  access to others' peer id's
 
 ## aquatic
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
