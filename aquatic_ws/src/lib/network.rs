@@ -124,7 +124,7 @@ pub fn run_socket_worker(
         poll.poll(&mut events, Some(poll_timeout))
             .expect("failed polling");
         
-        let valid_until = ValidUntil::new(600); // FIXME: config
+        let valid_until = ValidUntil::new(180); // FIXME: config
 
         for event in events.iter(){
             let token = event.token();

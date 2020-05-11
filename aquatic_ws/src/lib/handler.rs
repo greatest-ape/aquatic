@@ -23,12 +23,12 @@ pub fn run_request_worker(
 
     let mut rng = SmallRng::from_entropy();
 
-    let timeout = Duration::from_micros(200);
+    let timeout = Duration::from_micros(200); // FIXME: config
 
     loop {
         let mut opt_torrent_map_guard: Option<MutexGuard<TorrentMap>> = None;
 
-        for i in 0..1000 {
+        for i in 0..1000 { // FIXME config
             let opt_in_message = if i == 0 {
                 in_message_receiver.recv().ok()
             } else {
@@ -193,7 +193,7 @@ pub fn handle_announce_requests(
         }
 
         let response = OutMessage::AnnounceResponse(AnnounceResponse {
-            info_hash: info_hash,
+            info_hash,
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
             announce_interval: 120, // FIXME: config
