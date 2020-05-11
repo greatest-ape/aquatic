@@ -1,6 +1,16 @@
 # aquatic
 
-Blazingly fast, multi-threaded UDP BitTorrent tracker written in Rust.
+Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
+
+Consists of separate executables:
+  * `aquatic_udp`: UDP BitTorrent tracker
+  * `aquatic_ws`: WebTorrent tracker (experimental)
+
+Copyright (c) 2020 Joakim Frostegård
+
+Distributed under Apache 2.0 license (details in `LICENSE` file.)
+
+## aquatic_udp
 
 Aims to implements the [UDP BitTorrent protocol](https://libtorrent.org/udp_tracker_protocol.html), except that it:
 
@@ -10,18 +20,19 @@ Aims to implements the [UDP BitTorrent protocol](https://libtorrent.org/udp_trac
 
 Supports IPv4 and IPv6.
 
-## Installation and usage
+### Installation and usage
 
-Install rust  (stable is fine) with rustup, as well as cmake. Then, compile and run aquatic:
+Install rust with rustup, cmake with your package manager and clone the
+repository. Then, compile and run `aquatic_udp`:
 
 ```sh
-./scripts/run-server.sh
+./scripts/run-aquatic-udp.sh
 ```
 
 To print default configuration as toml, pass the "-p" flag to the binary:
 
 ```sh
-./scripts/run-server.sh -p
+./scripts/run-aquatic-udp.sh -p
 ```
 
 Example output:
@@ -60,16 +71,16 @@ To adjust the settings, save this text to a file and make your changes. The
 values you will most likely want to adjust are `socket_workers` (number of
 threads reading from and writing to sockets) and `network.address`. (Some
 documentation of the various options is available in source code file
-`aquatic/src/lib/config.rs`.) Then run aquatic with a "-c" argument pointing
-to the file, e.g.:
+`aquatic_udp/src/lib/config.rs`.) Then run aquatic with a "-c" argument
+pointing to the file, e.g.:
 
 ```sh
-./scripts/run-server.sh -c "tmp/aquatic.toml"
+./scripts/run-aquatic-udp.sh -c "tmp/aquatic-udp.toml"
 ```
 
-## Benchmarks
+### Benchmarks
 
-Performance was compared to [opentracker](http://erdgeist.org/arts/software/opentracker/) using `aquatic_load_test`.
+Performance was compared to [opentracker](http://erdgeist.org/arts/software/opentracker/) using `aquatic_udp_load_test`.
 
 Server responses per second, best result in bold:
 
@@ -84,11 +95,15 @@ Server responses per second, best result in bold:
 
 (See `documents/aquatic-load-test-2020-04-19.pdf` for details.)
 
-## Copyright and license
+## aquatic_ws
 
-Copyright (c) 2020 Joakim Frostegård
+Experimental WebTorrent tracker.
 
-Distributed under Apache 2.0 license (details in `LICENSE` file.)
+Run `aquatic_ws`:
+
+```sh
+./scripts/run-aquatic-ws.sh
+```
 
 ## Trivia
 
