@@ -353,12 +353,20 @@ pub fn read_and_forward_in_messages(
                     remove_connection_if_exists(poll, connections, poll_token);
 
                     eprint!("{}", err);
+
+                    break
                 },
                 Err(tungstenite::Error::ConnectionClosed) => {
                     remove_connection_if_exists(poll, connections, poll_token);
+
+                    break;
                 },
                 Err(err) => {
-                    eprint!("{}", err);
+                    dbg!(err);
+
+                    remove_connection_if_exists(poll, connections, poll_token);
+
+                    break;
                 }
             }
         }
@@ -393,18 +401,23 @@ pub fn send_out_messages(
                         continue;
                     }
 
-                    eprint!("{}", err);
+                    dbg!(err);
+
+                    remove_connection_if_exists(
+                        poll,
+                        connections,
+                        meta.socket_worker_poll_token
+                    );
                 },
                 Err(tungstenite::Error::ConnectionClosed) => {
-                    // FIXME: necessary?
-                    poll.registry()
-                        .deregister(connection.ws.get_mut())
-                        .unwrap();
-
-                    connections.remove(&meta.socket_worker_poll_token);
+                    remove_connection_if_exists(
+                        poll,
+                        connections,
+                        meta.socket_worker_poll_token
+                    );
                 },
                 Err(err) => {
-                    eprint!("{}", err);
+                    dbg!(err);
                 },
             }
         }
