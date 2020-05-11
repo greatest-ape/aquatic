@@ -5,6 +5,7 @@ use flume::{Sender, Receiver};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
+use mio::Token;
 
 pub use aquatic::common::ValidUntil;
 
@@ -19,7 +20,7 @@ pub struct ConnectionMeta {
     /// SocketAddr of peer
     pub peer_socket_addr: SocketAddr,
     /// Slab index of PeerConnection
-    pub socket_worker_slab_index: usize,
+    pub socket_worker_poll_token: Token,
 }
 
 
