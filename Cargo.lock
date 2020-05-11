@@ -22,9 +22,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9a60d744a80c30fcb657dfe2c1b22bcb3e814c1a1e3674f32bf5820b570fbff"
 
 [[package]]
+name = "aquatic_common"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "rand",
+]
+
+[[package]]
 name = "aquatic_udp"
 version = "0.1.0"
 dependencies = [
+ "aquatic_common",
  "bittorrent_udp",
  "cli_helpers",
  "crossbeam-channel",
@@ -82,7 +91,7 @@ dependencies = [
 name = "aquatic_ws"
 version = "0.1.0"
 dependencies = [
- "aquatic_udp",
+ "aquatic_common",
  "bittorrent_udp",
  "cli_helpers",
  "flume",

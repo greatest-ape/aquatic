@@ -1,30 +1,16 @@
 use std::net::{SocketAddr, IpAddr};
 use std::sync::{Arc, atomic::AtomicUsize};
-use std::time::{Duration, Instant};
 
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 
+pub use aquatic_common::ValidUntil;
 pub use bittorrent_udp::types::*;
 
 
 pub const MAX_PACKET_SIZE: usize = 4096;
 
-
-/// Peer or connection valid until this instant
-/// 
-/// Used instead of "last seen" or similar to hopefully prevent arithmetic
-/// overflow when cleaning.
-#[derive(Debug, Clone, Copy)]
-pub struct ValidUntil(pub Instant);
-
-
-impl ValidUntil {
-    pub fn new(offset_seconds: u64) -> Self {
-        Self(Instant::now() + Duration::from_secs(offset_seconds))
-    }
-}
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

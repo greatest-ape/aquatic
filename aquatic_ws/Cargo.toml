@@ -14,7 +14,7 @@ name = "aquatic_ws"
 path = "src/bin/main.rs"
 
 [dependencies]
-aquatic_udp = { path = "../aquatic_udp" }
+aquatic_common = { path = "../aquatic_common" }
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }
 flume = "0.7"
