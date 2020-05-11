@@ -131,6 +131,7 @@ pub fn run_socket_worker(
 }
 
 
+/// FIXME: close channel if not closed?
 fn remove_connection_if_exists(
     poll: &mut Poll,
     connections: &mut ConnectionMap,
@@ -219,6 +220,54 @@ impl ::tungstenite::handshake::server::Callback for DebugCallback {
 }
 
 
+pub fn handle_handshake_result(
+    connections: &mut ConnectionMap,
+    poll_token: Token,
+    valid_until: ValidUntil,
+    result: Result<WebSocket<TcpStream>, HandshakeError<ServerHandshake<TcpStream, DebugCallback>>> ,
+) -> bool {
+    match result {
+        Ok(mut ws) => {
+            println!("handshake established");
+
+            let peer_socket_addr = ws.get_mut().peer_addr().unwrap();
+
+            let peer_connection = PeerConnection {
+                ws,
+                peer_socket_addr,
+                valid_until,
+            };
+
+            let connection = Connection {
+                valid_until: Some(valid_until),
+                stage: ConnectionStage::Established(peer_connection)
+            };
+
+            connections.insert(poll_token, connection);
+
+            false
+        },
+        Err(HandshakeError::Interrupted(handshake)) => {
+            println!("interrupted");
+
+            let connection = Connection {
+                valid_until: Some(valid_until),
+                stage: ConnectionStage::MidHandshake(handshake),
+            };
+
+            connections.insert(poll_token, connection);
+
+            true
+        },
+        Err(HandshakeError::Failure(err)) => {
+            dbg!(err);
+
+            false
+        }
+    }
+}
+
+
 pub fn read_and_forward_in_messages(
     socket_worker_index: usize,
     in_message_sender: &InMessageSender,
@@ -242,39 +291,20 @@ pub fn read_and_forward_in_messages(
 
             match conn.stage {
                 ConnectionStage::Stream(stream) => {
-                    let peer_socket_addr = stream.peer_addr().unwrap();
+                    let handshake_result = ::tungstenite::server::accept_hdr(
+                        stream,
+                        DebugCallback
+                    );
 
-                    match ::tungstenite::server::accept_hdr(stream, DebugCallback){
-                        Ok(ws) => {
-                            println!("handshake established");
-                            let peer_connection = PeerConnection {
-                                ws,
-                                peer_socket_addr,
-                                valid_until,
-                            };
+                    let stop_loop = handle_handshake_result(
+                        connections,
+                        poll_token,
+                        valid_until,
+                        handshake_result
+                    );
 
-                            let connection = Connection {
-                                valid_until: Some(valid_until),
-                                stage: ConnectionStage::Established(peer_connection)
-                            };
-            
-                            connections.insert(poll_token, connection);
-                        },
-                        Err(HandshakeError::Interrupted(handshake)) => {
-                            println!("interrupted");
-
-                            let connection = Connection {
-                                valid_until: Some(valid_until),
-                                stage: ConnectionStage::MidHandshake(handshake),
-                            };
-
-                            connections.insert(poll_token, connection);
-
-                            break;
-                        },
-                        Err(HandshakeError::Failure(err)) => {
-                            dbg!(err);
-                        }
+                    if stop_loop {
+                        break;
                     }
                 },
                 ConnectionStage::MidHandshake(mut handshake) => {
