@@ -4,9 +4,11 @@
 * check protocol todo's etc
 * network
   * open socket with so_reuseport and nonblocking
+  * handshake: deregister stream when applicable
 * test
 * torrent state cleaning
 * config
+* limit number of info hashes allowed in scrape requests
 
 ## aquatic
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
