@@ -37,6 +37,23 @@ pub struct PeerConnection {
 pub type ConnectionMap = HashMap<Token, Connection>;
 
 
+#[derive(Clone, Copy, Debug)]
+pub struct DebugCallback;
+
+impl ::tungstenite::handshake::server::Callback for DebugCallback {
+    fn on_request(
+        self,
+        request: &::tungstenite::handshake::server::Request,
+        response: ::tungstenite::handshake::server::Response,
+    ) -> Result<::tungstenite::handshake::server::Response, ::tungstenite::handshake::server::ErrorResponse> {
+        println!("request: {:#?}", request);
+        println!("response: {:#?}", response);
+
+        Ok(response)
+    }
+}
+
+
 pub fn run_socket_worker(
     address: SocketAddr,
     socket_worker_index: usize,
@@ -76,7 +93,7 @@ pub fn run_socket_worker(
                     &mut poll_token_counter
                 );
             } else if event.is_readable(){
-                read_and_forward_in_messages(
+                run_handshake_and_read_messages(
                     socket_worker_index,
                     &in_message_sender,
                     &mut poll,
@@ -203,22 +220,6 @@ fn accept_new_streams(
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct DebugCallback;
-
-impl ::tungstenite::handshake::server::Callback for DebugCallback {
-    fn on_request(
-        self,
-        request: &::tungstenite::handshake::server::Request,
-        response: ::tungstenite::handshake::server::Response,
-    ) -> Result<::tungstenite::handshake::server::Response, ::tungstenite::handshake::server::ErrorResponse> {
-        println!("request: {:#?}", request);
-        println!("response: {:#?}", response);
-
-        Ok(response)
-    }
-}
-
 
 pub fn handle_handshake_result(
     connections: &mut ConnectionMap,
@@ -268,7 +269,7 @@ pub fn handle_handshake_result(
 }
 
 
-pub fn read_and_forward_in_messages(
+pub fn run_handshake_and_read_messages(
     socket_worker_index: usize,
     in_message_sender: &InMessageSender,
     poll: &mut Poll,
