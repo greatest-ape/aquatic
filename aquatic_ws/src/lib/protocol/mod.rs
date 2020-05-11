@@ -10,7 +10,7 @@ use deserialize::*;
 #[serde(transparent)]
 pub struct PeerId(
     #[serde(deserialize_with = "deserialize_20_bytes")]
-    pub String
+    pub [u8; 20]
 );
 
 
@@ -18,7 +18,7 @@ pub struct PeerId(
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(deserialize_with = "deserialize_20_bytes")]
-    pub String
+    pub [u8; 20]
 );
 
 
@@ -26,7 +26,7 @@ pub struct InfoHash(
 #[serde(transparent)]
 pub struct OfferId(
     #[serde(deserialize_with = "deserialize_20_bytes")]
-    pub String
+    pub [u8; 20]
 );
 
 

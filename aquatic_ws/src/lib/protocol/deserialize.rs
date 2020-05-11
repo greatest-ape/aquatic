@@ -6,7 +6,7 @@ use super::InfoHash;
 struct TwentyByteVisitor;
 
 impl<'de> Visitor<'de> for TwentyByteVisitor {
-    type Value = String;
+    type Value = [u8; 20];
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("string consisting of 20 bytes")
@@ -15,19 +15,40 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
-        if value.chars().count() == 20 { // FIXME
-            Ok(value.to_string())
+        // Value is encoded in nodejs reference client something as follows:
+        // ```
+        // var infoHash = 'abcd..'; // 40 hexadecimals
+        // Buffer.from(infoHash, 'hex').toString('binary');
+        // ```
+        // which produces a UTF16 string with each char having only the low
+        // byte set. Here, we extract it by casting to u8.
+
+        let mut arr = [0u8; 20];
+        let mut max_i = 0;
+
+        for (i, (a, c)) in arr.iter_mut().zip(value.chars()).enumerate(){
+            if c as u32 > 255 {
+                return Err(E::custom(format!(
+                    "character not in single byte range: {}",
+                    c
+                )))
+            }
+            *a = c as u8;
+            max_i = i;
+        }
+
+        if max_i == 19 {
+            Ok(arr)
         } else {
             Err(E::custom(format!("not 20 bytes: {}", value)))
         }
-        
     }
 }
 
 
 pub fn deserialize_20_bytes<'de, D>(
     deserializer: D
-) -> Result<String, D::Error>
+) -> Result<[u8; 20], D::Error>
     where D: Deserializer<'de>
 {
     deserializer.deserialize_any(TwentyByteVisitor)
@@ -95,7 +116,13 @@ mod tests {
     use super::*;
 
     fn info_hash_from_bytes(bytes: &[u8]) -> InfoHash {
-        InfoHash(String::from_utf8_lossy(bytes).to_string())
+        let mut arr = [0u8; 20];
+
+        assert!(bytes.len() == 20);
+
+        arr.copy_from_slice(&bytes[..]);
+
+        InfoHash(arr)
     }
 
     #[test]
@@ -107,12 +134,12 @@ mod tests {
 
         assert_eq!(observed, expected);
 
-        let input = r#""1aaaabbbbccccddddeeee""#;
+        let input = r#""aaaabbbbccccddddeee""#;
         let res_info_hash: Result<InfoHash, _> = serde_json::from_str(input);
 
         assert!(res_info_hash.is_err());
 
-        let input = r#""aaaabbbbccccddddeeeö""#;
+        let input = r#""aaaabbbbccccddddeee𝕊""#;
         let res_info_hash: Result<InfoHash, _> = serde_json::from_str(input);
 
         assert!(res_info_hash.is_err());
