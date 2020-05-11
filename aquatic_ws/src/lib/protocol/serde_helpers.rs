@@ -1,6 +1,16 @@
-use serde::{Deserializer, de::{Visitor, SeqAccess}};
+use serde::{Serializer, Deserializer, de::{Visitor, SeqAccess}};
 
 use super::InfoHash;
+
+
+pub fn serialize_20_bytes<S>(
+    data: &[u8; 20],
+    serializer: S
+) -> Result<S::Ok, S::Error> where S: Serializer {
+    let text: String = data.iter().map(|byte| *byte as char).collect();
+
+    serializer.serialize_str(&text)
+}
 
 
 struct TwentyByteVisitor;
@@ -143,6 +153,16 @@ mod tests {
         let res_info_hash: Result<InfoHash, _> = serde_json::from_str(input);
 
         assert!(res_info_hash.is_err());
+    }
+
+    #[test]
+    fn test_serde_20_bytes(){
+        let info_hash = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
+
+        let out = serde_json::to_string(&info_hash).unwrap();
+        let info_hash_2 = serde_json::from_str(&out).unwrap();
+
+        assert_eq!(info_hash, info_hash_2);
     }
 
     #[derive(Debug, PartialEq, Eq, Deserialize)]

@@ -1,15 +1,18 @@
 use hashbrown::HashMap;
 use serde::{Serialize, Deserialize};
 
-pub mod deserialize;
+mod serde_helpers;
 
-use deserialize::*;
+use serde_helpers::*;
 
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(
-    #[serde(deserialize_with = "deserialize_20_bytes")]
+    #[serde(
+        deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes"
+    )]
     pub [u8; 20]
 );
 
@@ -17,7 +20,10 @@ pub struct PeerId(
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(
-    #[serde(deserialize_with = "deserialize_20_bytes")]
+    #[serde(
+        deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes"
+    )]
     pub [u8; 20]
 );
 
@@ -25,7 +31,10 @@ pub struct InfoHash(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OfferId(
-    #[serde(deserialize_with = "deserialize_20_bytes")]
+    #[serde(
+        deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes"
+    )]
     pub [u8; 20]
 );
 
