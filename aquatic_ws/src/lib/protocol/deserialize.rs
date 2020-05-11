@@ -20,28 +20,28 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
         // var infoHash = 'abcd..'; // 40 hexadecimals
         // Buffer.from(infoHash, 'hex').toString('binary');
         // ```
-        // which produces a UTF16 string with each char having only the low
-        // byte set. Here, we extract it by casting to u8.
+        // which seemingly produces a UTF16 string with each char having only
+        // the "low byte" set. Here, we extract it by casting it to an u8.
 
         let mut arr = [0u8; 20];
-        let mut max_i = 0;
+        let mut char_iter = value.chars();
 
-        for (i, (a, c)) in arr.iter_mut().zip(value.chars()).enumerate(){
-            if c as u32 > 255 {
-                return Err(E::custom(format!(
-                    "character not in single byte range: {}",
-                    c
-                )))
+        for a in arr.iter_mut(){
+            if let Some(c) = char_iter.next(){
+                if c as u32 > 255 {
+                    return Err(E::custom(format!(
+                        "character not in single byte range: {:#?}",
+                        c
+                    )));
+                }
+
+                *a = c as u8;
+            } else {
+                return Err(E::custom(format!("not 20 bytes: {:#?}", value)));
             }
-            *a = c as u8;
-            max_i = i;
         }
 
-        if max_i == 19 {
-            Ok(arr)
-        } else {
-            Err(E::custom(format!("not 20 bytes: {}", value)))
-        }
+        Ok(arr)
     }
 }
 
