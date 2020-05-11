@@ -131,6 +131,35 @@ pub fn run_socket_worker(
 }
 
 
+fn remove_connection_if_exists(
+    poll: &mut Poll,
+    connections: &mut ConnectionMap,
+    token: Token,
+){
+    if let Some(connection) = connections.remove(&token){
+        match connection.stage {
+            ConnectionStage::Stream(mut stream) => {
+                poll.registry()
+                    .deregister(&mut stream)
+                    .unwrap();
+            },
+            ConnectionStage::MidHandshake(mut handshake) => {
+                poll.registry()
+                    .deregister(handshake.get_mut().get_mut())
+                    .unwrap();
+            }
+            ConnectionStage::Established(mut peer_connection) => {
+                poll.registry()
+                    .deregister(peer_connection.ws.get_mut())
+                    .unwrap();
+            }
+        };
+
+        connections.remove(&token);
+    }
+}
+
+
 fn accept_new_streams(
     listener: &mut TcpListener,
     poll: &mut Poll,
@@ -148,6 +177,8 @@ fn accept_new_streams(
                 }
 
                 let token = *poll_token_counter;
+
+                remove_connection_if_exists(poll, connections, token);
 
                 poll.registry()
                     .register(&mut stream, token, Interest::READABLE)
