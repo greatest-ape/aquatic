@@ -307,42 +307,19 @@ pub fn read_and_forward_in_messages(
                         break;
                     }
                 },
-                ConnectionStage::MidHandshake(mut handshake) => {
-                    let stream = handshake.get_mut().get_mut();
-                    let peer_socket_addr = stream.peer_addr().unwrap();
+                ConnectionStage::MidHandshake(handshake) => {
+                    let stop_loop = handle_handshake_result(
+                        connections,
+                        poll_token,
+                        valid_until,
+                        handshake.handshake()
+                    );
 
-                    match handshake.handshake(){
-                        Ok(ws) => {
-                            println!("handshake established");
-                            let peer_connection = PeerConnection {
-                                ws,
-                                peer_socket_addr,
-                                valid_until,
-                            };
-
-                            let connection = Connection {
-                                valid_until: Some(valid_until),
-                                stage: ConnectionStage::Established(peer_connection)
-                            };
-            
-                            connections.insert(poll_token, connection);
-                        },
-                        Err(HandshakeError::Interrupted(handshake)) => {
-                            let connection = Connection {
-                                valid_until: Some(valid_until),
-                                stage: ConnectionStage::MidHandshake(handshake),
-                            };
-
-                            connections.insert(poll_token, connection);
-
-                            break;
-                        },
-                        Err(HandshakeError::Failure(err)) => {
-                            dbg!(err);
-                        },
+                    if stop_loop {
+                        break;
                     }
                 },
-                _ => unreachable!(),
+                ConnectionStage::Established(_) => unreachable!(),
             }
         } else if let Some(Connection{
             stage: ConnectionStage::Established(peer_connection),
