@@ -1,30 +1,24 @@
 [package]
-name = "aquatic"
+name = "aquatic_udp_load_test"
 version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
 
-[lib]
-name = "aquatic"
-path = "src/lib/lib.rs"
-
 [[bin]]
-name = "aquatic"
+name = "aquatic_udp_load_test"
 
 [dependencies]
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }
 crossbeam-channel = "0.4"
 hashbrown = "0.7"
-histogram = "0.6"
-indexmap = "1"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 net2 = "0.2"
 parking_lot = "0.10"
-privdrop = "0.3"
 rand = { version = "0.7", features = ["small_rng"] }
+rand_distr = "0.2"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]

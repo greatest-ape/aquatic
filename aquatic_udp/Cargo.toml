@@ -1,28 +1,32 @@
 [package]
-name = "aquatic_bench"
+name = "aquatic_udp"
 version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
 
 [lib]
-name = "aquatic_bench"
+name = "aquatic_udp"
+path = "src/lib/lib.rs"
 
 [[bin]]
-name = "bench_handlers"
-
-[[bin]]
-name = "plot_pareto"
+name = "aquatic_udp"
 
 [dependencies]
-aquatic = { path = "../aquatic" }
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }
 crossbeam-channel = "0.4"
-indicatif = "0.14"
+hashbrown = "0.7"
+histogram = "0.6"
+indexmap = "1"
 mimalloc = { version = "0.1", default-features = false }
-num-format = "0.4"
-plotly = "0.4"
+mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
+net2 = "0.2"
+parking_lot = "0.10"
+privdrop = "0.3"
 rand = { version = "0.7", features = ["small_rng"] }
-rand_distr = "0.2"
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+quickcheck = "0.9"
+quickcheck_macros = "0.9"

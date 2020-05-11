@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use parking_lot::Mutex;
 use mio::Token;
 
-pub use aquatic::common::ValidUntil;
+pub use aquatic_udp::common::ValidUntil;
 
 use crate::protocol::*;
 

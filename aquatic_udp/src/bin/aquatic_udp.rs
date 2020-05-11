@@ -1,4 +1,4 @@
-use aquatic;
+use aquatic_udp;
 use cli_helpers;
 
 
@@ -7,8 +7,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 
 fn main(){
-    cli_helpers::run_app_with_cli_and_config::<aquatic::config::Config>(
+    cli_helpers::run_app_with_cli_and_config::<aquatic_udp::config::Config>(
         "aquatic: udp bittorrent tracker",
-        aquatic::run,
+        aquatic_udp::run,
     )
 }

@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use parking_lot::MutexGuard;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
-use aquatic::handlers::{extract_response_peers};
+use aquatic_udp::handlers::extract_response_peers;
 
 use crate::common::*;
 use crate::protocol::*;

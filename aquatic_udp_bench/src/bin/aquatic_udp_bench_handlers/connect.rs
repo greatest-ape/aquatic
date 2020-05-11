@@ -5,8 +5,8 @@ use indicatif::ProgressIterator;
 use rand::{Rng, SeedableRng, thread_rng, rngs::SmallRng};
 use std::net::SocketAddr;
 
-use aquatic::common::*;
-use aquatic::config::Config;
+use aquatic_udp::common::*;
+use aquatic_udp::config::Config;
 
 use crate::common::*;
 use crate::config::BenchConfig;

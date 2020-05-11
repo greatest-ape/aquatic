@@ -53,8 +53,8 @@ cd ..
 git clone https://github.com/greatest-ape/aquatic.git
 cd aquatic
 export RUSTFLAGS="-C target-cpu=native"
-cargo build --release --bin aquatic
-cargo build --release --bin aquatic_load_test
+cargo build --release --bin aquatic_udp
+cargo build --release --bin aquatic_udp_load_test
 cd ..
 
 # Download flamegraph stuff
