@@ -165,7 +165,9 @@ pub fn run_socket_worker(
 }
 
 
-/// FIXME: close channel if not closed?
+/// FIXME: close ws if not closed? Would be good in some cases, like when
+/// connection removed because token has wrapped back, and generally when the
+/// reason for removal is not that ws is already closed.
 fn remove_connection_if_exists(
     poll: &mut Poll,
     connections: &mut ConnectionMap,
@@ -392,12 +394,12 @@ pub fn run_handshake_and_read_messages(
 }
 
 
+/// Read messages from channel, send to peers
 pub fn send_out_messages(
     out_message_receiver: ::flume::Drain<(ConnectionMeta, OutMessage)>,
     poll: &mut Poll,
     connections: &mut ConnectionMap,
 ){
-    // Read messages from channel, send to peers
     for (meta, out_message) in out_message_receiver {
         let opt_connection = connections
             .get_mut(&meta.poll_token)
