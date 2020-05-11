@@ -307,17 +307,20 @@ pub fn read_and_forward_in_messages(
 
                             break;
                         },
-                        Err(err) => {
+                        Err(HandshakeError::Failure(err)) => {
                             dbg!(err);
                         },
                     }
                 },
                 _ => unreachable!(),
             }
-        } else if let Some(Connection{ stage: ConnectionStage::Established(connection), ..}) = connections.get_mut(&poll_token){
+        } else if let Some(Connection{
+            stage: ConnectionStage::Established(peer_connection),
+            ..
+        }) = connections.get_mut(&poll_token){
             println!("conn established");
 
-            match connection.ws.read_message(){
+            match peer_connection.ws.read_message(){
                 Ok(ws_message) => {
                     dbg!(ws_message.clone());
 
@@ -327,28 +330,25 @@ pub fn read_and_forward_in_messages(
                         let meta = ConnectionMeta {
                             socket_worker_index,
                             socket_worker_poll_token: poll_token,
-                            peer_socket_addr: connection.peer_socket_addr
+                            peer_socket_addr: peer_connection.peer_socket_addr
                         };
 
                         in_message_sender.send((meta, in_message));
                     }
 
-                    connection.valid_until = valid_until;
+                    peer_connection.valid_until = valid_until;
                 },
                 Err(tungstenite::Error::Io(err)) => {
                     if err.kind() == ErrorKind::WouldBlock {
                         break
                     }
 
+                    remove_connection_if_exists(poll, connections, poll_token);
+
                     eprint!("{}", err);
                 },
                 Err(tungstenite::Error::ConnectionClosed) => {
-                    // FIXME: necessary?
-                    poll.registry()
-                        .deregister(connection.ws.get_mut())
-                        .unwrap();
-
-                    connections.remove(&poll_token);
+                    remove_connection_if_exists(poll, connections, poll_token);
                 },
                 Err(err) => {
                     eprint!("{}", err);
