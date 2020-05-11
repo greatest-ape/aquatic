@@ -97,7 +97,7 @@ pub fn handle_announce_requests(
         // Since peers have access to each others peer_id's, they could send
         // requests using them, causing all sorts of issues.
         if let Some(previous_peer) = torrent_data.peers.get(&peer_id){
-            if sender_meta.peer_socket_addr != previous_peer.connection_meta.peer_socket_addr {
+            if sender_meta.peer_addr != previous_peer.connection_meta.peer_addr {
                 continue;
             }
         }

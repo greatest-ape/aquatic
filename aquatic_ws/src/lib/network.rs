@@ -28,7 +28,7 @@ pub enum ConnectionStage {
 
 pub struct PeerConnection {
     pub ws: WebSocket<TcpStream>,
-    pub peer_socket_addr: SocketAddr,
+    pub peer_addr: SocketAddr,
     pub valid_until: ValidUntil,
 }
 
@@ -248,11 +248,11 @@ pub fn handle_handshake_result(
         Ok(mut ws) => {
             println!("handshake established");
 
-            let peer_socket_addr = ws.get_mut().peer_addr().unwrap();
+            let peer_addr = ws.get_mut().peer_addr().unwrap();
 
             let peer_connection = PeerConnection {
                 ws,
-                peer_socket_addr,
+                peer_addr,
                 valid_until,
             };
 
@@ -353,9 +353,9 @@ pub fn run_handshake_and_read_messages(
                         dbg!(in_message.clone());
 
                         let meta = ConnectionMeta {
-                            socket_worker_index,
-                            socket_worker_poll_token: poll_token,
-                            peer_socket_addr: peer_connection.peer_socket_addr
+                            worker_index: socket_worker_index,
+                            poll_token,
+                            peer_addr: peer_connection.peer_addr
                         };
 
                         in_message_sender.send((meta, in_message));
@@ -400,11 +400,11 @@ pub fn send_out_messages(
     // Read messages from channel, send to peers
     for (meta, out_message) in out_message_receiver {
         let opt_connection = connections
-            .get_mut(&meta.socket_worker_poll_token)
+            .get_mut(&meta.poll_token)
             .map(|v| &mut v.stage);
 
         if let Some(ConnectionStage::Established(connection)) = opt_connection {
-            if connection.peer_socket_addr != meta.peer_socket_addr {
+            if connection.peer_addr != meta.peer_addr {
                 eprintln!("socket worker: peer socket addrs didn't match");
 
                 continue;
@@ -424,14 +424,14 @@ pub fn send_out_messages(
                     remove_connection_if_exists(
                         poll,
                         connections,
-                        meta.socket_worker_poll_token
+                        meta.poll_token
                     );
                 },
                 Err(tungstenite::Error::ConnectionClosed) => {
                     remove_connection_if_exists(
                         poll,
                         connections,
-                        meta.socket_worker_poll_token
+                        meta.poll_token
                     );
                 },
                 Err(err) => {

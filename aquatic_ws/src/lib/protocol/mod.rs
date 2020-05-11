@@ -96,7 +96,7 @@ pub struct AnnounceRequest {
     pub peer_id: PeerId,
     /// Just called "left" in protocol
     #[serde(rename = "left")]
-    pub bytes_left: Option<usize>, // FIXME: I had this set as bool before, check!
+    pub bytes_left: Option<usize>,
     /// Can be empty. Then, default is "update"
     #[serde(default)]
     pub event: AnnounceEvent,

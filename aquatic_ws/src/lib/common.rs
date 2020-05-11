@@ -16,11 +16,9 @@ use crate::protocol::*;
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
-    pub socket_worker_index: usize,
-    /// SocketAddr of peer
-    pub peer_socket_addr: SocketAddr,
-    /// Slab index of PeerConnection
-    pub socket_worker_poll_token: Token,
+    pub worker_index: usize,
+    pub peer_addr: SocketAddr,
+    pub poll_token: Token,
 }
 
 
@@ -115,6 +113,6 @@ impl OutMessageSender {
         meta: ConnectionMeta,
         message: OutMessage
     ){
-        self.0[meta.socket_worker_index].send((meta, message));
+        self.0[meta.worker_index].send((meta, message));
     }
 }
