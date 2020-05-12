@@ -6,7 +6,7 @@ mod serde_helpers;
 use serde_helpers::*;
 
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(
     #[serde(
@@ -17,7 +17,7 @@ pub struct PeerId(
 );
 
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(
@@ -28,7 +28,7 @@ pub struct InfoHash(
 );
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OfferId(
     #[serde(

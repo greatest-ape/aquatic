@@ -89,7 +89,7 @@ pub fn handle_announce_requests(
         let info_hash = request.info_hash;
         let peer_id = request.peer_id;
 
-        let torrent_data = torrents.entry(info_hash.clone())
+        let torrent_data = torrents.entry(info_hash)
             .or_default();
 
         // If there is already a peer with this peer_id, check that socket
@@ -119,12 +119,12 @@ pub fn handle_announce_requests(
                 PeerStatus::Leeching => {
                     torrent_data.num_leechers += 1;
 
-                    torrent_data.peers.insert(peer_id.clone(), peer)
+                    torrent_data.peers.insert(peer_id, peer)
                 },
                 PeerStatus::Seeding => {
                     torrent_data.num_seeders += 1;
 
-                    torrent_data.peers.insert(peer_id.clone(), peer)
+                    torrent_data.peers.insert(peer_id, peer)
                 },
                 PeerStatus::Stopped => {
                     torrent_data.peers.remove(&peer_id)
@@ -159,8 +159,8 @@ pub fn handle_announce_requests(
 
             for (offer, peer) in offers.into_iter().zip(peers){
                 let middleman_offer = MiddlemanOfferToPeer {
-                    info_hash: info_hash.clone(),
-                    peer_id: peer_id.clone(),
+                    info_hash,
+                    peer_id,
                     offer: offer.offer,
                     offer_id: offer.offer_id,
                 };
@@ -177,8 +177,8 @@ pub fn handle_announce_requests(
             (Some(answer), Some(to_peer_id), Some(offer_id)) => {
                 if let Some(to_peer) = torrent_data.peers.get(&to_peer_id){
                     let middleman_answer = MiddlemanAnswerToPeer {
-                        peer_id: peer_id,
-                        info_hash: info_hash.clone(),
+                        peer_id,
+                        info_hash,
                         answer,
                         offer_id,
                     };
