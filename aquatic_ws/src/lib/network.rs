@@ -98,6 +98,8 @@ pub fn remove_inactive_connections(
             true
         }
     });
+
+    connections.shrink_to_fit();
 }
 
 

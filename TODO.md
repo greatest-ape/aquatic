@@ -4,7 +4,6 @@
 * network
   * native_tls for wss support
   * handshake: deregister stream when applicable
-  * connection cleaning: shrink to fit
 * test
   * test full torrent transfer (offer-answer exchange)
 * torrent state cleaning
