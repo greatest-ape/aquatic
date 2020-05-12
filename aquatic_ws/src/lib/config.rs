@@ -30,21 +30,6 @@ pub struct NetworkConfig {
     pub max_offers: usize, // FIXME: should this really be in NetworkConfig?
     /// Ask peers to announce this often (seconds)
     pub peer_announce_interval: usize, // FIXME: should this really be in NetworkConfig?
-    /// Size of socket recv buffer. Use 0 for OS default.
-    /// 
-    /// This setting can have a big impact on dropped packages. It might
-    /// require changing system defaults. Some examples of commands to set
-    /// recommended values for different operating systems:
-    ///
-    /// macOS:
-    /// $ sudo sysctl net.inet.udp.recvspace=6000000
-    /// $ sudo sysctl net.inet.udp.maxdgram=500000 # Not necessary, but recommended
-    /// $ sudo sysctl kern.ipc.maxsockbuf=8388608 # Not necessary, but recommended
-    ///
-    /// Linux:
-    /// $ sudo sysctl -w net.core.rmem_max=104857600
-    /// $ sudo sysctl -w net.core.rmem_default=104857600
-    pub socket_recv_buffer_size: usize, // FIXME: implement
     pub poll_event_capacity: usize,
     pub poll_timeout_milliseconds: u64,
 }
@@ -102,12 +87,11 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([127, 0, 0, 1], 3000)),
-            max_scrape_torrents: 255,
+            max_scrape_torrents: 255, // FIXME: what value is reasonable?
             max_offers: 10,
-            peer_announce_interval: 60 * 15,
+            peer_announce_interval: 120,
             poll_event_capacity: 4096,
             poll_timeout_milliseconds: 50,
-            socket_recv_buffer_size: 4096 * 128,
         }
     }
 }
@@ -127,8 +111,8 @@ impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             interval: 30,
-            max_peer_age: 60 * 20,
-            max_connection_age: 60 * 5,
+            max_peer_age: 180,
+            max_connection_age: 180,
         }
     }
 }

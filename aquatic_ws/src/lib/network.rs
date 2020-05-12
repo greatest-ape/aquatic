@@ -5,6 +5,7 @@ use std::io::ErrorKind;
 use tungstenite::WebSocket;
 use tungstenite::handshake::{MidHandshake, HandshakeError, server::{ServerHandshake, NoCallback}};
 use hashbrown::HashMap;
+use net2::{TcpBuilder, unix::UnixTcpBuilderExt};
 
 use mio::{Events, Poll, Interest, Token};
 use mio::net::{TcpListener, TcpStream};
@@ -100,6 +101,31 @@ pub fn remove_inactive_connections(
 }
 
 
+fn create_listener(config: &Config) -> ::std::net::TcpListener {
+    let mut builder = &{
+        if config.network.address.is_ipv4(){
+            TcpBuilder::new_v4().expect("socket: build")
+        } else {
+            TcpBuilder::new_v6().expect("socket: build")
+        }
+    };
+
+    builder = builder.reuse_port(true)
+        .expect("socket: set reuse port");
+
+    builder = builder.bind(&config.network.address)
+        .expect(&format!("socket: bind to {}", &config.network.address));
+
+    let listener = builder.listen(128)
+        .expect("tcpbuilder to tcp listener");
+
+    listener.set_nonblocking(true)
+        .expect("socket: set nonblocking");
+
+    listener
+}
+
+
 pub fn run_socket_worker(
     config: Config,
     socket_worker_index: usize,
@@ -110,7 +136,7 @@ pub fn run_socket_worker(
         config.network.poll_timeout_milliseconds
     );
 
-    let mut listener = TcpListener::bind(config.network.address).unwrap();
+    let mut listener = TcpListener::from_std(create_listener(&config));
     let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 

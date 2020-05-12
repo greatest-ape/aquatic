@@ -2,17 +2,18 @@
 
 ## aquatic_ws
 * network
-  * open socket with so_reuseport and nonblocking
   * native_tls for wss support
   * handshake: deregister stream when applicable
   * connection cleaning: shrink to fit
 * test
   * test full torrent transfer (offer-answer exchange)
 * torrent state cleaning
-* log crate instead of println/eprintln
+* log crate instead of println/eprintln?
 * privdrop
-* some config.network fields are actually used in handler. maybe they should
-  be checked while parsing? not completely clear
+* config
+  * send/recv buffer size: how does this interact with tls?
+  * some config.network fields are actually used in handler. maybe they should
+    be checked while parsing? not completely clear
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
