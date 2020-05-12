@@ -1,18 +1,21 @@
 # TODO
 
 ## aquatic_ws
-* check protocol todo's etc
 * network
   * open socket with so_reuseport and nonblocking
+  * native_tls for wss support
   * handshake: deregister stream when applicable
   * connection cleaning: shrink to fit
 * test
+  * test full torrent transfer (offer-answer exchange)
 * torrent state cleaning
 * config
-* limit number of info hashes allowed in scrape requests
+  * limit number of info hashes allowed in scrape requests
 * cli, mimalloc
+* log crate instead of println/eprintln
+* privdrop
 
-## aquatic
+## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
@@ -25,7 +28,7 @@
 
 # Not important
 
-## aquatic
+## aquatic_udp
 
 * No overflow on instant + duration arithmetic now, hopefully? Possibly,
   checked_add should be used.
@@ -56,7 +59,7 @@
 
 # Don't do
 
-## aquatic
+## aquatic_udp
 
 * Other HashMap hashers (such as SeaHash): seemingly not worthwhile (might be
   with AVX though)
