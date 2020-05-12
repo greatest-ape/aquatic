@@ -9,11 +9,10 @@
 * test
   * test full torrent transfer (offer-answer exchange)
 * torrent state cleaning
-* config
-  * limit number of info hashes allowed in scrape requests
-* cli, mimalloc
 * log crate instead of println/eprintln
 * privdrop
+* some config.network fields are actually used in handler. maybe they should
+  be checked while parsing? not completely clear
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?

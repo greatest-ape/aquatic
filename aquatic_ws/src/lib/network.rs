@@ -10,6 +10,7 @@ use mio::{Events, Poll, Interest, Token};
 use mio::net::{TcpListener, TcpStream};
 
 use crate::common::*;
+use crate::config::Config;
 use crate::protocol::*;
 
 
@@ -100,16 +101,18 @@ pub fn remove_inactive_connections(
 
 
 pub fn run_socket_worker(
-    address: SocketAddr,
+    config: Config,
     socket_worker_index: usize,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
 ){
-    let poll_timeout = Duration::from_millis(50); // FIXME: config
+    let poll_timeout = Duration::from_millis(
+        config.network.poll_timeout_milliseconds
+    );
 
-    let mut listener = TcpListener::bind(address).unwrap();
+    let mut listener = TcpListener::bind(config.network.address).unwrap();
     let mut poll = Poll::new().expect("create poll");
-    let mut events = Events::with_capacity(1024); // FIXME: config
+    let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
     poll.registry()
         .register(&mut listener, Token(0), Interest::READABLE)
@@ -124,7 +127,7 @@ pub fn run_socket_worker(
         poll.poll(&mut events, Some(poll_timeout))
             .expect("failed polling");
         
-        let valid_until = ValidUntil::new(180); // FIXME: config
+        let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
         for event in events.iter(){
             let token = event.token();

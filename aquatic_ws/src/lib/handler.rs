@@ -8,10 +8,12 @@ use rand::{Rng, SeedableRng, rngs::SmallRng};
 use aquatic_common::extract_response_peers;
 
 use crate::common::*;
+use crate::config::Config;
 use crate::protocol::*;
 
 
 pub fn run_request_worker(
+    config: Config,
     state: State,
     in_message_receiver: InMessageReceiver,
     out_message_sender: OutMessageSender,
@@ -23,12 +25,14 @@ pub fn run_request_worker(
 
     let mut rng = SmallRng::from_entropy();
 
-    let timeout = Duration::from_micros(200); // FIXME: config
+    let timeout = Duration::from_micros(
+        config.handlers.channel_recv_timeout_microseconds
+    );
 
     loop {
         let mut opt_torrent_map_guard: Option<MutexGuard<TorrentMap>> = None;
 
-        for i in 0..1000 { // FIXME config
+        for i in 0..config.handlers.max_requests_per_iter {
             let opt_in_message = if i == 0 {
                 in_message_receiver.recv().ok()
             } else {
@@ -56,6 +60,7 @@ pub fn run_request_worker(
             .unwrap_or_else(|| state.torrents.lock());
 
         handle_announce_requests(
+            &config,
             &mut rng,
             &mut torrent_map_guard,
             &mut out_messages,
@@ -63,6 +68,7 @@ pub fn run_request_worker(
         );
 
         handle_scrape_requests(
+            &config,
             &mut torrent_map_guard,
             &mut out_messages,
             scrape_requests.drain(..)
@@ -78,12 +84,13 @@ pub fn run_request_worker(
 
 
 pub fn handle_announce_requests(
+    config: &Config,
     rng: &mut impl Rng,
     torrents: &mut TorrentMap,
     messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
     requests: Drain<(ConnectionMeta, AnnounceRequest)>,
 ){
-    let valid_until = ValidUntil::new(240);
+    let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     for (sender_meta, request) in requests {
         let info_hash = request.info_hash;
@@ -144,7 +151,9 @@ pub fn handle_announce_requests(
 
         // If peer sent offers, send them on to random peers
         if let Some(offers) = request.offers {
-            let max_num_peers_to_take = offers.len().min(10); // FIXME: config
+            // FIXME: config: also maybe check this when parsing request
+            let max_num_peers_to_take = offers.len()
+                .min(config.network.max_offers);
 
             #[inline]
             fn f(peer: &Peer) -> Peer {
@@ -197,7 +206,7 @@ pub fn handle_announce_requests(
             info_hash,
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
-            announce_interval: 120, // FIXME: config
+            announce_interval: config.network.peer_announce_interval,
         });
 
         messages_out.push((sender_meta, response));
@@ -206,6 +215,7 @@ pub fn handle_announce_requests(
 
 
 pub fn handle_scrape_requests(
+    config: &Config,
     torrents: &mut TorrentMap,
     messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
     requests: Drain<(ConnectionMeta, ScrapeRequest)>,
@@ -217,9 +227,11 @@ pub fn handle_scrape_requests(
             files: HashMap::with_capacity(num_info_hashes),
         };
 
+        let max_torrents = config.network.max_scrape_torrents;
+
         // If request.info_hashes is empty, don't return scrape for all
         // torrents, even though reference server does it. It is too expensive.
-        for info_hash in request.info_hashes {
+        for info_hash in request.info_hashes.into_iter().take(max_torrents){
             if let Some(torrent_data) = torrents.get(&info_hash){
                 let stats = ScrapeStatistics {
                     complete: torrent_data.num_seeders,

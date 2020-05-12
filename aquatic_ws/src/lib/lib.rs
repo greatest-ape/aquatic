@@ -2,23 +2,24 @@
 //! exact protocol is achieved
 
 pub mod common;
+pub mod config;
 pub mod handler;
 pub mod network;
 pub mod protocol;
 
 use common::*;
+use config::Config;
 
 
-pub fn run(){
-    let address: ::std::net::SocketAddr = "0.0.0.0:3000".parse().unwrap();
-
+pub fn run(config: Config){
     let state = State::default();
 
     let (in_message_sender, in_message_receiver) = ::flume::unbounded();
 
     let mut out_message_senders = Vec::new();
 
-    for i in 0..1 {
+    for i in 0..config.socket_workers {
+        let config = config.clone();
         let in_message_sender = in_message_sender.clone();
 
         let (out_message_sender, out_message_receiver) = ::flume::unbounded();
@@ -27,7 +28,7 @@ pub fn run(){
 
         ::std::thread::spawn(move || {
             network::run_socket_worker(
-                address,
+                config,
                 i,
                 in_message_sender,
                 out_message_receiver,
@@ -39,6 +40,7 @@ pub fn run(){
 
     ::std::thread::spawn(move || {
         handler::run_request_worker(
+            config,
             state,
             in_message_receiver,
             out_message_sender,
