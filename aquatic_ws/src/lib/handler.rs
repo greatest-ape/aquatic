@@ -146,6 +146,7 @@ pub fn handle_announce_requests(
         if let Some(offers) = request.offers {
             let max_num_peers_to_take = offers.len().min(10); // FIXME: config
 
+            #[inline]
             fn f(peer: &Peer) -> Peer {
                 *peer
             }
