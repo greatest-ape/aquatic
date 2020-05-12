@@ -2,7 +2,12 @@
 
 ## aquatic_ws
 * network
-  * native_tls for wss support (__important__)
+  * think about if at least established connections could be boxed behind some
+    dyn trait so that there are not two different version for what is
+    essentially the same thing
+  * actually run tls. probably add config fields for number of tls and non-tls
+    workers, then run that amount of each
+  * test tls!
   * handshake: deregister stream when applicable
 * test
   * test full torrent transfer (offer-answer exchange)
