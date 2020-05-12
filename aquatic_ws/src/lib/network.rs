@@ -38,6 +38,16 @@ pub enum ConnectionStage {
 }
 
 
+impl ConnectionStage {
+    pub fn is_established(&self) -> bool {
+        match self {
+            Self::EstablishedWsTls(_) | Self::EstablishedWsNoTls(_) => true,
+            _ => false,
+        }
+    }
+}
+
+
 pub struct Connection {
     valid_until: ValidUntil,
     stage: ConnectionStage,
@@ -534,9 +544,7 @@ pub fn run_handshakes_and_read_messages(
 
     loop {
         let established = match connections.get(&poll_token).map(|c| &c.stage){
-            Some(ConnectionStage::EstablishedWsTls(_)) => true,
-            Some(ConnectionStage::EstablishedWsNoTls(_)) => true,
-            Some(_) => false,
+            Some(stage) => stage.is_established(),
             None => break,
         };
 
