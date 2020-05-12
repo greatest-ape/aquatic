@@ -30,8 +30,12 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
         // var infoHash = 'abcd..'; // 40 hexadecimals
         // Buffer.from(infoHash, 'hex').toString('binary');
         // ```
-        // which seemingly produces a UTF16 string with each char having only
-        // the "low byte" set. Here, we extract it by casting it to an u8.
+        // As I understand it:
+        // - the code above produces a UTF16 string of 20 chars, each having
+        //   only the "low byte" set (e.g., numeric value ranges from 0-255)
+        // - serde_json decodes this to string of 20 chars (tested), each in
+        //   the aforementioned range (tested), so the bytes can be extracted
+        //   by casting each char to u8.
 
         let mut arr = [0u8; 20];
         let mut char_iter = value.chars();
