@@ -98,6 +98,7 @@ dependencies = [
  "indexmap",
  "mimalloc",
  "mio",
+ "native-tls",
  "net2",
  "parking_lot",
  "quickcheck",

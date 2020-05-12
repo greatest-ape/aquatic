@@ -21,6 +21,7 @@ hashbrown = { version = "0.7", features = ["serde"] }
 indexmap = "1"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
+native-tls = "0.2"
 net2 = "0.2"
 parking_lot = "0.10"
 rand = { version = "0.7", features = ["small_rng"] }

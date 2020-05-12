@@ -32,6 +32,8 @@ pub struct NetworkConfig {
     pub peer_announce_interval: usize, // FIXME: should this really be in NetworkConfig?
     pub poll_event_capacity: usize,
     pub poll_timeout_milliseconds: u64,
+    pub pkcs12_path: String,
+    pub pkcs12_password: String,
 }
 
 
@@ -92,6 +94,8 @@ impl Default for NetworkConfig {
             peer_announce_interval: 120,
             poll_event_capacity: 4096,
             poll_timeout_milliseconds: 50,
+            pkcs12_path: "".into(),
+            pkcs12_password: "".into(),
         }
     }
 }
