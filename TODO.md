@@ -2,16 +2,23 @@
 
 ## aquatic_ws
 * network
-  * native_tls for wss support
+  * native_tls for wss support (__important__)
   * handshake: deregister stream when applicable
 * test
   * test full torrent transfer (offer-answer exchange)
+  * test cleaning, multiple socket workers
 * log crate instead of println/eprintln?
 * privdrop
 * config
   * send/recv buffer size: how does this interact with tls?
   * some config.network fields are actually used in handler. maybe they should
     be checked while parsing? not completely clear
+  * limit ws message sizes?
+* "close connection" message from handler on peer_id and socket_addr mismatch?
+  Probably not really necessary. If it is an honest mistake, peer will just
+  keep announcing and after a few minutes, the peer in the map will be cleaned
+  out and everything will start working
+* ipv4 / ipv6 split state?
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
