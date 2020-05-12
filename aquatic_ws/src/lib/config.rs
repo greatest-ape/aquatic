@@ -49,7 +49,7 @@ pub struct HandlerConfig {
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
-    pub interval: u64, // FIXME: implement
+    pub interval: u64,
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
     /// Remove connections that are older than this (seconds)

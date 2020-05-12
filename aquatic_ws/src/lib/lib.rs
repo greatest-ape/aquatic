@@ -1,11 +1,14 @@
 //! There is not much point in doing more work until more clarity on
 //! exact protocol is achieved
 
+use std::time::Duration;
+
 pub mod common;
 pub mod config;
 pub mod handler;
 pub mod network;
 pub mod protocol;
+pub mod tasks;
 
 use common::*;
 use config::Config;
@@ -38,16 +41,23 @@ pub fn run(config: Config){
 
     let out_message_sender = OutMessageSender::new(out_message_senders);
 
-    ::std::thread::spawn(move || {
-        handler::run_request_worker(
-            config,
-            state,
-            in_message_receiver,
-            out_message_sender,
-        );
-    });
+    {
+        let config = config.clone();
+        let state = state.clone();
+
+        ::std::thread::spawn(move || {
+            handler::run_request_worker(
+                config,
+                state,
+                in_message_receiver,
+                out_message_sender,
+            );
+        });
+    }
 
     loop {
-        ::std::thread::sleep(::std::time::Duration::from_secs(60));
+        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+
+        tasks::clean_torrents(&state);
     }
 }

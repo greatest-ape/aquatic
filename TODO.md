@@ -6,7 +6,6 @@
   * handshake: deregister stream when applicable
 * test
   * test full torrent transfer (offer-answer exchange)
-* torrent state cleaning
 * log crate instead of println/eprintln?
 * privdrop
 * config

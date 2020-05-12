@@ -82,6 +82,7 @@ impl Default for TorrentData {
 pub type TorrentMap = HashMap<InfoHash, TorrentData>;
 
 
+#[derive(Clone)]
 pub struct State {
     pub torrents: Arc<Mutex<TorrentMap>>,
 }
