@@ -35,6 +35,7 @@ pub fn run(config: Config){
                 i,
                 in_message_sender,
                 out_message_receiver,
+                true
             );
         });
     }
