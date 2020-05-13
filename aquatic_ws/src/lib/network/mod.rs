@@ -1,7 +1,6 @@
 use std::time::Duration;
 use std::io::ErrorKind;
 
-use either::Either;
 use hashbrown::HashMap;
 use native_tls::TlsAcceptor;
 
