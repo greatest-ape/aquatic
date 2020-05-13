@@ -2,9 +2,6 @@
 
 ## aquatic_ws
 * network
-  * think about if at least established connections could be boxed behind some
-    dyn trait so that there are not two different version for what is
-    essentially the same thing
   * actually run tls. probably add config fields for number of tls and non-tls
     workers, then run that amount of each
   * test tls!

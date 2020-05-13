@@ -4,10 +4,10 @@ use std::io::ErrorKind;
 use tungstenite::WebSocket;
 use tungstenite::handshake::{HandshakeError, server::ServerHandshake};
 use hashbrown::HashMap;
-use native_tls::TlsAcceptor;
+use native_tls::{TlsAcceptor, TlsStream};
 
 use mio::{Events, Poll, Interest, Token};
-use mio::net::TcpListener;
+use mio::net::{TcpListener, TcpStream};
 
 use crate::common::*;
 use crate::config::Config;
@@ -137,6 +137,44 @@ fn accept_new_streams(
 }
 
 
+pub fn handle_tls_handshake_result(
+    connections: &mut ConnectionMap,
+    poll_token: Token,
+    valid_until: ValidUntil,
+    result: Result<TlsStream<TcpStream>, ::native_tls::HandshakeError<TcpStream>>,
+) -> bool {
+    match result {
+        Ok(stream) => {
+            println!("handshake established");
+
+            let connection = Connection {
+                valid_until,
+                stage: ConnectionStage::TlsStream(stream)
+            };
+
+            connections.insert(poll_token, connection);
+        },
+        Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
+            println!("interrupted");
+
+            let connection = Connection {
+                valid_until,
+                stage: ConnectionStage::TlsMidHandshake(handshake),
+            };
+
+            connections.insert(poll_token, connection);
+
+            return true;
+        },
+        Err(native_tls::HandshakeError::Failure(err)) => {
+            dbg!(err);
+        }
+    }
+
+    false
+}
+
+
 pub fn handle_ws_handshake_result(
     connections: &mut ConnectionMap,
     poll_token: Token,
@@ -193,8 +231,6 @@ pub fn run_handshakes_and_read_messages(
     poll_token: Token,
     valid_until: ValidUntil,
 ){
-    println!("poll_token: {}", poll_token.0);
-
     loop {
         let established = if let Some(c) = connections.get(&poll_token){
             c.stage.is_established()
@@ -208,32 +244,15 @@ pub fn run_handshakes_and_read_messages(
             match conn.stage {
                 ConnectionStage::TcpStream(stream) => {
                     if let Some(tls_acceptor) = opt_tls_acceptor {
-                        match tls_acceptor.accept(stream){
-                            Ok(stream) => {
-                                println!("handshake established");
-                    
-                                let connection = Connection {
-                                    valid_until,
-                                    stage: ConnectionStage::TlsStream(stream)
-                                };
-                    
-                                connections.insert(poll_token, connection);
-                            },
-                            Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
-                                println!("interrupted");
-                    
-                                let connection = Connection {
-                                    valid_until,
-                                    stage: ConnectionStage::TlsMidHandshake(handshake),
-                                };
-                    
-                                connections.insert(poll_token, connection);
-                    
-                                break
-                            },
-                            Err(native_tls::HandshakeError::Failure(err)) => {
-                                dbg!(err);
-                            }
+                        let stop_loop = handle_tls_handshake_result(
+                            connections,
+                            poll_token,
+                            valid_until,
+                            tls_acceptor.accept(stream)
+                        );
+
+                        if stop_loop {
+                            break
                         }
                     } else {
                         let handshake_result = ::tungstenite::server::accept_hdr(
@@ -271,32 +290,15 @@ pub fn run_handshakes_and_read_messages(
                     }
                 },
                 ConnectionStage::TlsMidHandshake(handshake) => {
-                    match handshake.handshake() {
-                        Ok(stream) => {
-                            println!("handshake established");
-                
-                            let connection = Connection {
-                                valid_until,
-                                stage: ConnectionStage::TlsStream(stream)
-                            };
-                
-                            connections.insert(poll_token, connection);
-                        },
-                        Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
-                            println!("interrupted");
-                
-                            let connection = Connection {
-                                valid_until,
-                                stage: ConnectionStage::TlsMidHandshake(handshake),
-                            };
-                
-                            connections.insert(poll_token, connection);
-                
-                            break
-                        },
-                        Err(native_tls::HandshakeError::Failure(err)) => {
-                            dbg!(err);
-                        }
+                    let stop_loop = handle_tls_handshake_result(
+                        connections,
+                        poll_token,
+                        valid_until,
+                        handshake.handshake()
+                    );
+
+                    if stop_loop {
+                        break
                     }
                 },
                 ConnectionStage::WsMidHandshake(handshake) => {
