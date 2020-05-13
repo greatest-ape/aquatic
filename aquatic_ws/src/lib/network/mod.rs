@@ -116,10 +116,10 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection {
+                let connection = Connection::new(
                     valid_until,
-                    inner: Either::Right(HandshakeMachine::new(stream))
-                };
+                    Either::Right(HandshakeMachine::new(stream))
+                );
 
                 connections.insert(token, connection);
             },
@@ -147,10 +147,9 @@ pub fn run_handshakes_and_read_messages(
     valid_until: ValidUntil,
 ){
     loop {
-        if let Some(Connection {
-            inner: Either::Left(established_ws),
-            ..
-        }) = connections.get_mut(&poll_token){
+        if let Some(established_ws) = connections.get_mut(&poll_token)
+            .and_then(Connection::get_established_ws)
+        {
             use ::tungstenite::Error::Io;
 
             match established_ws.ws.read_message(){
@@ -180,18 +179,14 @@ pub fn run_handshakes_and_read_messages(
                     break;
                 }
             }
-        } else if let Some(Connection {
-            inner: Either::Right(machine),
-            .. 
-        }) = connections.remove(&poll_token) {
+        } else if let Some(machine) = connections.remove(&poll_token)
+            .and_then(Connection::get_machine)
+        {
             let (result, stop_loop) = machine
                 .advance(opt_tls_acceptor);
 
             if let Some(inner) = result {
-                let connection = Connection {
-                    valid_until,
-                    inner,
-                };
+                let connection = Connection::new(valid_until, inner);
 
                 connections.insert(poll_token, connection);
             }
@@ -210,12 +205,11 @@ pub fn send_out_messages(
     connections: &mut ConnectionMap,
 ){
     for (meta, out_message) in out_message_receiver {
-        let opt_inner = connections
-            .get_mut(&meta.poll_token)
-            .map(|v| &mut v.inner);
+        let opt_established_ws = connections.get_mut(&meta.poll_token)
+            .and_then(Connection::get_established_ws);
         
-        if let Some(Either::Left(connection)) = opt_inner {
-            if connection.peer_addr != meta.peer_addr {
+        if let Some(established_ws) = opt_established_ws {
+            if established_ws.peer_addr != meta.peer_addr {
                 eprintln!("socket worker: peer socket addrs didn't match");
 
                 continue;
@@ -225,7 +219,7 @@ pub fn send_out_messages(
         
             use ::tungstenite::Error::Io;
 
-            match connection.ws.write_message(out_message.to_ws_message()){
+            match established_ws.ws.write_message(out_message.to_ws_message()){
                 Ok(()) => {},
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                     continue;

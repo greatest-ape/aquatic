@@ -183,7 +183,51 @@ impl HandshakeMachine {
 
 pub struct Connection {
     pub valid_until: ValidUntil,
-    pub inner: Either<EstablishedWs, HandshakeMachine>,
+    inner: Either<EstablishedWs, HandshakeMachine>,
+}
+
+
+impl Connection {
+    pub fn new(
+        valid_until: ValidUntil,
+        inner: Either<EstablishedWs, HandshakeMachine>
+    ) -> Self {
+        Self {
+            valid_until,
+            inner
+        }
+    }
+
+    pub fn is_established(&self) -> bool {
+        self.inner.is_left()
+    }
+
+    pub fn get_established_ws<'a>(&mut self) -> Option<&mut EstablishedWs> {
+        match self.inner {
+            Either::Left(ref mut ews) => Some(ews),
+            Either::Right(_) => None,
+        }
+    }
+
+    pub fn get_machine(self) -> Option<HandshakeMachine> {
+        match self.inner {
+            Either::Left(_) => None,
+            Either::Right(machine) => Some(machine),
+        }
+    }
+
+    pub fn close(&mut self){
+        if let Either::Left(ref mut ews) = self.inner {
+            if ews.ws.can_read(){
+                ews.ws.close(None).unwrap();
+
+                // Needs to be done after ws.close()
+                if let Err(err) = ews.ws.write_pending(){
+                    dbg!(err);
+                }
+            }
+        }
+    }
 }
 
 

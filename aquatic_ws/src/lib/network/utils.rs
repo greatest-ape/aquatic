@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
 
-use either::Either;
 use mio::Token;
 use native_tls::{Identity, TlsAcceptor};
 use net2::{TcpBuilder, unix::UnixTcpBuilderExt};
@@ -58,19 +57,6 @@ pub fn create_tls_acceptor(
 }
 
 
-pub fn close_connection(connection: &mut Connection){
-    if let Either::Left(ref mut ews) = connection.inner {
-        if ews.ws.can_read(){
-            ews.ws.close(None).unwrap();
-
-            // Needs to be done after ws.close()
-            if let Err(err) = ews.ws.write_pending(){
-                dbg!(err);
-            }
-        }
-    }
-}
-
 
 /// Don't bother with deregistering from Poll. In my understanding, this is
 /// done automatically when the stream is dropped, as long as there are no
@@ -81,7 +67,7 @@ pub fn remove_connection_if_exists(
     token: Token,
 ){
     if let Some(mut connection) = connections.remove(&token){
-        close_connection(&mut connection);
+        connection.close();
     }
 }
 
@@ -94,7 +80,7 @@ pub fn remove_inactive_connections(
 
     connections.retain(|_, connection| {
         if connection.valid_until.0 < now {
-            close_connection(connection);
+            connection.close();
 
             println!("closing connection, it is inactive");
 
