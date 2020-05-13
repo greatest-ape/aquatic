@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use hashbrown::HashMap;
 use mio::Token;
 use mio::net::TcpStream;
-use native_tls::TlsStream;
+use native_tls::{TlsStream, MidHandshakeTlsStream};
 use tungstenite::WebSocket;
 use tungstenite::handshake::{MidHandshake, server::ServerHandshake};
 
@@ -78,9 +78,10 @@ pub struct EstablishedWs<S> {
 
 
 pub enum ConnectionStage {
-    Stream(Stream),
-    TlsMidHandshake(native_tls::MidHandshakeTlsStream<TcpStream>),
-    WsHandshake(MidHandshake<ServerHandshake<Stream, DebugCallback>>),
+    TcpStream(TcpStream),
+    TlsStream(TlsStream<TcpStream>),
+    TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
+    WsMidHandshake(MidHandshake<ServerHandshake<Stream, DebugCallback>>),
     EstablishedWs(EstablishedWs<Stream>),
 }
 

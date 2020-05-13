@@ -63,13 +63,16 @@ pub fn close_and_deregister_connection(
     connection: &mut Connection,
 ){
     match connection.stage {
-        ConnectionStage::Stream(ref mut stream) => {
+        ConnectionStage::TcpStream(ref mut stream) => {
             /*
             poll.registry()
                 .deregister(stream)
                 .unwrap();
             */
         },
+        ConnectionStage::TlsStream(ref mut stream) => {
+
+        }
         ConnectionStage::TlsMidHandshake(ref mut handshake) => {
             /*
             poll.registry()
@@ -77,7 +80,7 @@ pub fn close_and_deregister_connection(
                 .unwrap();
             */
         },
-        ConnectionStage::WsHandshake(ref mut handshake) => {
+        ConnectionStage::WsMidHandshake(ref mut handshake) => {
             /*
             poll.registry()
                 .deregister(handshake.get_mut().get_mut())
