@@ -55,6 +55,18 @@ impl Read for Stream {
             Self::TlsStream(stream) => stream.read(buf),
         }
     }
+
+    /// Not used but provided for completeness
+    #[inline]
+    fn read_vectored(
+        &mut self,
+        bufs: &mut [::std::io::IoSliceMut<'_>]
+    ) -> ::std::io::Result<usize> {
+        match self {
+            Self::TcpStream(stream) => stream.read_vectored(bufs),
+            Self::TlsStream(stream) => stream.read_vectored(bufs),
+        }
+    }
 }
 
 
@@ -64,6 +76,18 @@ impl Write for Stream {
         match self {
             Self::TcpStream(stream) => stream.write(buf),
             Self::TlsStream(stream) => stream.write(buf),
+        }
+    }
+
+    /// Not used but provided for completeness
+    #[inline]
+    fn write_vectored(
+        &mut self,
+        bufs: &[::std::io::IoSlice<'_>]
+    ) -> ::std::io::Result<usize> {
+        match self {
+            Self::TcpStream(stream) => stream.write_vectored(bufs),
+            Self::TlsStream(stream) => stream.write_vectored(bufs),
         }
     }
 
