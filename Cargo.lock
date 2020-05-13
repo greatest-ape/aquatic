@@ -93,6 +93,7 @@ version = "0.1.0"
 dependencies = [
  "aquatic_common",
  "cli_helpers",
+ "either",
  "flume",
  "hashbrown",
  "indexmap",
@@ -329,6 +330,12 @@ checksum = "f3d0c8c8752312f9713efd397ff63acb9f85585afbf179282e720e7704954dd5"
 dependencies = [
  "generic-array",
 ]
+
+[[package]]
+name = "either"
+version = "1.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 
 [[package]]
 name = "encode_unicode"

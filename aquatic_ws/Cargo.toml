@@ -16,6 +16,7 @@ path = "src/bin/main.rs"
 [dependencies]
 aquatic_common = { path = "../aquatic_common" }
 cli_helpers = { path = "../cli_helpers" }
+either = "1"
 flume = "0.7"
 hashbrown = { version = "0.7", features = ["serde"] }
 indexmap = "1"

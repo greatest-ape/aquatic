@@ -1,12 +1,14 @@
 use std::net::{SocketAddr};
 use std::io::{Read, Write};
 
+use either::Either;
 use hashbrown::HashMap;
 use mio::Token;
 use mio::net::TcpStream;
-use native_tls::{TlsStream, MidHandshakeTlsStream};
+use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
 use tungstenite::WebSocket;
-use tungstenite::handshake::{MidHandshake, server::ServerHandshake};
+use tungstenite::handshake::{MidHandshake, HandshakeError};
+use tungstenite::server::ServerHandshake;
 
 use crate::common::*;
 
@@ -71,26 +73,109 @@ impl Write for Stream {
 }
 
 
-pub struct EstablishedWs<S> {
-    pub ws: WebSocket<S>,
+pub struct EstablishedWs {
+    pub ws: WebSocket<Stream>,
     pub peer_addr: SocketAddr,
 }
 
 
-pub enum ConnectionStage {
+pub enum HandshakeMachine {
     TcpStream(TcpStream),
     TlsStream(TlsStream<TcpStream>),
     TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
     WsMidHandshake(MidHandshake<ServerHandshake<Stream, DebugCallback>>),
-    EstablishedWs(EstablishedWs<Stream>),
 }
 
 
-impl ConnectionStage {
-    pub fn is_established(&self) -> bool {
+impl HandshakeMachine {
+    pub fn new(tcp_stream: TcpStream) -> Self {
+        Self::TcpStream(tcp_stream)
+    }
+
+    pub fn advance(
+        self,
+        opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
+    ) -> (Option<Either<EstablishedWs, Self>>, bool) { // bool = stop looping
         match self {
-            Self::EstablishedWs(_) => true,
-            _ => false,
+            HandshakeMachine::TcpStream(stream) => {
+                if let Some(tls_acceptor) = opt_tls_acceptor {
+                    Self::handle_tls_handshake_result(
+                        tls_acceptor.accept(stream)
+                    )
+                } else {
+                    let handshake_result = ::tungstenite::server::accept_hdr(
+                        Stream::TcpStream(stream),
+                        DebugCallback
+                    );
+
+                    Self::handle_ws_handshake_result(handshake_result)
+                }
+            },
+            HandshakeMachine::TlsStream(stream) => {
+                let handshake_result = ::tungstenite::server::accept_hdr(
+                    Stream::TlsStream(stream),
+                    DebugCallback
+                );
+
+                Self::handle_ws_handshake_result(handshake_result)
+            },
+            HandshakeMachine::TlsMidHandshake(handshake) => {
+                Self::handle_tls_handshake_result(handshake.handshake())
+            },
+            HandshakeMachine::WsMidHandshake(handshake) => {
+                Self::handle_ws_handshake_result(handshake.handshake())
+            },
+        }
+    }
+
+    fn handle_tls_handshake_result(
+        result: Result<TlsStream<TcpStream>, ::native_tls::HandshakeError<TcpStream>>,
+    ) -> (Option<Either<EstablishedWs, Self>>, bool) {
+        match result {
+            Ok(stream) => {
+                println!("handshake established");
+
+                (Some(Either::Right(Self::TlsStream(stream))), false)
+            },
+            Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
+                println!("interrupted");
+
+                (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
+            },
+            Err(native_tls::HandshakeError::Failure(err)) => {
+                dbg!(err);
+
+                (None, false)
+            }
+        }
+    }
+
+    fn handle_ws_handshake_result(
+        result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, DebugCallback>>> ,
+    ) -> (Option<Either<EstablishedWs, Self>>, bool) {
+        match result {
+            Ok(mut ws) => {
+                println!("handshake established");
+
+                let peer_addr = ws.get_mut().get_peer_addr();
+
+                let established_ws = EstablishedWs {
+                    ws,
+                    peer_addr,
+                };
+
+                (Some(Either::Left(established_ws)), false)
+            },
+            Err(HandshakeError::Interrupted(handshake)) => {
+                println!("interrupted");
+
+                (Some(Either::Right(HandshakeMachine::WsMidHandshake(handshake))), true)
+            },
+            Err(HandshakeError::Failure(err)) => {
+                dbg!(err);
+
+                (None, false)
+            }
         }
     }
 }
@@ -98,7 +183,7 @@ impl ConnectionStage {
 
 pub struct Connection {
     pub valid_until: ValidUntil,
-    pub stage: ConnectionStage,
+    pub inner: Either<EstablishedWs, HandshakeMachine>,
 }
 
 

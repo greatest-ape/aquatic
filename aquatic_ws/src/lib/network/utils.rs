@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
 
+use either::Either;
 use mio::Token;
 use native_tls::{Identity, TlsAcceptor};
 use net2::{TcpBuilder, unix::UnixTcpBuilderExt};
@@ -58,7 +59,7 @@ pub fn create_tls_acceptor(
 
 
 pub fn close_connection(connection: &mut Connection){
-    if let ConnectionStage::EstablishedWs(ref mut ews) = connection.stage {
+    if let Either::Left(ref mut ews) = connection.inner {
         if ews.ws.can_read(){
             ews.ws.close(None).unwrap();
 
