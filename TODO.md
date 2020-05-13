@@ -2,25 +2,25 @@
 
 ## aquatic_ws
 * network
-  * actually run tls. probably add config fields for number of tls and non-tls
-    workers, then run that amount of each
+  * actually run tls. maybe add config fields for number of tls and non-tls
+    workers, then run that amount of each. or add tls section to config, with
+    bool key use_tls and the tls cert things, then use that for all workers
   * test tls!
-  * handshake: deregister stream when applicable
+  * send/recv buffer size config
+  * limit ws message sizes?
 * test
   * test full torrent transfer (offer-answer exchange)
-  * test cleaning, multiple socket workers
-* log crate instead of println/eprintln?
+  * test multiple socket workers
 * privdrop
 * config
-  * send/recv buffer size: how does this interact with tls?
   * some config.network fields are actually used in handler. maybe they should
     be checked while parsing? not completely clear
-  * limit ws message sizes?
+* ipv4 / ipv6 split state?
 * "close connection" message from handler on peer_id and socket_addr mismatch?
   Probably not really necessary. If it is an honest mistake, peer will just
   keep announcing and after a few minutes, the peer in the map will be cleaned
   out and everything will start working
-* ipv4 / ipv6 split state?
+* log crate instead of println/eprintln?
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
