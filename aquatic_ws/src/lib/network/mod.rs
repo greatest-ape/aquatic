@@ -72,7 +72,6 @@ pub fn run_socket_worker(
                     socket_worker_index,
                     &in_message_sender,
                     &opt_tls_acceptor,
-                    &mut poll,
                     &mut connections,
                     token,
                     valid_until,
@@ -82,13 +81,12 @@ pub fn run_socket_worker(
 
         send_out_messages(
             out_message_receiver.drain(),
-            &mut poll,
             &mut connections
         );
 
         // Remove inactive connections, but not every iteration
         if iter_counter % 128 == 0 {
-            remove_inactive_connections(&mut poll, &mut connections);
+            remove_inactive_connections(&mut connections);
         }
 
         iter_counter = iter_counter.wrapping_add(1);
@@ -114,7 +112,7 @@ fn accept_new_streams(
 
                 let token = *poll_token_counter;
 
-                remove_connection_if_exists(poll, connections, token);
+                remove_connection_if_exists(connections, token);
 
                 poll.registry()
                     .register(&mut stream, token, Interest::READABLE)
@@ -191,7 +189,6 @@ pub fn run_handshakes_and_read_messages(
     socket_worker_index: usize,
     in_message_sender: &InMessageSender,
     opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
-    poll: &mut Poll,
     connections: &mut ConnectionMap,
     poll_token: Token,
     valid_until: ValidUntil,
@@ -202,7 +199,6 @@ pub fn run_handshakes_and_read_messages(
         let established = if let Some(c) = connections.get(&poll_token){
             c.stage.is_established()
         } else {
-            // Connection is not present, so it is closed. Stop processing
             break;
         };
 
@@ -342,21 +338,21 @@ pub fn run_handshakes_and_read_messages(
                         break;
                     }
     
-                    remove_connection_if_exists(poll, connections, poll_token);
+                    remove_connection_if_exists(connections, poll_token);
     
                     eprint!("{}", err);
     
                     break;
                 },
                 Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(poll, connections, poll_token);
+                    remove_connection_if_exists(connections, poll_token);
     
                     break;
                 },
                 Err(err) => {
                     dbg!(err);
     
-                    remove_connection_if_exists(poll, connections, poll_token);
+                    remove_connection_if_exists(connections, poll_token);
     
                     break;
                 }
@@ -369,7 +365,6 @@ pub fn run_handshakes_and_read_messages(
 /// Read messages from channel, send to peers
 pub fn send_out_messages(
     out_message_receiver: ::flume::Drain<(ConnectionMeta, OutMessage)>,
-    poll: &mut Poll,
     connections: &mut ConnectionMap,
 ){
     for (meta, out_message) in out_message_receiver {
@@ -377,36 +372,31 @@ pub fn send_out_messages(
             .get_mut(&meta.poll_token)
             .map(|v| &mut v.stage);
         
-        use ::tungstenite::Error::Io;
+        if let Some(ConnectionStage::EstablishedWs(connection)) = opt_stage {
+            if connection.peer_addr != meta.peer_addr {
+                eprintln!("socket worker: peer socket addrs didn't match");
+
+                continue;
+            }
+
+            dbg!(out_message.clone());
         
-        // Exactly the same for both established stages
-        match opt_stage {
-            Some(ConnectionStage::EstablishedWs(connection)) => {
-                if connection.peer_addr != meta.peer_addr {
-                    eprintln!("socket worker: peer socket addrs didn't match");
+            use ::tungstenite::Error::Io;
 
+            match connection.ws.write_message(out_message.to_ws_message()){
+                Ok(()) => {},
+                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                     continue;
-                }
+                },
+                Err(err) => {
+                    dbg!(err);
 
-                dbg!(out_message.clone());
-
-                match connection.ws.write_message(out_message.to_ws_message()){
-                    Ok(()) => {},
-                    Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
-                        continue;
-                    },
-                    Err(err) => {
-                        dbg!(err);
-
-                        remove_connection_if_exists(
-                            poll,
-                            connections,
-                            meta.poll_token
-                        );
-                    },
-                }
-            },
-            _ => {},
+                    remove_connection_if_exists(
+                        connections,
+                        meta.poll_token
+                    );
+                },
+            }
         }
     }
 }

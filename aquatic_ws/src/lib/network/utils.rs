@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
 
-use mio::{Poll, Token};
+use mio::Token;
 use native_tls::{Identity, TlsAcceptor};
 use net2::{TcpBuilder, unix::UnixTcpBuilderExt};
 
@@ -57,78 +57,43 @@ pub fn create_tls_acceptor(
 }
 
 
-/// FIXME
-pub fn close_and_deregister_connection(
-    poll: &mut Poll,
-    connection: &mut Connection,
-){
-    match connection.stage {
-        ConnectionStage::TcpStream(ref mut stream) => {
-            /*
-            poll.registry()
-                .deregister(stream)
-                .unwrap();
-            */
-        },
-        ConnectionStage::TlsStream(ref mut stream) => {
+pub fn close_connection(connection: &mut Connection){
+    if let ConnectionStage::EstablishedWs(ref mut ews) = connection.stage {
+        if ews.ws.can_read(){
+            ews.ws.close(None).unwrap();
 
-        }
-        ConnectionStage::TlsMidHandshake(ref mut handshake) => {
-            /*
-            poll.registry()
-                .deregister(handshake.get_mut())
-                .unwrap();
-            */
-        },
-        ConnectionStage::WsMidHandshake(ref mut handshake) => {
-            /*
-            poll.registry()
-                .deregister(handshake.get_mut().get_mut())
-                .unwrap();
-                */
-        },
-        ConnectionStage::EstablishedWs(ref mut established_ws) => {
-            if established_ws.ws.can_read(){
-                established_ws.ws.close(None).unwrap();
-
-                // Needs to be done after ws.close()
-                if let Err(err) = established_ws.ws.write_pending(){
-                    dbg!(err);
-                }
+            // Needs to be done after ws.close()
+            if let Err(err) = ews.ws.write_pending(){
+                dbg!(err);
             }
-
-            /*
-            poll.registry()
-                .deregister(established_ws.ws.get_mut())
-                .unwrap();
-                */
-        },
+        }
     }
 }
 
 
+/// Don't bother with deregistering from Poll. In my understanding, this is
+/// done automatically when the stream is dropped, as long as there are no
+/// other references to the file descriptor, such as when it is accessed
+/// in multiple threads.
 pub fn remove_connection_if_exists(
-    poll: &mut Poll,
     connections: &mut ConnectionMap,
     token: Token,
 ){
     if let Some(mut connection) = connections.remove(&token){
-        close_and_deregister_connection(poll, &mut connection);
-
-        connections.remove(&token);
+        close_connection(&mut connection);
     }
 }
 
+
 // Close and remove inactive connections
 pub fn remove_inactive_connections(
-    poll: &mut Poll,
     connections: &mut ConnectionMap,
 ){
     let now = Instant::now();
 
     connections.retain(|_, connection| {
         if connection.valid_until.0 < now {
-            close_and_deregister_connection(poll, connection);
+            close_connection(connection);
 
             println!("closing connection, it is inactive");
 
