@@ -192,12 +192,14 @@ struct ActionWrapper<T> {
 
 
 impl <T>ActionWrapper<T> {
+    #[inline]
     pub fn announce(t: T) -> Self {
         Self {
             action: Action::Announce,
             inner: t
         }
     }
+    #[inline]
     pub fn scrape(t: T) -> Self {
         Self {
             action: Action::Scrape,
@@ -217,6 +219,7 @@ pub enum InMessage {
 impl InMessage {
     /// Try parsing as announce request first. If that fails, try parsing as
     /// scrape request, or return None
+    #[inline]
     pub fn from_ws_message(ws_message: tungstenite::Message) -> Option<Self> {
         use tungstenite::Message::{Text, Binary};
 
@@ -255,6 +258,7 @@ pub enum OutMessage {
 
 
 impl OutMessage {
+    #[inline]
     pub fn to_ws_message(self) -> tungstenite::Message {
         let json = match self {
             Self::AnnounceResponse(message) => {

@@ -22,6 +22,7 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
         formatter.write_str("string consisting of 20 bytes")
     }
 
+    #[inline]
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
@@ -60,6 +61,7 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
 }
 
 
+#[inline]
 pub fn deserialize_20_bytes<'de, D>(
     deserializer: D
 ) -> Result<[u8; 20], D::Error>
@@ -79,6 +81,7 @@ impl<'de> Visitor<'de> for InfoHashVecVisitor {
         formatter.write_str("string or array of strings consisting of 20 bytes")
     }
 
+    #[inline]
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
@@ -88,6 +91,7 @@ impl<'de> Visitor<'de> for InfoHashVecVisitor {
         }
     }
 
+    #[inline]
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
         where A: SeqAccess<'de>
     {
@@ -104,6 +108,7 @@ impl<'de> Visitor<'de> for InfoHashVecVisitor {
         Ok(info_hashes)
     }
 
+    #[inline]
     fn visit_none<E>(self) -> Result<Self::Value, E>
         where E: ::serde::de::Error
     {
@@ -114,6 +119,7 @@ impl<'de> Visitor<'de> for InfoHashVecVisitor {
 
 /// Empty vector is returned if value is null or any invalid info hash
 /// is present
+#[inline]
 pub fn deserialize_info_hashes<'de, D>(
     deserializer: D
 ) -> Result<Vec<InfoHash>, D::Error>

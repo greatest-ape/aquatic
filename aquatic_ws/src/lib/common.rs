@@ -69,6 +69,7 @@ pub struct TorrentData {
 
 
 impl Default for TorrentData {
+    #[inline]
     fn default() -> Self {
         Self {
             peers: IndexMap::new(),
@@ -109,6 +110,8 @@ impl OutMessageSender {
     pub fn new(senders: Vec<Sender<(ConnectionMeta, OutMessage)>>) -> Self {
         Self(senders)
     }
+
+    #[inline]
     pub fn send(
         &self,
         meta: ConnectionMeta,

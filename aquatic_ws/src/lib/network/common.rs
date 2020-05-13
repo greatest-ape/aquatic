@@ -37,6 +37,7 @@ pub enum Stream {
 
 
 impl Stream {
+    #[inline]
     pub fn get_peer_addr(&self) -> SocketAddr {
         match self {
             Self::TcpStream(stream) => stream.peer_addr().unwrap(),
@@ -47,6 +48,7 @@ impl Stream {
 
 
 impl Read for Stream {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, ::std::io::Error> {
         match self {
             Self::TcpStream(stream) => stream.read(buf),
@@ -57,6 +59,7 @@ impl Read for Stream {
 
 
 impl Write for Stream {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> ::std::io::Result<usize> {
         match self {
             Self::TcpStream(stream) => stream.write(buf),
@@ -64,6 +67,7 @@ impl Write for Stream {
         }
     }
 
+    #[inline]
     fn flush(&mut self) -> ::std::io::Result<()> {
         match self {
             Self::TcpStream(stream) => stream.flush(),
@@ -82,10 +86,12 @@ pub enum HandshakeMachine {
 
 
 impl HandshakeMachine {
+    #[inline]
     pub fn new(tcp_stream: TcpStream) -> Self {
         Self::TcpStream(tcp_stream)
     }
 
+    #[inline]
     pub fn advance(
         self,
         opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
@@ -122,6 +128,7 @@ impl HandshakeMachine {
         }
     }
 
+    #[inline]
     fn handle_tls_handshake_result(
         result: Result<TlsStream<TcpStream>, ::native_tls::HandshakeError<TcpStream>>,
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
@@ -144,6 +151,7 @@ impl HandshakeMachine {
         }
     }
 
+    #[inline]
     fn handle_ws_handshake_result(
         result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, DebugCallback>>> ,
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
@@ -190,6 +198,7 @@ pub struct Connection {
 /// Create from TcpStream. Run `advance_handshakes` until `get_established_ws`
 /// returns Some(EstablishedWs).
 impl Connection {
+    #[inline]
     pub fn new(
         valid_until: ValidUntil,
         tcp_stream: TcpStream,
@@ -200,6 +209,7 @@ impl Connection {
         }
     }
 
+    #[inline]
     pub fn get_established_ws<'a>(&mut self) -> Option<&mut EstablishedWs> {
         match self.inner {
             Either::Left(ref mut ews) => Some(ews),
@@ -207,6 +217,7 @@ impl Connection {
         }
     }
 
+    #[inline]
     pub fn advance_handshakes(
         self,
         opt_tls_acceptor: &Option<TlsAcceptor>,
@@ -227,6 +238,7 @@ impl Connection {
         }
     }
 
+    #[inline]
     pub fn close(&mut self){
         if let Either::Left(ref mut ews) = self.inner {
             if ews.ws.can_read(){
