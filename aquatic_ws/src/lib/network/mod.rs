@@ -317,6 +317,8 @@ pub fn run_handshakes_and_read_messages(
             stage: ConnectionStage::EstablishedWs(established_ws),
             ..
         }) = connections.get_mut(&poll_token){
+            use ::tungstenite::Error::Io;
+
             match established_ws.ws.read_message(){
                 Ok(ws_message) => {
                     dbg!(ws_message.clone());
@@ -333,22 +335,9 @@ pub fn run_handshakes_and_read_messages(
                         in_message_sender.send((meta, in_message));
                     }
                 },
-                Err(tungstenite::Error::Io(err)) => {
-                    if err.kind() == ErrorKind::WouldBlock {
-                        break;
-                    }
-    
-                    remove_connection_if_exists(connections, poll_token);
-    
-                    eprint!("{}", err);
-    
-                    break;
-                },
-                Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(connections, poll_token);
-    
-                    break;
-                },
+                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
+                    break
+                }
                 Err(err) => {
                     dbg!(err);
     
