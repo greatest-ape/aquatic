@@ -198,8 +198,6 @@ pub fn handle_ws_handshake_result(
             };
 
             connections.insert(poll_token, connection);
-
-            false
         },
         Err(HandshakeError::Interrupted(handshake)) => {
             println!("interrupted");
@@ -211,14 +209,14 @@ pub fn handle_ws_handshake_result(
 
             connections.insert(poll_token, connection);
 
-            true
+            return true
         },
         Err(HandshakeError::Failure(err)) => {
             dbg!(err);
-
-            false
         }
     }
+
+    false
 }
 
 
@@ -266,35 +264,27 @@ pub fn run_handshakes_and_read_messages(
                 }
             }
         } else if let Some(connection) = connections.remove(&poll_token) {
-            match connection.stage {
+            let stop_loop = match connection.stage {
                 ConnectionStage::TcpStream(stream) => {
                     if let Some(tls_acceptor) = opt_tls_acceptor {
-                        let stop_loop = handle_tls_handshake_result(
+                        handle_tls_handshake_result(
                             connections,
                             poll_token,
                             valid_until,
                             tls_acceptor.accept(stream)
-                        );
-
-                        if stop_loop {
-                            break
-                        }
+                        )
                     } else {
                         let handshake_result = ::tungstenite::server::accept_hdr(
                             Stream::TcpStream(stream),
                             DebugCallback
                         );
 
-                        let stop_loop = handle_ws_handshake_result(
+                        handle_ws_handshake_result(
                             connections,
                             poll_token,
                             valid_until,
                             handshake_result
-                        );
-
-                        if stop_loop {
-                            break;
-                        }
+                        )
                     }
                 },
                 ConnectionStage::TlsStream(stream) => {
@@ -303,42 +293,34 @@ pub fn run_handshakes_and_read_messages(
                         DebugCallback
                     );
 
-                    let stop_loop = handle_ws_handshake_result(
+                    handle_ws_handshake_result(
                         connections,
                         poll_token,
                         valid_until,
                         handshake_result
-                    );
-
-                    if stop_loop {
-                        break;
-                    }
+                    )
                 },
                 ConnectionStage::TlsMidHandshake(handshake) => {
-                    let stop_loop = handle_tls_handshake_result(
+                    handle_tls_handshake_result(
                         connections,
                         poll_token,
                         valid_until,
                         handshake.handshake()
-                    );
-
-                    if stop_loop {
-                        break
-                    }
+                    )
                 },
                 ConnectionStage::WsMidHandshake(handshake) => {
-                    let stop_loop = handle_ws_handshake_result(
+                    handle_ws_handshake_result(
                         connections,
                         poll_token,
                         valid_until,
                         handshake.handshake()
-                    );
-
-                    if stop_loop {
-                        break;
-                    }
+                    )
                 },
                 ConnectionStage::EstablishedWs(_) => unreachable!(),
+            };
+
+            if stop_loop {
+                break;
             }
         }
     }
