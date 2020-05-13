@@ -135,7 +135,6 @@ fn accept_new_streams(
 }
 
 
-
 /// On the stream given by poll_token, get TLS (if requested) and tungstenite
 /// up and running, then read messages and pass on through channel.
 pub fn run_handshakes_and_read_messages(

@@ -4,6 +4,8 @@
 * network
   * test tls!
   * handle tls certificate parse errors etc better
+    * parse once only
+    * exit with error message, not with panic
   * send/recv buffer size config
   * limit ws message sizes?
 * test
