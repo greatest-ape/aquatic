@@ -40,14 +40,14 @@ pub fn create_tls_acceptor(
     config: &Config,
 ) -> TlsAcceptor {
     let mut identity_bytes = Vec::new();
-    let mut file = File::open(&config.network.pkcs12_path)
+    let mut file = File::open(&config.network.tls_pkcs12_path)
         .expect("open pkcs12 file");
 
     file.read_to_end(&mut identity_bytes).expect("read pkcs12 file");
 
     let identity = Identity::from_pkcs12(
         &mut identity_bytes,
-        &config.network.pkcs12_password
+        &config.network.tls_pkcs12_password
     ).expect("create pkcs12 identity");
 
     let acceptor = TlsAcceptor::new(identity)   

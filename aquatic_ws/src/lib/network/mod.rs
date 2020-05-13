@@ -25,7 +25,6 @@ pub fn run_socket_worker(
     socket_worker_index: usize,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
-    use_tls: bool
 ){
     let poll_timeout = Duration::from_millis(
         config.network.poll_timeout_milliseconds
@@ -39,7 +38,7 @@ pub fn run_socket_worker(
         .register(&mut listener, Token(0), Interest::READABLE)
         .unwrap();
 
-    let opt_tls_acceptor = if use_tls {
+    let opt_tls_acceptor = if config.network.use_tls {
         Some(create_tls_acceptor(&config))
     } else {
         None

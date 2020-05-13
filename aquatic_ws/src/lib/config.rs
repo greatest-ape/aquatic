@@ -22,6 +22,9 @@ pub struct Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    pub use_tls: bool,
+    pub tls_pkcs12_path: String,
+    pub tls_pkcs12_password: String,
     /// Maximum number of torrents to accept in scrape request
     pub max_scrape_torrents: usize, // FIXME: should this really be in NetworkConfig?
     /// Maximum number of offers to accept in announce request
@@ -30,8 +33,6 @@ pub struct NetworkConfig {
     pub peer_announce_interval: usize, // FIXME: should this really be in NetworkConfig?
     pub poll_event_capacity: usize,
     pub poll_timeout_milliseconds: u64,
-    pub pkcs12_path: String,
-    pub pkcs12_password: String,
 }
 
 
@@ -87,13 +88,14 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([127, 0, 0, 1], 3000)),
+            use_tls: false,
+            tls_pkcs12_path: "".into(),
+            tls_pkcs12_password: "".into(),
             max_scrape_torrents: 255, // FIXME: what value is reasonable?
             max_offers: 10,
             peer_announce_interval: 120,
             poll_event_capacity: 4096,
             poll_timeout_milliseconds: 50,
-            pkcs12_path: "".into(),
-            pkcs12_password: "".into(),
         }
     }
 }

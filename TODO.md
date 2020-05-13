@@ -2,10 +2,8 @@
 
 ## aquatic_ws
 * network
-  * actually run tls. maybe add config fields for number of tls and non-tls
-    workers, then run that amount of each. or add tls section to config, with
-    bool key use_tls and the tls cert things, then use that for all workers
   * test tls!
+  * handle tls certificate parse errors etc better
   * send/recv buffer size config
   * limit ws message sizes?
 * test
