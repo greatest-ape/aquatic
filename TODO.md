@@ -2,15 +2,13 @@
 
 ## aquatic_ws
 * network
-  * test tls!
+  * test tls with full torrent transfer (offer-answer exchange) and multiple
+    socket workers
   * handle tls certificate parse errors etc better
     * parse once only
     * exit with error message, not with panic
   * send/recv buffer size config
   * limit ws message sizes?
-* test
-  * test full torrent transfer (offer-answer exchange)
-  * test multiple socket workers
 * privdrop
 * config
   * some config.network fields are actually used in handler. maybe they should
