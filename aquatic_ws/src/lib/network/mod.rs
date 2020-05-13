@@ -116,10 +116,7 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection::new(
-                    valid_until,
-                    Either::Right(HandshakeMachine::new(stream))
-                );
+                let connection = Connection::new(valid_until, stream);
 
                 connections.insert(token, connection);
             },
@@ -178,15 +175,13 @@ pub fn run_handshakes_and_read_messages(
                     break;
                 }
             }
-        } else if let Some(machine) = connections.remove(&poll_token)
-            .and_then(Connection::get_machine)
-        {
-            let (result, stop_loop) = machine
-                .advance(opt_tls_acceptor);
+        } else if let Some(connection) = connections.remove(&poll_token){
+            let (opt_new_connection, stop_loop) = connection.advance_handshakes(
+                opt_tls_acceptor,
+                valid_until
+            );
 
-            if let Some(inner) = result {
-                let connection = Connection::new(valid_until, inner);
-
+            if let Some(connection) = opt_new_connection {
                 connections.insert(poll_token, connection);
             }
 

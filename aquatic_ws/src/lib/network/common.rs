@@ -73,12 +73,6 @@ impl Write for Stream {
 }
 
 
-pub struct EstablishedWs {
-    pub ws: WebSocket<Stream>,
-    pub peer_addr: SocketAddr,
-}
-
-
 pub enum HandshakeMachine {
     TcpStream(TcpStream),
     TlsStream(TlsStream<TcpStream>),
@@ -181,25 +175,29 @@ impl HandshakeMachine {
 }
 
 
+pub struct EstablishedWs {
+    pub ws: WebSocket<Stream>,
+    pub peer_addr: SocketAddr,
+}
+
+
 pub struct Connection {
     pub valid_until: ValidUntil,
     inner: Either<EstablishedWs, HandshakeMachine>,
 }
 
 
+/// Create from TcpStream. Run `advance_handshakes` until `get_established_ws`
+/// returns Some(EstablishedWs).
 impl Connection {
     pub fn new(
         valid_until: ValidUntil,
-        inner: Either<EstablishedWs, HandshakeMachine>
+        tcp_stream: TcpStream,
     ) -> Self {
         Self {
             valid_until,
-            inner
+            inner: Either::Right(HandshakeMachine::TcpStream(tcp_stream))
         }
-    }
-
-    pub fn is_established(&self) -> bool {
-        self.inner.is_left()
     }
 
     pub fn get_established_ws<'a>(&mut self) -> Option<&mut EstablishedWs> {
@@ -209,10 +207,23 @@ impl Connection {
         }
     }
 
-    pub fn get_machine(self) -> Option<HandshakeMachine> {
+    pub fn advance_handshakes(
+        self,
+        opt_tls_acceptor: &Option<TlsAcceptor>,
+        valid_until: ValidUntil,
+    ) -> (Option<Self>, bool) {
         match self.inner {
-            Either::Left(_) => None,
-            Either::Right(machine) => Some(machine),
+            Either::Left(_) => (Some(self), false),
+            Either::Right(machine) => {
+                let (opt_inner, stop_loop) = machine.advance(opt_tls_acceptor);
+
+                let opt_new_self = opt_inner.map(|inner| Self {
+                    valid_until,
+                    inner
+                });
+
+                (opt_new_self, stop_loop)
+            }
         }
     }
 
