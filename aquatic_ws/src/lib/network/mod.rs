@@ -232,16 +232,41 @@ pub fn run_handshakes_and_read_messages(
     valid_until: ValidUntil,
 ){
     loop {
-        let established = if let Some(c) = connections.get(&poll_token){
-            c.stage.is_established()
-        } else {
-            break;
-        };
+        if let Some(Connection {
+            stage: ConnectionStage::EstablishedWs(established_ws),
+            ..
+        }) = connections.get_mut(&poll_token){
+            use ::tungstenite::Error::Io;
 
-        if !established {
-            let conn = connections.remove(&poll_token).unwrap();
-
-            match conn.stage {
+            match established_ws.ws.read_message(){
+                Ok(ws_message) => {
+                    dbg!(ws_message.clone());
+    
+                    if let Some(in_message) = InMessage::from_ws_message(ws_message){
+                        dbg!(in_message.clone());
+    
+                        let meta = ConnectionMeta {
+                            worker_index: socket_worker_index,
+                            poll_token: poll_token,
+                            peer_addr: established_ws.peer_addr
+                        };
+    
+                        in_message_sender.send((meta, in_message));
+                    }
+                },
+                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
+                    break
+                }
+                Err(err) => {
+                    dbg!(err);
+    
+                    remove_connection_if_exists(connections, poll_token);
+    
+                    break;
+                }
+            }
+        } else if let Some(connection) = connections.remove(&poll_token) {
+            match connection.stage {
                 ConnectionStage::TcpStream(stream) => {
                     if let Some(tls_acceptor) = opt_tls_acceptor {
                         let stop_loop = handle_tls_handshake_result(
@@ -314,39 +339,6 @@ pub fn run_handshakes_and_read_messages(
                     }
                 },
                 ConnectionStage::EstablishedWs(_) => unreachable!(),
-            }
-        } else if let Some(Connection {
-            stage: ConnectionStage::EstablishedWs(established_ws),
-            ..
-        }) = connections.get_mut(&poll_token){
-            use ::tungstenite::Error::Io;
-
-            match established_ws.ws.read_message(){
-                Ok(ws_message) => {
-                    dbg!(ws_message.clone());
-    
-                    if let Some(in_message) = InMessage::from_ws_message(ws_message){
-                        dbg!(in_message.clone());
-    
-                        let meta = ConnectionMeta {
-                            worker_index: socket_worker_index,
-                            poll_token: poll_token,
-                            peer_addr: established_ws.peer_addr
-                        };
-    
-                        in_message_sender.send((meta, in_message));
-                    }
-                },
-                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
-                    break
-                }
-                Err(err) => {
-                    dbg!(err);
-    
-                    remove_connection_if_exists(connections, poll_token);
-    
-                    break;
-                }
             }
         }
     }
