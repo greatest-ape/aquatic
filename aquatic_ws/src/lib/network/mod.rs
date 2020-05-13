@@ -220,7 +220,8 @@ pub fn handle_ws_handshake_result(
 }
 
 
-/// Get TLS (if requested) and tungstenite up and running, then read messages
+/// On the stream given by poll_token, get TLS (if requested) and tungstenite
+/// up and running, then read messages and pass on through channel.
 pub fn run_handshakes_and_read_messages(
     socket_worker_index: usize,
     in_message_sender: &InMessageSender,
