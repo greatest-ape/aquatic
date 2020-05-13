@@ -57,37 +57,34 @@ pub fn create_tls_acceptor(
 }
 
 
+/// FIXME
 pub fn close_and_deregister_connection(
     poll: &mut Poll,
     connection: &mut Connection,
 ){
     match connection.stage {
-        ConnectionStage::TcpStream(ref mut stream) => {
+        ConnectionStage::Stream(ref mut stream) => {
+            /*
             poll.registry()
                 .deregister(stream)
                 .unwrap();
+            */
         },
         ConnectionStage::TlsMidHandshake(ref mut handshake) => {
+            /*
             poll.registry()
                 .deregister(handshake.get_mut())
                 .unwrap();
+            */
         },
-        ConnectionStage::TlsStream(ref mut stream) => {
-            poll.registry()
-                .deregister(stream.get_mut())
-                .unwrap();
-        },
-        ConnectionStage::WsHandshakeNoTls(ref mut handshake) => {
+        ConnectionStage::WsHandshake(ref mut handshake) => {
+            /*
             poll.registry()
                 .deregister(handshake.get_mut().get_mut())
                 .unwrap();
+                */
         },
-        ConnectionStage::WsHandshakeTls(ref mut handshake) => {
-            poll.registry()
-                .deregister(handshake.get_mut().get_mut().get_mut())
-                .unwrap();
-        },
-        ConnectionStage::EstablishedWsNoTls(ref mut established_ws) => {
+        ConnectionStage::EstablishedWs(ref mut established_ws) => {
             if established_ws.ws.can_read(){
                 established_ws.ws.close(None).unwrap();
 
@@ -97,23 +94,11 @@ pub fn close_and_deregister_connection(
                 }
             }
 
+            /*
             poll.registry()
                 .deregister(established_ws.ws.get_mut())
                 .unwrap();
-        },
-        ConnectionStage::EstablishedWsTls(ref mut established_ws) => {
-            if established_ws.ws.can_read(){
-                established_ws.ws.close(None).unwrap();
-
-                // Needs to be done after ws.close()
-                if let Err(err) = established_ws.ws.write_pending(){
-                    dbg!(err);
-                }
-            }
-
-            poll.registry()
-                .deregister(established_ws.ws.get_mut().get_mut())
-                .unwrap();
+                */
         },
     }
 }
