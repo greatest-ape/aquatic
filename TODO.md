@@ -26,7 +26,8 @@
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
   use of Ipv4 ones, I have to check.
 * More tests?
-* chroot / drop privileges? Crates: privdrop, daemonize
+* Does it really make sense to include peer address in peer map key? I have
+  to think about why I included it in the first place.
 
 ## bittorrent_udp
 * Tests with good known byte sequences (requests and responses)
