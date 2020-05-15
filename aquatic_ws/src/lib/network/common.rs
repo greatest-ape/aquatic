@@ -101,7 +101,7 @@ impl Write for Stream {
 }
 
 
-pub enum HandshakeMachine {
+enum HandshakeMachine {
     TcpStream(TcpStream),
     TlsStream(TlsStream<TcpStream>),
     TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
@@ -111,12 +111,12 @@ pub enum HandshakeMachine {
 
 impl HandshakeMachine {
     #[inline]
-    pub fn new(tcp_stream: TcpStream) -> Self {
+    fn new(tcp_stream: TcpStream) -> Self {
         Self::TcpStream(tcp_stream)
     }
 
     #[inline]
-    pub fn advance(
+    fn advance(
         self,
         opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
     ) -> (Option<Either<EstablishedWs, Self>>, bool) { // bool = stop looping
