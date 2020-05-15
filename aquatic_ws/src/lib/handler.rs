@@ -109,44 +109,41 @@ pub fn handle_announce_requests(
             }
         }
 
-        // FIXME: correct to only update when bytes_left is Some?
-        if let Some(bytes_left) = request.bytes_left {
-            let peer_status = PeerStatus::from_event_and_bytes_left(
-                request.event,
-                bytes_left
-            );
+        let peer_status = PeerStatus::from_event_and_bytes_left(
+            request.event,
+            request.bytes_left
+        );
 
-            let peer = Peer {
-                connection_meta: sender_meta,
-                status: peer_status,
-                valid_until,
-            };
+        let peer = Peer {
+            connection_meta: sender_meta,
+            status: peer_status,
+            valid_until,
+        };
 
-            let opt_removed_peer = match peer_status {
-                PeerStatus::Leeching => {
-                    torrent_data.num_leechers += 1;
+        let opt_removed_peer = match peer_status {
+            PeerStatus::Leeching => {
+                torrent_data.num_leechers += 1;
 
-                    torrent_data.peers.insert(peer_id, peer)
-                },
-                PeerStatus::Seeding => {
-                    torrent_data.num_seeders += 1;
+                torrent_data.peers.insert(peer_id, peer)
+            },
+            PeerStatus::Seeding => {
+                torrent_data.num_seeders += 1;
 
-                    torrent_data.peers.insert(peer_id, peer)
-                },
-                PeerStatus::Stopped => {
-                    torrent_data.peers.remove(&peer_id)
-                }
-            };
-
-            match opt_removed_peer.map(|peer| peer.status){
-                Some(PeerStatus::Leeching) => {
-                    torrent_data.num_leechers -= 1;
-                },
-                Some(PeerStatus::Seeding) => {
-                    torrent_data.num_seeders -= 1;
-                },
-                _ => {}
+                torrent_data.peers.insert(peer_id, peer)
+            },
+            PeerStatus::Stopped => {
+                torrent_data.peers.remove(&peer_id)
             }
+        };
+
+        match opt_removed_peer.map(|peer| peer.status){
+            Some(PeerStatus::Leeching) => {
+                torrent_data.num_leechers -= 1;
+            },
+            Some(PeerStatus::Seeding) => {
+                torrent_data.num_seeders -= 1;
+            },
+            _ => {}
         }
 
         // If peer sent offers, send them on to random peers

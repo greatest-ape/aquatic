@@ -103,7 +103,8 @@ pub struct AnnounceRequestOffer {
 pub struct AnnounceRequest {
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
-    /// Just called "left" in protocol
+    /// Just called "left" in protocol. Is set to None in some cases, such as
+    /// when opening a magnet link
     #[serde(rename = "left")]
     pub bytes_left: Option<usize>,
     /// Can be empty. Then, default is "update"

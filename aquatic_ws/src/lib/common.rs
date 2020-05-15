@@ -37,11 +37,11 @@ impl PeerStatus {
     #[inline]
     pub fn from_event_and_bytes_left(
         event: AnnounceEvent,
-        bytes_left: usize
+        opt_bytes_left: Option<usize>
     ) -> Self {
         if let AnnounceEvent::Stopped = event {
             Self::Stopped
-        } else if bytes_left == 0 {
+        } else if let Some(0) = opt_bytes_left {
             Self::Seeding
         } else {
             Self::Leeching
