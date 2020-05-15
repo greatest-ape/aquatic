@@ -229,7 +229,7 @@ impl Connection {
     ) -> Self {
         Self {
             valid_until,
-            inner: Either::Right(HandshakeMachine::TcpStream(tcp_stream))
+            inner: Either::Right(HandshakeMachine::new(tcp_stream))
         }
     }
 
