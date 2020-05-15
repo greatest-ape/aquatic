@@ -1,16 +1,19 @@
 # TODO
 
+Set default server addresses to 0.0.0.0! (or maybe ipv6 equivalent, which I
+think is `[::]`). Update README default configs
+
 ## aquatic_ws
 * network
-  * test tls with full torrent transfer (offer-answer exchange) and multiple
-    socket workers
   * handle tls certificate parse errors etc better
     * parse once only
     * exit with error message, not with panic
+  * handle socket binding errors better (print them and exit)
   * send/recv buffer size config
   * limit ws message sizes?
 * privdrop
 * config
+* make HandshakeHandler non-public
   * some config.network fields are actually used in handler. maybe they should
     be checked while parsing? not completely clear
 * ipv4 / ipv6 split state?
@@ -21,6 +24,8 @@
 * log crate instead of println/eprintln?
 
 ## aquatic_udp
+* if socket workers panic while binding, don't sit around and wait for them
+  in privdrop function. Maybe wait some maximum amount of time?
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
