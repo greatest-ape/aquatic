@@ -11,10 +11,10 @@ use crate::common::*;
 use crate::config::Config;
 use crate::protocol::*;
 
-pub mod common;
+pub mod connection;
 pub mod utils;
 
-use common::*;
+use connection::*;
 use utils::*;
 
 
