@@ -13,7 +13,7 @@ pub struct Config {
     pub network: NetworkConfig,
     pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
-    pub privileges: PrivilegeConfig,
+    // pub privileges: PrivilegeConfig,
 }
 
 
@@ -78,7 +78,7 @@ impl Default for Config {
             network: NetworkConfig::default(),
             handlers: HandlerConfig::default(),
             cleaning: CleaningConfig::default(),
-            privileges: PrivilegeConfig::default(),
+            // privileges: PrivilegeConfig::default(),
         }
     }
 }

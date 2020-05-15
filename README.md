@@ -158,11 +158,6 @@ channel_recv_timeout_microseconds = 200
 interval = 30
 max_peer_age = 180
 max_connection_age = 180
-
-[privileges]
-drop_privileges = false
-chroot_path = '.'
-user = 'nobody'
 ```
 
 ### TLS
