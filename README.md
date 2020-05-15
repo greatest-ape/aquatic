@@ -16,8 +16,10 @@ Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
 ## Installation prerequisites
 
-- Install rust with rustup (stable rust is recommended). 
-- Install cmake with your package manager.
+- Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
+- Install cmake with your package manager (e.g., `apt-get install cmake`)
+- For `aquatic_ws` on GNU/Linux, also install the OpenSSL components necessary
+  for dynamic linking (e.g., `apt-get install libssl-dev`)
 - Clone the git repository and refer to the next section.
 
 ## Run
@@ -130,8 +132,7 @@ Server responses per second, best result in bold:
 
 ## aquatic_ws: WebTorrent tracker
 
-Experimental [WebTorrent](https://github.com/webtorrent) tracker, not yet
-recommended for production use.
+Experimental [WebTorrent](https://github.com/webtorrent) tracker.
 
 Default configuration:
 
@@ -163,6 +164,20 @@ drop_privileges = false
 chroot_path = '.'
 user = 'nobody'
 ```
+
+### TLS
+
+To run over TLS (wss protocol), a pkcs12 file (`.pkx`) is needed. It can be
+generated from Let's Encrypt certificates as follows, assuming you are in the
+directory where they are stored:
+
+```sh
+openssl pkcs12 -export -out identity.pfx -inkey privkey.pem -in cert.pem -certfile fullchain.pem
+```
+
+Enter a password when prompted. Then move the file somewhere suitable, and
+enter the path into the tracker configuration field `tls_pkcs12_path`. Set the
+password in the field `tls_pkcs12_password` and set `use_tls` to true.
 
 ## Trivia
 
