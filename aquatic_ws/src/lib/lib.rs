@@ -1,6 +1,3 @@
-//! There is not much point in doing more work until more clarity on
-//! exact protocol is achieved
-
 use std::time::Duration;
 
 pub mod common;
