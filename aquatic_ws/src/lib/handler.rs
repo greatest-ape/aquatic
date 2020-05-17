@@ -218,17 +218,17 @@ pub fn handle_scrape_requests(
     requests: Drain<(ConnectionMeta, ScrapeRequest)>,
 ){
     messages_out.extend(requests.map(|(meta, request)| {
-        let num_info_hashes = request.info_hashes.len();
+        let num_to_take = request.info_hashes.len().min(
+            config.network.max_scrape_torrents
+        );
 
         let mut response = ScrapeResponse {
-            files: HashMap::with_capacity(num_info_hashes),
+            files: HashMap::with_capacity(num_to_take),
         };
-
-        let max_torrents = config.network.max_scrape_torrents;
 
         // If request.info_hashes is empty, don't return scrape for all
         // torrents, even though reference server does it. It is too expensive.
-        for info_hash in request.info_hashes.into_iter().take(max_torrents){
+        for info_hash in request.info_hashes.into_iter().take(num_to_take){
             if let Some(torrent_data) = torrents.get(&info_hash){
                 let stats = ScrapeStatistics {
                     complete: torrent_data.num_seeders,
