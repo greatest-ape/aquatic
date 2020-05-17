@@ -1,9 +1,7 @@
 # TODO
 
-Set default server addresses to 0.0.0.0! (or maybe ipv6 equivalent, which I
-think is `[::]`). Update README default configs
-
 ## aquatic_ws
+* ipv4 / ipv6 split state?
 * network
   * handle tls certificate parse errors etc better
     * parse once only
@@ -12,11 +10,22 @@ think is `[::]`). Update README default configs
   * send/recv buffer size config
   * limit ws message sizes?
 * privdrop
-* config
-* make HandshakeHandler non-public
-  * some config.network fields are actually used in handler. maybe they should
-    be checked while parsing? not completely clear
-* ipv4 / ipv6 split state?
+
+## aquatic_udp
+* mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
+* Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
+  can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
+  use of Ipv4 ones, I have to check.
+* More tests?
+
+## bittorrent_udp
+* Tests with good known byte sequences (requests and responses)
+
+# Not important
+
+## aquatic_ws
+* some config.network fields are actually used in handler. maybe they should
+  be checked while parsing? not completely clear
 * "close connection" message from handler on peer_id and socket_addr mismatch?
   Probably not really necessary. If it is an honest mistake, peer will just
   keep announcing and after a few minutes, the peer in the map will be cleaned
@@ -24,23 +33,11 @@ think is `[::]`). Update README default configs
 * log crate instead of println/eprintln?
 
 ## aquatic_udp
-* if socket workers panic while binding, don't sit around and wait for them
-  in privdrop function. Maybe wait some maximum amount of time?
-* mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
-* Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
-  can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
-  use of Ipv4 ones, I have to check.
-* More tests?
+
 * Does it really make sense to include peer address in peer map key? I have
   to think about why I included it in the first place.
-
-## bittorrent_udp
-* Tests with good known byte sequences (requests and responses)
-
-# Not important
-
-## aquatic_udp
-
+* if socket workers panic while binding, don't sit around and wait for them
+  in privdrop function. Maybe wait some maximum amount of time?
 * No overflow on instant + duration arithmetic now, hopefully? Possibly,
   checked_add should be used.
 * extract_response_peers
