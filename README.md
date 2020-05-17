@@ -67,7 +67,9 @@ Then run the binaries with a "-c" argument pointing to the file, e.g.:
 ./scripts/run-aquatic-ws.sh -c "/path/to/aquatic-ws-config.toml"
 ```
 
-## aquatic_udp: UDP BitTorrent tracker
+## Details on protocol-specific executables
+
+### aquatic_udp: UDP BitTorrent tracker
 
 Aims to implements the
 [UDP BitTorrent protocol](https://libtorrent.org/udp_tracker_protocol.html),
@@ -111,7 +113,7 @@ chroot_path = '.'
 user = 'nobody'
 ```
 
-### Benchmarks
+#### Benchmarks
 
 Performance was compared to
 [opentracker](http://erdgeist.org/arts/software/opentracker/) using
@@ -130,7 +132,7 @@ Server responses per second, best result in bold:
 
 (See `documents/aquatic-load-test-2020-04-19.pdf` for details.)
 
-## aquatic_ws: WebTorrent tracker
+### aquatic_ws: WebTorrent tracker
 
 Experimental [WebTorrent](https://github.com/webtorrent) tracker.
 
@@ -160,7 +162,7 @@ max_peer_age = 180
 max_connection_age = 180
 ```
 
-### TLS
+#### TLS
 
 To run over TLS (wss protocol), a pkcs12 file (`.pkx`) is needed. It can be
 generated from Let's Encrypt certificates as follows, assuming you are in the
