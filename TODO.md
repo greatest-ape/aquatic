@@ -2,6 +2,7 @@
 
 ## aquatic_ws
 * ipv4 / ipv6 split state?
+* remove debug prints and DebugCallback
 * network
   * handle tls certificate parse errors etc better
     * parse once only
