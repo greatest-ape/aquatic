@@ -88,7 +88,7 @@ socket_workers = 1
 request_workers = 1
 
 [network]
-address = '127.0.0.1:3000'
+address = '0.0.0.0:3000'
 max_scrape_torrents = 255
 max_response_peers = 255
 peer_announce_interval = 900
@@ -142,7 +142,7 @@ Default configuration:
 socket_workers = 1
 
 [network]
-address = '127.0.0.1:3000'
+address = '0.0.0.0:3000'
 use_tls = false
 tls_pkcs12_path = ''
 tls_pkcs12_password = ''

@@ -87,7 +87,7 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            address: SocketAddr::from(([127, 0, 0, 1], 3000)),
+            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             use_tls: false,
             tls_pkcs12_path: "".into(),
             tls_pkcs12_password: "".into(),

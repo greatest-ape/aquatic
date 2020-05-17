@@ -111,7 +111,7 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            address: SocketAddr::from(([127, 0, 0, 1], 3000)),
+            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             max_scrape_torrents: 255,
             max_response_peers: 255,
             peer_announce_interval: 60 * 15,
