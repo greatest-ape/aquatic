@@ -1,3 +1,5 @@
+//! UDP BitTorrent tracker protocol structures
+
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]
