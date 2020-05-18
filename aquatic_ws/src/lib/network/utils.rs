@@ -82,12 +82,8 @@ pub fn remove_inactive_connections(
         if connection.valid_until.0 < now {
             connection.close();
 
-            println!("closing connection, it is inactive");
-
             false
         } else {
-            println!("keeping connection, it is still active");
-
             true
         }
     });

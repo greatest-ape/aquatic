@@ -7,27 +7,10 @@ use mio::Token;
 use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
 use tungstenite::WebSocket;
-use tungstenite::handshake::{MidHandshake, HandshakeError};
-use tungstenite::server::ServerHandshake;
+use tungstenite::handshake::{MidHandshake, HandshakeError, server::NoCallback};
+use tungstenite::server::{ServerHandshake};
 
 use crate::common::*;
-
-
-#[derive(Clone, Copy, Debug)]
-pub struct DebugCallback;
-
-impl ::tungstenite::handshake::server::Callback for DebugCallback {
-    fn on_request(
-        self,
-        request: &::tungstenite::handshake::server::Request,
-        response: ::tungstenite::handshake::server::Response,
-    ) -> Result<::tungstenite::handshake::server::Response, ::tungstenite::handshake::server::ErrorResponse> {
-        println!("request: {:#?}", request);
-        println!("response: {:#?}", response);
-
-        Ok(response)
-    }
-}
 
 
 pub enum Stream {
@@ -105,7 +88,7 @@ enum HandshakeMachine {
     TcpStream(TcpStream),
     TlsStream(TlsStream<TcpStream>),
     TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
-    WsMidHandshake(MidHandshake<ServerHandshake<Stream, DebugCallback>>),
+    WsMidHandshake(MidHandshake<ServerHandshake<Stream, NoCallback>>),
 }
 
 
@@ -127,18 +110,16 @@ impl HandshakeMachine {
                         tls_acceptor.accept(stream)
                     )
                 } else {
-                    let handshake_result = ::tungstenite::server::accept_hdr(
+                    let handshake_result = ::tungstenite::server::accept(
                         Stream::TcpStream(stream),
-                        DebugCallback
                     );
 
                     Self::handle_ws_handshake_result(handshake_result)
                 }
             },
             HandshakeMachine::TlsStream(stream) => {
-                let handshake_result = ::tungstenite::server::accept_hdr(
+                let handshake_result = ::tungstenite::server::accept(
                     Stream::TlsStream(stream),
-                    DebugCallback
                 );
 
                 Self::handle_ws_handshake_result(handshake_result)
@@ -158,17 +139,13 @@ impl HandshakeMachine {
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
         match result {
             Ok(stream) => {
-                println!("handshake established");
-
                 (Some(Either::Right(Self::TlsStream(stream))), false)
             },
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
-                println!("interrupted");
-
                 (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
             },
             Err(native_tls::HandshakeError::Failure(err)) => {
-                dbg!(err);
+                eprintln!("tls handshake error: {}", err);
 
                 (None, false)
             }
@@ -177,12 +154,10 @@ impl HandshakeMachine {
 
     #[inline]
     fn handle_ws_handshake_result(
-        result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, DebugCallback>>> ,
+        result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, NoCallback>>> ,
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
         match result {
             Ok(mut ws) => {
-                println!("handshake established");
-
                 let peer_addr = ws.get_mut().get_peer_addr();
 
                 let established_ws = EstablishedWs {
@@ -193,12 +168,10 @@ impl HandshakeMachine {
                 (Some(Either::Left(established_ws)), false)
             },
             Err(HandshakeError::Interrupted(handshake)) => {
-                println!("interrupted");
-
                 (Some(Either::Right(HandshakeMachine::WsMidHandshake(handshake))), true)
             },
             Err(HandshakeError::Failure(err)) => {
-                dbg!(err);
+                eprintln!("ws handshake error: {}", err);
 
                 (None, false)
             }
@@ -268,9 +241,12 @@ impl Connection {
             if ews.ws.can_read(){
                 ews.ws.close(None).unwrap();
 
-                // Needs to be done after ws.close()
+                // Required after ws.close()
                 if let Err(err) = ews.ws.write_pending(){
-                    dbg!(err);
+                    eprintln!(
+                        "error writing pending messages after closing ws: {}",
+                        err
+                    )
                 }
             }
         }

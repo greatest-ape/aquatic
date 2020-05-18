@@ -234,8 +234,6 @@ impl InMessage {
 
         if let Ok(ActionWrapper { action: Action::Announce, inner }) = res {
             return Some(InMessage::AnnounceRequest(inner));
-        } else {
-            dbg!(res);
         }
         
         let res: Result<ActionWrapper<ScrapeRequest>, _> = serde_json::from_str(&text);

@@ -124,7 +124,7 @@ fn accept_new_streams(
                     break
                 }
 
-                eprint!("{}", err);
+                eprint!("error while accepting streams: {}", err);
             }
         }
     }
@@ -149,14 +149,10 @@ pub fn run_handshakes_and_read_messages(
 
             match established_ws.ws.read_message(){
                 Ok(ws_message) => {
-                    dbg!(ws_message.clone());
-    
                     if let Some(in_message) = InMessage::from_ws_message(ws_message){
-                        dbg!(in_message.clone());
-    
                         let meta = ConnectionMeta {
                             worker_index: socket_worker_index,
-                            poll_token: poll_token,
+                            poll_token,
                             peer_addr: established_ws.peer_addr
                         };
     
@@ -164,10 +160,10 @@ pub fn run_handshakes_and_read_messages(
                     }
                 },
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
-                    break
+                    break;
                 }
                 Err(err) => {
-                    dbg!(err);
+                    eprintln!("error reading messages: {}", err);
     
                     remove_connection_if_exists(connections, poll_token);
     
@@ -203,12 +199,10 @@ pub fn send_out_messages(
         
         if let Some(established_ws) = opt_established_ws {
             if established_ws.peer_addr != meta.peer_addr {
-                eprintln!("socket worker: peer socket addrs didn't match");
+                eprintln!("socket worker error: peer socket addrs didn't match");
 
                 continue;
             }
-
-            dbg!(out_message.clone());
         
             use ::tungstenite::Error::Io;
 
@@ -218,7 +212,7 @@ pub fn send_out_messages(
                     continue;
                 },
                 Err(err) => {
-                    dbg!(err);
+                    eprintln!("error writing ws message: {}", err);
 
                     remove_connection_if_exists(
                         connections,
