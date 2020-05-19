@@ -49,9 +49,6 @@
     * cpu-target=native good?
     * mialloc good?
     * Try using flume (MPSC) or multiqueue2 (MPMC) instead of crossbeam channel
-    * Use less bytes from PeerId for hashing? (If yes, only save half of them
-      or so in PeerMapKey). Might improve performance, but probably not worth
-      it.
 
 ## bittorrent_udp
 * Avoid heap allocation in general if it can be avoided?
@@ -69,8 +66,8 @@
 
 ## aquatic_udp
 
-* Other HashMap hashers (such as SeaHash): seemingly not worthwhile (might be
-  with AVX though)
+* Other HashMap hashers (such as SeaHash): seemingly not worthwhile, see
+  `https://github.com/tkaitchuck/aHash`
 * `sendmmsg`: can't send to multiple socket addresses, so doesn't help
 * Config behind Arc in state: it is likely better to be able to pass it around
   without state
