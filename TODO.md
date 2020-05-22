@@ -5,11 +5,14 @@
 * network
   * handle tls certificate parse errors etc better
     * parse once only
-    * exit with error message, not with panic
-  * handle socket binding errors better (print them and exit)
+    * exit with error message, not with panic, use anyhow
+  * handle socket binding errors better (print them and exit), use anyhow
   * send/recv buffer size config
   * limit ws message sizes?
+  * poll: check if event is readable first, otherwise run `continue`
 * privdrop
+* on error because connection is closed, don't handle the same as for io
+  errors etc
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
@@ -31,6 +34,8 @@
   keep announcing and after a few minutes, the peer in the map will be cleaned
   out and everything will start working
 * log crate instead of println/eprintln?
+* stack-allocated vectors for announce request offers and scrape request info
+  hashes?
 
 ## aquatic_udp
 
