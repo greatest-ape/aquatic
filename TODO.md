@@ -6,7 +6,8 @@
   * panic/error in workers: exit program with non-zero exit code
   * send/recv buffer size config
   * limit ws message sizes?
-  * poll: check if event is readable first, otherwise run `continue`
+  * is it even necessary to check if event is readable in poll, since that
+    is all we're listening for?
 * privdrop
 * on error because connection is closed, don't handle the same as for io
   errors etc
