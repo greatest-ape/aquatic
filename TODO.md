@@ -4,11 +4,11 @@
 * ipv4 / ipv6 split state?
 * network
   * send/recv buffer size config
-  * limit ws message sizes?
   * is it even necessary to check if event is readable in poll, since that
     is all we're listening for?
 * panic/error in workers: print error, exit program with non-zero exit code
 * privdrop
+* add sensible logging method
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?

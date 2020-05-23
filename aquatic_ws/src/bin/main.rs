@@ -7,6 +7,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 
 fn main(){
+    // ::simple_logger::init().unwrap();
+
     cli_helpers::run_app_with_cli_and_config::<aquatic_ws::config::Config>(
         "aquatic: webtorrent tracker",
         aquatic_ws::run,
