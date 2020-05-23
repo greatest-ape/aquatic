@@ -4,8 +4,8 @@ use std::sync::Arc;
 use flume::{Sender, Receiver};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
-use parking_lot::Mutex;
 use mio::Token;
+use parking_lot::Mutex;
 
 pub use aquatic_common::ValidUntil;
 

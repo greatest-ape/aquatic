@@ -140,6 +140,7 @@ Default configuration:
 
 ```toml
 socket_workers = 1
+log_level = 'error'
 
 [network]
 address = '0.0.0.0:3000'

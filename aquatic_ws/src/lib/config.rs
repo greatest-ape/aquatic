@@ -3,6 +3,25 @@ use std::net::SocketAddr;
 use serde::{Serialize, Deserialize};
 
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace
+}
+
+
+impl Default for LogLevel {
+    fn default() -> Self {
+        Self::Error
+    }
+}
+
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -10,6 +29,7 @@ pub struct Config {
     /// them on to the request handler. They then recieve responses from the
     /// request handler, encode them and send them back over the socket.
     pub socket_workers: usize,
+    pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
@@ -77,6 +97,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             socket_workers: 1,
+            log_level: LogLevel::default(),
             network: NetworkConfig::default(),
             handlers: HandlerConfig::default(),
             cleaning: CleaningConfig::default(),

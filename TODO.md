@@ -1,7 +1,7 @@
 # TODO
 
 ## aquatic_ws
-* add sensible logging method, maybe stderrlog with quiet as default
+* ipv4 and ipv6 state split: think about this more..
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
