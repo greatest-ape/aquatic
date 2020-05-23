@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::io::ErrorKind;
 
 use hashbrown::HashMap;
-use log::{info, trace};
+use log::{info, trace, error};
 use native_tls::TlsAcceptor;
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
@@ -192,7 +192,14 @@ pub fn run_handshakes_and_read_messages(
 
                         trace!("read message");
     
-                        in_message_sender.send((meta, in_message));
+                        if let Err(err) = in_message_sender
+                            .send((meta, in_message))
+                        {
+                            error!(
+                                "InMessageSender: couldn't send message: {:?}",
+                                err
+                            );
+                        }
                     }
                 },
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {

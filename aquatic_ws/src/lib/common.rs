@@ -4,6 +4,7 @@ use std::sync::Arc;
 use flume::{Sender, Receiver};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
+use log::error;
 use mio::Token;
 use parking_lot::Mutex;
 
@@ -12,7 +13,7 @@ pub use aquatic_common::ValidUntil;
 use crate::protocol::*;
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
@@ -124,7 +125,9 @@ impl OutMessageSender {
         meta: ConnectionMeta,
         message: OutMessage
     ){
-        self.0[meta.worker_index].send((meta, message));
+        if let Err(err) = self.0[meta.worker_index].send((meta, message)){
+            error!("OutMessageSender: couldn't send message: {:?}", err);
+        }
     }
 }
 
