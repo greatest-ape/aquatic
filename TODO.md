@@ -3,10 +3,7 @@
 ## aquatic_ws
 * ipv4 / ipv6 split state?
 * network
-  * handle tls certificate parse errors etc better
-    * parse once only
-    * exit with error message, not with panic, use anyhow
-  * handle socket binding errors better (print them and exit), use anyhow
+  * panic/error in workers: exit program with non-zero exit code
   * send/recv buffer size config
   * limit ws message sizes?
   * poll: check if event is readable first, otherwise run `continue`

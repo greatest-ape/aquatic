@@ -15,6 +15,7 @@ name = "aquatic_udp_bench_handlers"
 name = "plot_pareto"
 
 [dependencies]
+anyhow = "1"
 aquatic_udp = { path = "../aquatic_udp" }
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }

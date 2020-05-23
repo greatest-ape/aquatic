@@ -33,6 +33,7 @@ dependencies = [
 name = "aquatic_udp"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "aquatic_common",
  "bittorrent_udp",
  "cli_helpers",
@@ -55,6 +56,7 @@ dependencies = [
 name = "aquatic_udp_bench"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "aquatic_udp",
  "bittorrent_udp",
  "cli_helpers",
@@ -72,6 +74,7 @@ dependencies = [
 name = "aquatic_udp_load_test"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bittorrent_udp",
  "cli_helpers",
  "crossbeam-channel",
@@ -91,6 +94,7 @@ dependencies = [
 name = "aquatic_ws"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "aquatic_common",
  "cli_helpers",
  "either",

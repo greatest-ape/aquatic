@@ -1,9 +1,6 @@
-use std::fs::File;
-use std::io::Read;
 use std::time::Instant;
 
 use mio::Token;
-use native_tls::{Identity, TlsAcceptor};
 use net2::{TcpBuilder, unix::UnixTcpBuilderExt};
 
 use crate::config::Config;
@@ -11,51 +8,24 @@ use crate::config::Config;
 use super::connection::*;
 
 
-pub fn create_listener(config: &Config) -> ::std::net::TcpListener {
-    let mut builder = &{
-        if config.network.address.is_ipv4(){
-            TcpBuilder::new_v4().expect("socket: build")
-        } else {
-            TcpBuilder::new_v6().expect("socket: build")
-        }
-    };
+pub fn create_listener(
+    config: &Config
+) -> ::anyhow::Result<::std::net::TcpListener> {
+    let builder = if config.network.address.is_ipv4(){
+        TcpBuilder::new_v4()
+    } else {
+        TcpBuilder::new_v6()
+    }?;
 
-    builder = builder.reuse_port(true)
-        .expect("socket: set reuse port");
+    let builder = builder.reuse_port(true)?;
+    let builder = builder.bind(&config.network.address)?;
 
-    builder = builder.bind(&config.network.address)
-        .expect(&format!("socket: bind to {}", &config.network.address));
+    let listener = builder.listen(128)?;
 
-    let listener = builder.listen(128)
-        .expect("tcpbuilder to tcp listener");
+    listener.set_nonblocking(true)?;
 
-    listener.set_nonblocking(true)
-        .expect("socket: set nonblocking");
-
-    listener
+    Ok(listener)
 }
-
-
-pub fn create_tls_acceptor(
-    config: &Config,
-) -> TlsAcceptor {
-    let mut identity_bytes = Vec::new();
-    let mut file = File::open(&config.network.tls_pkcs12_path)
-        .expect("open pkcs12 file");
-
-    file.read_to_end(&mut identity_bytes).expect("read pkcs12 file");
-
-    let identity = Identity::from_pkcs12(
-        &mut identity_bytes,
-        &config.network.tls_pkcs12_password
-    ).expect("create pkcs12 identity");
-
-    let acceptor = TlsAcceptor::new(identity)   
-        .expect("create TlsAcceptor");
-
-    acceptor
-}
-
 
 
 /// Don't bother with deregistering from Poll. In my understanding, this is

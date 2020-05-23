@@ -23,24 +23,45 @@ pub fn run_socket_worker(
     socket_worker_index: usize,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
+    opt_tls_acceptor: Option<TlsAcceptor>,
+){
+    match create_listener(&config){
+        Ok(listener) => {
+            run_poll_loop(
+                config,
+                socket_worker_index,
+                in_message_sender,
+                out_message_receiver,
+                listener,
+                opt_tls_acceptor
+            );
+        },
+        Err(err) => {
+            eprintln!("Couldn't create TCP listener: {}", err)
+        }
+    }
+}
+
+
+pub fn run_poll_loop(
+    config: Config,
+    socket_worker_index: usize,
+    in_message_sender: InMessageSender,
+    out_message_receiver: OutMessageReceiver,
+    listener: ::std::net::TcpListener,
+    opt_tls_acceptor: Option<TlsAcceptor>,
 ){
     let poll_timeout = Duration::from_millis(
         config.network.poll_timeout_milliseconds
     );
 
-    let mut listener = TcpListener::from_std(create_listener(&config));
+    let mut listener = TcpListener::from_std(listener);
     let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
     poll.registry()
         .register(&mut listener, Token(0), Interest::READABLE)
         .unwrap();
-
-    let opt_tls_acceptor = if config.network.use_tls {
-        Some(create_tls_acceptor(&config))
-    } else {
-        None
-    };
 
     let mut connections: ConnectionMap = HashMap::new();
 

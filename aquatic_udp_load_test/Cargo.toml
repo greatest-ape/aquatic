@@ -9,6 +9,7 @@ license = "Apache-2.0"
 name = "aquatic_udp_load_test"
 
 [dependencies]
+anyhow = "1"
 bittorrent_udp = { path = "../bittorrent_udp" }
 cli_helpers = { path = "../cli_helpers" }
 crossbeam-channel = "0.4"

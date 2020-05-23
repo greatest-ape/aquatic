@@ -18,6 +18,49 @@ struct AppOptions {
 }
 
 
+pub fn run_app_with_cli_and_config<T>(
+    title: &str,
+    // Function that takes config file and runs application
+    app_fn: fn(T) -> anyhow::Result<()>,
+) where T: Default + Serialize + DeserializeOwned {
+    ::std::process::exit(match run_inner(title, app_fn) {
+        Ok(()) => 0,
+        Err(err) => {
+            print_help(title, Some(err));
+
+            1
+        },
+    })
+}
+
+
+fn run_inner<T>(
+    title: &str,
+    // Function that takes config file and runs application
+    app_fn: fn(T) -> anyhow::Result<()>,
+) -> anyhow::Result<()> where T: Default + Serialize + DeserializeOwned {
+    let args: Vec<String> = ::std::env::args().collect();
+
+    let opts = AppOptions::parse_args_default(&args[1..])?;
+
+    if opts.help_requested(){
+        print_help(title, None);
+
+        Ok(())
+    } else if opts.print_config {
+        print!("{}", default_config_as_toml::<T>());
+
+        Ok(())
+    } else if let Some(config_file) = opts.config_file {
+        let config = config_from_toml_file(config_file)?;
+
+        app_fn(config)
+    } else {
+        app_fn(T::default())
+    }
+}
+
+
 fn config_from_toml_file<T>(path: String) -> anyhow::Result<T>
     where T: DeserializeOwned
 {
@@ -28,6 +71,7 @@ fn config_from_toml_file<T>(path: String) -> anyhow::Result<T>
     toml::from_str(&data).map_err(|e| anyhow::anyhow!("Parse failed: {}", e))
 }
 
+
 fn default_config_as_toml<T>() -> String
     where T: Default + Serialize
 {
@@ -36,40 +80,7 @@ fn default_config_as_toml<T>() -> String
 }
 
 
-pub fn run_app_with_cli_and_config<T>(
-    title: &str,
-    // Function that takes config file and runs application
-    app_fn: fn(T),
-) where T: Default + Serialize + DeserializeOwned {
-    let args: Vec<String> = ::std::env::args().collect();
-
-    match AppOptions::parse_args_default(&args[1..]){
-        Ok(opts) => {
-            if opts.help_requested(){
-                print_help(title, None);
-            } else if opts.print_config {
-                print!("{}", default_config_as_toml::<T>());
-            } else if let Some(config_file) = opts.config_file {
-                match config_from_toml_file(config_file){
-                    Ok(config) => app_fn(config),
-                    Err(err) => {
-                        eprintln!("Error while reading config file: {}", err);
-
-                        ::std::process::exit(1);
-                    }
-                }
-            } else {
-                app_fn(T::default())
-            }
-        },
-        Err(err) => {
-            print_help(title, Some(&format!("{}", err)))
-        }
-    }
-}
-
-
-fn print_help(title: &str, opt_error: Option<&str>){
+fn print_help(title: &str, opt_error: Option<anyhow::Error>){
     println!("{}", title);
 
     if let Some(error) = opt_error {

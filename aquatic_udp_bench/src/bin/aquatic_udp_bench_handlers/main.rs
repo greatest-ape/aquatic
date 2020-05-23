@@ -45,7 +45,7 @@ fn main(){
 }
 
 
-pub fn run(bench_config: BenchConfig){
+pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     // Setup common state, spawn request handlers
 
     let state = State::new();
@@ -111,6 +111,8 @@ pub fn run(bench_config: BenchConfig){
     print_results("Connect: ", c.0, c.1);
     print_results("Announce:", a.0, a.1);
     print_results("Scrape:  ", s.0, s.1);
+
+    Ok(())
 }
 
 
