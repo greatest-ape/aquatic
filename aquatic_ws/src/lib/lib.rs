@@ -2,6 +2,7 @@ use std::time::Duration;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
+use std::thread::Builder;
 
 use anyhow::Context;
 use native_tls::{Identity, TlsAcceptor};
@@ -48,7 +49,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         out_message_senders.push(out_message_sender);
 
-        ::std::thread::spawn(move || {
+        Builder::new().name(format!("socket-{:02}", i + 1)).spawn(move || {
             network::run_socket_worker(
                 config,
                 i,
@@ -57,7 +58,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
                 out_message_receiver,
                 opt_tls_acceptor
             );
-        });
+        })?;
     }
 
     // Wait for socket worker statuses. On error from any, quit program.
@@ -96,14 +97,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let config = config.clone();
         let state = state.clone();
 
-        ::std::thread::spawn(move || {
+        Builder::new().name("request".to_string()).spawn(move || {
             handler::run_request_worker(
                 config,
                 state,
                 in_message_receiver,
                 out_message_sender,
             );
-        });
+        })?;
     }
 
     loop {
