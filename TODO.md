@@ -1,9 +1,9 @@
 # TODO
 
 ## aquatic_ws
-* ipv4 / ipv6 split state?
 * network
   * send/recv buffer size config
+  * ipv6_only setting
   * is it even necessary to check if event is readable in poll, since that
     is all we're listening for?
 * panic/error in workers: print error, exit program with non-zero exit code

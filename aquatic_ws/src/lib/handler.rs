@@ -30,7 +30,7 @@ pub fn run_request_worker(
     );
 
     loop {
-        let mut opt_torrent_map_guard: Option<MutexGuard<TorrentMap>> = None;
+        let mut opt_torrent_map_guard: Option<MutexGuard<TorrentMaps>> = None;
 
         for i in 0..config.handlers.max_requests_per_iter {
             let opt_in_message = if i == 0 {
@@ -47,7 +47,7 @@ pub fn run_request_worker(
                     scrape_requests.push((meta, r));
                 },
                 None => {
-                    if let Some(torrent_guard) = state.torrents.try_lock(){
+                    if let Some(torrent_guard) = state.torrent_maps.try_lock(){
                         opt_torrent_map_guard = Some(torrent_guard);
 
                         break
@@ -57,7 +57,7 @@ pub fn run_request_worker(
         }
 
         let mut torrent_map_guard = opt_torrent_map_guard
-            .unwrap_or_else(|| state.torrents.lock());
+            .unwrap_or_else(|| state.torrent_maps.lock());
 
         handle_announce_requests(
             &config,
@@ -86,7 +86,7 @@ pub fn run_request_worker(
 pub fn handle_announce_requests(
     config: &Config,
     rng: &mut impl Rng,
-    torrents: &mut TorrentMap,
+    torrent_maps: &mut TorrentMaps,
     messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
     requests: Drain<(ConnectionMeta, AnnounceRequest)>,
 ){
@@ -96,8 +96,11 @@ pub fn handle_announce_requests(
         let info_hash = request.info_hash;
         let peer_id = request.peer_id;
 
-        let torrent_data = torrents.entry(info_hash)
-            .or_default();
+        let torrent_data: &mut TorrentData = if sender_meta.peer_addr.is_ipv4(){
+            torrent_maps.ipv4.entry(info_hash).or_default()
+        } else {
+            torrent_maps.ipv6.entry(info_hash).or_default()
+        };
 
         // If there is already a peer with this peer_id, check that socket
         // addr is same as that of request sender. Otherwise, ignore request.
@@ -213,7 +216,7 @@ pub fn handle_announce_requests(
 
 pub fn handle_scrape_requests(
     config: &Config,
-    torrents: &mut TorrentMap,
+    torrent_maps: &mut TorrentMaps,
     messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
     requests: Drain<(ConnectionMeta, ScrapeRequest)>,
 ){
@@ -226,10 +229,16 @@ pub fn handle_scrape_requests(
             files: HashMap::with_capacity(num_to_take),
         };
 
+        let torrent_map: &mut TorrentMap = if meta.peer_addr.is_ipv4(){
+            &mut torrent_maps.ipv4
+        } else {
+            &mut torrent_maps.ipv6
+        };
+
         // If request.info_hashes is empty, don't return scrape for all
         // torrents, even though reference server does it. It is too expensive.
         for info_hash in request.info_hashes.into_iter().take(num_to_take){
-            if let Some(torrent_data) = torrents.get(&info_hash){
+            if let Some(torrent_data) = torrent_map.get(&info_hash){
                 let stats = ScrapeStatistics {
                     complete: torrent_data.num_seeders,
                     downloaded: 0, // No implementation planned

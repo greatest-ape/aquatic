@@ -83,16 +83,23 @@ impl Default for TorrentData {
 pub type TorrentMap = HashMap<InfoHash, TorrentData>;
 
 
+#[derive(Default)]
+pub struct TorrentMaps {
+    pub ipv4: TorrentMap,
+    pub ipv6: TorrentMap,
+}
+
+
 #[derive(Clone)]
 pub struct State {
-    pub torrents: Arc<Mutex<TorrentMap>>,
+    pub torrent_maps: Arc<Mutex<TorrentMaps>>,
 }
 
 
 impl Default for State {
     fn default() -> Self {
         Self {
-            torrents: Arc::new(Mutex::new(HashMap::new())),
+            torrent_maps: Arc::new(Mutex::new(TorrentMaps::default())),
         }
     }
 }
