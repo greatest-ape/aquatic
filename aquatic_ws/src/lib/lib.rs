@@ -119,16 +119,19 @@ pub fn create_tls_acceptor(
 ) -> anyhow::Result<Option<TlsAcceptor>> {
     if config.network.use_tls {
         let mut identity_bytes = Vec::new();
-        let mut file = File::open(&config.network.tls_pkcs12_path)?;
+        let mut file = File::open(&config.network.tls_pkcs12_path)
+            .context("Couldn't open pkcs12 identity file")?;
 
-        file.read_to_end(&mut identity_bytes)?;
+        file.read_to_end(&mut identity_bytes)
+            .context("Couldn't read pkcs12 identity file")?;
 
         let identity = Identity::from_pkcs12(
             &mut identity_bytes,
             &config.network.tls_pkcs12_password
-        )?;
+        ).context("Couldn't parse pkcs12 identity file")?;
 
-        let acceptor = TlsAcceptor::new(identity)?;
+        let acceptor = TlsAcceptor::new(identity)
+            .context("Couldn't create TlsAcceptor from pkcs12 identity")?;
 
         Ok(Some(acceptor))
     } else {

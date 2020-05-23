@@ -42,7 +42,7 @@ pub fn run_socket_worker(
         },
         Err(err) => {
             socket_worker_statuses.lock()[socket_worker_index] = Some(
-                Err(format!("Couldn't create TCP listener: {}", err))
+                Err(format!("Couldn't open socket: {:#}", err))
             );
         }
     }

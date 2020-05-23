@@ -16,19 +16,24 @@ pub fn create_listener(
         TcpBuilder::new_v4()
     } else {
         TcpBuilder::new_v6()
-    }?;
+    }.context("Couldn't create TcpBuilder")?;
 
     if config.network.ipv6_only {
         builder = builder.only_v6(true)
-            .context("Failed setting ipv6_only to true")?
+            .context("Couldn't put socket in ipv6 only mode")?
     }
 
-    builder = builder.reuse_port(true)?;
-    builder = builder.bind(&config.network.address)?;
+    builder = builder.reuse_port(true)
+        .context("Couldn't put socket in reuse_port mode")?;
+    builder = builder.bind(&config.network.address).with_context(||
+        format!("Couldn't bind socket to address {}", config.network.address)
+    )?;
 
-    let listener = builder.listen(128)?;
+    let listener = builder.listen(128)
+        .context("Couldn't listen for connections on socket")?;
 
-    listener.set_nonblocking(true)?;
+    listener.set_nonblocking(true)
+        .context("Couldn't put tcp listener in non-blocking mode")?;
 
     Ok(listener)
 }
