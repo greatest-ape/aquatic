@@ -64,11 +64,19 @@ fn run_inner<T>(
 fn config_from_toml_file<T>(path: String) -> anyhow::Result<T>
     where T: DeserializeOwned
 {
-    let mut file = File::open(path)?;
-    let mut data = String::new();
-    file.read_to_string(&mut data)?;
+    let mut file = File::open(path.clone()).with_context(||
+        format!("Couldn't open config file {}", path.clone())
+    )?;
 
-    toml::from_str(&data).context("Couldn't parse config file")
+    let mut data = String::new();
+
+    file.read_to_string(&mut data).with_context(||
+        format!("Couldn't read config file {}", path.clone())
+    )?;
+
+    toml::from_str(&data).with_context(||
+        format!("Couldn't parse config file {}", path.clone())
+    )
 }
 
 
