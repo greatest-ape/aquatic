@@ -101,6 +101,7 @@ dependencies = [
  "flume",
  "hashbrown",
  "indexmap",
+ "log",
  "mimalloc",
  "mio",
  "native-tls",

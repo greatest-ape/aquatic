@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 
 use either::Either;
 use hashbrown::HashMap;
+use log::info;
 use mio::Token;
 use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
@@ -145,7 +146,7 @@ impl HandshakeMachine {
                 (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
             },
             Err(native_tls::HandshakeError::Failure(err)) => {
-                eprintln!("tls handshake error: {}", err);
+                info!("tls handshake error: {}", err);
 
                 (None, false)
             }
@@ -171,7 +172,7 @@ impl HandshakeMachine {
                 (Some(Either::Right(HandshakeMachine::WsMidHandshake(handshake))), true)
             },
             Err(HandshakeError::Failure(err)) => {
-                eprintln!("ws handshake error: {}", err);
+                info!("ws handshake error: {}", err);
 
                 (None, false)
             }
@@ -243,7 +244,7 @@ impl Connection {
 
                 // Required after ws.close()
                 if let Err(err) = ews.ws.write_pending(){
-                    eprintln!(
+                    info!(
                         "error writing pending messages after closing ws: {}",
                         err
                     )

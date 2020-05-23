@@ -2,8 +2,8 @@ use std::time::Duration;
 use std::io::ErrorKind;
 
 use hashbrown::HashMap;
+use log::info;
 use native_tls::TlsAcceptor;
-
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
 
@@ -145,7 +145,7 @@ fn accept_new_streams(
                     break
                 }
 
-                eprint!("error while accepting streams: {}", err);
+                info!("error while accepting streams: {}", err);
             }
         }
     }
@@ -189,7 +189,7 @@ pub fn run_handshakes_and_read_messages(
                     break
                 },
                 Err(err) => {
-                    eprintln!("error reading messages: {}", err);
+                    info!("error reading messages: {}", err);
     
                     remove_connection_if_exists(connections, poll_token);
     
@@ -225,7 +225,7 @@ pub fn send_out_messages(
         
         if let Some(established_ws) = opt_established_ws {
             if established_ws.peer_addr != meta.peer_addr {
-                eprintln!("socket worker error: peer socket addrs didn't match");
+                info!("socket worker error: peer socket addrs didn't match");
 
                 continue;
             }
@@ -239,7 +239,7 @@ pub fn send_out_messages(
                     remove_connection_if_exists(connections, meta.poll_token);
                 },
                 Err(err) => {
-                    eprintln!("error writing ws message: {}", err);
+                    info!("error writing ws message: {}", err);
 
                     remove_connection_if_exists(
                         connections,

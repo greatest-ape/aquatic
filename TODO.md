@@ -3,11 +3,11 @@
 ## aquatic_ws
 * ipv4 / ipv6 split state?
 * network
-  * panic/error in workers: exit program with non-zero exit code
   * send/recv buffer size config
   * limit ws message sizes?
   * is it even necessary to check if event is readable in poll, since that
     is all we're listening for?
+* panic/error in workers: print error, exit program with non-zero exit code
 * privdrop
 
 ## aquatic_udp
@@ -29,7 +29,6 @@
   Probably not really necessary. If it is an honest mistake, peer will just
   keep announcing and after a few minutes, the peer in the map will be cleaned
   out and everything will start working
-* log crate instead of println/eprintln?
 * stack-allocated vectors for announce request offers and scrape request info
   hashes?
 
