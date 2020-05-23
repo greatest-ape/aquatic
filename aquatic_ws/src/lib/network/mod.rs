@@ -182,7 +182,12 @@ pub fn run_handshakes_and_read_messages(
                 },
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                     break;
-                }
+                },
+                Err(tungstenite::Error::ConnectionClosed) => {
+                    remove_connection_if_exists(connections, poll_token);
+
+                    break
+                },
                 Err(err) => {
                     eprintln!("error reading messages: {}", err);
     
@@ -229,8 +234,9 @@ pub fn send_out_messages(
 
             match established_ws.ws.write_message(out_message.to_ws_message()){
                 Ok(()) => {},
-                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
-                    continue;
+                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {},
+                Err(tungstenite::Error::ConnectionClosed) => {
+                    remove_connection_if_exists(connections, meta.poll_token);
                 },
                 Err(err) => {
                     eprintln!("error writing ws message: {}", err);

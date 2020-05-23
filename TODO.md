@@ -9,8 +9,6 @@
   * is it even necessary to check if event is readable in poll, since that
     is all we're listening for?
 * privdrop
-* on error because connection is closed, don't handle the same as for io
-  errors etc
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
