@@ -97,7 +97,7 @@ pub fn run_poll_loop(
                     valid_until,
                     &mut poll_token_counter,
                 );
-            } else if event.is_readable(){
+            } else {
                 run_handshakes_and_read_messages(
                     socket_worker_index,
                     &in_message_sender,
