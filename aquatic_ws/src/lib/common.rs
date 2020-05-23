@@ -127,3 +127,7 @@ impl OutMessageSender {
         self.0[meta.worker_index].send((meta, message));
     }
 }
+
+
+pub type SocketWorkerStatus = Option<Result<(), String>>;
+pub type SocketWorkerStatuses = Arc<Mutex<Vec<SocketWorkerStatus>>>;

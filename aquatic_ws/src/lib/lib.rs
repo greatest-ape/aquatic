@@ -1,7 +1,9 @@
 use std::time::Duration;
 use std::fs::File;
 use std::io::Read;
+use std::sync::Arc;
 use native_tls::{Identity, TlsAcceptor};
+use parking_lot::Mutex;
 
 pub mod common;
 pub mod config;
@@ -23,8 +25,19 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     let mut out_message_senders = Vec::new();
 
+    let socket_worker_statuses: SocketWorkerStatuses = {
+        let mut statuses = Vec::new();
+
+        for _ in 0..config.socket_workers {
+            statuses.push(None);
+        }
+
+        Arc::new(Mutex::new(statuses))
+    };
+
     for i in 0..config.socket_workers {
         let config = config.clone();
+        let socket_worker_statuses = socket_worker_statuses.clone();
         let in_message_sender = in_message_sender.clone();
         let opt_tls_acceptor = opt_tls_acceptor.clone();
 
@@ -36,11 +49,33 @@ pub fn run(config: Config) -> anyhow::Result<()> {
             network::run_socket_worker(
                 config,
                 i,
+                socket_worker_statuses,
                 in_message_sender,
                 out_message_receiver,
                 opt_tls_acceptor
             );
         });
+    }
+
+    // Wait for socket worker statuses. On error from any, quit program.
+    // On success from all, continue program.
+    loop {
+        ::std::thread::sleep(::std::time::Duration::from_millis(10));
+
+        if let Some(statuses) = socket_worker_statuses.try_lock(){
+            for opt_status in statuses.iter(){
+                match opt_status {
+                    Some(Err(err)) => {
+                        return Err(::anyhow::anyhow!(err.to_owned()));
+                    },
+                    _ => {},
+                }
+            }
+
+            if statuses.iter().all(Option::is_some){
+                break
+            }
+        }
     }
 
     let out_message_sender = OutMessageSender::new(out_message_senders);

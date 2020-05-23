@@ -22,12 +22,15 @@ use utils::*;
 pub fn run_socket_worker(
     config: Config,
     socket_worker_index: usize,
+    socket_worker_statuses: SocketWorkerStatuses,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
     opt_tls_acceptor: Option<TlsAcceptor>,
 ){
     match create_listener(&config){
         Ok(listener) => {
+            socket_worker_statuses.lock()[socket_worker_index] = Some(Ok(()));
+
             run_poll_loop(
                 config,
                 socket_worker_index,
@@ -38,7 +41,9 @@ pub fn run_socket_worker(
             );
         },
         Err(err) => {
-            eprintln!("Couldn't create TCP listener: {}", err)
+            socket_worker_statuses.lock()[socket_worker_index] = Some(
+                Err(format!("Couldn't create TCP listener: {}", err))
+            );
         }
     }
 }

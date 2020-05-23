@@ -3,7 +3,6 @@
 ## aquatic_ws
 * is it even necessary to check if event is readable in poll, since that
   is all we're listening for?
-* error in workers: print it, exit program with non-zero exit code
 * privdrop
 * add sensible logging method, maybe stderrlog with quiet as default
 
