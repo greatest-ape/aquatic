@@ -11,7 +11,7 @@ use toml;
 struct AppOptions {
     #[options(help = "run with config file", short = "c", meta = "PATH")]
     config_file: Option<String>,
-    #[options(help = "print default config file")]
+    #[options(help = "print default config file", short = "p")]
     print_config: bool,
     #[options(help = "print help message")]
     help: bool,
