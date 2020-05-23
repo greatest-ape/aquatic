@@ -3,7 +3,7 @@
 ## aquatic_ws
 * network
   * send/recv buffer size config
-  * ipv6_only setting
+  * tcp backlog setting
   * is it even necessary to check if event is readable in poll, since that
     is all we're listening for?
 * panic/error in workers: print error, exit program with non-zero exit code

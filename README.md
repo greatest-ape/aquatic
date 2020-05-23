@@ -143,6 +143,7 @@ socket_workers = 1
 
 [network]
 address = '0.0.0.0:3000'
+ipv6_only = false
 use_tls = false
 tls_pkcs12_path = ''
 tls_pkcs12_password = ''
@@ -151,6 +152,8 @@ max_offers = 10
 peer_announce_interval = 120
 poll_event_capacity = 4096
 poll_timeout_milliseconds = 50
+websocket_max_message_size = 65536
+websocket_max_frame_size = 16384
 
 [handlers]
 max_requests_per_iter = 10000

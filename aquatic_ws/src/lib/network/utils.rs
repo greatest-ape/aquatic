@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use anyhow::Context;
 use mio::Token;
 use net2::{TcpBuilder, unix::UnixTcpBuilderExt};
 
@@ -11,14 +12,19 @@ use super::connection::*;
 pub fn create_listener(
     config: &Config
 ) -> ::anyhow::Result<::std::net::TcpListener> {
-    let builder = if config.network.address.is_ipv4(){
+    let mut builder = &if config.network.address.is_ipv4(){
         TcpBuilder::new_v4()
     } else {
         TcpBuilder::new_v6()
     }?;
 
-    let builder = builder.reuse_port(true)?;
-    let builder = builder.bind(&config.network.address)?;
+    if config.network.ipv6_only {
+        builder = builder.only_v6(true)
+            .context("Failed setting ipv6_only to true")?
+    }
+
+    builder = builder.reuse_port(true)?;
+    builder = builder.bind(&config.network.address)?;
 
     let listener = builder.listen(128)?;
 

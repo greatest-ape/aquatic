@@ -22,6 +22,7 @@ pub struct Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    pub ipv6_only: bool,
     pub use_tls: bool,
     pub tls_pkcs12_path: String,
     pub tls_pkcs12_password: String,
@@ -90,6 +91,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
+            ipv6_only: false,
             use_tls: false,
             tls_pkcs12_path: "".into(),
             tls_pkcs12_password: "".into(),
