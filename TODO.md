@@ -1,14 +1,11 @@
 # TODO
 
 ## aquatic_ws
-* network
-  * send/recv buffer size config
-  * tcp backlog setting
-  * is it even necessary to check if event is readable in poll, since that
-    is all we're listening for?
-* panic/error in workers: print error, exit program with non-zero exit code
+* is it even necessary to check if event is readable in poll, since that
+  is all we're listening for?
+* error in workers: print it, exit program with non-zero exit code
 * privdrop
-* add sensible logging method
+* add sensible logging method, maybe stderrlog with quiet as default
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
@@ -23,8 +20,11 @@
 # Not important
 
 ## aquatic_ws
-* some config.network fields are actually used in handler. maybe they should
-  be checked while parsing? not completely clear
+* config
+  * send/recv buffer size?
+  * tcp backlog?
+  * some config.network fields are actually used in handler. maybe they should
+    be checked while parsing? not completely clear
 * "close connection" message from handler on peer_id and socket_addr mismatch?
   Probably not really necessary. If it is an honest mistake, peer will just
   keep announcing and after a few minutes, the peer in the map will be cleaned
