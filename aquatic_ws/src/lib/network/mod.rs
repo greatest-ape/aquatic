@@ -6,6 +6,7 @@ use log::info;
 use native_tls::TlsAcceptor;
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
+use tungstenite::protocol::WebSocketConfig;
 
 use crate::common::*;
 use crate::config::Config;
@@ -54,6 +55,11 @@ pub fn run_poll_loop(
     let poll_timeout = Duration::from_millis(
         config.network.poll_timeout_milliseconds
     );
+    let ws_config = WebSocketConfig {
+        max_message_size: Some(config.network.websocket_max_message_size),
+        max_frame_size: Some(config.network.websocket_max_frame_size),
+        max_send_queue: None,
+    };
 
     let mut listener = TcpListener::from_std(listener);
     let mut poll = Poll::new().expect("create poll");
@@ -79,6 +85,7 @@ pub fn run_poll_loop(
 
             if token.0 == 0 {
                 accept_new_streams(
+                    ws_config,
                     &mut listener,
                     &mut poll,
                     &mut connections,
@@ -113,6 +120,7 @@ pub fn run_poll_loop(
 
 
 fn accept_new_streams(
+    ws_config: WebSocketConfig,
     listener: &mut TcpListener,
     poll: &mut Poll,
     connections: &mut ConnectionMap,
@@ -136,7 +144,7 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection::new(valid_until, stream);
+                let connection = Connection::new(ws_config, valid_until, stream);
 
                 connections.insert(token, connection);
             },

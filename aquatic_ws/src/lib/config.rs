@@ -33,6 +33,8 @@ pub struct NetworkConfig {
     pub peer_announce_interval: usize, // FIXME: should this really be in NetworkConfig?
     pub poll_event_capacity: usize,
     pub poll_timeout_milliseconds: u64,
+    pub websocket_max_message_size: usize,
+    pub websocket_max_frame_size: usize,
 }
 
 
@@ -96,6 +98,8 @@ impl Default for NetworkConfig {
             peer_announce_interval: 120,
             poll_event_capacity: 4096,
             poll_timeout_milliseconds: 50,
+            websocket_max_message_size: 64 * 1024,
+            websocket_max_frame_size: 16 * 1024,
         }
     }
 }

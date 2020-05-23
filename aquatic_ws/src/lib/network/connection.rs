@@ -10,6 +10,7 @@ use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
 use tungstenite::WebSocket;
 use tungstenite::handshake::{MidHandshake, HandshakeError, server::NoCallback};
 use tungstenite::server::{ServerHandshake};
+use tungstenite::protocol::WebSocketConfig;
 
 use crate::common::*;
 
@@ -102,6 +103,7 @@ impl HandshakeMachine {
     #[inline]
     fn advance(
         self,
+        ws_config: WebSocketConfig,
         opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
     ) -> (Option<Either<EstablishedWs, Self>>, bool) { // bool = stop looping
         match self {
@@ -111,8 +113,9 @@ impl HandshakeMachine {
                         tls_acceptor.accept(stream)
                     )
                 } else {
-                    let handshake_result = ::tungstenite::server::accept(
+                    let handshake_result = ::tungstenite::server::accept_with_config(
                         Stream::TcpStream(stream),
+                        Some(ws_config)
                     );
 
                     Self::handle_ws_handshake_result(handshake_result)
@@ -188,6 +191,7 @@ pub struct EstablishedWs {
 
 
 pub struct Connection {
+    ws_config: WebSocketConfig,
     pub valid_until: ValidUntil,
     inner: Either<EstablishedWs, HandshakeMachine>,
 }
@@ -198,10 +202,12 @@ pub struct Connection {
 impl Connection {
     #[inline]
     pub fn new(
+        ws_config: WebSocketConfig,
         valid_until: ValidUntil,
         tcp_stream: TcpStream,
     ) -> Self {
         Self {
+            ws_config,
             valid_until,
             inner: Either::Right(HandshakeMachine::new(tcp_stream))
         }
@@ -224,9 +230,15 @@ impl Connection {
         match self.inner {
             Either::Left(_) => (Some(self), false),
             Either::Right(machine) => {
-                let (opt_inner, stop_loop) = machine.advance(opt_tls_acceptor);
+                let ws_config = self.ws_config;
+
+                let (opt_inner, stop_loop) = machine.advance(
+                    ws_config,
+                    opt_tls_acceptor
+                );
 
                 let opt_new_self = opt_inner.map(|inner| Self {
+                    ws_config,
                     valid_until,
                     inner
                 });
