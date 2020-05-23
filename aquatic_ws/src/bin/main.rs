@@ -1,6 +1,6 @@
 use anyhow::Context;
 use cli_helpers::run_app_with_cli_and_config;
-use simplelog::{ConfigBuilder, LevelFilter, TermLogger, TerminalMode, ThreadLogMode};
+use simplelog::{ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 
 use aquatic_ws::config::{Config, LogLevel};
 
@@ -27,11 +27,10 @@ fn run(config: Config) -> anyhow::Result<()> {
         LogLevel::Trace => LevelFilter::Trace,
     };
 
+    // Note: logger doesn't seem to pick up thread names. Not a huge loss.
     let simplelog_config = ConfigBuilder::new()
         .set_time_to_local(true)
         .set_location_level(LevelFilter::Off)
-        .set_thread_level(LevelFilter::Error)
-        .set_thread_mode(ThreadLogMode::Both)
         .build();
 
     TermLogger::init(
