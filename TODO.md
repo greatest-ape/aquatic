@@ -1,6 +1,7 @@
 # TODO
 
 ## aquatic_ws
+* add more anyhow context annotations for errors
 * add sensible logging method, maybe stderrlog with quiet as default
 
 ## aquatic_udp
