@@ -5,6 +5,7 @@
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
+* handle errors similarily to aquatic_ws, including errors in socket workers
 * Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
   use of Ipv4 ones, I have to check.
