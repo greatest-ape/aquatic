@@ -107,6 +107,7 @@ dependencies = [
  "native-tls",
  "net2",
  "parking_lot",
+ "privdrop",
  "quickcheck",
  "quickcheck_macros",
  "rand",

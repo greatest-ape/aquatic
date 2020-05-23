@@ -2,8 +2,11 @@ use std::time::Duration;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
+
+use anyhow::Context;
 use native_tls::{Identity, TlsAcceptor};
 use parking_lot::Mutex;
+use privdrop::PrivDrop;
 
 pub mod common;
 pub mod config;
@@ -58,7 +61,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     }
 
     // Wait for socket worker statuses. On error from any, quit program.
-    // On success from all, continue program.
+    // On success from all, drop privileges if corresponding setting is set
+    // and continue program.
     loop {
         ::std::thread::sleep(::std::time::Duration::from_millis(10));
 
@@ -73,6 +77,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
             }
 
             if statuses.iter().all(Option::is_some){
+                if config.privileges.drop_privileges {
+                    PrivDrop::default()
+                        .chroot(config.privileges.chroot_path.clone())
+                        .user(config.privileges.user.clone())
+                        .apply()
+                        .context("Couldn't drop root privileges")?;
+                }
+
                 break
             }
         }

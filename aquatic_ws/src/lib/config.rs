@@ -13,7 +13,7 @@ pub struct Config {
     pub network: NetworkConfig,
     pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
-    // pub privileges: PrivilegeConfig,
+    pub privileges: PrivilegeConfig,
 }
 
 
@@ -61,7 +61,6 @@ pub struct CleaningConfig {
 }
 
 
-// FIXME: implement
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PrivilegeConfig {
@@ -81,7 +80,7 @@ impl Default for Config {
             network: NetworkConfig::default(),
             handlers: HandlerConfig::default(),
             cleaning: CleaningConfig::default(),
-            // privileges: PrivilegeConfig::default(),
+            privileges: PrivilegeConfig::default(),
         }
     }
 }

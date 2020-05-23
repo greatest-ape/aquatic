@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 
-use anyhow;
+use anyhow::Context;
 use gumdrop::Options;
 use serde::{Serialize, de::DeserializeOwned};
 use toml;
@@ -26,7 +26,7 @@ pub fn run_app_with_cli_and_config<T>(
     ::std::process::exit(match run_inner(title, app_fn) {
         Ok(()) => 0,
         Err(err) => {
-            print_help(title, Some(err));
+            eprintln!("Error: {:#}", err);
 
             1
         },
@@ -68,7 +68,7 @@ fn config_from_toml_file<T>(path: String) -> anyhow::Result<T>
     let mut data = String::new();
     file.read_to_string(&mut data)?;
 
-    toml::from_str(&data).map_err(|e| anyhow::anyhow!("Parse failed: {}", e))
+    toml::from_str(&data).context("Couldn't parse config file")
 }
 
 
@@ -84,7 +84,7 @@ fn print_help(title: &str, opt_error: Option<anyhow::Error>){
     println!("{}", title);
 
     if let Some(error) = opt_error {
-        println!("\nError: {}.", error);
+        println!("\nError: {:#}.", error);
     }
 
     println!("\n{}", AppOptions::usage());
