@@ -199,6 +199,15 @@ Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
 and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
 the password in the field `tls_pkcs12_password` and set `use_tls` to true.
 
+## Architectural overview
+
+One or more socket workers open sockets, read and parse requests from peers and
+send them through channels to request workers. They in turn go through the
+requests, update internal state as appropriate and generate responses, which
+are sent back to the socket workers, which serialize them and send them to
+peers. This design means less waiting for locks on internal state has to occur,
+while network work can be efficiently distributed over multiple threads.
+
 ## Trivia
 
 The tracker is called aquatic because it thrives under a torrent of bits ;-)
