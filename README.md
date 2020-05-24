@@ -22,12 +22,13 @@ Distributed under Apache 2.0 license (details in `LICENSE` file.)
   for dynamic linking (e.g., `apt-get install libssl-dev`)
 - Clone the git repository and refer to the next section.
 
-## Run
+## Compile and run
 
 The command line interfaces for `aquatic_udp` and `aquatic_ws` are identical.
 To run the respective tracker, just run its binary. You can also run any of
 the helper scripts, which will compile the binary for you and pass on any
-command line parameters.
+command line parameters. (After compilation, the binaries are found in
+directory `target/release/`.)
 
 To run with default settings:
 
@@ -50,14 +51,8 @@ To print default settings to standard output, pass the "-p" flag to the binary:
 ```
 
 To adjust the settings, save the output of the previous command to a file and
-make your changes. The values you will most likely want to adjust are
-`socket_workers` (number of threads reading from and writing to sockets) and
-`address` under the `network` section (listening address). This goes for both
-`aquatic_udp` and `aquatic_ws`. Some documentation of the various options is
-available in source code files `aquatic_udp/src/lib/config.rs` and
-`aquatic_ws/src/lib/config.rs`.
-
-Then run the binaries with a "-c" argument pointing to the file, e.g.:
+make your changes. Then run the binaries with a "-c" argument pointing to the
+file, e.g.:
 
 ```sh
 ./scripts/run-aquatic-udp.sh -c "/path/to/aquatic-udp-config.toml"
@@ -66,6 +61,16 @@ Then run the binaries with a "-c" argument pointing to the file, e.g.:
 ```sh
 ./scripts/run-aquatic-ws.sh -c "/path/to/aquatic-ws-config.toml"
 ```
+
+The configuration file values you will most likely want to adjust are
+`socket_workers` (number of threads reading from and writing to sockets) and
+`address` under the `network` section (listening address). This goes for both
+`aquatic_udp` and `aquatic_ws`.
+
+Some documentation of the various options is available in source code files
+`aquatic_udp/src/lib/config.rs` and `aquatic_ws/src/lib/config.rs`. The
+default settings are also included in in this document, under the section for
+each executable below.
 
 ## Details on protocol-specific executables
 
@@ -81,7 +86,7 @@ except that it:
 
 Supports IPv4 and IPv6.
 
-Default configuration:
+#### Default configuration:
 
 ```toml
 socket_workers = 1
@@ -134,9 +139,18 @@ Server responses per second, best result in bold:
 
 ### aquatic_ws: WebTorrent tracker
 
-Experimental [WebTorrent](https://github.com/webtorrent) tracker.
+Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
+clients, including `wss` protocol support (WebSockets over TLS), with some
+exceptions:
 
-Default configuration:
+  * Doesn't track of the number of torrent downloads (0 is always sent). 
+  * Doesn't allow full scrapes, i.e. of all registered info hashes
+
+`aquatic_ws` is not as well tested as `aquatic_udp`, but has been
+successfully used as the tracker for a file transfer between two webtorrent
+peers.
+
+#### Default configuration
 
 ```toml
 socket_workers = 1
@@ -181,9 +195,9 @@ directory where they are stored:
 openssl pkcs12 -export -out identity.pfx -inkey privkey.pem -in cert.pem -certfile fullchain.pem
 ```
 
-Enter a password when prompted. Then move the file somewhere suitable, and
-enter the path into the tracker configuration field `tls_pkcs12_path`. Set the
-password in the field `tls_pkcs12_password` and set `use_tls` to true.
+Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
+and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
+the password in the field `tls_pkcs12_password` and set `use_tls` to true.
 
 ## Trivia
 
