@@ -1,5 +1,8 @@
 # TODO
 
+## General
+* net2 is deprecated, so transition to socket2 instead
+
 ## aquatic_ws
 * ipv4 and ipv6 state split: think about this more..
 
