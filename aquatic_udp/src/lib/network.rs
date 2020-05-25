@@ -141,7 +141,7 @@ fn read_requests(
             Ok((amt, src)) => {
                 let request = request_from_bytes(
                     &buffer[..amt],
-                    config.network.max_scrape_torrents
+                    config.protocol.max_scrape_torrents
                 );
 
                 bytes_received += amt;

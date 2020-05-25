@@ -14,6 +14,7 @@ pub struct Config {
     /// generate responses and send them back to the socket workers.
     pub request_workers: usize,
     pub network: NetworkConfig,
+    pub protocol: ProtocolConfig,
     pub handlers: HandlerConfig,
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
@@ -26,12 +27,6 @@ pub struct Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
-    /// Maximum number of torrents to accept in scrape request
-    pub max_scrape_torrents: u8,
-    /// Maximum number of peers to return in announce response
-    pub max_response_peers: usize,
-    /// Ask peers to announce this often (seconds)
-    pub peer_announce_interval: i32,
     /// Size of socket recv buffer. Use 0 for OS default.
     /// 
     /// This setting can have a big impact on dropped packages. It might
@@ -48,6 +43,18 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
     pub poll_event_capacity: usize,
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProtocolConfig {
+    /// Maximum number of torrents to accept in scrape request
+    pub max_scrape_torrents: u8,
+    /// Maximum number of peers to return in announce response
+    pub max_response_peers: usize,
+    /// Ask peers to announce this often (seconds)
+    pub peer_announce_interval: i32,
 }
 
 
@@ -99,6 +106,7 @@ impl Default for Config {
             socket_workers: 1,
             request_workers: 1,
             network: NetworkConfig::default(),
+            protocol: ProtocolConfig::default(),
             handlers: HandlerConfig::default(),
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),
@@ -112,11 +120,19 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
+            poll_event_capacity: 4096,
+            socket_recv_buffer_size: 4096 * 128,
+        }
+    }
+}
+
+
+impl Default for ProtocolConfig {
+    fn default() -> Self {
+        Self {
             max_scrape_torrents: 255,
             max_response_peers: 255,
             peer_announce_interval: 60 * 15,
-            poll_event_capacity: 4096,
-            socket_recv_buffer_size: 4096 * 128,
         }
     }
 }

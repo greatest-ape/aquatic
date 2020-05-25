@@ -260,7 +260,7 @@ pub fn handle_announce_requests(
 
         let response = Response::Announce(AnnounceResponse {
             transaction_id: request.transaction_id,
-            announce_interval: AnnounceInterval(config.network.peer_announce_interval),
+            announce_interval: AnnounceInterval(config.protocol.peer_announce_interval),
             leechers: NumberOfPeers(torrent_data.num_leechers as i32),
             seeders: NumberOfPeers(torrent_data.num_seeders as i32),
             peers: response_peers
@@ -311,10 +311,10 @@ fn calc_max_num_peers_to_take(
     peers_wanted: i32,
 ) -> usize {
     if peers_wanted <= 0 {
-        config.network.max_response_peers as usize
+        config.protocol.max_response_peers as usize
     } else {
         ::std::cmp::min(
-            config.network.max_response_peers as usize,
+            config.protocol.max_response_peers as usize,
             peers_wanted as usize
         )
     }

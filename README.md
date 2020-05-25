@@ -94,11 +94,13 @@ request_workers = 1
 
 [network]
 address = '0.0.0.0:3000'
+socket_recv_buffer_size = 524288
+poll_event_capacity = 4096
+
+[protocol]
 max_scrape_torrents = 255
 max_response_peers = 255
 peer_announce_interval = 900
-socket_recv_buffer_size = 524288
-poll_event_capacity = 4096
 
 [handlers]
 max_requests_per_iter = 10000
