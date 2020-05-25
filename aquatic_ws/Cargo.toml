@@ -15,8 +15,8 @@ path = "src/bin/main.rs"
 
 [dependencies]
 anyhow = "1"
+aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
-cli_helpers = { path = "../cli_helpers" }
 either = "1"
 flume = "0.7"
 hashbrown = { version = "0.7", features = ["serde"] }

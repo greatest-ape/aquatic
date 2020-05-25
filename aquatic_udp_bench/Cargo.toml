@@ -16,8 +16,8 @@ name = "plot_pareto"
 
 [dependencies]
 anyhow = "1"
+aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_udp = { path = "../aquatic_udp" }
-cli_helpers = { path = "../cli_helpers" }
 crossbeam-channel = "0.4"
 indicatif = "0.14"
 mimalloc = { version = "0.1", default-features = false }

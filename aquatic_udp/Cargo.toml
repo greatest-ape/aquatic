@@ -14,9 +14,9 @@ name = "aquatic_udp"
 
 [dependencies]
 anyhow = "1"
+aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
 aquatic_udp_protocol = { path = "../aquatic_udp_protocol" }
-cli_helpers = { path = "../cli_helpers" }
 crossbeam-channel = "0.4"
 hashbrown = "0.7"
 histogram = "0.6"

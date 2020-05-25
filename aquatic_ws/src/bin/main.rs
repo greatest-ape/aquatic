@@ -1,5 +1,5 @@
 use anyhow::Context;
-use cli_helpers::run_app_with_cli_and_config;
+use aquatic_cli_helpers::run_app_with_cli_and_config;
 use simplelog::{ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 
 use aquatic_ws::config::{Config, LogLevel};

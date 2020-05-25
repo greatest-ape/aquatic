@@ -1,13 +1,13 @@
 [workspace]
 
 members = [ 
+    "aquatic_cli_helpers",
     "aquatic_common",
     "aquatic_udp",
     "aquatic_udp_bench",
     "aquatic_udp_load_test",
     "aquatic_udp_protocol",
     "aquatic_ws",
-    "cli_helpers",
 ]
 
 [profile.release]

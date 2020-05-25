@@ -22,6 +22,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85bb70cc08ec97ca5450e6eba421deeea5f172c0fc61f78b5357b2a8e8be195f"
 
 [[package]]
+name = "aquatic_cli_helpers"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gumdrop",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "aquatic_common"
 version = "0.1.0"
 dependencies = [
@@ -34,9 +44,9 @@ name = "aquatic_udp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_udp_protocol",
- "cli_helpers",
  "crossbeam-channel",
  "hashbrown",
  "histogram",
@@ -57,8 +67,8 @@ name = "aquatic_udp_bench"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aquatic_cli_helpers",
  "aquatic_udp",
- "cli_helpers",
  "crossbeam-channel",
  "indicatif",
  "mimalloc",
@@ -74,8 +84,8 @@ name = "aquatic_udp_load_test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aquatic_cli_helpers",
  "aquatic_udp_protocol",
- "cli_helpers",
  "crossbeam-channel",
  "hashbrown",
  "mimalloc",
@@ -103,8 +113,8 @@ name = "aquatic_ws"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aquatic_cli_helpers",
  "aquatic_common",
- "cli_helpers",
  "either",
  "flume",
  "hashbrown",
@@ -255,16 +265,6 @@ dependencies = [
  "num-integer",
  "num-traits",
  "time",
-]
-
-[[package]]
-name = "cli_helpers"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gumdrop",
- "serde",
- "toml",
 ]
 
 [[package]]
