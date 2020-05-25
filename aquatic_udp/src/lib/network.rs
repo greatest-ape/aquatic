@@ -7,8 +7,7 @@ use std::vec::Drain;
 use crossbeam_channel::{Sender, Receiver};
 use mio::{Events, Poll, Interest, Token};
 use mio::net::UdpSocket;
-use net2::{UdpSocketExt, UdpBuilder};
-use net2::unix::UnixUdpBuilderExt;
+use socket2::{Socket, Domain, Type, Protocol};
 
 use bittorrent_udp::types::IpVersion;
 use bittorrent_udp::converters::{response_to_bytes, request_from_bytes};
@@ -91,22 +90,20 @@ pub fn run_socket_worker(
 
 
 fn create_socket(config: &Config) -> ::std::net::UdpSocket {
-    let mut builder = &{
-        if config.network.address.is_ipv4(){
-            UdpBuilder::new_v4().expect("socket: build")
-        } else {
-            UdpBuilder::new_v6().expect("socket: build")
-        }
-    };
+    let socket = if config.network.address.is_ipv4(){
+        Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))
+    } else {
+        Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp()))
+    }.expect("create socket");
 
-    builder = builder.reuse_port(true)
+    socket.set_reuse_port(true)
         .expect("socket: set reuse port");
-
-    let socket = builder.bind(&config.network.address)
-        .expect(&format!("socket: bind to {}", &config.network.address));
 
     socket.set_nonblocking(true)
         .expect("socket: set nonblocking");
+
+    socket.bind(&config.network.address.into())
+        .expect(&format!("socket: bind to {}", &config.network.address));
     
     let recv_buffer_size = config.network.socket_recv_buffer_size;
     
@@ -120,7 +117,7 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
         }
     }
 
-    socket
+    socket.into_udp_socket()
 }
 
 

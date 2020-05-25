@@ -43,13 +43,13 @@ dependencies = [
  "indexmap",
  "mimalloc",
  "mio",
- "net2",
  "parking_lot",
  "privdrop",
  "quickcheck",
  "quickcheck_macros",
  "rand",
  "serde",
+ "socket2",
 ]
 
 [[package]]
