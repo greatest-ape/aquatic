@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use anyhow::Context;
 use mio::Token;
-use net2::{TcpBuilder, unix::UnixTcpBuilderExt};
+use socket2::{Socket, Domain, Type, Protocol};
 
 use crate::config::Config;
 
@@ -12,30 +12,28 @@ use super::connection::*;
 pub fn create_listener(
     config: &Config
 ) -> ::anyhow::Result<::std::net::TcpListener> {
-    let mut builder = &if config.network.address.is_ipv4(){
-        TcpBuilder::new_v4()
+    let builder = if config.network.address.is_ipv4(){
+        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp()))
     } else {
-        TcpBuilder::new_v6()
-    }.context("Couldn't create TcpBuilder")?;
+        Socket::new(Domain::ipv6(), Type::stream(), Some(Protocol::tcp()))
+    }.context("Couldn't create socket2::Socket")?;
 
     if config.network.ipv6_only {
-        builder = builder.only_v6(true)
+        builder.set_only_v6(true)
             .context("Couldn't put socket in ipv6 only mode")?
     }
 
-    builder = builder.reuse_port(true)
+    builder.set_nonblocking(true)
+        .context("Couldn't put socket in non-blocking mode")?;
+    builder.set_reuse_port(true)
         .context("Couldn't put socket in reuse_port mode")?;
-    builder = builder.bind(&config.network.address).with_context(||
+    builder.bind(&config.network.address.into()).with_context(||
         format!("Couldn't bind socket to address {}", config.network.address)
     )?;
-
-    let listener = builder.listen(128)
+    builder.listen(128)
         .context("Couldn't listen for connections on socket")?;
 
-    listener.set_nonblocking(true)
-        .context("Couldn't put tcp listener in non-blocking mode")?;
-
-    Ok(listener)
+    Ok(builder.into_tcp_listener())
 }
 
 
