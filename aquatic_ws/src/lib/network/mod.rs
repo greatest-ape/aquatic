@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::io::ErrorKind;
 
 use hashbrown::HashMap;
-use log::{info, trace, error};
+use log::{info, debug, error};
 use native_tls::TlsAcceptor;
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
@@ -190,7 +190,7 @@ pub fn run_handshakes_and_read_messages(
                             peer_addr: established_ws.peer_addr
                         };
 
-                        trace!("read message");
+                        debug!("read message");
     
                         if let Err(err) = in_message_sender
                             .send((meta, in_message))
@@ -256,7 +256,7 @@ pub fn send_out_messages(
 
             match established_ws.ws.write_message(out_message.to_ws_message()){
                 Ok(()) => {
-                    trace!("sent message");
+                    debug!("sent message");
                 },
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {},
                 Err(tungstenite::Error::ConnectionClosed) => {

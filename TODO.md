@@ -2,7 +2,6 @@
 
 ## aquatic_ws
 * ipv4 and ipv6 state split: think about this more..
-* set debug level for various outputs
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
