@@ -11,7 +11,7 @@
   use of Ipv4 ones, I have to check.
 * More tests?
 
-## bittorrent_udp
+## aquatic_udp_protocol
 * Tests with good known byte sequences (requests and responses)
 
 # Not important
@@ -49,7 +49,7 @@
     * mialloc good?
     * Try using flume (MPSC) or multiqueue2 (MPMC) instead of crossbeam channel
 
-## bittorrent_udp
+## aquatic_udp_protocol
 * Avoid heap allocation in general if it can be avoided?
     * request from bytes for scrape: use arrayvec with some max size for
       torrents? With Vec, allocation takes quite a bit of CPU time
@@ -57,7 +57,7 @@
 * Don't do endian conversion where unnecessary, such as for connection id and
   transaction id?
 
-## cli_helpers
+## aquatic_cli_helpers
 
 * Include config field comments in exported toml (likely quite a bit of work)
 
@@ -74,9 +74,9 @@
   Doesn't work since it means conversion to bytes must be done while holding
   readable reference to entry in torrent map, hurting concurrency.
 
-## bittorrent_udp
+## aquatic_udp_protocol
 
-* Use `bytes` crate for bittorrent_udp: seems to worsen performance somewhat
+* Use `bytes` crate: seems to worsen performance somewhat
 * Zerocopy (https://docs.rs/zerocopy/0.3.0/zerocopy/index.html) for requests
   and responses? Doesn't work on Vec etc
 * New array buffer each time in response_to_bytes: doesn't help performance
