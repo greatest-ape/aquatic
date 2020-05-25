@@ -31,6 +31,7 @@ pub struct Config {
     pub socket_workers: usize,
     pub log_level: LogLevel,
     pub network: NetworkConfig,
+    pub protocol: ProtocolConfig,
     pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
@@ -46,12 +47,6 @@ pub struct NetworkConfig {
     pub use_tls: bool,
     pub tls_pkcs12_path: String,
     pub tls_pkcs12_password: String,
-    /// Maximum number of torrents to accept in scrape request
-    pub max_scrape_torrents: usize, // FIXME: should this really be in NetworkConfig?
-    /// Maximum number of offers to accept in announce request
-    pub max_offers: usize, // FIXME: should this really be in NetworkConfig?
-    /// Ask peers to announce this often (seconds)
-    pub peer_announce_interval: usize, // FIXME: should this really be in NetworkConfig?
     pub poll_event_capacity: usize,
     pub poll_timeout_milliseconds: u64,
     pub websocket_max_message_size: usize,
@@ -66,6 +61,18 @@ pub struct HandlerConfig {
     /// mutex and starting work
     pub max_requests_per_iter: usize,
     pub channel_recv_timeout_microseconds: u64,
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProtocolConfig {
+    /// Maximum number of torrents to accept in scrape request
+    pub max_scrape_torrents: usize,
+    /// Maximum number of offers to accept in announce request
+    pub max_offers: usize,
+    /// Ask peers to announce this often (seconds)
+    pub peer_announce_interval: usize,
 }
 
 
@@ -99,6 +106,7 @@ impl Default for Config {
             socket_workers: 1,
             log_level: LogLevel::default(),
             network: NetworkConfig::default(),
+            protocol: ProtocolConfig::default(),
             handlers: HandlerConfig::default(),
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
@@ -115,13 +123,21 @@ impl Default for NetworkConfig {
             use_tls: false,
             tls_pkcs12_path: "".into(),
             tls_pkcs12_password: "".into(),
-            max_scrape_torrents: 255, // FIXME: what value is reasonable?
-            max_offers: 10,
-            peer_announce_interval: 120,
             poll_event_capacity: 4096,
             poll_timeout_milliseconds: 50,
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
+        }
+    }
+}
+
+
+impl Default for ProtocolConfig {
+    fn default() -> Self {
+        Self {
+            max_scrape_torrents: 255, // FIXME: what value is reasonable?
+            max_offers: 10,
+            peer_announce_interval: 120,
         }
     }
 }

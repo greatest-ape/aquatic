@@ -153,7 +153,7 @@ pub fn handle_announce_requests(
         if let Some(offers) = request.offers {
             // FIXME: config: also maybe check this when parsing request
             let max_num_peers_to_take = offers.len()
-                .min(config.network.max_offers);
+                .min(config.protocol.max_offers);
 
             #[inline]
             fn f(peer: &Peer) -> Peer {
@@ -206,7 +206,7 @@ pub fn handle_announce_requests(
             info_hash,
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
-            announce_interval: config.network.peer_announce_interval,
+            announce_interval: config.protocol.peer_announce_interval,
         });
 
         messages_out.push((sender_meta, response));
@@ -222,7 +222,7 @@ pub fn handle_scrape_requests(
 ){
     messages_out.extend(requests.map(|(meta, request)| {
         let num_to_take = request.info_hashes.len().min(
-            config.network.max_scrape_torrents
+            config.protocol.max_scrape_torrents
         );
 
         let mut response = ScrapeResponse {
