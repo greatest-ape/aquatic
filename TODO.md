@@ -1,10 +1,8 @@
 # TODO
 
-## General
-* net2 is deprecated, so transition to socket2 instead
-
 ## aquatic_ws
 * ipv4 and ipv6 state split: think about this more..
+* set debug level for various outputs
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
@@ -13,6 +11,9 @@
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
   use of Ipv4 ones, I have to check.
 * More tests?
+
+## aquatic_udp_bench
+* move plot_pareto to own crate
 
 ## bittorrent_udp
 * Tests with good known byte sequences (requests and responses)
