@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crossbeam_channel::{Receiver, Sender};
 use mio::{net::UdpSocket, Events, Poll, Interest, Token};
-use net2::{UdpSocketExt, UdpBuilder};
+use socket2::{Socket, Domain, Type, Protocol};
 
 use bittorrent_udp::converters::*;
 use bittorrent_udp::types::*;
@@ -20,17 +20,11 @@ pub fn create_socket(
     config: &Config,
     addr: SocketAddr
 ) -> ::std::net::UdpSocket {
-
-    let builder = &{
-        if addr.is_ipv4(){
-            UdpBuilder::new_v4().expect("socket: build")
-        } else {
-            UdpBuilder::new_v6().expect("socket: build")
-        }
-    };
-
-    let socket = builder.bind(&addr)
-        .expect(&format!("socket: bind to {}", addr));
+    let socket = if addr.is_ipv4(){
+        Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))
+    } else {
+        Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp()))
+    }.expect("create socket");
 
     socket.set_nonblocking(true)
         .expect("socket: set nonblocking");
@@ -45,10 +39,13 @@ pub fn create_socket(
         }
     }
 
-    socket.connect(config.server_address)
+    socket.bind(&addr.into())
+        .expect(&format!("socket: bind to {}", addr));
+
+    socket.connect(&config.server_address.into())
         .expect("socket: connect to server");
 
-    socket
+    socket.into_udp_socket()
 }
 
 

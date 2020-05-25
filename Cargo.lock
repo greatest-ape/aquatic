@@ -81,13 +81,13 @@ dependencies = [
  "hashbrown",
  "mimalloc",
  "mio",
- "net2",
  "parking_lot",
  "quickcheck",
  "quickcheck_macros",
  "rand",
  "rand_distr",
  "serde",
+ "socket2",
 ]
 
 [[package]]
@@ -702,17 +702,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "net2"
-version = "0.2.34"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ba7c918ac76704fb42afcbbb43891e72731f3dcca3bef2a19786297baf14af7"
-dependencies = [
- "cfg-if",
- "libc",
- "winapi",
 ]
 
 [[package]]
