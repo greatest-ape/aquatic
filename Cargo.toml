@@ -8,6 +8,7 @@ members = [
     "aquatic_udp_load_test",
     "aquatic_udp_protocol",
     "aquatic_ws",
+    "plot_pareto"
 ]
 
 [profile.release]

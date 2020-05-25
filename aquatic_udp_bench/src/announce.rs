@@ -9,13 +9,11 @@ use rand_distr::Pareto;
 use aquatic_udp::common::*;
 use aquatic_udp::config::Config;
 
-use aquatic_udp_bench::pareto_usize;
-
 use crate::common::*;
 use crate::config::BenchConfig;
 
 
-pub fn bench_scrape_handler(
+pub fn bench_announce_handler(
     state: &State,
     bench_config: &BenchConfig,
     aquatic_config: &Config,
@@ -28,16 +26,15 @@ pub fn bench_scrape_handler(
         state,
         rng,
         info_hashes,
-        bench_config.num_scrape_requests,
-        bench_config.num_hashes_per_scrape_request,
+        bench_config.num_announce_requests
     );
 
     let p = aquatic_config.handlers.max_requests_per_iter * bench_config.num_threads;
     let mut num_responses = 0usize;
 
-    let mut dummy: i32 = rng.gen();
+    let mut dummy: u16 = rng.gen();
 
-    let pb = create_progress_bar("Scrape", bench_config.num_rounds as u64);
+    let pb = create_progress_bar("Announce", bench_config.num_rounds as u64);
 
     // Start benchmark
 
@@ -49,24 +46,24 @@ pub fn bench_scrape_handler(
                 request_sender.send((request.clone().into(), *src)).unwrap();
             }
 
-            while let Ok((Response::Scrape(r), _)) = response_receiver.try_recv() {
+            while let Ok((Response::Announce(r), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
-                if let Some(stat) = r.torrent_stats.last(){
-                    dummy ^= stat.leechers.0;
+                if let Some(last_peer) = r.peers.last(){
+                    dummy ^= last_peer.port.0;
                 }
             }
         }
 
-        let total = bench_config.num_scrape_requests * (round + 1);
+        let total = bench_config.num_announce_requests * (round + 1);
 
         while num_responses < total {
             match response_receiver.recv(){
-                Ok((Response::Scrape(r), _)) => {
+                Ok((Response::Announce(r), _)) => {
                     num_responses += 1;
 
-                    if let Some(stat) = r.torrent_stats.last(){
-                        dummy ^= stat.leechers.0;
+                    if let Some(last_peer) = r.peers.last(){
+                        dummy ^= last_peer.port.0;
                     }
                 },
                 _ => {}
@@ -84,17 +81,17 @@ pub fn bench_scrape_handler(
 }
 
 
-
 pub fn create_requests(
     state: &State,
     rng: &mut impl Rng,
     info_hashes: &Vec<InfoHash>,
     number: usize,
-    hashes_per_request: usize,
-) -> Vec<(ScrapeRequest, SocketAddr)> {
+) -> Vec<(AnnounceRequest, SocketAddr)> {
     let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
 
     let max_index = info_hashes.len() - 1;
+
+    let mut requests = Vec::new();
 
     let connections = state.connections.lock();
 
@@ -103,24 +100,26 @@ pub fn create_requests(
         .cloned()
         .collect();
 
-    let mut requests = Vec::new();
-
     for i in 0..number {
-        let mut request_info_hashes = Vec::new();
+        let info_hash_index = pareto_usize(rng, pareto, max_index);
 
-        for _ in 0..hashes_per_request {
-            let info_hash_index = pareto_usize(rng, pareto, max_index);
-            request_info_hashes.push(info_hashes[info_hash_index])
-        }
-
-        // Will panic if less connection requests than scrape requests
+        // Will panic if less connection requests than announce requests
         let connection_id = connection_keys[i].connection_id; 
         let src = connection_keys[i].socket_addr;
 
-        let request = ScrapeRequest {
+        let request = AnnounceRequest {
             connection_id,
             transaction_id: TransactionId(rng.gen()),
-            info_hashes: request_info_hashes,
+            info_hash: info_hashes[info_hash_index],
+            peer_id: PeerId(rng.gen()),
+            bytes_downloaded: NumberOfBytes(rng.gen()),
+            bytes_uploaded: NumberOfBytes(rng.gen()),
+            bytes_left: NumberOfBytes(rng.gen()),
+            event: AnnounceEvent::Started,
+            ip_address: None, 
+            key: PeerKey(rng.gen()),
+            peers_wanted: NumberOfPeers(rng.gen()),
+            port: Port(rng.gen())
         };
 
         requests.push((request, src));

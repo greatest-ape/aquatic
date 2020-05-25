@@ -11,9 +11,6 @@
   use of Ipv4 ones, I have to check.
 * More tests?
 
-## aquatic_udp_bench
-* move plot_pareto to own crate
-
 ## bittorrent_udp
 * Tests with good known byte sequences (requests and responses)
 

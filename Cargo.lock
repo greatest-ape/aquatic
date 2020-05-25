@@ -73,7 +73,6 @@ dependencies = [
  "indicatif",
  "mimalloc",
  "num-format",
- "plotly",
  "rand",
  "rand_distr",
  "serde",
@@ -934,6 +933,15 @@ name = "pkg-config"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05da548ad6865900e60eaba7f589cc0783590a92e940c26953ff81ddbab2d677"
+
+[[package]]
+name = "plot_pareto"
+version = "0.1.0"
+dependencies = [
+ "plotly",
+ "rand",
+ "rand_distr",
+]
 
 [[package]]
 name = "plotly"

@@ -5,14 +5,8 @@ authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
 
-[lib]
+[[bin]]
 name = "aquatic_udp_bench"
-
-[[bin]]
-name = "aquatic_udp_bench_handlers"
-
-[[bin]]
-name = "plot_pareto"
 
 [dependencies]
 anyhow = "1"
@@ -22,7 +16,6 @@ crossbeam-channel = "0.4"
 indicatif = "0.14"
 mimalloc = { version = "0.1", default-features = false }
 num-format = "0.4"
-plotly = "0.4"
 rand = { version = "0.7", features = ["small_rng"] }
 rand_distr = "0.2"
 serde = { version = "1", features = ["derive"] }

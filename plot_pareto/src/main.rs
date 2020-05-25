@@ -1,10 +1,8 @@
 use plotly::{Plot, Scatter, Layout};
 use plotly::common::Title;
 use plotly::layout::Axis;
-use rand::{thread_rng, rngs::SmallRng, SeedableRng};
+use rand::{thread_rng, rngs::SmallRng, SeedableRng, Rng};
 use rand_distr::Pareto;
-
-use aquatic_udp_bench::pareto_usize;
 
 
 fn main(){
@@ -41,4 +39,16 @@ fn main(){
     plot.set_layout(layout);
 
     plot.show();
+}
+
+
+pub fn pareto_usize(
+    rng: &mut impl Rng,
+    pareto: Pareto<f64>,
+    max: usize,
+) -> usize {
+    let p: f64 = rng.sample(pareto);
+    let p = (p.min(101.0f64) - 1.0) / 100.0;
+
+    (p * max as f64) as usize
 }

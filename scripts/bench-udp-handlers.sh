@@ -2,4 +2,4 @@
 
 export RUSTFLAGS="-C target-cpu=native"
 
-cargo run --release --bin aquatic_udp_bench_handlers -- $@
+cargo run --release --bin aquatic_udp_bench -- $@
