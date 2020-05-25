@@ -8,7 +8,7 @@ use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use rand_distr::Pareto;
 
-use bittorrent_udp::types::*;
+use aquatic_udp_protocol::types::*;
 
 use crate::common::*;
 use crate::utils::*;

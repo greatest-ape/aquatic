@@ -9,8 +9,8 @@ use mio::{Events, Poll, Interest, Token};
 use mio::net::UdpSocket;
 use socket2::{Socket, Domain, Type, Protocol};
 
-use bittorrent_udp::types::IpVersion;
-use bittorrent_udp::converters::{response_to_bytes, request_from_bytes};
+use aquatic_udp_protocol::types::IpVersion;
+use aquatic_udp_protocol::converters::{response_to_bytes, request_from_bytes};
 
 use crate::common::*;
 use crate::config::Config;

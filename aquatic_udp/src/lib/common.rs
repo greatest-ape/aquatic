@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use parking_lot::Mutex;
 
 pub use aquatic_common::ValidUntil;
-pub use bittorrent_udp::types::*;
+pub use aquatic_udp_protocol::types::*;
 
 
 pub const MAX_PACKET_SIZE: usize = 4096;

@@ -7,8 +7,8 @@ use crossbeam_channel::{Receiver, Sender};
 use mio::{net::UdpSocket, Events, Poll, Interest, Token};
 use socket2::{Socket, Domain, Type, Protocol};
 
-use bittorrent_udp::converters::*;
-use bittorrent_udp::types::*;
+use aquatic_udp_protocol::converters::*;
+use aquatic_udp_protocol::types::*;
 
 use crate::common::*;
 

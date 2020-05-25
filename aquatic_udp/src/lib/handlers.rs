@@ -7,7 +7,7 @@ use parking_lot::MutexGuard;
 use rand::{SeedableRng, Rng, rngs::{SmallRng, StdRng}};
 
 use aquatic_common::extract_response_peers;
-use bittorrent_udp::types::*;
+use aquatic_udp_protocol::types::*;
 
 use crate::common::*;
 use crate::config::Config;

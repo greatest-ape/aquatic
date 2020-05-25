@@ -15,7 +15,7 @@ name = "aquatic_udp"
 [dependencies]
 anyhow = "1"
 aquatic_common = { path = "../aquatic_common" }
-bittorrent_udp = { path = "../bittorrent_udp" }
+aquatic_udp_protocol = { path = "../aquatic_udp_protocol" }
 cli_helpers = { path = "../cli_helpers" }
 crossbeam-channel = "0.4"
 hashbrown = "0.7"

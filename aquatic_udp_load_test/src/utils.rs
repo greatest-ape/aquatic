@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rand_distr::{Standard, Pareto};
 use rand::prelude::*;
 
-use bittorrent_udp::types::*;
+use aquatic_udp_protocol::types::*;
 
 use crate::common::*;
 
