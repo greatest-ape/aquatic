@@ -168,6 +168,17 @@ pub fn handle_announce_requests(
             );
 
             for (offer, peer) in offers.into_iter().zip(peers){
+                // Avoid sending offer back to requesting peer. This could be
+                // done in extract_announce_peers, but it would likely hurt
+                // performance to check all peers there for their socket addr,
+                // especially if there are thousands of peers. It might be
+                // possible to write a new version of that function which isn't
+                // shared with aquatic_udp and goes about it differently
+                // though.
+                if sender_meta.peer_addr == peer.connection_meta.peer_addr {
+                    continue;
+                }
+
                 let middleman_offer = MiddlemanOfferToPeer {
                     info_hash,
                     peer_id,

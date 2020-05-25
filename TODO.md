@@ -31,6 +31,8 @@
   out and everything will start working
 * stack-allocated vectors for announce request offers and scrape request info
   hashes?
+* write new version of extract_response_peers which checks for equality with
+  peer sending request?
 
 ## aquatic_udp
 
