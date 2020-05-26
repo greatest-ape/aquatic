@@ -92,61 +92,61 @@ pub fn handle_announce_requests(
 ){
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
-    for (sender_meta, request) in requests {
-        let info_hash = request.info_hash;
-        let peer_id = request.peer_id;
-
-        let torrent_data: &mut TorrentData = if sender_meta.peer_addr.is_ipv4(){
-            torrent_maps.ipv4.entry(info_hash).or_default()
+    for (request_sender_meta, request) in requests {
+        let torrent_data: &mut TorrentData = if request_sender_meta.peer_addr.is_ipv4(){
+            torrent_maps.ipv4.entry(request.info_hash).or_default()
         } else {
-            torrent_maps.ipv6.entry(info_hash).or_default()
+            torrent_maps.ipv6.entry(request.info_hash).or_default()
         };
 
         // If there is already a peer with this peer_id, check that socket
         // addr is same as that of request sender. Otherwise, ignore request.
         // Since peers have access to each others peer_id's, they could send
         // requests using them, causing all sorts of issues.
-        if let Some(previous_peer) = torrent_data.peers.get(&peer_id){
-            if sender_meta.peer_addr != previous_peer.connection_meta.peer_addr {
+        if let Some(previous_peer) = torrent_data.peers.get(&request.peer_id){
+            if request_sender_meta.peer_addr != previous_peer.connection_meta.peer_addr {
                 continue;
             }
         }
 
-        let peer_status = PeerStatus::from_event_and_bytes_left(
-            request.event,
-            request.bytes_left
-        );
+        // Insert/update/remove peer who sent this request
+        {
+            let peer_status = PeerStatus::from_event_and_bytes_left(
+                request.event,
+                request.bytes_left
+            );
 
-        let peer = Peer {
-            connection_meta: sender_meta,
-            status: peer_status,
-            valid_until,
-        };
+            let peer = Peer {
+                connection_meta: request_sender_meta,
+                status: peer_status,
+                valid_until,
+            };
 
-        let opt_removed_peer = match peer_status {
-            PeerStatus::Leeching => {
-                torrent_data.num_leechers += 1;
+            let opt_removed_peer = match peer_status {
+                PeerStatus::Leeching => {
+                    torrent_data.num_leechers += 1;
 
-                torrent_data.peers.insert(peer_id, peer)
-            },
-            PeerStatus::Seeding => {
-                torrent_data.num_seeders += 1;
+                    torrent_data.peers.insert(request.peer_id, peer)
+                },
+                PeerStatus::Seeding => {
+                    torrent_data.num_seeders += 1;
 
-                torrent_data.peers.insert(peer_id, peer)
-            },
-            PeerStatus::Stopped => {
-                torrent_data.peers.remove(&peer_id)
+                    torrent_data.peers.insert(request.peer_id, peer)
+                },
+                PeerStatus::Stopped => {
+                    torrent_data.peers.remove(&request.peer_id)
+                }
+            };
+
+            match opt_removed_peer.map(|peer| peer.status){
+                Some(PeerStatus::Leeching) => {
+                    torrent_data.num_leechers -= 1;
+                },
+                Some(PeerStatus::Seeding) => {
+                    torrent_data.num_seeders -= 1;
+                },
+                _ => {}
             }
-        };
-
-        match opt_removed_peer.map(|peer| peer.status){
-            Some(PeerStatus::Leeching) => {
-                torrent_data.num_leechers -= 1;
-            },
-            Some(PeerStatus::Seeding) => {
-                torrent_data.num_seeders -= 1;
-            },
-            _ => {}
         }
 
         // If peer sent offers, send them on to random peers
@@ -160,14 +160,16 @@ pub fn handle_announce_requests(
                 *peer
             }
 
-            let peers = extract_response_peers(
+            let offer_receivers: Vec<Peer> = extract_response_peers(
                 rng,
                 &torrent_data.peers,
                 max_num_peers_to_take,
                 f
             );
 
-            for (offer, peer) in offers.into_iter().zip(peers){
+            for (offer, offer_receiver) in offers.into_iter()
+                .zip(offer_receivers)
+            {
                 // Avoid sending offer back to requesting peer. This could be
                 // done in extract_announce_peers, but it would likely hurt
                 // performance to check all peers there for their socket addr,
@@ -175,19 +177,19 @@ pub fn handle_announce_requests(
                 // possible to write a new version of that function which isn't
                 // shared with aquatic_udp and goes about it differently
                 // though.
-                if sender_meta.peer_addr == peer.connection_meta.peer_addr {
+                if request_sender_meta.peer_addr == offer_receiver.connection_meta.peer_addr {
                     continue;
                 }
 
                 let middleman_offer = MiddlemanOfferToPeer {
-                    info_hash,
-                    peer_id,
+                    info_hash: request.info_hash,
+                    peer_id: request.peer_id,
                     offer: offer.offer,
                     offer_id: offer.offer_id,
                 };
 
                 messages_out.push((
-                    peer.connection_meta,
+                    offer_receiver.connection_meta,
                     OutMessage::Offer(middleman_offer)
                 ));
             }
@@ -195,17 +197,19 @@ pub fn handle_announce_requests(
 
         // If peer sent answer, send it on to relevant peer
         match (request.answer, request.to_peer_id, request.offer_id){
-            (Some(answer), Some(to_peer_id), Some(offer_id)) => {
-                if let Some(to_peer) = torrent_data.peers.get(&to_peer_id){
+            (Some(answer), Some(answer_receiver_id), Some(offer_id)) => {
+                if let Some(answer_receiver) = torrent_data.peers
+                    .get(&answer_receiver_id)
+                {
                     let middleman_answer = MiddlemanAnswerToPeer {
-                        peer_id,
-                        info_hash,
+                        peer_id: request.peer_id,
+                        info_hash: request.info_hash,
                         answer,
                         offer_id,
                     };
 
                     messages_out.push((
-                        to_peer.connection_meta,
+                        answer_receiver.connection_meta,
                         OutMessage::Answer(middleman_answer)
                     ));
                 }
@@ -214,13 +218,13 @@ pub fn handle_announce_requests(
         }
 
         let response = OutMessage::AnnounceResponse(AnnounceResponse {
-            info_hash,
+            info_hash: request.info_hash,
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
             announce_interval: config.protocol.peer_announce_interval,
         });
 
-        messages_out.push((sender_meta, response));
+        messages_out.push((request_sender_meta, response));
     }
 }
 
