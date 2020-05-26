@@ -36,7 +36,7 @@ fn run(config: Config) -> anyhow::Result<()> {
     TermLogger::init(
         level_filter,
         simplelog_config,
-        TerminalMode::Stdout
+        TerminalMode::Stderr
     ).context("Couldn't initialize logger")?;
 
     aquatic_ws::run(config)
