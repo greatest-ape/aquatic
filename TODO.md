@@ -1,6 +1,7 @@
 # TODO
 
 ## aquatic_ws
+* tests
 * ipv4 and ipv6 state split: think about this more..
 
 ## aquatic_udp
@@ -29,7 +30,9 @@
 * stack-allocated vectors for announce request offers and scrape request info
   hashes?
 * write new version of extract_response_peers which checks for equality with
-  peer sending request?
+  peer sending request? It could return an arrayvec or smallvec by the way
+  (but then the size needs to be adjusted together with the corresponding
+  config var, or the config var needs to be removed)
 
 ## aquatic_udp
 
