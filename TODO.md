@@ -1,9 +1,5 @@
 # TODO
 
-# General
-* Profile guided optimization could be interesting:
-  https://doc.rust-lang.org/rustc/profile-guided-optimization.html
-
 ## aquatic_ws
 * tests
 * ipv4 and ipv6 state split: think about this more..
@@ -15,6 +11,7 @@
   can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
   use of Ipv4 ones, I have to check.
 * More tests?
+* Add ctrl-c handler (exit)
 
 ## aquatic_udp_protocol
 * Tests with good known byte sequences (requests and responses)

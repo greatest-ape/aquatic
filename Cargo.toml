@@ -13,4 +13,4 @@ members = [
 
 [profile.release]
 debug = true
-lto = true
+lto = "thin" # Using thin LTO when doing PGO removes build errors
