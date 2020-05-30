@@ -1,5 +1,9 @@
 # TODO
 
+# General
+* Profile guided optimization could be interesting:
+  https://doc.rust-lang.org/rustc/profile-guided-optimization.html
+
 ## aquatic_ws
 * tests
 * ipv4 and ipv6 state split: think about this more..
