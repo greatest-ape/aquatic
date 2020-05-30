@@ -18,6 +18,7 @@ aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
 aquatic_udp_protocol = { path = "../aquatic_udp_protocol" }
 crossbeam-channel = "0.4"
+ctrlc = "3"
 hashbrown = "0.7"
 histogram = "0.6"
 indexmap = "1"

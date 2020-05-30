@@ -1,4 +1,4 @@
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+use std::sync::{Arc, atomic::{AtomicUsize, AtomicBool, Ordering}};
 use std::time::Duration;
 use std::thread::Builder;
 
@@ -16,6 +16,16 @@ use common::State;
 
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
+    let continue_running = Arc::new(AtomicBool::new(true));
+
+    {
+        let continue_running = continue_running.clone();
+
+        ::ctrlc::set_handler(move || {
+            continue_running.store(false, Ordering::SeqCst)
+        }).expect("set ctrlc handler")
+    }
+
     let state = State::new();
 
     let (request_sender, request_receiver) = unbounded();
@@ -79,8 +89,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
             if sockets == config.socket_workers {
                 PrivDrop::default()
-                    .chroot(config.privileges.chroot_path)
-                    .user(config.privileges.user)
+                    .chroot(config.privileges.chroot_path.clone())
+                    .user(config.privileges.user.clone())
                     .apply()
                     .expect("drop privileges");
 
@@ -91,9 +101,19 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         }
     }
 
-    loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+    Builder::new().name("cleaning".to_string()).spawn(move ||
+        loop {
+            ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_connections_and_torrents(&state);
+            tasks::clean_connections_and_torrents(&state);
+        }
+    ).expect("spawn cleaning thread");
+
+    let dur = Duration::from_millis(100);
+
+    while continue_running.load(Ordering::SeqCst){
+        ::std::thread::sleep(dur)
     }
+
+    Ok(())
 }
