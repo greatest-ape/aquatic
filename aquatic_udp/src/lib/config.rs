@@ -151,7 +151,7 @@ impl Default for HandlerConfig {
 impl Default for StatisticsConfig {
     fn default() -> Self {
         Self {
-            interval: 5,
+            interval: 0,
         }
     }
 }

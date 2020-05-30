@@ -116,7 +116,7 @@ max_requests_per_iter = 10000
 channel_recv_timeout_microseconds = 200
 
 [statistics]
-interval = 5
+interval = 0
 
 [cleaning]
 interval = 30
