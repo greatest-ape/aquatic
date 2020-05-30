@@ -199,6 +199,14 @@ pub struct Connection {
 
 /// Create from TcpStream. Run `advance_handshakes` until `get_established_ws`
 /// returns Some(EstablishedWs).
+///
+/// advance_handshakes takes ownership of self because the TLS and WebSocket
+/// handshake methods do. get_established_ws doesn't, since work can be done
+/// on a mutable reference to a tungstenite websocket, and this way, the whole
+/// Connection doesn't have to be removed from and reinserted into the
+/// TorrentMap. This is also the reason for wrapping Container.inner in an
+/// Either instead of combining all states into one structure just having a
+/// single method for advancing handshakes and maybe returning a websocket.
 impl Connection {
     #[inline]
     pub fn new(
