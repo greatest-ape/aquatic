@@ -1,8 +1,9 @@
 # TODO
 
-# General
-* Profile guided optimization could be interesting:
-  https://doc.rust-lang.org/rustc/profile-guided-optimization.html
+## General
+
+* avx-512 should be avoided, maybe this should be mentioned in README
+  and maybe run scripts should be adjusted
 
 ## aquatic_ws
 * tests
@@ -22,6 +23,7 @@
 # Not important
 
 ## aquatic_ws
+* copyless for vec pushes in request handler, instead of stack and then heap?
 * config
   * send/recv buffer size?
   * tcp backlog?
@@ -70,6 +72,31 @@
 
 # Don't do
 
+## General - profile-guided optimization
+
+Doesn't seem to improve performance, possibly because I only got it to compile
+with thin LTO which could have impacted performance. Running non-pgo version
+without AVX-512 seems to be the fastest, although the presence of a ctrl-c handler
+(meaning the addition of a thread) might have worsed performance in pgo version
+(unlikely).
+
+Benchmarks of aquatic_udp with and without PGO. On hetzer 16x vCPU. 8 workers
+just like best results in last benchmark, multiple client ips=true:
+
+### target-cpu=native (probably with avx512 since such features are listed in /proc/cpuinfo), all with thin lto
+*   With PGO on aquatic_udp: 370k, without 363k responses per second
+*   With PGO on both aquatic_udp and aquatic_udp_load_test: 368k
+
+### with target-cpu=skylake, all with thin lto
+*   with pgo on aquatic_udp: 400k
+*   with no pgo: 394k
+
+### checkout master (no pgo, no thin lto, no ctrlc handler)
+
+* target-cpu=native: 394k
+* target-cpu=skylake: 439k
+* no target-cpu set: 388k
+
 ## aquatic_udp
 
 * Other HashMap hashers (such as SeaHash): seemingly not worthwhile, see
@@ -77,7 +104,7 @@
 * `sendmmsg`: can't send to multiple socket addresses, so doesn't help
 * Config behind Arc in state: it is likely better to be able to pass it around
   without state
-* Responses: make vecors iteretor references so we dont have run .collect().
+* Responses: make vectors iterator references so we dont have run .collect().
   Doesn't work since it means conversion to bytes must be done while holding
   readable reference to entry in torrent map, hurting concurrency.
 
