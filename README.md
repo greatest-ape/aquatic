@@ -3,7 +3,8 @@
 Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
 
 Consists of separate executables:
-  * `aquatic_udp`: UDP BitTorrent tracker
+  * `aquatic_udp`: UDP BitTorrent tracker with double the thoughput of
+    opentracker
   * `aquatic_ws`: WebTorrent tracker (experimental)
 
 These are described in detail below, after the general information.
