@@ -13,7 +13,7 @@ then
 fi
 
 apt-get update && apt-get upgrade -y
-apt-get install -y vim screen build-essential libz-dev cvs htop curl linux-perf cmake c++filt numactl
+apt-get install -y vim screen build-essential libz-dev cvs htop curl linux-perf cmake c++filt numactl git
 apt-get install nginx # If you want to easily view flamegraphs
 
 curl https://sh.rustup.rs -sSf | sh
