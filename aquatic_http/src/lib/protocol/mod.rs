@@ -4,18 +4,18 @@ use serde::{Serialize, Deserialize};
 
 use crate::common::Peer;
 
-mod serde_helpers;
+// mod serde_helpers;
 
-use serde_helpers::*;
+// use serde_helpers::*;
 
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(
-    #[serde(
-        deserialize_with = "deserialize_20_bytes",
-        serialize_with = "serialize_20_bytes"
-    )]
+    // #[serde(
+    //     deserialize_with = "deserialize_20_bytes",
+    //     serialize_with = "serialize_20_bytes"
+    // )]
     pub [u8; 20]
 );
 
@@ -23,10 +23,10 @@ pub struct PeerId(
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(
-    #[serde(
-        deserialize_with = "deserialize_20_bytes",
-        serialize_with = "serialize_20_bytes"
-    )]
+    // #[serde(
+    //     deserialize_with = "deserialize_20_bytes",
+    //     serialize_with = "serialize_20_bytes"
+    // )]
     pub [u8; 20]
 );
 
@@ -102,11 +102,7 @@ pub struct AnnounceResponseFailure {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScrapeRequest {
-    #[serde(
-        rename = "info_hash",
-        deserialize_with = "deserialize_info_hashes",
-        default
-    )]
+    #[serde(rename = "info_hash")]
     pub info_hashes: Vec<InfoHash>,
 }
 
@@ -133,8 +129,17 @@ pub enum Request {
 
 
 impl Request {
-    pub fn from_http() -> Self {
-        unimplemented!()
+    pub fn from_http(http: httparse::Request) -> Option<Self> {
+        http.path
+            .and_then(|path| {
+                let mut iterator = path.splitn(2, '?');
+
+                iterator.next();
+                iterator.next()
+            })
+            .and_then(|query_string| {
+                serde_urlencoded::from_str(query_string).ok()
+            })
     }
 }
 
@@ -144,4 +149,11 @@ pub enum Response {
     AnnounceSuccess(AnnounceResponseSuccess),
     AnnounceFailure(AnnounceResponseFailure),
     Scrape(ScrapeResponse)
+}
+
+
+impl Response {
+    pub fn to_http_string(self) -> String {
+        unimplemented!()
+    }
 }

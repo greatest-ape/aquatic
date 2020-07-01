@@ -6,10 +6,10 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* setup tls connection: support TLS and plain at the same time??
-* parse http requests incrementally when data comes in. crate for streaming
-  parse?
-* serde for request/responses, also url encoded info hashes and peer id's
+* handshake stuff
+  * support TLS and plain at the same time??
+  * simplify
+* test
 * move stuff to common crate with ws: what about Request/InMessage etc?
 
 ## aquatic_ws

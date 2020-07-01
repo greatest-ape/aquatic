@@ -6,7 +6,6 @@ use log::{info, debug, error};
 use native_tls::TlsAcceptor;
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
-use tungstenite::protocol::WebSocketConfig;
 
 use crate::common::*;
 use crate::config::Config;
@@ -24,8 +23,8 @@ pub fn run_socket_worker(
     config: Config,
     socket_worker_index: usize,
     socket_worker_statuses: SocketWorkerStatuses,
-    request_channel_sender: InMessageSender,
-    response_channel_receiver: OutMessageReceiver,
+    request_channel_sender: RequestChannelSender,
+    response_channel_receiver: ResponseChannelReceiver,
     opt_tls_acceptor: Option<TlsAcceptor>,
 ){
     match create_listener(&config){
@@ -54,19 +53,14 @@ pub fn run_socket_worker(
 pub fn run_poll_loop(
     config: Config,
     socket_worker_index: usize,
-    request_channel_sender: InMessageSender,
-    response_channel_receiver: OutMessageReceiver,
+    request_channel_sender: RequestChannelSender,
+    response_channel_receiver: ResponseChannelReceiver,
     listener: ::std::net::TcpListener,
     opt_tls_acceptor: Option<TlsAcceptor>,
 ){
     let poll_timeout = Duration::from_millis(
         config.network.poll_timeout_milliseconds
     );
-    let ws_config = WebSocketConfig {
-        max_message_size: Some(config.network.websocket_max_message_size),
-        max_frame_size: Some(config.network.websocket_max_frame_size),
-        max_send_queue: None,
-    };
 
     let mut listener = TcpListener::from_std(listener);
     let mut poll = Poll::new().expect("create poll");
@@ -92,7 +86,6 @@ pub fn run_poll_loop(
 
             if token.0 == 0 {
                 accept_new_streams(
-                    ws_config,
                     &mut listener,
                     &mut poll,
                     &mut connections,
@@ -111,7 +104,7 @@ pub fn run_poll_loop(
             }
         }
 
-        send_out_messages(
+        send_responses(
             response_channel_receiver.drain(),
             &mut connections
         );
@@ -128,7 +121,6 @@ pub fn run_poll_loop(
 
 // will be identical to ws version
 fn accept_new_streams(
-    ws_config: WebSocketConfig,
     listener: &mut TcpListener,
     poll: &mut Poll,
     connections: &mut ConnectionMap,
@@ -152,7 +144,7 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection::new(ws_config, valid_until, stream);
+                let connection = Connection::new(valid_until, stream);
 
                 connections.insert(token, connection);
             },
@@ -170,56 +162,52 @@ fn accept_new_streams(
 
 /// On the stream given by poll_token, get TLS (if requested) and tungstenite
 /// up and running, then read messages and pass on through channel.
-pub fn run_handshake_and_read_requests(
+pub fn run_handshake_and_read_requests<'a>(
     socket_worker_index: usize,
-    request_channel_sender: &InMessageSender,
-    opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
-    connections: &mut ConnectionMap,
+    request_channel_sender: &RequestChannelSender,
+    opt_tls_acceptor: &'a Option<TlsAcceptor>, // If set, run TLS
+    connections: &'a mut ConnectionMap<'a>,
     poll_token: Token,
     valid_until: ValidUntil,
 ){
     loop {
-        if let Some(established_ws) = connections.get_mut(&poll_token)
-            .and_then(Connection::get_established_ws)
+        if let Some(established_connection) = connections.get_mut(&poll_token)
+            .and_then(Connection::get_established)
         {
-            use ::tungstenite::Error::Io;
+            match established_connection.parse_request(){
+                Ok(request) => {
+                    let meta = ConnectionMeta {
+                        worker_index: socket_worker_index,
+                        poll_token,
+                        peer_addr: established_connection.peer_addr
+                    };
 
-            match established_ws.ws.read_message(){
-                Ok(ws_message) => {
-                    if let Some(in_message) = InMessage::from_ws_message(ws_message){
-                        let meta = ConnectionMeta {
-                            worker_index: socket_worker_index,
-                            poll_token,
-                            peer_addr: established_ws.peer_addr
-                        };
+                    debug!("read message");
 
-                        debug!("read message");
-    
-                        if let Err(err) = request_channel_sender
-                            .send((meta, in_message))
-                        {
-                            error!(
-                                "InMessageSender: couldn't send message: {:?}",
-                                err
-                            );
-                        }
+                    if let Err(err) = request_channel_sender
+                        .send((meta, request))
+                    {
+                        error!(
+                            "RequestChannelSender: couldn't send message: {:?}",
+                            err
+                        );
                     }
                 },
-                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
+                Err(RequestParseError::NeedMoreData) => {
                     break;
                 },
-                Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(connections, poll_token);
-
-                    break
-                },
-                Err(err) => {
+                Err(RequestParseError::Io(err)) => {
                     info!("error reading messages: {}", err);
     
                     remove_connection_if_exists(connections, poll_token);
     
                     break;
-                }
+                },
+                Err(e) => {
+                    info!("error reading request: {:?}", e);
+    
+                    break;
+                },
             }
         } else if let Some(connection) = connections.remove(&poll_token){
             let (opt_new_connection, stop_loop) = connection.advance_handshakes(
@@ -240,39 +228,37 @@ pub fn run_handshake_and_read_requests(
 
 
 /// Read messages from channel, send to peers
-pub fn send_out_messages(
-    response_channel_receiver: ::flume::Drain<(ConnectionMeta, OutMessage)>,
+pub fn send_responses(
+    response_channel_receiver: ::flume::Drain<(ConnectionMeta, Response)>,
     connections: &mut ConnectionMap,
 ){
-    for (meta, out_message) in response_channel_receiver {
-        let opt_established_ws = connections.get_mut(&meta.poll_token)
-            .and_then(Connection::get_established_ws);
+    for (meta, response) in response_channel_receiver {
+        let opt_established = connections.get_mut(&meta.poll_token)
+            .and_then(Connection::get_established);
         
-        if let Some(established_ws) = opt_established_ws {
-            if established_ws.peer_addr != meta.peer_addr {
+        if let Some(established) = opt_established {
+            if established.peer_addr != meta.peer_addr {
                 info!("socket worker error: peer socket addrs didn't match");
 
                 continue;
             }
-        
-            use ::tungstenite::Error::Io;
 
-            match established_ws.ws.write_message(out_message.to_ws_message()){
+            match established.send_response(&response.to_http_string()){
                 Ok(()) => {
                     debug!("sent message");
                 },
-                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {},
-                Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(connections, meta.poll_token);
-                },
-                Err(err) => {
-                    info!("error writing ws message: {}", err);
+                Err(RequestParseError::NeedMoreData) => {}, // FIXME: block?
+                Err(RequestParseError::Io(err)) => {
+                    info!("error sending response: {}", err);
 
                     remove_connection_if_exists(
                         connections,
                         meta.poll_token
                     );
                 },
+                _ => {
+                    unreachable!()
+                }
             }
         }
     }

@@ -48,7 +48,7 @@ pub fn remove_connection_if_exists(
     token: Token,
 ){
     if let Some(mut connection) = connections.remove(&token){
-        connection.close();
+        // connection.close(); // FIXME
     }
 }
 
@@ -62,7 +62,7 @@ pub fn remove_inactive_connections(
 
     connections.retain(|_, connection| {
         if connection.valid_until.0 < now {
-            connection.close();
+            // connection.close(); // FIXME
 
             false
         } else {
