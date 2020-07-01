@@ -1,0 +1,37 @@
+[package]
+name = "aquatic_http"
+version = "0.1.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2018"
+license = "Apache-2.0"
+
+[lib]
+name = "aquatic_http"
+path = "src/lib/lib.rs"
+
+[[bin]]
+name = "aquatic_http"
+path = "src/bin/main.rs"
+
+[dependencies]
+anyhow = "1"
+aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
+aquatic_common = { path = "../aquatic_common" }
+either = "1"
+flume = "0.7"
+hashbrown = { version = "0.7", features = ["serde"] }
+indexmap = "1"
+log = "0.4"
+mimalloc = { version = "0.1", default-features = false }
+mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
+native-tls = "0.2"
+parking_lot = "0.10"
+privdrop = "0.3"
+rand = { version = "0.7", features = ["small_rng"] }
+serde = { version = "1", features = ["derive"] }
+socket2 = { version = "0.3", features = ["reuseport"] }
+simplelog = "0.8"
+
+[dev-dependencies]
+quickcheck = "0.9"
+quickcheck_macros = "0.9"

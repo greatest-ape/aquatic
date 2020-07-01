@@ -3,6 +3,7 @@
 members = [ 
     "aquatic_cli_helpers",
     "aquatic_common",
+    "aquatic_http",
     "aquatic_udp",
     "aquatic_udp_bench",
     "aquatic_udp_load_test",

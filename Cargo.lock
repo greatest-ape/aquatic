@@ -40,6 +40,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "aquatic_http"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aquatic_cli_helpers",
+ "aquatic_common",
+ "either",
+ "flume",
+ "hashbrown",
+ "indexmap",
+ "log",
+ "mimalloc",
+ "mio",
+ "native-tls",
+ "parking_lot",
+ "privdrop",
+ "quickcheck",
+ "quickcheck_macros",
+ "rand",
+ "serde",
+ "simplelog",
+ "socket2",
+]
+
+[[package]]
 name = "aquatic_udp"
 version = "0.1.0"
 dependencies = [
