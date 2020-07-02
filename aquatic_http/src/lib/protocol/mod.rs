@@ -142,10 +142,8 @@ pub enum Request {
 
 
 impl Request {
-    pub fn from_http(http: httparse::Request) -> Option<Self> {
-        log::debug!("path: {:?}", http.path);
-
-        let path = http.path?;
+    pub fn from_http_get_path(path: &str) -> Option<Self> {
+        log::debug!("path: {:?}", path);
 
         let mut split_parts= path.splitn(2, '?');
 

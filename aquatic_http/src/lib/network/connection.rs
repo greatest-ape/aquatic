@@ -65,19 +65,21 @@ impl EstablishedConnection {
         }
 
         let mut headers = [httparse::EMPTY_HEADER; 16];
-        let mut request = httparse::Request::new(&mut headers);
+        let mut http_request = httparse::Request::new(&mut headers);
 
-        let request = match request.parse(&self.buf[..self.bytes_read]){
+        match http_request.parse(&self.buf[..self.bytes_read]){
             Ok(httparse::Status::Complete(_)) => {
-                let result = if let Some(request) = Request::from_http(request){
-                    Ok(request)
-                } else {
-                    Err(RequestReadError::Invalid)
-                };
+                let opt_request = http_request.path.and_then(
+                    Request::from_http_get_path
+                );
 
                 self.bytes_read = 0;
 
-                result
+                if let Some(request) = opt_request {
+                    Ok(request)
+                } else {
+                    Err(RequestReadError::Invalid)
+                }
             },
             Ok(httparse::Status::Partial) => {
                 Err(RequestReadError::NeedMoreData)
@@ -87,9 +89,7 @@ impl EstablishedConnection {
 
                 Err(RequestReadError::Parse(err))
             }
-        };
-
-        request
+        }
     }
 
     pub fn send_response(&mut self, body: &[u8]) -> ::std::io::Result<()> {
