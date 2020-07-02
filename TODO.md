@@ -7,9 +7,7 @@
 
 ## aquatic_http
 * handshake stuff
-  * fix overcomplicated and probably incorrect implementation
-  * support TLS and plain at the same time??
-  * really close connections after sending response??
+  * fix overcomplicated and possibly incorrect implementation
   * fixed size buffer is probably bad
 * compact peer representation in announce response: is implementation correct?
 * scrape info hash parsing: multiple ought to be accepted
@@ -109,6 +107,12 @@ just like best results in last benchmark, multiple client ips=true:
 * target-cpu=native: 394k
 * target-cpu=skylake: 439k
 * no target-cpu set: 388k
+
+## aquatic_http / aquatic_ws
+* Shared state for HTTP with and without TLS. Peers who announce over TLS
+  should be able to expect that someone snooping on the connection can't
+  connect them to a info hash. If someone receives their IP in a response
+  while announcing without TLS, this expectation would be broken.
 
 ## aquatic_udp
 
