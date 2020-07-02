@@ -1,13 +1,12 @@
 use std::time::Duration;
-use std::fs::File;
-use std::io::Read;
 use std::sync::Arc;
 use std::thread::Builder;
 
 use anyhow::Context;
-use native_tls::{Identity, TlsAcceptor};
 use parking_lot::Mutex;
 use privdrop::PrivDrop;
+
+use aquatic_common_tcp::network::create_tls_acceptor;
 
 pub mod common;
 pub mod config;
@@ -22,7 +21,7 @@ use config::Config;
 
 // almost identical to ws version
 pub fn run(config: Config) -> anyhow::Result<()> {
-    let opt_tls_acceptor = create_tls_acceptor(&config)?;
+    let opt_tls_acceptor = create_tls_acceptor(&config.network.tls)?;
 
     let state = State::default();
 
@@ -115,29 +114,3 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     }
 }
 
-
-// identical to ws version
-pub fn create_tls_acceptor(
-    config: &Config,
-) -> anyhow::Result<Option<TlsAcceptor>> {
-    if config.network.use_tls {
-        let mut identity_bytes = Vec::new();
-        let mut file = File::open(&config.network.tls_pkcs12_path)
-            .context("Couldn't open pkcs12 identity file")?;
-
-        file.read_to_end(&mut identity_bytes)
-            .context("Couldn't read pkcs12 identity file")?;
-
-        let identity = Identity::from_pkcs12(
-            &mut identity_bytes,
-            &config.network.tls_pkcs12_password
-        ).context("Couldn't parse pkcs12 identity file")?;
-
-        let acceptor = TlsAcceptor::new(identity)
-            .context("Couldn't create TlsAcceptor from pkcs12 identity")?;
-
-        Ok(Some(acceptor))
-    } else {
-        Ok(None)
-    }
-}
