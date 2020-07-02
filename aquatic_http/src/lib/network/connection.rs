@@ -12,15 +12,16 @@ use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
 use aquatic_common_tcp::network::stream::Stream;
 
 use crate::common::*;
-use crate::protocol::{Request, Response};
+use crate::protocol::Request;
 
 
 #[derive(Debug)]
-pub enum RequestParseError {
+pub enum RequestReadError {
     NeedMoreData,
     Invalid,
+    StreamEnded,
     Io(::std::io::Error),
-    Parse(::httparse::Error)
+    Parse(::httparse::Error),
 }
 
 
@@ -44,23 +45,22 @@ impl EstablishedConnection {
         }
     }
 
-    pub fn parse_request(&mut self) -> Result<Request, RequestParseError> {
+    pub fn read_request(&mut self) -> Result<Request, RequestReadError> {
         match self.stream.read(&mut self.buf[self.bytes_read..]){
+            Ok(0) => {
+                return Err(RequestReadError::StreamEnded);
+            }
             Ok(bytes_read) => {
                 self.bytes_read += bytes_read;
 
                 info!("parse request read {} bytes", bytes_read);
             },
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                return Err(RequestParseError::NeedMoreData);
+                return Err(RequestReadError::NeedMoreData);
             },
             Err(err) => {
-                return Err(RequestParseError::Io(err));
+                return Err(RequestReadError::Io(err));
             }
-        }
-
-        if self.bytes_read == 0 {
-            return Err(RequestParseError::NeedMoreData); // FIXME: ???
         }
 
         let mut headers = [httparse::EMPTY_HEADER; 16];
@@ -71,7 +71,7 @@ impl EstablishedConnection {
                 let result = if let Some(request) = Request::from_http(request){
                     Ok(request)
                 } else {
-                    Err(RequestParseError::Invalid)
+                    Err(RequestReadError::Invalid)
                 };
 
                 self.bytes_read = 0;
@@ -79,12 +79,12 @@ impl EstablishedConnection {
                 result
             },
             Ok(httparse::Status::Partial) => {
-                Err(RequestParseError::NeedMoreData)
+                Err(RequestReadError::NeedMoreData)
             },
             Err(err) => {
                 self.bytes_read = 0;
 
-                Err(RequestParseError::Parse(err))
+                Err(RequestReadError::Parse(err))
             }
         };
 
