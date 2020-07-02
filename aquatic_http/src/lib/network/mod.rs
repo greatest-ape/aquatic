@@ -184,6 +184,13 @@ pub fn run_handshake_and_read_requests<'a>(
 
                     debug!("read request, sending to handler");
 
+                    if let Request::Announce(ref request) = request {
+                        for (i, c) in request.info_hash.0.chars().enumerate() {
+                            debug!("{}: {}", i, c.escape_unicode());
+                        }
+                        debug!("request info hash char count: {}", request.info_hash.0.chars().count());
+                    }
+
                     if let Err(err) = request_channel_sender
                         .send((meta, request))
                     {

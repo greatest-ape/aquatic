@@ -4,9 +4,9 @@ use serde::{Serialize, Deserialize, Serializer};
 
 use crate::common::Peer;
 
-// mod serde_helpers;
+mod serde_helpers;
 
-// use serde_helpers::*;
+use serde_helpers::*;
 
 
 pub fn serialize_response_peers_compact<S>(
@@ -36,10 +36,9 @@ pub fn serialize_response_peers_compact<S>(
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(
-    // #[serde(
-    //     deserialize_with = "deserialize_20_bytes",
-    //     serialize_with = "serialize_20_bytes"
-    // )]
+    #[serde(
+        deserialize_with = "deserialize_20_char_string",
+    )]
     pub String
 );
 
@@ -47,10 +46,9 @@ pub struct PeerId(
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(
-    // #[serde(
-    //     deserialize_with = "deserialize_20_bytes",
-    //     serialize_with = "serialize_20_bytes"
-    // )]
+    #[serde(
+        deserialize_with = "deserialize_20_char_string",
+    )]
     pub String
 );
 
@@ -129,7 +127,10 @@ pub struct AnnounceResponseFailure {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScrapeRequest {
-    #[serde(rename = "info_hash")]
+    #[serde(
+        rename = "info_hash",
+        deserialize_with = "deserialize_info_hashes" // FIXME: does this work?
+    )]
     pub info_hashes: Vec<InfoHash>,
 }
 
