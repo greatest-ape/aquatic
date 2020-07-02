@@ -16,7 +16,7 @@
 * move stuff to common crate with ws: what about Request/InMessage etc?
 * info hashes, peer ids: check that whole deserialization and url decoding
   works as it should. There are suspicously many `\u{fffd}`
-* AnnounceRequest.compact: parse int to bool
+* AnnounceRequest.compact: handle that it is optional
 
 ## aquatic_ws
 * tests

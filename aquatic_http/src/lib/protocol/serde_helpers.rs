@@ -5,6 +5,40 @@ use serde::{Serializer, Deserializer, de::{Visitor, SeqAccess}};
 use super::{InfoHash, ResponsePeer};
 
 
+struct BoolFromNumberVisitor;
+
+impl<'de> Visitor<'de> for BoolFromNumberVisitor {
+    type Value = bool;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("1 for true, 0 for false")
+    }
+
+    #[inline]
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where E: ::serde::de::Error,
+    {
+        if value == "0" {
+            Ok(false)
+        } else if value == "1" {
+            Ok(true)
+        } else {
+            Err(E::custom(format!("not 0 or 1: {}", value)))
+        }
+    }
+}
+
+
+#[inline]
+pub fn deserialize_bool_from_number<'de, D>(
+    deserializer: D
+) -> Result<bool, D::Error>
+    where D: Deserializer<'de>
+{
+    deserializer.deserialize_any(BoolFromNumberVisitor)
+}
+
+
 struct TwentyCharStringVisitor;
 
 impl<'de> Visitor<'de> for TwentyCharStringVisitor {
