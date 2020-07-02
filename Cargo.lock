@@ -63,6 +63,7 @@ dependencies = [
  "mio",
  "native-tls",
  "serde",
+ "socket2",
 ]
 
 [[package]]
@@ -91,7 +92,6 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "simplelog",
- "socket2",
 ]
 
 [[package]]

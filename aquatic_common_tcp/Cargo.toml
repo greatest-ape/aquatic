@@ -14,3 +14,4 @@ aquatic_common = { path = "../aquatic_common" }
 mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
 native-tls = "0.2"
 serde = { version = "1", features = ["derive"] }
+socket2 = { version = "0.3", features = ["reuseport"] }

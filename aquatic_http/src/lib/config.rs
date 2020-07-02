@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 use serde::{Serialize, Deserialize};
 
 pub use aquatic_common_tcp::config::*;
@@ -21,18 +19,17 @@ pub struct Config {
 }
 
 
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
-    /// Bind to this address
-    pub address: SocketAddr,
-    pub ipv6_only: bool,
+    #[serde(flatten)]
+    pub socket: SocketConfig,
     #[serde(flatten)]
     pub tls: TlsConfig,
     pub poll_event_capacity: usize,
     pub poll_timeout_milliseconds: u64,
 }
-
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -66,8 +63,7 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
-            ipv6_only: false,
+            socket: SocketConfig::default(),
             tls: TlsConfig::default(),
             poll_event_capacity: 4096,
             poll_timeout_milliseconds: 50,

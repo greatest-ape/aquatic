@@ -10,6 +10,8 @@ use native_tls::TlsAcceptor;
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
 
+use aquatic_common_tcp::network::create_listener;
+
 use crate::common::*;
 use crate::config::Config;
 use crate::protocol::*;
@@ -67,7 +69,7 @@ pub fn run_socket_worker(
     response_channel_receiver: ResponseChannelReceiver,
     opt_tls_acceptor: Option<TlsAcceptor>,
 ){
-    match create_listener(&config){
+    match create_listener(&config.network.socket){
         Ok(listener) => {
             socket_worker_statuses.lock()[socket_worker_index] = Some(Ok(()));
 
