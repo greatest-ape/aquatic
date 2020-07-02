@@ -1,12 +1,36 @@
 use std::net::IpAddr;
 use hashbrown::HashMap;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer};
 
 use crate::common::Peer;
 
 // mod serde_helpers;
 
 // use serde_helpers::*;
+
+
+pub fn serialize_response_peers_compact<S>(
+    response_peers: &Vec<ResponsePeer>,
+    serializer: S
+) -> Result<S::Ok, S::Error> where S: Serializer {
+    let mut bytes = Vec::with_capacity(response_peers.len() * 6);
+
+    for peer in response_peers {
+        match peer.ip_address {
+            IpAddr::V4(ip) => {
+                bytes.extend_from_slice(&u32::from(ip).to_be_bytes());
+                bytes.extend_from_slice(&peer.port.to_be_bytes())
+            },
+            IpAddr::V6(_) => {
+                continue
+            }
+        }
+    }
+
+    let text: String = bytes.into_iter().map(|byte| byte as char).collect();
+
+    serializer.serialize_str(&text)
+}
 
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,6 +114,9 @@ pub struct AnnounceResponseSuccess {
     pub tracker_id: String, // Optional??
     pub complete: usize,
     pub incomplete: usize,
+    #[serde(
+        serialize_with = "serialize_response_peers_compact"
+    )]
     pub peers: Vec<ResponsePeer>,
 }
 
