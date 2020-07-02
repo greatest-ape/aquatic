@@ -88,7 +88,6 @@ impl Write for Stream {
 pub enum RequestParseError {
     NeedMoreData,
     Invalid,
-    Incomplete,
     Io(::std::io::Error),
     Parse(::httparse::Error)
 }
@@ -97,7 +96,8 @@ pub enum RequestParseError {
 pub struct EstablishedConnection {
     stream: Stream,
     pub peer_addr: SocketAddr,
-    buf: Vec<u8>,
+    buf: [u8; 1024],
+    bytes_read: usize,
 }
 
 
@@ -108,17 +108,17 @@ impl EstablishedConnection {
         Self {
             stream,
             peer_addr,
-            buf: Vec::new(), // FIXME: with capacity of like 100?
+            buf: [0; 1024], // FIXME: fixed size is stupid
+            bytes_read: 0,
         }
     }
 
     pub fn parse_request(&mut self) -> Result<Request, RequestParseError> {
-        match self.stream.read(&mut self.buf){
-            Ok(0) => {
-                // FIXME: finished reading completely here?
-            },
-            Ok(_) => {
-                return Err(RequestParseError::NeedMoreData);
+        match self.stream.read(&mut self.buf[self.bytes_read..]){
+            Ok(bytes_read) => {
+                self.bytes_read += bytes_read;
+
+                info!("parse request read {} bytes", bytes_read);
             },
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
                 return Err(RequestParseError::NeedMoreData);
@@ -128,45 +128,49 @@ impl EstablishedConnection {
             }
         }
 
-        let mut headers = [httparse::EMPTY_HEADER; 1];
+        if self.bytes_read == 0 {
+            return Err(RequestParseError::NeedMoreData); // FIXME: ???
+        }
+
+        let mut headers = [httparse::EMPTY_HEADER; 16];
         let mut request = httparse::Request::new(&mut headers);
 
-        let request = match request.parse(&self.buf){
+        let request = match request.parse(&self.buf[..self.bytes_read]){
             Ok(httparse::Status::Complete(_)) => {
-                if let Some(request) = Request::from_http(request){
+                let result = if let Some(request) = Request::from_http(request){
                     Ok(request)
                 } else {
                     Err(RequestParseError::Invalid)
-                }
+                };
+
+                self.bytes_read = 0;
+
+                result
             },
             Ok(httparse::Status::Partial) => {
-                Err(RequestParseError::Incomplete)
+                Err(RequestParseError::NeedMoreData)
             },
             Err(err) => {
+                self.bytes_read = 0;
+
                 Err(RequestParseError::Parse(err))
             }
         };
 
-        self.buf.clear();
-        self.buf.shrink_to_fit();
-
         request
     }
 
-    pub fn send_response(&mut self, body: &str) -> Result<(), RequestParseError> {
+    pub fn send_response(&mut self, body: &str) -> ::std::io::Result<()> {
         let mut response = String::new();
 
-        response.push_str("200 OK\r\n\r\n");
+        response.push_str("HTTP/1.1 200 OK\r\n\r\n"); // FIXME: content-length
         response.push_str(body);
+        response.push_str("\r\n");
 
-        match self.stream.write(response.as_bytes()){
-            Ok(_) => Ok(()),
-            Err(err) => {
-                info!("send response: {:?}", err);
+        self.stream.write(response.as_bytes())?;
+        self.stream.flush()?;
 
-                Err(RequestParseError::Io(err))
-            }
-        }
+        Ok(())
     }
 }
 
@@ -195,7 +199,13 @@ impl <'a>HandshakeMachine {
                         tls_acceptor.accept(stream)
                     )
                 } else {
-                    (Some(Either::Left(EstablishedConnection::new(Stream::TcpStream(stream)))), false)
+                    log::debug!("established connection");
+                    
+                    let established_connection = EstablishedConnection::new(
+                        Stream::TcpStream(stream)
+                    );
+
+                    (Some(Either::Left(established_connection)), false)
                 }
             },
             HandshakeMachine::TlsMidHandshake(handshake) => {

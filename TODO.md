@@ -7,9 +7,11 @@
 
 ## aquatic_http
 * handshake stuff
+  * fix overcomplicated and probably incorrect implementation
   * support TLS and plain at the same time??
-  * simplify
-* test
+* response serialization, https://crates.io/crates/bendy
+* response content length
+* scrape info hash parsing
 * move stuff to common crate with ws: what about Request/InMessage etc?
 
 ## aquatic_ws

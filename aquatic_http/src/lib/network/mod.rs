@@ -182,7 +182,7 @@ pub fn run_handshake_and_read_requests<'a>(
                         peer_addr: established_connection.peer_addr
                     };
 
-                    debug!("read message");
+                    debug!("read request, sending to handler");
 
                     if let Err(err) = request_channel_sender
                         .send((meta, request))
@@ -192,12 +192,16 @@ pub fn run_handshake_and_read_requests<'a>(
                             err
                         );
                     }
+
+                    break
                 },
                 Err(RequestParseError::NeedMoreData) => {
+                    info!("need more data");
+
                     break;
                 },
                 Err(RequestParseError::Io(err)) => {
-                    info!("error reading messages: {}", err);
+                    info!("error reading request: {}", err);
     
                     remove_connection_if_exists(connections, poll_token);
     
@@ -205,6 +209,8 @@ pub fn run_handshake_and_read_requests<'a>(
                 },
                 Err(e) => {
                     info!("error reading request: {:?}", e);
+
+                    remove_connection_if_exists(connections, poll_token);
     
                     break;
                 },
@@ -245,10 +251,17 @@ pub fn send_responses(
 
             match established.send_response(&response.to_http_string()){
                 Ok(()) => {
-                    debug!("sent message");
+                    debug!("sent response");
+
+                    remove_connection_if_exists(
+                        connections,
+                        meta.poll_token
+                    );
                 },
-                Err(RequestParseError::NeedMoreData) => {}, // FIXME: block?
-                Err(RequestParseError::Io(err)) => {
+                Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                    debug!("send response: would block");
+                },
+                Err(err) => {
                     info!("error sending response: {}", err);
 
                     remove_connection_if_exists(
@@ -256,9 +269,6 @@ pub fn send_responses(
                         meta.poll_token
                     );
                 },
-                _ => {
-                    unreachable!()
-                }
             }
         }
     }

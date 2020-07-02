@@ -9,25 +9,25 @@ use crate::common::Peer;
 // use serde_helpers::*;
 
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(
     // #[serde(
     //     deserialize_with = "deserialize_20_bytes",
     //     serialize_with = "serialize_20_bytes"
     // )]
-    pub [u8; 20]
+    pub String
 );
 
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(
     // #[serde(
     //     deserialize_with = "deserialize_20_bytes",
     //     serialize_with = "serialize_20_bytes"
     // )]
-    pub [u8; 20]
+    pub String
 );
 
 
@@ -76,8 +76,8 @@ pub struct AnnounceRequest {
     pub bytes_left: usize,
     #[serde(default)]
     pub event: AnnounceEvent,
-    /// FIXME: number: 0 or 1
-    pub compact: bool,
+    /// FIXME: number: 0 or 1 to bool
+    pub compact: u8,
     /// Requested number of peers to return
     pub numwant: usize,
 }
@@ -130,16 +130,32 @@ pub enum Request {
 
 impl Request {
     pub fn from_http(http: httparse::Request) -> Option<Self> {
-        http.path
-            .and_then(|path| {
-                let mut iterator = path.splitn(2, '?');
+        log::debug!("path: {:?}", http.path);
 
-                iterator.next();
-                iterator.next()
-            })
-            .and_then(|query_string| {
-                serde_urlencoded::from_str(query_string).ok()
-            })
+        let path = http.path?;
+
+        let mut split_parts= path.splitn(2, '?');
+
+        let path = split_parts.next()?;
+        let query_string = split_parts.next()?;
+
+        if path == "/announce" {
+            let result: Result<AnnounceRequest, serde_urlencoded::de::Error> = serde_urlencoded::from_str(query_string);
+
+            if let Err(ref err) = result {
+                log::debug!("error: {}", err);
+            }
+
+            result.ok().map(Request::Announce)
+        } else {
+            let result: Result<ScrapeRequest, serde_urlencoded::de::Error> = serde_urlencoded::from_str(query_string);
+
+            if let Err(ref err) = result {
+                log::debug!("error: {}", err);
+            }
+
+            result.ok().map(Request::Scrape)
+        }
     }
 }
 
@@ -154,6 +170,6 @@ pub enum Response {
 
 impl Response {
     pub fn to_http_string(self) -> String {
-        unimplemented!()
+        "(response)".to_string()
     }
 }
