@@ -10,8 +10,12 @@
   * fix overcomplicated and probably incorrect implementation
   * support TLS and plain at the same time??
   * really close connections after sending response??
+  * fixed size buffer is probably bad
+* compact peer representation in announce response
 * scrape info hash parsing: multiple ought to be accepted
 * move stuff to common crate with ws: what about Request/InMessage etc?
+* info hashes, peer ids: verify that they are 20 bytes
+* AnnounceRequest.compact: parse int to bool
 
 ## aquatic_ws
 * tests

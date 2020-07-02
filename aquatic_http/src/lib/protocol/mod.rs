@@ -161,6 +161,7 @@ impl Request {
 
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum Response {
     AnnounceSuccess(AnnounceResponseSuccess),
     AnnounceFailure(AnnounceResponseFailure),
