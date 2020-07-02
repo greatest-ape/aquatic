@@ -74,13 +74,19 @@ pub struct AnnounceRequest {
     pub bytes_left: usize,
     #[serde(default)]
     pub event: AnnounceEvent,
-    /// FIXME: is optional, so should default to something, maybe `true`
     #[serde(
-        deserialize_with = "deserialize_bool_from_number"
+        deserialize_with = "deserialize_bool_from_number",
+        default = "AnnounceRequest::default_compact_value"
     )]
     pub compact: bool,
     /// Requested number of peers to return
     pub numwant: usize,
+}
+
+impl AnnounceRequest {
+    fn default_compact_value() -> bool {
+        true
+    }
 }
 
 
