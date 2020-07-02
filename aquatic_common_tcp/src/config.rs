@@ -31,14 +31,6 @@ pub struct HandlerConfig {
     pub channel_recv_timeout_microseconds: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct SocketConfig {
-    /// Bind to this address
-    pub address: SocketAddr,
-    pub ipv6_only: bool,
-}
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -78,16 +70,6 @@ impl Default for HandlerConfig {
         Self {
             max_requests_per_iter: 10000,
             channel_recv_timeout_microseconds: 200,
-        }
-    }
-}
-
-
-impl Default for SocketConfig {
-    fn default() -> Self {
-        Self {
-            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
-            ipv6_only: false,
         }
     }
 }

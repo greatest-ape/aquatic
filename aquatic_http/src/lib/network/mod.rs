@@ -69,7 +69,7 @@ pub fn run_socket_worker(
     response_channel_receiver: ResponseChannelReceiver,
     opt_tls_acceptor: Option<TlsAcceptor>,
 ){
-    match create_listener(&config.network.socket){
+    match create_listener(config.network.address, config.network.ipv6_only){
         Ok(listener) => {
             socket_worker_statuses.lock()[socket_worker_index] = Some(Ok(()));
 
