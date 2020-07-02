@@ -14,7 +14,8 @@
 * compact peer representation in announce response: is implementation correct?
 * scrape info hash parsing: multiple ought to be accepted
 * move stuff to common crate with ws: what about Request/InMessage etc?
-* info hashes, peer ids: verify that they are 20 bytes
+* info hashes, peer ids: check that whole deserialization and url decoding
+  works as it should. There are suspicously many `\u{fffd}`
 * AnnounceRequest.compact: parse int to bool
 
 ## aquatic_ws
