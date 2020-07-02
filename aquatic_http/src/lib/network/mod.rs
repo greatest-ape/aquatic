@@ -59,9 +59,8 @@ fn accept_new_streams(
 }
 
 
-
-/// On the stream given by poll_token, get TLS (if requested) and tungstenite
-/// up and running, then read messages and pass on through channel.
+/// On the stream given by poll_token, get TLS up and running if requested,
+/// then read requests and pass on through channel.
 pub fn run_handshake_and_read_requests(
     socket_worker_index: usize,
     request_channel_sender: &RequestChannelSender,
@@ -98,6 +97,7 @@ pub fn run_handshake_and_read_requests(
                 Err(RequestReadError::NeedMoreData) => {
                     info!("need more data");
 
+                    // Stop reading data (defer to later events)
                     break;
                 },
                 Err(err) => {
@@ -105,7 +105,9 @@ pub fn run_handshake_and_read_requests(
             
                     connections.remove(&poll_token);
     
-                    break;
+                    // Stop reading data. Later events don't matter since
+                    // connection was just removed.
+                    break; 
                 },
             }
         } else if let Some(connection) = connections.remove(&poll_token){
@@ -126,7 +128,7 @@ pub fn run_handshake_and_read_requests(
 }
 
 
-/// Read messages from channel, send to peers
+/// Read responses from channel, send to peers
 pub fn send_responses(
     response_channel_receiver: ::flume::Drain<(ConnectionMeta, Response)>,
     connections: &mut ConnectionMap,
@@ -174,7 +176,6 @@ pub fn remove_inactive_connections(
 }
 
 
-// will be almost identical to ws version
 pub fn run_poll_loop(
     config: Config,
     socket_worker_index: usize,
