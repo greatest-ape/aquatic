@@ -7,12 +7,16 @@
 
 ## aquatic_http
 * handshake stuff
-  * fix overcomplicated and possibly incorrect implementation
   * fixed size buffer is probably bad
+  * test tls
+* request parsing in protocol module instead of in network? Not obvious
+  what error return type to use then
 * compact peer representation in announce response: is implementation correct?
 * scrape info hash parsing: multiple ought to be accepted
 * info hashes, peer ids: check that whole deserialization and url decoding
   works as it should. There are suspicously many `\u{fffd}`
+* established connections do not get valid_until updated, I think? Might
+  be the case in aquatic_ws too.
 * move stuff to common crate with ws: what about Request/InMessage etc?
   * don't overdo this
 

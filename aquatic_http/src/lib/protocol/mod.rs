@@ -134,7 +134,7 @@ pub struct ScrapeResponse {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum Request {
     Announce(AnnounceRequest),
     Scrape(ScrapeRequest),
