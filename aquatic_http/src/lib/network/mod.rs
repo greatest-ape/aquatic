@@ -249,7 +249,7 @@ pub fn send_responses(
                 continue;
             }
 
-            match established.send_response(&response.to_http_string()){
+            match established.send_response(&response.to_bytes()){
                 Ok(()) => {
                     debug!("sent response");
 

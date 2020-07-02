@@ -169,7 +169,7 @@ pub enum Response {
 
 
 impl Response {
-    pub fn to_http_string(self) -> String {
-        "(response)".to_string()
+    pub fn to_bytes(self) -> Vec<u8> {
+        bendy::serde::to_bytes(&self).unwrap()
     }
 }

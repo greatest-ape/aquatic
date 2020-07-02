@@ -9,9 +9,8 @@
 * handshake stuff
   * fix overcomplicated and probably incorrect implementation
   * support TLS and plain at the same time??
-* response serialization, https://crates.io/crates/bendy
-* response content length
-* scrape info hash parsing
+  * really close connections after sending response??
+* scrape info hash parsing: multiple ought to be accepted
 * move stuff to common crate with ws: what about Request/InMessage etc?
 
 ## aquatic_ws

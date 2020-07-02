@@ -160,14 +160,17 @@ impl EstablishedConnection {
         request
     }
 
-    pub fn send_response(&mut self, body: &str) -> ::std::io::Result<()> {
-        let mut response = String::new();
+    pub fn send_response(&mut self, body: &[u8]) -> ::std::io::Result<()> {
+        let mut response = Vec::new();
 
-        response.push_str("HTTP/1.1 200 OK\r\n\r\n"); // FIXME: content-length
-        response.push_str(body);
-        response.push_str("\r\n");
+        response.extend_from_slice(b"HTTP/1.1 200 OK\r\n");
+        response.extend_from_slice(b"Content-Length: ");
+        response.extend_from_slice(format!("{}", body.len() + 2).as_bytes());
+        response.extend_from_slice(b"\r\n\r\n");
+        response.extend_from_slice(body);
+        response.extend_from_slice(b"\r\n");
 
-        self.stream.write(response.as_bytes())?;
+        self.stream.write(&response)?;
         self.stream.flush()?;
 
         Ok(())
