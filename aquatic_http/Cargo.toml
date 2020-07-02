@@ -17,6 +17,7 @@ path = "src/bin/main.rs"
 anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
+aquatic_common_tcp = { path = "../aquatic_common_tcp" }
 bendy = { version = "0.3", features = ["std", "serde"] }
 either = "1"
 flume = "0.7"

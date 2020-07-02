@@ -6,10 +6,10 @@ use socket2::{Socket, Domain, Type, Protocol};
 
 use crate::config::Config;
 
-use super::connection::*;
+use super::*;
 
 
-// will be identical to ws version
+// will be almost identical to ws version
 pub fn create_listener(
     config: &Config
 ) -> ::anyhow::Result<::std::net::TcpListener> {
@@ -38,7 +38,6 @@ pub fn create_listener(
 }
 
 
-// will be identical to ws version
 /// Don't bother with deregistering from Poll. In my understanding, this is
 /// done automatically when the stream is dropped, as long as there are no
 /// other references to the file descriptor, such as when it is accessed
@@ -53,7 +52,6 @@ pub fn remove_connection_if_exists(
 }
 
 
-// will be identical to ws version
 // Close and remove inactive connections
 pub fn remove_inactive_connections(
     connections: &mut ConnectionMap,

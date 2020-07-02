@@ -1,4 +1,4 @@
-use std::net::{SocketAddr, IpAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use flume::{Sender, Receiver};
@@ -34,7 +34,7 @@ pub enum PeerStatus {
 }
 
 
-// identical to ws version - FIXME only if bytes left is optional
+// almost identical to ws version - FIXME only if bytes left is optional
 impl PeerStatus {
     /// Determine peer status from announce event and number of bytes left.
     /// 

@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 use hashbrown::HashMap;
-use serde::{Serialize, Deserialize, Serializer};
+use serde::{Serialize, Deserialize};
 
 use crate::common::Peer;
 

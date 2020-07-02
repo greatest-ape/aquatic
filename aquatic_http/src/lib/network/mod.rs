@@ -1,3 +1,6 @@
+pub mod connection;
+pub mod utils;
+
 use std::time::Duration;
 use std::io::ErrorKind;
 
@@ -11,12 +14,49 @@ use crate::common::*;
 use crate::config::Config;
 use crate::protocol::*;
 
-pub mod connection;
-pub mod utils;
-
 use connection::*;
 use utils::*;
 
+
+
+fn accept_new_streams(
+    listener: &mut TcpListener,
+    poll: &mut Poll,
+    connections: &mut ConnectionMap,
+    valid_until: ValidUntil,
+    poll_token_counter: &mut Token,
+){
+    loop {
+        match listener.accept(){
+            Ok((mut stream, _)) => {
+                poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
+
+                if poll_token_counter.0 == 0 {
+                    poll_token_counter.0 = 1;
+                }
+
+                let token = *poll_token_counter;
+
+                remove_connection_if_exists(connections, token);
+
+                poll.registry()
+                    .register(&mut stream, token, Interest::READABLE)
+                    .unwrap();
+
+                let connection = Connection::new(valid_until, stream);
+
+                connections.insert(token, connection);
+            },
+            Err(err) => {
+                if err.kind() == ErrorKind::WouldBlock {
+                    break
+                }
+
+                info!("error while accepting streams: {}", err);
+            }
+        }
+    }
+}
 
 // will be almost identical to ws version
 pub fn run_socket_worker(
@@ -119,54 +159,14 @@ pub fn run_poll_loop(
 }
 
 
-// will be identical to ws version
-fn accept_new_streams(
-    listener: &mut TcpListener,
-    poll: &mut Poll,
-    connections: &mut ConnectionMap,
-    valid_until: ValidUntil,
-    poll_token_counter: &mut Token,
-){
-    loop {
-        match listener.accept(){
-            Ok((mut stream, _)) => {
-                poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
-
-                if poll_token_counter.0 == 0 {
-                    poll_token_counter.0 = 1;
-                }
-
-                let token = *poll_token_counter;
-
-                remove_connection_if_exists(connections, token);
-
-                poll.registry()
-                    .register(&mut stream, token, Interest::READABLE)
-                    .unwrap();
-
-                let connection = Connection::new(valid_until, stream);
-
-                connections.insert(token, connection);
-            },
-            Err(err) => {
-                if err.kind() == ErrorKind::WouldBlock {
-                    break
-                }
-
-                info!("error while accepting streams: {}", err);
-            }
-        }
-    }
-}
-
 
 /// On the stream given by poll_token, get TLS (if requested) and tungstenite
 /// up and running, then read messages and pass on through channel.
-pub fn run_handshake_and_read_requests<'a>(
+pub fn run_handshake_and_read_requests(
     socket_worker_index: usize,
     request_channel_sender: &RequestChannelSender,
-    opt_tls_acceptor: &'a Option<TlsAcceptor>, // If set, run TLS
-    connections: &'a mut ConnectionMap<'a>,
+    opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
+    connections: &mut ConnectionMap,
     poll_token: Token,
     valid_until: ValidUntil,
 ){
