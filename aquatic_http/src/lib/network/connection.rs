@@ -1,13 +1,14 @@
 use std::net::{SocketAddr};
 use std::io::ErrorKind;
 use std::io::{Read, Write};
+use std::sync::Arc;
 
 use either::Either;
 use hashbrown::HashMap;
 use log::info;
 use mio::Token;
 use mio::net::TcpStream;
-use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
+use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
 
 use aquatic_common_tcp::network::stream::Stream;
 
@@ -109,55 +110,58 @@ impl EstablishedConnection {
 }
 
 
-pub enum HandshakeMachine {
+enum HandshakeMachineInner {
     TcpStream(TcpStream),
     TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
 }
 
 
-impl <'a>HandshakeMachine {
+pub struct TlsHandshakeMachine {
+    tls_acceptor: Arc<TlsAcceptor>,
+    inner: HandshakeMachineInner,
+}
+
+
+impl <'a>TlsHandshakeMachine {
     #[inline]
-    fn new(tcp_stream: TcpStream) -> Self {
-        Self::TcpStream(tcp_stream)
+    fn new(
+        tls_acceptor: Arc<TlsAcceptor>,
+        tcp_stream: TcpStream
+    ) -> Self {
+        Self {
+            tls_acceptor,
+            inner: HandshakeMachineInner::TcpStream(tcp_stream)
+        }
     }
 
     #[inline]
     pub fn advance(
         self,
-        opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
-    ) -> (Option<Either<EstablishedConnection, Self>>, bool) { // bool = stop looping
-        match self {
-            HandshakeMachine::TcpStream(stream) => {
-                if let Some(tls_acceptor) = opt_tls_acceptor {
-                    Self::handle_tls_handshake_result(
-                        tls_acceptor.accept(stream)
-                    )
-                } else {
-                    log::debug!("established connection");
-                    
-                    let established_connection = EstablishedConnection::new(
-                        Stream::TcpStream(stream)
-                    );
-
-                    (Some(Either::Left(established_connection)), false)
-                }
+    ) -> (Option<Either<EstablishedConnection, Self>>, bool) { // bool = would block
+        let handshake_result = match self.inner {
+            HandshakeMachineInner::TcpStream(stream) => {
+                self.tls_acceptor.accept(stream)
             },
-            HandshakeMachine::TlsMidHandshake(handshake) => {
-                Self::handle_tls_handshake_result(handshake.handshake())
+            HandshakeMachineInner::TlsMidHandshake(handshake) => {
+                handshake.handshake()
             },
-        }
-    }
+        };
 
-    #[inline]
-    fn handle_tls_handshake_result(
-        result: Result<TlsStream<TcpStream>, ::native_tls::HandshakeError<TcpStream>>,
-    ) -> (Option<Either<EstablishedConnection, Self>>, bool) {
-        match result {
+        match handshake_result {
             Ok(stream) => {
-                (Some(Either::Left(EstablishedConnection::new(Stream::TlsStream(stream)))), false)
+                let established = EstablishedConnection::new(
+                    Stream::TlsStream(stream)
+                );
+
+                (Some(Either::Left(established)), false)
             },
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
-                (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
+                let machine = Self {
+                    tls_acceptor: self.tls_acceptor,
+                    inner: HandshakeMachineInner::TlsMidHandshake(handshake),
+                };
+
+                (Some(Either::Right(machine)), true)
             },
             Err(native_tls::HandshakeError::Failure(err)) => {
                 info!("tls handshake error: {}", err);
@@ -171,22 +175,21 @@ impl <'a>HandshakeMachine {
 
 pub struct Connection {
     pub valid_until: ValidUntil,
-    pub inner: Either<EstablishedConnection, HandshakeMachine>,
+    pub inner: Either<EstablishedConnection, TlsHandshakeMachine>,
 }
 
 
 impl Connection {
     #[inline]
     pub fn new(
-        use_tls: bool,
+        opt_tls_acceptor: &Option<Arc<TlsAcceptor>>,
         valid_until: ValidUntil,
         tcp_stream: TcpStream,
     ) -> Self {
-        let inner = if use_tls {
-            Either::Right(HandshakeMachine::new(tcp_stream))
+        // Setup handshake machine if TLS is requested
+        let inner = if let Some(tls_acceptor) = opt_tls_acceptor {
+            Either::Right(TlsHandshakeMachine::new(tls_acceptor.clone(), tcp_stream))
         } else {
-            // If no TLS should be used, just go directly to established
-            // connection
             Either::Left(EstablishedConnection::new(Stream::TcpStream(tcp_stream)))
         };
 

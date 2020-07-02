@@ -2,6 +2,7 @@ pub mod connection;
 
 use std::time::{Duration, Instant};
 use std::io::ErrorKind;
+use std::sync::Arc;
 
 use hashbrown::HashMap;
 use log::{info, debug, error};
@@ -24,7 +25,7 @@ fn accept_new_streams(
     connections: &mut ConnectionMap,
     valid_until: ValidUntil,
     poll_token_counter: &mut Token,
-    use_tls: bool,
+    opt_tls_acceptor: &Option<Arc<TlsAcceptor>>,
 ){
     loop {
         match listener.accept(){
@@ -44,7 +45,7 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection::new(use_tls, valid_until, stream);
+                let connection = Connection::new(opt_tls_acceptor, valid_until, stream);
 
                 connections.insert(token, connection);
             },
@@ -65,7 +66,6 @@ fn accept_new_streams(
 pub fn run_handshake_and_read_requests(
     socket_worker_index: usize,
     request_channel_sender: &RequestChannelSender,
-    opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
     connections: &mut ConnectionMap,
     poll_token: Token,
     valid_until: ValidUntil,
@@ -115,9 +115,7 @@ pub fn run_handshake_and_read_requests(
         } else if let Some(handshake_machine) = connections.remove(&poll_token)
             .and_then(|c| c.inner.right())
         {
-            let (opt_inner, stop_loop) = handshake_machine.advance(
-                opt_tls_acceptor
-            );
+            let (opt_inner, would_block) = handshake_machine.advance();
 
             if let Some(inner) = opt_inner {
                 let connection = Connection {
@@ -128,7 +126,7 @@ pub fn run_handshake_and_read_requests(
                 connections.insert(poll_token, connection);
             }
 
-            if stop_loop {
+            if would_block {
                 break;
             }
         }
@@ -204,6 +202,7 @@ pub fn run_poll_loop(
         .unwrap();
 
     let mut connections: ConnectionMap = HashMap::new();
+    let opt_tls_acceptor = opt_tls_acceptor.map(Arc::new);
 
     let mut poll_token_counter = Token(0usize);
     let mut iter_counter = 0usize;
@@ -224,13 +223,12 @@ pub fn run_poll_loop(
                     &mut connections,
                     valid_until,
                     &mut poll_token_counter,
-                    opt_tls_acceptor.is_some(),
+                    &opt_tls_acceptor,
                 );
             } else {
                 run_handshake_and_read_requests(
                     socket_worker_index,
                     &request_channel_sender,
-                    &opt_tls_acceptor,
                     &mut connections,
                     token,
                     valid_until,
