@@ -109,7 +109,7 @@ impl EstablishedConnection {
 }
 
 
-enum HandshakeMachine {
+pub enum HandshakeMachine {
     TcpStream(TcpStream),
     TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
 }
@@ -122,7 +122,7 @@ impl <'a>HandshakeMachine {
     }
 
     #[inline]
-    fn advance(
+    pub fn advance(
         self,
         opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
     ) -> (Option<Either<EstablishedConnection, Self>>, bool) { // bool = stop looping
@@ -171,57 +171,28 @@ impl <'a>HandshakeMachine {
 
 pub struct Connection {
     pub valid_until: ValidUntil,
-    inner: Either<EstablishedConnection, HandshakeMachine>,
+    pub inner: Either<EstablishedConnection, HandshakeMachine>,
 }
 
 
-/// Create from TcpStream. Run `advance_handshakes` until `get_established_ws`
-/// returns Some(EstablishedWs).
-///
-/// advance_handshakes takes ownership of self because the TLS handshake
-/// methods does. get_established doesn't, since work can be done on a mutable
-/// reference to a tls stream, and this way, the whole connection doesn't have
-/// to be removed/inserted into the ConnectionMap
 impl Connection {
     #[inline]
     pub fn new(
+        use_tls: bool,
         valid_until: ValidUntil,
         tcp_stream: TcpStream,
     ) -> Self {
+        let inner = if use_tls {
+            Either::Right(HandshakeMachine::new(tcp_stream))
+        } else {
+            // If no TLS should be used, just go directly to established
+            // connection
+            Either::Left(EstablishedConnection::new(Stream::TcpStream(tcp_stream)))
+        };
+
         Self {
             valid_until,
-            inner: Either::Right(HandshakeMachine::new(tcp_stream))
-        }
-    }
-
-    #[inline]
-    pub fn get_established(&mut self) -> Option<&mut EstablishedConnection> {
-        match self.inner {
-            Either::Left(ref mut established) => Some(established),
-            Either::Right(_) => None,
-        }
-    }
-
-    #[inline]
-    pub fn advance_handshakes(
-        self,
-        opt_tls_acceptor: &Option<TlsAcceptor>,
-        valid_until: ValidUntil,
-    ) -> (Option<Self>, bool) {
-        match self.inner {
-            Either::Left(_) => (Some(self), false),
-            Either::Right(machine) => {
-                let (opt_inner, stop_loop) = machine.advance(
-                    opt_tls_acceptor
-                );
-
-                let opt_new_self = opt_inner.map(|inner| Self {
-                    valid_until,
-                    inner
-                });
-
-                (opt_new_self, stop_loop)
-            }
+            inner,
         }
     }
 }

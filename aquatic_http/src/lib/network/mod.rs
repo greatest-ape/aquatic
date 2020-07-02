@@ -24,6 +24,7 @@ fn accept_new_streams(
     connections: &mut ConnectionMap,
     valid_until: ValidUntil,
     poll_token_counter: &mut Token,
+    use_tls: bool,
 ){
     loop {
         match listener.accept(){
@@ -43,7 +44,7 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection::new(valid_until, stream);
+                let connection = Connection::new(use_tls, valid_until, stream);
 
                 connections.insert(token, connection);
             },
@@ -70,15 +71,16 @@ pub fn run_handshake_and_read_requests(
     valid_until: ValidUntil,
 ){
     loop {
-        if let Some(established_connection) = connections.get_mut(&poll_token)
-            .and_then(Connection::get_established)
-        {
-            match established_connection.read_request(){
+        let opt_established = connections.get_mut(&poll_token)
+            .and_then(|c| c.inner.as_mut().left());
+
+        if let Some(established) = opt_established {
+            match established.read_request(){
                 Ok(request) => {
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
                         poll_token,
-                        peer_addr: established_connection.peer_addr
+                        peer_addr: established.peer_addr
                     };
 
                     debug!("read request, sending to handler");
@@ -110,13 +112,19 @@ pub fn run_handshake_and_read_requests(
                     break; 
                 },
             }
-        } else if let Some(connection) = connections.remove(&poll_token){
-            let (opt_new_connection, stop_loop) = connection.advance_handshakes(
-                opt_tls_acceptor,
-                valid_until
+        } else if let Some(handshake_machine) = connections.remove(&poll_token)
+            .and_then(|c| c.inner.right())
+        {
+            let (opt_inner, stop_loop) = handshake_machine.advance(
+                opt_tls_acceptor
             );
 
-            if let Some(connection) = opt_new_connection {
+            if let Some(inner) = opt_inner {
+                let connection = Connection {
+                    valid_until,
+                    inner
+                };
+
                 connections.insert(poll_token, connection);
             }
 
@@ -134,10 +142,9 @@ pub fn send_responses(
     connections: &mut ConnectionMap,
 ){
     for (meta, response) in response_channel_receiver {
-        let opt_established = connections.get_mut(&meta.poll_token)
-            .and_then(Connection::get_established);
-        
-        if let Some(established) = opt_established {
+        if let Some(established) = connections.get_mut(&meta.poll_token)
+            .and_then(|c| c.inner.as_mut().left())
+        {
             if established.peer_addr != meta.peer_addr {
                 info!("socket worker error: peer socket addrs didn't match");
 
@@ -217,6 +224,7 @@ pub fn run_poll_loop(
                     &mut connections,
                     valid_until,
                     &mut poll_token_counter,
+                    opt_tls_acceptor.is_some(),
                 );
             } else {
                 run_handshake_and_read_requests(
