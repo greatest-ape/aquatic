@@ -62,6 +62,7 @@ dependencies = [
  "aquatic_common",
  "mio",
  "native-tls",
+ "parking_lot",
  "serde",
  "socket2",
 ]

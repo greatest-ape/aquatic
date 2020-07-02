@@ -13,7 +13,6 @@ pub use aquatic_common::ValidUntil;
 use crate::protocol::*;
 
 
-
 // identical to ws version
 #[derive(Clone, Copy, Debug)]
 pub struct ConnectionMeta {

@@ -10,7 +10,7 @@ use native_tls::TlsAcceptor;
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
 
-use aquatic_common_tcp::network::create_listener;
+use aquatic_common_tcp::network::utils::create_listener;
 
 use crate::common::*;
 use crate::config::Config;
