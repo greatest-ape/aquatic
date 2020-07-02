@@ -95,8 +95,7 @@ impl EstablishedConnection {
     pub fn send_response(&mut self, body: &[u8]) -> ::std::io::Result<()> {
         let mut response = Vec::new();
 
-        response.extend_from_slice(b"HTTP/1.1 200 OK\r\n");
-        response.extend_from_slice(b"Content-Length: ");
+        response.extend_from_slice(b"HTTP/1.1 200 OK\r\nContent-Length: ");
         response.extend_from_slice(format!("{}", body.len() + 2).as_bytes());
         response.extend_from_slice(b"\r\n\r\n");
         response.extend_from_slice(body);
