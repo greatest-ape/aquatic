@@ -13,9 +13,9 @@ use serde_helpers::*;
 #[serde(transparent)]
 pub struct PeerId(
     #[serde(
-        deserialize_with = "deserialize_20_char_string",
+        deserialize_with = "deserialize_20_bytes",
     )]
-    pub String
+    pub [u8; 20]
 );
 
 
@@ -23,9 +23,9 @@ pub struct PeerId(
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(
-        deserialize_with = "deserialize_20_char_string",
+        deserialize_with = "deserialize_20_bytes",
     )]
-    pub String
+    pub [u8; 20]
 );
 
 
@@ -180,8 +180,6 @@ impl Request {
         let mut processed = String::new();
 
         for (i, part) in query_string.split('%').enumerate(){
-            println!("{}", part);
-
             if i == 0 {
                 processed.push_str(part);
             } else if part.len() >= 2 {

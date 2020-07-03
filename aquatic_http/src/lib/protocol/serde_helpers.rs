@@ -39,35 +39,55 @@ pub fn deserialize_bool_from_number<'de, D>(
 }
 
 
-struct TwentyCharStringVisitor;
 
-impl<'de> Visitor<'de> for TwentyCharStringVisitor {
-    type Value = String;
+/// Decode string of 20 byte-size chars to a [u8; 20]
+struct TwentyByteVisitor;
+
+impl<'de> Visitor<'de> for TwentyByteVisitor {
+    type Value = [u8; 20];
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("string consisting of 20 chars")
+        formatter.write_str("string consisting of 20 bytes")
     }
 
     #[inline]
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
-        if value.chars().count() == 20 {
-            Ok(value.to_string())
+        let mut arr = [0u8; 20];
+        let mut char_iter = value.chars();
+
+        for a in arr.iter_mut(){
+            if let Some(c) = char_iter.next(){
+                if c as u32 > 255 {
+                    return Err(E::custom(format!(
+                        "character not in single byte range: {:#?}",
+                        c
+                    )));
+                }
+
+                *a = c as u8;
+            } else {
+                return Err(E::custom(format!("less than 20 bytes: {:#?}", value)));
+            }
+        }
+
+        if char_iter.next().is_some(){
+            Err(E::custom(format!("more than 20 bytes: {:#?}", value)))
         } else {
-            Err(E::custom(format!("not 20 chars: {:#?}", value)))
+            Ok(arr)
         }
     }
 }
 
 
 #[inline]
-pub fn deserialize_20_char_string<'de, D>(
+pub fn deserialize_20_bytes<'de, D>(
     deserializer: D
-) -> Result<String, D::Error>
+) -> Result<[u8; 20], D::Error>
     where D: Deserializer<'de>
 {
-    deserializer.deserialize_any(TwentyCharStringVisitor)
+    deserializer.deserialize_any(TwentyByteVisitor)
 }
 
 
@@ -85,7 +105,7 @@ impl<'de> Visitor<'de> for InfoHashVecVisitor {
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
-        match TwentyCharStringVisitor::visit_str::<E>(TwentyCharStringVisitor, value){
+        match TwentyByteVisitor::visit_str::<E>(TwentyByteVisitor, value){
             Ok(arr) => Ok(vec![InfoHash(arr)]),
             Err(err) => Err(E::custom(format!("got string, but {}", err)))
         }
@@ -98,8 +118,8 @@ impl<'de> Visitor<'de> for InfoHashVecVisitor {
         let mut info_hashes: Self::Value = Vec::new();
 
         while let Ok(Some(value)) = seq.next_element::<&str>(){
-            let arr = TwentyCharStringVisitor::visit_str(
-                TwentyCharStringVisitor, value
+            let arr = TwentyByteVisitor::visit_str(
+                TwentyByteVisitor, value
             )?;
 
             info_hashes.push(InfoHash(arr));
