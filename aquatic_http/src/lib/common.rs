@@ -10,7 +10,9 @@ use parking_lot::Mutex;
 
 pub use aquatic_common::ValidUntil;
 
-use crate::protocol::*;
+use crate::protocol::common::*;
+use crate::protocol::request::Request;
+use crate::protocol::response::Response;
 
 
 // identical to ws version

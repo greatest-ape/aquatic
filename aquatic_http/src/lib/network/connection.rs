@@ -13,7 +13,7 @@ use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
 use aquatic_common_tcp::network::stream::Stream;
 
 use crate::common::*;
-use crate::protocol::Request;
+use crate::protocol::request::Request;
 
 
 #[derive(Debug)]

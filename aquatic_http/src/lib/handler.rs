@@ -9,7 +9,9 @@ use aquatic_common::extract_response_peers;
 
 use crate::common::*;
 use crate::config::Config;
-use crate::protocol::*;
+
+use crate::protocol::request::*;
+use crate::protocol::response::*;
 
 
 // almost identical to ws version

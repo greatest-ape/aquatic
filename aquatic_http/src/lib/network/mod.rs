@@ -14,7 +14,7 @@ use aquatic_common_tcp::network::utils::create_listener;
 
 use crate::common::*;
 use crate::config::Config;
-use crate::protocol::*;
+use crate::protocol::response::*;
 
 use connection::*;
 

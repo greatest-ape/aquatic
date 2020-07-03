@@ -2,8 +2,7 @@ use std::net::IpAddr;
 
 use serde::Serializer;
 
-use super::ResponsePeer;
-
+use super::response::ResponsePeer;
 
 
 /// Not for serde
