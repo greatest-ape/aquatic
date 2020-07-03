@@ -148,10 +148,11 @@ impl Request {
         let mut split_parts= path.splitn(2, '?');
 
         let path = split_parts.next()?;
-        let query_string = split_parts.next()?;
+        let query_string = Self::preprocess_query_string(split_parts.next()?);
 
         if path == "/announce" {
-            let result: Result<AnnounceRequest, serde_urlencoded::de::Error> = serde_urlencoded::from_str(query_string);
+            let result: Result<AnnounceRequest, serde_urlencoded::de::Error> =
+                serde_urlencoded::from_str(&query_string);
 
             if let Err(ref err) = result {
                 log::debug!("error: {}", err);
@@ -159,7 +160,8 @@ impl Request {
 
             result.ok().map(Request::Announce)
         } else {
-            let result: Result<ScrapeRequest, serde_urlencoded::de::Error> = serde_urlencoded::from_str(query_string);
+            let result: Result<ScrapeRequest, serde_urlencoded::de::Error> =
+                serde_urlencoded::from_str(&query_string);
 
             if let Err(ref err) = result {
                 log::debug!("error: {}", err);
@@ -167,6 +169,49 @@ impl Request {
 
             result.ok().map(Request::Scrape)
         }
+    }
+
+    /// The info hashes and peer id's that are received are url-encoded byte
+    /// by byte, e.g., %fa for byte 0xfa. However, they are parsed as an UTF-8
+    /// string, meaning that non-ascii bytes are invalid characters. Therefore,
+    /// these bytes must be converted to their equivalent multi-byte UTF-8
+    /// encodings first.
+    fn preprocess_query_string(query_string: &str) -> String {
+        let mut processed = String::new();
+
+        for (i, part) in query_string.split('%').enumerate(){
+            println!("{}", part);
+
+            if i == 0 {
+                processed.push_str(part);
+            } else if part.len() >= 2 {
+                let mut two_first = String::with_capacity(2);
+                let mut rest = String::new();
+
+                for (j, c) in part.chars().enumerate(){
+                    if j < 2 {
+                        two_first.push(c);
+                    } else {
+                        rest.push(c);
+                    }
+                }
+
+                let byte = u8::from_str_radix(&two_first, 16).unwrap();
+
+                let mut tmp = [0u8; 4];
+
+                let slice = (byte as char).encode_utf8(&mut tmp);
+
+                for byte in slice.bytes(){
+                    processed.push('%');
+                    processed.push_str(&format!("{:02x}", byte));
+                }
+
+                processed.push_str(&rest);
+            }
+        }
+
+        processed
     }
 }
 
