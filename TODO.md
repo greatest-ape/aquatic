@@ -10,7 +10,7 @@
   * test tls
 * request parsing in protocol module instead of in network? Not obvious
   what error return type to use then
-* scrape info hash parsing: does multiple hashes work?
+* scrape: does it work with multiple hashes?
 * serialization
   * there is the question of how serialization should be done for 20 byte
     arrays, such as in the scrape response. There, a 20 byte byte string is
@@ -18,6 +18,7 @@
     the question is how to combine it with serde serialization AND how to
     combine that with future serialization for load tester, where no bencode
     should be involved. LIKELY SOLVED!
+* error response for invalid announce request?
 * compact response peers should be forbidden for ipv6
 * move stuff to common crate with ws: what about Request/InMessage etc?
   * don't overdo this
