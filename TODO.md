@@ -12,6 +12,7 @@
   what error return type to use then
 * scrape: does it work with multiple hashes?
 * serialization
+  * current serialized byte strings valid?
   * there is the question of how serialization should be done for 20 byte
     arrays, such as in the scrape response. There, a 20 byte byte string is
     expected. I think the bendy AsString wrapper is what is needed here, but
@@ -19,9 +20,10 @@
     combine that with future serialization for load tester, where no bencode
     should be involved. LIKELY SOLVED!
 * error response for invalid announce request?
-* compact response peers should be forbidden for ipv6
-* move stuff to common crate with ws: what about Request/InMessage etc?
-  * don't overdo this
+* non-compact peers for ipv6 generally: use ResponsePeerList enum
+* on ipv6, compact=1 should result in error response
+* on ipv4, compact=0 should result in error response
+* move stuff to common crate with ws?
 
 ## aquatic_ws
 * established connections do not get valid_until updated, I think?
