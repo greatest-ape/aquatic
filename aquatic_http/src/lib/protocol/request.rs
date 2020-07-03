@@ -142,6 +142,10 @@ impl Request {
                         processed.push(c);
                     }
                 }
+            } else {
+                return Err(anyhow::anyhow!(
+                    "url decode: too few characters in '%{}'", part
+                ))
             }
         }
 
