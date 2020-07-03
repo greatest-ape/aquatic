@@ -57,7 +57,8 @@ impl Request {
                 .with_context(|| format!("no key in {}", part))?;
             let value = key_and_value.next()
                 .with_context(|| format!("no value in {}", part))?;
-            let value = Self::urldecode(value).to_string();
+            let value = Self::urldecode(value)?
+                .to_string();
 
             if key == "info_hash" {
                 info_hashes.push(value);
@@ -119,7 +120,7 @@ impl Request {
     /// UTF-8 string, meaning that non-ascii bytes are invalid characters.
     /// Therefore, these bytes must be converted to their equivalent multi-byte
     /// UTF-8 encodings.
-    fn urldecode(value: &str) -> String {
+    fn urldecode(value: &str) -> anyhow::Result<String> {
         let mut processed = String::new();
 
         for (i, part) in value.split('%').enumerate(){
@@ -127,23 +128,23 @@ impl Request {
                 processed.push_str(part);
             } else if part.len() >= 2 {
                 let mut two_first = String::with_capacity(2);
-                let mut rest = String::new();
 
                 for (j, c) in part.chars().enumerate(){
-                    if j < 2 {
+                    if j == 0 {
                         two_first.push(c);
+                    } else if j == 1 {
+                        two_first.push(c);
+
+                        let byte = u8::from_str_radix(&two_first, 16)?;
+
+                        processed.push(byte as char);
                     } else {
-                        rest.push(c);
+                        processed.push(c);
                     }
                 }
-
-                let byte = u8::from_str_radix(&two_first, 16).unwrap();
-
-                processed.push(byte as char);
-                processed.push_str(&rest);
             }
         }
 
-        processed
+        Ok(processed)
     }
 }
