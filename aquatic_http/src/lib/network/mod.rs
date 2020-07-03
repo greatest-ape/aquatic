@@ -171,8 +171,15 @@ pub fn run_handshakes_and_read_requests(
     valid_until: ValidUntil,
 ){
     loop {
-        let opt_established = connections.get_mut(&poll_token)
-            .and_then(|c| c.inner.as_mut().left());
+        let opt_connection = connections.get_mut(&poll_token);
+
+        let opt_established = if let Some(connection) = opt_connection {
+            connection.valid_until = valid_until;
+
+            connection.inner.as_mut().left()
+        } else {
+            None
+        };
 
         if let Some(established) = opt_established {
             match established.read_request(){

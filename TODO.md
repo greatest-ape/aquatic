@@ -15,12 +15,11 @@
 * scrape info hash parsing: multiple ought to be accepted
 * info hashes, peer ids: check that whole deserialization and url decoding
   works as it should. There are suspicously many `\u{fffd}`
-* established connections do not get valid_until updated, I think? Might
-  be the case in aquatic_ws too.
 * move stuff to common crate with ws: what about Request/InMessage etc?
   * don't overdo this
 
 ## aquatic_ws
+* established connections do not get valid_until updated, I think?
 * tests
 * ipv4 and ipv6 state split: think about this more..
 
