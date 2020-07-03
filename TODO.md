@@ -18,8 +18,8 @@
     expected. I think the bendy AsString wrapper is what is needed here, but
     the question is how to combine it with serde serialization AND how to
     combine that with future serialization for load tester, where no bencode
-    should be involved.
-  * compact peer representation in announce response: is implementation correct?
+    should be involved. LIKELY SOLVED!
+* compact response peers should be forbidden for ipv6
 * move stuff to common crate with ws: what about Request/InMessage etc?
   * don't overdo this
   * 20 byte helper
