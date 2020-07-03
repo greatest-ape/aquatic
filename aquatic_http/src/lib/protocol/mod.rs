@@ -14,6 +14,7 @@ use serde_helpers::*;
 pub struct PeerId(
     #[serde(
         deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes",
     )]
     pub [u8; 20]
 );
@@ -24,9 +25,11 @@ pub struct PeerId(
 pub struct InfoHash(
     #[serde(
         deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes",
     )]
     pub [u8; 20]
 );
+
 
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -225,6 +228,13 @@ pub enum Response {
 
 impl Response {
     pub fn to_bytes(self) -> Vec<u8> {
-        bendy::serde::to_bytes(&self).unwrap()
+        match bendy::serde::to_bytes(&self){
+            Ok(bytes) => bytes,
+            Err(err) => {
+                log::error!("error encoding response: {}", err);
+
+                Vec::new()
+            }
+        }
     }
 }

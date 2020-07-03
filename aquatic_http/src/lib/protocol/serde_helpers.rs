@@ -91,6 +91,15 @@ pub fn deserialize_20_bytes<'de, D>(
 }
 
 
+#[inline]
+pub fn serialize_20_bytes<S>(
+    bytes: &[u8; 20],
+    serializer: S
+) -> Result<S::Ok, S::Error> where S: Serializer {
+    serializer.serialize_bytes(bytes)
+}
+
+
 pub struct InfoHashVecVisitor;
 
 
@@ -162,12 +171,10 @@ pub fn serialize_response_peers_compact<S>(
                 bytes.extend_from_slice(&peer.port.to_be_bytes())
             },
             IpAddr::V6(_) => {
-                continue
+                continue;
             }
         }
     }
 
-    let text: String = bytes.into_iter().map(|byte| byte as char).collect();
-
-    serializer.serialize_str(&text)
+    serializer.serialize_bytes(&bytes)
 }
