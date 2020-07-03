@@ -10,9 +10,16 @@
   * test tls
 * request parsing in protocol module instead of in network? Not obvious
   what error return type to use then
-* compact peer representation in announce response: is implementation correct?
-* scrape info hash parsing: multiple ought to be accepted
-* scrape response panic
+* scrape info hash parsing: multiple ought to be accepted, might need to roll
+  my own url encode crate anyway or possibly use https://github.com/samscott89/serde_qs
+* serialization
+  * there is the question of how serialization should be done for 20 byte
+    arrays, such as in the scrape response. There, a 20 byte byte string is
+    expected. I think the bendy AsString wrapper is what is needed here, but
+    the question is how to combine it with serde serialization AND how to
+    combine that with future serialization for load tester, where no bencode
+    should be involved.
+  * compact peer representation in announce response: is implementation correct?
 * move stuff to common crate with ws: what about Request/InMessage etc?
   * don't overdo this
   * 20 byte helper
