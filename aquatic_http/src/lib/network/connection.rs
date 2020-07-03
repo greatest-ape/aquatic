@@ -19,7 +19,7 @@ use crate::protocol::Request;
 #[derive(Debug)]
 pub enum RequestReadError {
     NeedMoreData,
-    Invalid,
+    Invalid(anyhow::Error),
     StreamEnded,
     Io(::std::io::Error),
     Parse(::httparse::Error),
@@ -77,16 +77,16 @@ impl EstablishedConnection {
 
         match http_request.parse(&self.buf[..self.bytes_read]){
             Ok(httparse::Status::Complete(_)) => {
-                let opt_request = http_request.path.and_then(
-                    Request::from_http_get_path
-                );
+                if let Some(path) = http_request.path {
+                    let res_request = Request::from_http_get_path(path);
 
-                self.clear_buffer();
+                    self.clear_buffer();
 
-                if let Some(request) = opt_request {
-                    Ok(request)
+                    res_request.map_err(RequestReadError::Invalid)
                 } else {
-                    Err(RequestReadError::Invalid)
+                    self.clear_buffer();
+
+                    Err(RequestReadError::Invalid(anyhow::anyhow!("no http path")))
                 }
             },
             Ok(httparse::Status::Partial) => {

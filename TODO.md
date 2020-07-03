@@ -10,11 +10,7 @@
   * test tls
 * request parsing in protocol module instead of in network? Not obvious
   what error return type to use then
-* scrape info hash parsing: multiple ought to be accepted, might need to roll
-  my own url encode crate. https://github.com/samscott89/serde_qs could be
-  used with extra preprocessing (`?info_hash[0]=..&info_hash[1]` and so on),
-  but it pulls in lots of dependencies (actix-web etc), and current
-  preprocessing is already ugly.
+* scrape info hash parsing: does multiple hashes work?
 * serialization
   * there is the question of how serialization should be done for 20 byte
     arrays, such as in the scrape response. There, a 20 byte byte string is
@@ -25,7 +21,6 @@
 * compact response peers should be forbidden for ipv6
 * move stuff to common crate with ws: what about Request/InMessage etc?
   * don't overdo this
-  * 20 byte helper
 
 ## aquatic_ws
 * established connections do not get valid_until updated, I think?

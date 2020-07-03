@@ -1,6 +1,9 @@
 use std::net::IpAddr;
+use std::str::FromStr;
+
+use anyhow::Context;
 use hashbrown::HashMap;
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 
 use crate::common::Peer;
 
@@ -9,27 +12,24 @@ mod serde_helpers;
 use serde_helpers::*;
 
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct PeerId(
     #[serde(
-        deserialize_with = "deserialize_20_bytes",
         serialize_with = "serialize_20_bytes",
     )]
     pub [u8; 20]
 );
 
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(
-        deserialize_with = "deserialize_20_bytes",
         serialize_with = "serialize_20_bytes",
     )]
     pub [u8; 20]
 );
-
 
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -51,8 +51,7 @@ impl ResponsePeer {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone)]
 pub enum AnnounceEvent {
     Started,
     Stopped,
@@ -68,28 +67,32 @@ impl Default for AnnounceEvent {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+impl FromStr for AnnounceEvent {
+    type Err = String;
+
+    fn from_str(value: &str) -> std::result::Result<Self, String> {
+        let event = match value {
+            "started" => Self::Started,
+            "stopped" => Self::Stopped,
+            "completed" => Self::Completed,
+            _ => Self::default(),
+        };
+
+        Ok(event)
+    }
+}
+
+
+#[derive(Debug, Clone)]
 pub struct AnnounceRequest {
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
     pub port: u16,
-    #[serde(rename = "left")]
     pub bytes_left: usize,
-    #[serde(default)]
     pub event: AnnounceEvent,
-    #[serde(
-        deserialize_with = "deserialize_bool_from_number",
-        default = "AnnounceRequest::default_compact_value"
-    )]
     pub compact: bool,
     /// Requested number of peers to return
     pub numwant: usize,
-}
-
-impl AnnounceRequest {
-    fn default_compact_value() -> bool {
-        true
-    }
 }
 
 
@@ -113,12 +116,8 @@ pub struct AnnounceResponseFailure {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ScrapeRequest {
-    #[serde(
-        rename = "info_hash",
-        deserialize_with = "deserialize_info_hashes" // FIXME: does this work?
-    )]
     pub info_hashes: Vec<InfoHash>,
 }
 
@@ -145,44 +144,97 @@ pub enum Request {
 
 
 impl Request {
-    pub fn from_http_get_path(path: &str) -> Option<Self> {
-        log::debug!("path: {:?}", path);
-
+    /// Parse Request from http path (GET `/announce?info_hash=...`)
+    ///
+    /// Existing serde-url decode crates were insufficient, so the decision was
+    /// made to create a custom parser. serde_urlencoded doesn't support multiple
+    /// values with same key, and serde_qs pulls in lots of dependencies. Both
+    /// would need preprocessing for the binary format used for info_hash and
+    /// peer_id.
+    pub fn from_http_get_path(path: &str) -> anyhow::Result<Self> {
         let mut split_parts= path.splitn(2, '?');
 
-        let path = split_parts.next()?;
-        let query_string = Self::preprocess_query_string(split_parts.next()?);
+        let location = split_parts.next()
+            .with_context(|| "no location")?;
+        let query_string = split_parts.next()
+            .with_context(|| "no query string")?;
 
-        if path == "/announce" {
-            let result: Result<AnnounceRequest, serde_urlencoded::de::Error> =
-                serde_urlencoded::from_str(&query_string);
+        let mut info_hashes = Vec::new();
+        let mut data = HashMap::new();
 
-            if let Err(ref err) = result {
-                log::debug!("error: {}", err);
+        for part in query_string.split('&'){
+            let mut key_and_value = part.splitn(2, '=');
+
+            let key = key_and_value.next()
+                .with_context(|| format!("no key in {}", part))?;
+            let value = key_and_value.next()
+                .with_context(|| format!("no value in {}", part))?;
+            let value = Self::urldecode(value).to_string();
+
+            if key == "info_hash" {
+                info_hashes.push(value);
+            } else {
+                data.insert(key, value);
             }
+        }
 
-            result.ok().map(Request::Announce)
+        if location == "/announce" {
+            let request = AnnounceRequest {
+                info_hash: info_hashes.get(0)
+                    .with_context(|| "no info_hash")
+                    .and_then(|s| deserialize_20_bytes(s))
+                    .map(InfoHash)?,
+                peer_id: data.get("peer_id")
+                    .with_context(|| "no peer_id")
+                    .and_then(|s| deserialize_20_bytes(s))
+                    .map(PeerId)?,
+                port: data.get("port")
+                    .with_context(|| "no port")
+                    .and_then(|s| s.parse()
+                    .map_err(|err| anyhow::anyhow!("parse 'port': {}", err)))?,
+                bytes_left: data.get("left")
+                    .with_context(|| "no left")
+                    .and_then(|s| s.parse()
+                    .map_err(|err| anyhow::anyhow!("parse 'left': {}", err)))?,
+                event: data.get("event")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or_default(),
+                compact: data.get("compact")
+                    .map(|s| s == "1")
+                    .unwrap_or(true),
+                numwant: data.get("numwant")
+                    .with_context(|| "no numwant")
+                    .and_then(|s| s.parse()
+                    .map_err(|err|
+                        anyhow::anyhow!("parse 'numwant': {}", err)
+                    ))?,
+            };
+
+            Ok(Request::Announce(request))
         } else {
-            let result: Result<ScrapeRequest, serde_urlencoded::de::Error> =
-                serde_urlencoded::from_str(&query_string);
+            let mut parsed_info_hashes = Vec::with_capacity(info_hashes.len());
 
-            if let Err(ref err) = result {
-                log::debug!("error: {}", err);
+            for info_hash in info_hashes {
+                parsed_info_hashes.push(InfoHash(deserialize_20_bytes(&info_hash)?));
             }
 
-            result.ok().map(Request::Scrape)
+            let request = ScrapeRequest {
+                info_hashes: parsed_info_hashes,
+            };
+
+            Ok(Request::Scrape(request))
         }
     }
 
     /// The info hashes and peer id's that are received are url-encoded byte
-    /// by byte, e.g., %fa for byte 0xfa. However, they are parsed as an UTF-8
-    /// string, meaning that non-ascii bytes are invalid characters. Therefore,
-    /// these bytes must be converted to their equivalent multi-byte UTF-8
-    /// encodings first.
-    fn preprocess_query_string(query_string: &str) -> String {
+    /// by byte, e.g., %fa for byte 0xfa. However, they need to be parsed as
+    /// UTF-8 string, meaning that non-ascii bytes are invalid characters.
+    /// Therefore, these bytes must be converted to their equivalent multi-byte
+    /// UTF-8 encodings.
+    fn urldecode(value: &str) -> String {
         let mut processed = String::new();
 
-        for (i, part) in query_string.split('%').enumerate(){
+        for (i, part) in value.split('%').enumerate(){
             if i == 0 {
                 processed.push_str(part);
             } else if part.len() >= 2 {
@@ -199,15 +251,7 @@ impl Request {
 
                 let byte = u8::from_str_radix(&two_first, 16).unwrap();
 
-                let mut tmp = [0u8; 4];
-
-                let slice = (byte as char).encode_utf8(&mut tmp);
-
-                for byte in slice.bytes(){
-                    processed.push('%');
-                    processed.push_str(&format!("{:02x}", byte));
-                }
-
+                processed.push(byte as char);
                 processed.push_str(&rest);
             }
         }
