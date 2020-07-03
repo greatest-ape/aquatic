@@ -12,8 +12,10 @@
   what error return type to use then
 * compact peer representation in announce response: is implementation correct?
 * scrape info hash parsing: multiple ought to be accepted
+* scrape response panic
 * move stuff to common crate with ws: what about Request/InMessage etc?
   * don't overdo this
+  * 20 byte helper
 
 ## aquatic_ws
 * established connections do not get valid_until updated, I think?
