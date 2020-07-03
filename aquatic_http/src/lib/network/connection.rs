@@ -29,7 +29,7 @@ pub enum RequestReadError {
 pub struct EstablishedConnection {
     stream: Stream,
     pub peer_addr: SocketAddr,
-    buf: [u8; 1024],
+    buf: Vec<u8>,
     bytes_read: usize,
 }
 
@@ -41,25 +41,33 @@ impl EstablishedConnection {
         Self {
             stream,
             peer_addr,
-            buf: [0; 1024], // FIXME: fixed size is stupid
+            buf: Vec::new(),
             bytes_read: 0,
         }
     }
 
     pub fn read_request(&mut self) -> Result<Request, RequestReadError> {
+        if self.buf.len() - self.bytes_read < 512 {
+            self.buf.extend_from_slice(&[0; 1024]);
+        }
+
         match self.stream.read(&mut self.buf[self.bytes_read..]){
             Ok(0) => {
+                self.clear_buffer();
+
                 return Err(RequestReadError::StreamEnded);
             }
             Ok(bytes_read) => {
                 self.bytes_read += bytes_read;
 
-                info!("parse request read {} bytes", bytes_read);
+                info!("read_request read {} bytes", bytes_read);
             },
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
                 return Err(RequestReadError::NeedMoreData);
             },
             Err(err) => {
+                self.clear_buffer();
+
                 return Err(RequestReadError::Io(err));
             }
         }
@@ -73,7 +81,7 @@ impl EstablishedConnection {
                     Request::from_http_get_path
                 );
 
-                self.bytes_read = 0;
+                self.clear_buffer();
 
                 if let Some(request) = opt_request {
                     Ok(request)
@@ -85,7 +93,7 @@ impl EstablishedConnection {
                 Err(RequestReadError::NeedMoreData)
             },
             Err(err) => {
-                self.bytes_read = 0;
+                self.clear_buffer();
 
                 Err(RequestReadError::Parse(err))
             }
@@ -105,6 +113,11 @@ impl EstablishedConnection {
         self.stream.flush()?;
 
         Ok(())
+    }
+
+    pub fn clear_buffer(&mut self){
+        self.bytes_read = 0;
+        self.buf = Vec::new();
     }
 }
 

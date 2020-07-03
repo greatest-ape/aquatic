@@ -7,7 +7,6 @@
 
 ## aquatic_http
 * handshake stuff
-  * fixed size buffer is probably bad
   * test tls
 * request parsing in protocol module instead of in network? Not obvious
   what error return type to use then
