@@ -11,7 +11,10 @@
 * request parsing in protocol module instead of in network? Not obvious
   what error return type to use then
 * scrape info hash parsing: multiple ought to be accepted, might need to roll
-  my own url encode crate anyway or possibly use https://github.com/samscott89/serde_qs
+  my own url encode crate. https://github.com/samscott89/serde_qs would require
+  `?info_hash[0]=..&info_hash[1]` and so on, as I understand it. I guess I
+  could preprocess the query string, but that's kind of ugly, just like the
+  current preprocessing for info_hash and peer_id
 * serialization
   * there is the question of how serialization should be done for 20 byte
     arrays, such as in the scrape response. There, a 20 byte byte string is
