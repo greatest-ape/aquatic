@@ -97,7 +97,7 @@ pub fn run_poll_loop(
                     &opt_tls_acceptor,
                 );
             } else {
-                run_handshakes_and_read_requests(
+                handle_connection_read_event(
                     socket_worker_index,
                     &request_channel_sender,
                     &mut local_responses,
@@ -172,7 +172,7 @@ fn accept_new_streams(
 
 /// On the stream given by poll_token, get TLS up and running if requested,
 /// then read requests and pass on through channel.
-pub fn run_handshakes_and_read_requests(
+pub fn handle_connection_read_event(
     socket_worker_index: usize,
     request_channel_sender: &RequestChannelSender,
     local_responses: &mut Vec<(ConnectionMeta, Response)>,
@@ -182,19 +182,18 @@ pub fn run_handshakes_and_read_requests(
 ){
     loop {
         // Get connection, updating valid_until
-        let opt_connection = {
-            if let Some(connection) = connections.get_mut(&poll_token) {
-                connection.valid_until = valid_until;
-
-                Some(connection)
-            } else {
-                None
-            }
+        let connection = if let Some(c) = connections.get_mut(&poll_token){
+            c
+        } else {
+            // If there is no connection, there is no stream, so there
+            // shouldn't be any (relevant) poll events. In other words, it's
+            // safe to return here
+            return
         };
 
-        if let Some(established) = opt_connection
-            .and_then(Connection::get_established)
-        {
+        connection.valid_until = valid_until;
+
+        if let Some(established) = connection.get_established(){
             match established.read_request(){
                 Ok(request) => {
                     let meta = ConnectionMeta {

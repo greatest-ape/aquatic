@@ -170,6 +170,8 @@ impl <'a>TlsHandshakeMachine {
                     Stream::TlsStream(stream)
                 );
 
+                ::log::debug!("established tcp connection");
+
                 Ok(established)
             },
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
@@ -217,6 +219,8 @@ impl Connection {
                 TlsHandshakeMachine::new(tls_acceptor.clone(), tcp_stream)
             )
         } else {
+            ::log::debug!("established tcp connection");
+
             ConnectionInner::Established(
                 EstablishedConnection::new(Stream::TcpStream(tcp_stream))
             )
@@ -259,6 +263,7 @@ impl Connection {
         }
     }
 
+    /// Takes ownership since TlsStream needs ownership of TcpStream
     #[inline]
     pub fn get_in_progress(self) -> Option<TlsHandshakeMachine> {
         if let ConnectionInner::InProgress(machine) = self.inner {
