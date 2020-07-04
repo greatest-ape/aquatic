@@ -5,6 +5,7 @@ use std::io::ErrorKind;
 use std::sync::Arc;
 use std::vec::Drain;
 
+use either::Either;
 use hashbrown::HashMap;
 use log::{info, debug, error};
 use native_tls::TlsAcceptor;
@@ -247,19 +248,31 @@ pub fn run_handshakes_and_read_requests(
         } else if let Some(handshake_machine) = connections.remove(&poll_token)
             .and_then(|c| c.inner.right())
         {
-            let (opt_inner, would_block) = handshake_machine.advance();
+            match handshake_machine.establish_tls(){
+                Ok(established) => {
+                    let connection = Connection {
+                        valid_until,
+                        inner: Either::Left(established)
+                    };
 
-            if let Some(inner) = opt_inner {
-                let connection = Connection {
-                    valid_until,
-                    inner
-                };
+                    connections.insert(poll_token, connection);
+                },
+                Err(TlsHandshakeMachineError::WouldBlock(machine)) => {
+                    let connection = Connection {
+                        valid_until,
+                        inner: Either::Right(machine)
+                    };
 
-                connections.insert(poll_token, connection);
-            }
+                    connections.insert(poll_token, connection);
 
-            if would_block {
-                break;
+                    break
+                },
+                Err(TlsHandshakeMachineError::Failure(err)) => {
+                    info!("tls handshake error: {}", err);
+
+                    // TLS negotiation error occured
+                    break
+                }
             }
         }
     }

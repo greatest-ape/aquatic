@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use either::Either;
 use hashbrown::HashMap;
-use log::info;
 use mio::Token;
 use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
@@ -122,7 +121,13 @@ impl EstablishedConnection {
 }
 
 
-enum HandshakeMachineInner {
+pub enum TlsHandshakeMachineError {
+    WouldBlock(TlsHandshakeMachine),
+    Failure(native_tls::Error)
+}
+
+
+enum TlsHandshakeMachineInner {
     TcpStream(TcpStream),
     TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
 }
@@ -130,7 +135,7 @@ enum HandshakeMachineInner {
 
 pub struct TlsHandshakeMachine {
     tls_acceptor: Arc<TlsAcceptor>,
-    inner: HandshakeMachineInner,
+    inner: TlsHandshakeMachineInner,
 }
 
 
@@ -142,19 +147,19 @@ impl <'a>TlsHandshakeMachine {
     ) -> Self {
         Self {
             tls_acceptor,
-            inner: HandshakeMachineInner::TcpStream(tcp_stream)
+            inner: TlsHandshakeMachineInner::TcpStream(tcp_stream)
         }
     }
 
+    /// Attempt to establish a TLS connection. On a WouldBlock error, return
+    /// the machine wrapped in an error for later attempts.
     #[inline]
-    pub fn advance(
-        self,
-    ) -> (Option<Either<EstablishedConnection, Self>>, bool) { // bool = would block
+    pub fn establish_tls(self) -> Result<EstablishedConnection, TlsHandshakeMachineError> {
         let handshake_result = match self.inner {
-            HandshakeMachineInner::TcpStream(stream) => {
+            TlsHandshakeMachineInner::TcpStream(stream) => {
                 self.tls_acceptor.accept(stream)
             },
-            HandshakeMachineInner::TlsMidHandshake(handshake) => {
+            TlsHandshakeMachineInner::TlsMidHandshake(handshake) => {
                 handshake.handshake()
             },
         };
@@ -165,20 +170,22 @@ impl <'a>TlsHandshakeMachine {
                     Stream::TlsStream(stream)
                 );
 
-                (Some(Either::Left(established)), false)
+                Ok(established)
             },
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
+                let inner = TlsHandshakeMachineInner::TlsMidHandshake(
+                    handshake
+                );
+                
                 let machine = Self {
                     tls_acceptor: self.tls_acceptor,
-                    inner: HandshakeMachineInner::TlsMidHandshake(handshake),
+                    inner,
                 };
 
-                (Some(Either::Right(machine)), true)
+                Err(TlsHandshakeMachineError::WouldBlock(machine))
             },
             Err(native_tls::HandshakeError::Failure(err)) => {
-                info!("tls handshake error: {}", err);
-
-                (None, false)
+                Err(TlsHandshakeMachineError::Failure(err))
             }
         }
     }
