@@ -10,7 +10,8 @@
   Another option would be to generate unique trackerid, send it back and
   demand that it's set (make it part of the peer map key), but I don't know
   if it is supported in all clients.
-* 'left' optional in magnet requests?
+* 'left' optional in magnet requests? Probably not. Transmission sends huge
+  positive number.
 * test with real clients
   * test tls
   * current serialized byte strings valid? need to test torrent transfer to
@@ -21,6 +22,7 @@
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
 * on ipv6, compact=1 should result in error response
 * on ipv4, compact=0 should result in error response
+* what does supportcrypto key do? Request upgrade to TLS?
 * StreamEnded isn't really an error and should really only be debug-logged
 * log more info for all log modes (function location etc)? also for aquatic_ws
 * move stuff to common crate with ws?
