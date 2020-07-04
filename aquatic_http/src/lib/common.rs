@@ -108,7 +108,6 @@ pub struct State {
 }
 
 
-// identical to ws version
 impl Default for State {
     fn default() -> Self {
         Self {

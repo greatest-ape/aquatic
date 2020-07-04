@@ -46,7 +46,6 @@ pub struct ProtocolConfig {
 }
 
 
-
 impl Default for Config {
     fn default() -> Self {
         Self {

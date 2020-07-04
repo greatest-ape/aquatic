@@ -19,7 +19,6 @@ use common::*;
 use config::Config;
 
 
-// almost identical to ws version
 pub fn run(config: Config) -> anyhow::Result<()> {
     let opt_tls_acceptor = create_tls_acceptor(&config.network.tls)?;
 

@@ -15,7 +15,6 @@ use crate::protocol::request::*;
 use crate::protocol::response::*;
 
 
-// almost identical to ws version
 pub fn run_request_worker(
     config: Config,
     state: State,
@@ -179,7 +178,6 @@ pub fn handle_announce_requests(
 }
 
 
-// almost identical to ws version
 pub fn handle_scrape_requests(
     config: &Config,
     torrent_maps: &mut TorrentMaps,

@@ -3,7 +3,6 @@ use std::time::Instant;
 use crate::common::*;
 
 
-// identical to ws version
 pub fn clean_torrents(state: &State){
     fn clean_torrent_map(
         torrent_map: &mut TorrentMap,
