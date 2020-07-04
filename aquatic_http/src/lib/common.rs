@@ -1,6 +1,7 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
+use either::Either;
 use flume::{Sender, Receiver};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -15,7 +16,6 @@ use crate::protocol::request::Request;
 use crate::protocol::response::Response;
 
 
-// identical to ws version
 #[derive(Clone, Copy, Debug)]
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
@@ -26,7 +26,6 @@ pub struct ConnectionMeta {
 }
 
 
-// identical to ws version
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum PeerStatus {
     Seeding,
@@ -35,7 +34,6 @@ pub enum PeerStatus {
 }
 
 
-// almost identical to ws version - FIXME only if bytes left is optional
 impl PeerStatus {
     /// Determine peer status from announce event and number of bytes left.
     /// 
@@ -65,11 +63,16 @@ pub struct Peer {
 }
 
 
-// identical to ws version
-pub type PeerMap = IndexMap<PeerId, Peer>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PeerMapKey {
+    pub peer_id: PeerId,
+    pub ip_or_key: Either<IpAddr, String>
+}
 
 
-// identical to ws version
+pub type PeerMap = IndexMap<PeerMapKey, Peer>;
+
+
 pub struct TorrentData {
     pub peers: PeerMap,
     pub num_seeders: usize,
@@ -77,7 +80,6 @@ pub struct TorrentData {
 }
 
 
-// identical to ws version
 impl Default for TorrentData {
     #[inline]
     fn default() -> Self {
@@ -90,11 +92,9 @@ impl Default for TorrentData {
 }
 
 
-// identical to ws version
 pub type TorrentMap = HashMap<InfoHash, TorrentData>;
 
 
-// identical to ws version
 #[derive(Default)]
 pub struct TorrentMaps {
     pub ipv4: TorrentMap,
@@ -102,7 +102,6 @@ pub struct TorrentMaps {
 }
 
 
-// identical to ws version
 #[derive(Clone)]
 pub struct State {
     pub torrent_maps: Arc<Mutex<TorrentMaps>>,

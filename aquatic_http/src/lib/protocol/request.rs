@@ -15,6 +15,7 @@ pub struct AnnounceRequest {
     pub compact: bool,
     /// Number of response peers wanted
     pub numwant: Option<usize>,
+    pub key: Option<String>,
 }
 
 
@@ -78,6 +79,15 @@ impl Request {
             } else {
                 None
             };
+            let key = if let Some(s) = data.get("key"){
+                if s.len() > 100 {
+                    return Err(anyhow::anyhow!("'key' is too long"))
+                }
+
+                Some(s.clone())
+            } else {
+                None
+            };
 
             let request = AnnounceRequest {
                 info_hash: info_hashes.get(0)
@@ -103,6 +113,7 @@ impl Request {
                     .map(|s| s == "1")
                     .unwrap_or(true),
                 numwant,
+                key,
             };
 
             Ok(Request::Announce(request))

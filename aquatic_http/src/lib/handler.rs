@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::vec::Drain;
 
+use either::Either;
 use hashbrown::HashMap;
 use parking_lot::MutexGuard;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
@@ -116,19 +117,30 @@ pub fn handle_announce_requests(
                 valid_until,
             };
 
+            let ip_or_key = request.key
+                .map(|k| Either::Right(k))
+                .unwrap_or_else(||
+                    Either::Left(request_sender_meta.peer_addr.ip())
+                );
+
+            let peer_map_key = PeerMapKey {
+                peer_id: request.peer_id,
+                ip_or_key,
+            };
+
             let opt_removed_peer = match peer_status {
                 PeerStatus::Leeching => {
                     torrent_data.num_leechers += 1;
 
-                    torrent_data.peers.insert(request.peer_id, peer)
+                    torrent_data.peers.insert(peer_map_key, peer)
                 },
                 PeerStatus::Seeding => {
                     torrent_data.num_seeders += 1;
 
-                    torrent_data.peers.insert(request.peer_id, peer)
+                    torrent_data.peers.insert(peer_map_key, peer)
                 },
                 PeerStatus::Stopped => {
-                    torrent_data.peers.remove(&request.peer_id)
+                    torrent_data.peers.remove(&peer_map_key)
                 }
             };
 
