@@ -6,10 +6,9 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* test with real clients
+* test torrent transfer with real clients
   * test tls
-  * current serialized byte strings valid? need to test torrent transfer to
-    find out
+  * current serialized byte strings valid
 * scrape: does it work with multiple hashes?
 * StreamEnded isn't really an error and should really only be debug-logged
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
@@ -28,6 +27,8 @@
   values per key for scrape requests)
 * 'left' optional in magnet requests? Probably not. Transmission sends huge
   positive number.
+* handle_connection_read_event: this is an ugly function, but I don't know
+  how to improve it
 
 ## aquatic_ws
 * is 'key' sent in announce request? if so, maybe handle it like in
