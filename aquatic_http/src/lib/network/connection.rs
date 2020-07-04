@@ -60,7 +60,7 @@ impl EstablishedConnection {
             Ok(bytes_read) => {
                 self.bytes_read += bytes_read;
 
-                info!("read_request read {} bytes", bytes_read);
+                ::log::debug!("read_request read {} bytes", bytes_read);
             },
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
                 return Err(RequestReadError::NeedMoreData);

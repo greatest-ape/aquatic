@@ -41,6 +41,8 @@ impl Request {
     /// would need preprocessing for the binary format used for info_hash and
     /// peer_id.
     pub fn from_http_get_path(path: &str) -> anyhow::Result<Self> {
+        ::log::debug!("request GET path: {}", path);
+
         let mut split_parts= path.splitn(2, '?');
 
         let location = split_parts.next()
