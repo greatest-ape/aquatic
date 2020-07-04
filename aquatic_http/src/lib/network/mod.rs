@@ -240,13 +240,23 @@ pub fn handle_connection_read_event(
 
                     break;
                 },
-                Err(err) => {
-                    info!("error reading request: {:?}", err);
+                Err(RequestReadError::StreamEnded) => {
+                    ::log::debug!("stream ended");
+            
+                    connections.remove(&poll_token);
+
+                    break
+                },
+                Err(RequestReadError::Parse(err)) => {
+                    ::log::info!("request httparse error: {}", err);
+
+                    break
+                },
+                Err(RequestReadError::Io(err)) => {
+                    ::log::info!("error reading request (io): {}", err);
             
                     connections.remove(&poll_token);
     
-                    // Stop reading data. Later events don't matter since
-                    // connection was just removed.
                     break; 
                 },
             }

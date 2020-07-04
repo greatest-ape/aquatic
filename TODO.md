@@ -10,7 +10,6 @@
   * test tls
   * current serialized byte strings valid
 * scrape: does it work with multiple hashes?
-* StreamEnded isn't really an error and should really only be debug-logged
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
 * on ipv6, compact=1 should result in error response
 * on ipv4, compact=0 should result in error response
