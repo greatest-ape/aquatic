@@ -33,6 +33,7 @@ pub struct EstablishedConnection {
 
 
 impl EstablishedConnection {
+    #[inline]
     fn new(stream: Stream) -> Self {
         let peer_addr = stream.get_peer_addr();
 
@@ -113,6 +114,7 @@ impl EstablishedConnection {
         Ok(())
     }
 
+    #[inline]
     pub fn clear_buffer(&mut self){
         self.bytes_read = 0;
         self.buf = Vec::new();
@@ -152,7 +154,6 @@ impl <'a>TlsHandshakeMachine {
 
     /// Attempt to establish a TLS connection. On a WouldBlock error, return
     /// the machine wrapped in an error for later attempts.
-    #[inline]
     pub fn establish_tls(self) -> Result<EstablishedConnection, TlsHandshakeMachineError> {
         let handshake_result = match self.inner {
             TlsHandshakeMachineInner::TcpStream(stream) => {
@@ -212,9 +213,13 @@ impl Connection {
     ) -> Self {
         // Setup handshake machine if TLS is requested
         let inner = if let Some(tls_acceptor) = opt_tls_acceptor {
-            ConnectionInner::InProgress(TlsHandshakeMachine::new(tls_acceptor.clone(), tcp_stream))
+            ConnectionInner::InProgress(
+                TlsHandshakeMachine::new(tls_acceptor.clone(), tcp_stream)
+            )
         } else {
-            ConnectionInner::Established(EstablishedConnection::new(Stream::TcpStream(tcp_stream)))
+            ConnectionInner::Established(
+                EstablishedConnection::new(Stream::TcpStream(tcp_stream))
+            )
         };
 
         Self {
@@ -223,6 +228,7 @@ impl Connection {
         }
     }
 
+    #[inline]
     pub fn from_established(
         valid_until: ValidUntil,
         established: EstablishedConnection,
@@ -233,6 +239,7 @@ impl Connection {
         }
     }
 
+    #[inline]
     pub fn from_in_progress(
         valid_until: ValidUntil,
         machine: TlsHandshakeMachine,
@@ -243,6 +250,7 @@ impl Connection {
         }
     }
 
+    #[inline]
     pub fn get_established(&mut self) -> Option<&mut EstablishedConnection> {
         if let ConnectionInner::Established(ref mut established) = self.inner {
             Some(established)
@@ -251,6 +259,7 @@ impl Connection {
         }
     }
 
+    #[inline]
     pub fn get_in_progress(self) -> Option<TlsHandshakeMachine> {
         if let ConnectionInner::InProgress(machine) = self.inner {
             Some(machine)

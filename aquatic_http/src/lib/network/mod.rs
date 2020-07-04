@@ -150,7 +150,11 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection::new(opt_tls_acceptor, valid_until, stream);
+                let connection = Connection::new(
+                    opt_tls_acceptor,
+                    valid_until,
+                    stream
+                );
 
                 connections.insert(token, connection);
             },
