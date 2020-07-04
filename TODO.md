@@ -6,24 +6,25 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* handshake stuff
+* use Either with peer addr, or key if it was sent, as part of peer map key?
+  Another option would be to generate unique trackerid, send it back and
+  demand that it's set (make it part of the peer map key), but I don't know
+  if it is supported in all clients.
+* test with real clients
   * test tls
-* request parsing in protocol module instead of in network? Not obvious
-  what error return type to use then
+  * current serialized byte strings valid? need to test torrent transfer to
+    find out
+* request parsing in protocol module instead of in network, maybe from byte
+  buffer? Not obvious what error return type to use then (anyhow maybe?)
 * scrape: does it work with multiple hashes?
-* serialization
-  * current serialized byte strings valid?
-  * there is the question of how serialization should be done for 20 byte
-    arrays, such as in the scrape response. There, a 20 byte byte string is
-    expected. I think the bendy AsString wrapper is what is needed here, but
-    the question is how to combine it with serde serialization AND how to
-    combine that with future serialization for load tester, where no bencode
-    should be involved. LIKELY SOLVED!
-* error response for invalid announce request?
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
 * on ipv6, compact=1 should result in error response
 * on ipv4, compact=0 should result in error response
 * move stuff to common crate with ws?
+* serialization for future load tester: write custom non-serde serializer
+  for url encode support maybe, or possibly existing crates handle byte
+  serialization well (then there would still be the question of multiple
+  values per key for scrape requests)
 
 ## aquatic_ws
 * established connections do not get valid_until updated, I think?
