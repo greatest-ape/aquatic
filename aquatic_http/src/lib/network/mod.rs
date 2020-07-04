@@ -252,18 +252,18 @@ pub fn run_handshakes_and_read_requests(
         {
             match handshake_machine.establish_tls(){
                 Ok(established) => {
-                    let connection = Connection {
+                    let connection = Connection::from_established(
                         valid_until,
-                        inner: ConnectionInner::Established(established)
-                    };
+                        established
+                    );
 
                     connections.insert(poll_token, connection);
                 },
                 Err(TlsHandshakeMachineError::WouldBlock(machine)) => {
-                    let connection = Connection {
+                    let connection = Connection::from_in_progress(
                         valid_until,
-                        inner: ConnectionInner::InProgress(machine)
-                    };
+                        machine
+                    );
 
                     connections.insert(poll_token, connection);
 

@@ -191,7 +191,7 @@ impl <'a>TlsHandshakeMachine {
 }
 
 
-pub enum ConnectionInner {
+enum ConnectionInner {
     Established(EstablishedConnection),
     InProgress(TlsHandshakeMachine),
 }
@@ -199,7 +199,7 @@ pub enum ConnectionInner {
 
 pub struct Connection {
     pub valid_until: ValidUntil,
-    pub inner: ConnectionInner,
+    inner: ConnectionInner,
 }
 
 
@@ -220,6 +220,26 @@ impl Connection {
         Self {
             valid_until,
             inner,
+        }
+    }
+
+    pub fn from_established(
+        valid_until: ValidUntil,
+        established: EstablishedConnection,
+    ) -> Self {
+        Self {
+            valid_until,
+            inner: ConnectionInner::Established(established)
+        }
+    }
+
+    pub fn from_in_progress(
+        valid_until: ValidUntil,
+        machine: TlsHandshakeMachine,
+    ) -> Self {
+        Self {
+            valid_until,
+            inner: ConnectionInner::InProgress(machine)
         }
     }
 
