@@ -156,7 +156,7 @@ pub fn handle_announce_requests(
             ResponsePeer::from_peer
         );
 
-        let response = Response::AnnounceSuccess(AnnounceResponseSuccess {
+        let response = Response::Announce(AnnounceResponse {
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
             announce_interval: config.protocol.peer_announce_interval,

@@ -37,7 +37,7 @@ pub struct ScrapeStatistics {
 
 
 #[derive(Debug, Clone, Serialize)]
-pub struct AnnounceResponseSuccess {
+pub struct AnnounceResponse {
     #[serde(rename = "interval")]
     pub announce_interval: usize,
     pub tracker_id: String, // Optional??
@@ -51,23 +51,23 @@ pub struct AnnounceResponseSuccess {
 
 
 #[derive(Debug, Clone, Serialize)]
-pub struct AnnounceResponseFailure {
-    pub failure_reason: String,
-}
-
-
-#[derive(Debug, Clone, Serialize)]
 pub struct ScrapeResponse {
     pub files: HashMap<InfoHash, ScrapeStatistics>,
 }
 
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FailureResponse {
+    pub failure_reason: String,
+}
+
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Response {
-    AnnounceSuccess(AnnounceResponseSuccess),
-    AnnounceFailure(AnnounceResponseFailure),
-    Scrape(ScrapeResponse)
+    Announce(AnnounceResponse),
+    Scrape(ScrapeResponse),
+    Failure(FailureResponse),
 }
 
 
