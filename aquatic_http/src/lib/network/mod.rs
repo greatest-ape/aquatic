@@ -5,7 +5,6 @@ use std::io::ErrorKind;
 use std::sync::Arc;
 use std::vec::Drain;
 
-use either::Either;
 use hashbrown::HashMap;
 use log::{info, debug, error};
 use native_tls::TlsAcceptor;
@@ -178,17 +177,20 @@ pub fn run_handshakes_and_read_requests(
     valid_until: ValidUntil,
 ){
     loop {
-        let opt_connection = connections.get_mut(&poll_token);
+        // Get connection, updating valid_until
+        let opt_connection = {
+            if let Some(connection) = connections.get_mut(&poll_token) {
+                connection.valid_until = valid_until;
 
-        let opt_established = if let Some(connection) = opt_connection {
-            connection.valid_until = valid_until;
-
-            connection.inner.as_mut().left()
-        } else {
-            None
+                Some(connection)
+            } else {
+                None
+            }
         };
 
-        if let Some(established) = opt_established {
+        if let Some(established) = opt_connection
+            .and_then(Connection::get_established)
+        {
             match established.read_request(){
                 Ok(request) => {
                     let meta = ConnectionMeta {
@@ -246,13 +248,13 @@ pub fn run_handshakes_and_read_requests(
                 },
             }
         } else if let Some(handshake_machine) = connections.remove(&poll_token)
-            .and_then(|c| c.inner.right())
+            .and_then(Connection::get_in_progress)
         {
             match handshake_machine.establish_tls(){
                 Ok(established) => {
                     let connection = Connection {
                         valid_until,
-                        inner: Either::Left(established)
+                        inner: ConnectionInner::Established(established)
                     };
 
                     connections.insert(poll_token, connection);
@@ -260,17 +262,18 @@ pub fn run_handshakes_and_read_requests(
                 Err(TlsHandshakeMachineError::WouldBlock(machine)) => {
                     let connection = Connection {
                         valid_until,
-                        inner: Either::Right(machine)
+                        inner: ConnectionInner::InProgress(machine)
                     };
 
                     connections.insert(poll_token, connection);
 
+                    // Break and wait for more data
                     break
                 },
                 Err(TlsHandshakeMachineError::Failure(err)) => {
                     info!("tls handshake error: {}", err);
 
-                    // TLS negotiation error occured
+                    // TLS negotiation failed
                     break
                 }
             }
@@ -287,7 +290,7 @@ pub fn send_responses(
 ){
     for (meta, response) in local_responses.chain(response_channel_receiver){
         if let Some(established) = connections.get_mut(&meta.poll_token)
-            .and_then(|c| c.inner.as_mut().left())
+            .and_then(Connection::get_established)
         {
             if established.peer_addr != meta.peer_addr {
                 info!("socket worker error: peer socket addrs didn't match");

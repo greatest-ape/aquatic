@@ -3,7 +3,6 @@ use std::io::ErrorKind;
 use std::io::{Read, Write};
 use std::sync::Arc;
 
-use either::Either;
 use hashbrown::HashMap;
 use mio::Token;
 use mio::net::TcpStream;
@@ -192,9 +191,15 @@ impl <'a>TlsHandshakeMachine {
 }
 
 
+pub enum ConnectionInner {
+    Established(EstablishedConnection),
+    InProgress(TlsHandshakeMachine),
+}
+
+
 pub struct Connection {
     pub valid_until: ValidUntil,
-    pub inner: Either<EstablishedConnection, TlsHandshakeMachine>,
+    pub inner: ConnectionInner,
 }
 
 
@@ -207,14 +212,30 @@ impl Connection {
     ) -> Self {
         // Setup handshake machine if TLS is requested
         let inner = if let Some(tls_acceptor) = opt_tls_acceptor {
-            Either::Right(TlsHandshakeMachine::new(tls_acceptor.clone(), tcp_stream))
+            ConnectionInner::InProgress(TlsHandshakeMachine::new(tls_acceptor.clone(), tcp_stream))
         } else {
-            Either::Left(EstablishedConnection::new(Stream::TcpStream(tcp_stream)))
+            ConnectionInner::Established(EstablishedConnection::new(Stream::TcpStream(tcp_stream)))
         };
 
         Self {
             valid_until,
             inner,
+        }
+    }
+
+    pub fn get_established(&mut self) -> Option<&mut EstablishedConnection> {
+        if let ConnectionInner::Established(ref mut established) = self.inner {
+            Some(established)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_in_progress(self) -> Option<TlsHandshakeMachine> {
+        if let ConnectionInner::InProgress(machine) = self.inner {
+            Some(machine)
+        } else {
+            None
         }
     }
 }
