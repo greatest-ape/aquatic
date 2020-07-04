@@ -10,6 +10,7 @@
   Another option would be to generate unique trackerid, send it back and
   demand that it's set (make it part of the peer map key), but I don't know
   if it is supported in all clients.
+* 'left' optional in magnet requests?
 * test with real clients
   * test tls
   * current serialized byte strings valid? need to test torrent transfer to
@@ -20,6 +21,8 @@
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
 * on ipv6, compact=1 should result in error response
 * on ipv4, compact=0 should result in error response
+* StreamEnded isn't really an error and should really only be debug-logged
+* log more info for all log modes (function location etc)? also for aquatic_ws
 * move stuff to common crate with ws?
 * serialization for future load tester: write custom non-serde serializer
   for url encode support maybe, or possibly existing crates handle byte
@@ -27,6 +30,8 @@
   values per key for scrape requests)
 
 ## aquatic_ws
+* is 'key' sent in announce request? if so, maybe handle it like in
+  aquatic_http (including ip uniqueness part of peer map key)
 * established connections do not get valid_until updated, I think?
 * tests
 * ipv4 and ipv6 state split: think about this more..
