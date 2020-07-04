@@ -13,8 +13,8 @@ pub struct AnnounceRequest {
     pub bytes_left: usize,
     pub event: AnnounceEvent,
     pub compact: bool,
-    /// Requested number of peers to return
-    pub numwant: usize,
+    /// Number of response peers wanted
+    pub numwant: Option<usize>,
 }
 
 
@@ -68,6 +68,17 @@ impl Request {
         }
 
         if location == "/announce" {
+            let numwant = if let Some(s) = data.get("numwant"){
+                let numwant = s.parse::<usize>()
+                    .map_err(|err|
+                        anyhow::anyhow!("parse 'numwant': {}", err)
+                    )?;
+                
+                Some(numwant)
+            } else {
+                None
+            };
+
             let request = AnnounceRequest {
                 info_hash: info_hashes.get(0)
                     .with_context(|| "no info_hash")
@@ -91,12 +102,7 @@ impl Request {
                 compact: data.get("compact")
                     .map(|s| s == "1")
                     .unwrap_or(true),
-                numwant: data.get("numwant")
-                    .with_context(|| "no numwant")
-                    .and_then(|s| s.parse()
-                    .map_err(|err|
-                        anyhow::anyhow!("parse 'numwant': {}", err)
-                    ))?,
+                numwant,
             };
 
             Ok(Request::Announce(request))

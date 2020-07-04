@@ -40,7 +40,6 @@ pub struct ScrapeStatistics {
 pub struct AnnounceResponse {
     #[serde(rename = "interval")]
     pub announce_interval: usize,
-    pub tracker_id: String, // Optional??
     pub complete: usize,
     pub incomplete: usize,
     #[serde(

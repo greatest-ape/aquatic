@@ -143,10 +143,9 @@ pub fn handle_announce_requests(
             }
         }
 
-        let max_num_peers_to_take = if request.numwant <= 0 {
-            config.protocol.max_peers
-        } else {
-            request.numwant.min(config.protocol.max_peers)
+        let max_num_peers_to_take = match request.numwant {
+            Some(0) | None => config.protocol.max_peers,
+            Some(numwant) => numwant.min(config.protocol.max_peers),
         };
 
         let response_peers: Vec<ResponsePeer> = extract_response_peers(
@@ -161,7 +160,6 @@ pub fn handle_announce_requests(
             incomplete: torrent_data.num_leechers,
             announce_interval: config.protocol.peer_announce_interval,
             peers: response_peers,
-            tracker_id: "".to_string()
         });
 
         (request_sender_meta, response)
