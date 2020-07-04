@@ -13,7 +13,6 @@
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
 * on ipv6, compact=1 should result in error response
 * on ipv4, compact=0 should result in error response
-* what does supportcrypto key do? Request upgrade to TLS?
 
 ### less important
 * request parsing in protocol module instead of in network, maybe from byte
@@ -28,6 +27,12 @@
   positive number.
 * handle_connection_read_event: this is an ugly function, but I don't know
   how to improve it
+* Support supportcrypto/requirecrypto keys? Official extension according to
+  https://wiki.theory.org/index.php/BitTorrentSpecification#Connection_Obfuscation.
+  More info: http://wiki.vuze.com/w/Message_Stream_Encryption. The tricky part
+  is finding supportcrypto peers (and even better requirecrypto peers) to send
+  back to requirecrypto peers. Doesn't really work according to reference in
+  https://en.wikipedia.org/wiki/BitTorrent_protocol_encryption
 
 ## aquatic_ws
 * is 'key' sent in announce request? if so, maybe handle it like in
