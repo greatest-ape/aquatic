@@ -108,7 +108,16 @@ impl EstablishedConnection {
         response.extend_from_slice(body);
         response.extend_from_slice(b"\r\n");
 
-        self.stream.write(&response)?;
+        let bytes_written = self.stream.write(&response)?;
+
+        if bytes_written != body.len(){
+            ::log::error!(
+                "send_response: only {} out of {} bytes written",
+                bytes_written,
+                body.len()
+            );
+        }
+
         self.stream.flush()?;
 
         Ok(())
