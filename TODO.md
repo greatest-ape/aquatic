@@ -13,6 +13,8 @@
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
 * on ipv6, compact=1 should result in error response
 * on ipv4, compact=0 should result in error response
+* use fastrand instead of rand? (also for ws)
+* remove either dependency?
 
 ### less important
 * request parsing in protocol module instead of in network, maybe from byte
