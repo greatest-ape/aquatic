@@ -13,10 +13,14 @@
 * non-compact peers for ipv6 generally: use ResponsePeerList enum
 * on ipv6, compact=1 should result in error response
 * on ipv4, compact=0 should result in error response
-* use fastrand instead of rand? (also for ws)
-* remove either dependency?
+* tests of request parsing
+* tests of response serialization (against data known to be good would be nice)
+* Connection.send_response: handle case when all bytes are not written: can
+  write actually block here? And what action should be taken then?
 
 ### less important
+* use fastrand instead of rand? (also for ws and udp then I guess because of
+  shared function)
 * request parsing in protocol module instead of in network, maybe from byte
   buffer? Not obvious what error return type to use then (anyhow maybe?)
 * log more info for all log modes (function location etc)? also for aquatic_ws
