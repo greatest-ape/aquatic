@@ -71,8 +71,8 @@ pub enum Response {
 
 
 impl Response {
-    pub fn to_bytes(self) -> Vec<u8> {
-        match bendy::serde::to_bytes(&self){
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match bendy::serde::to_bytes(self){
             Ok(bytes) => bytes,
             Err(err) => {
                 log::error!("error encoding response: {}", err);

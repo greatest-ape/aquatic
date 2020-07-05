@@ -43,7 +43,7 @@ pub fn serialize_20_bytes<S>(
 
 
 pub fn serialize_response_peers_compact<S>(
-    response_peers: &Vec<ResponsePeer>,
+    response_peers: &[ResponsePeer],
     serializer: S
 ) -> Result<S::Ok, S::Error> where S: Serializer {
     let mut bytes = Vec::with_capacity(response_peers.len() * 6);

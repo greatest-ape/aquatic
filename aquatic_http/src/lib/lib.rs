@@ -68,11 +68,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         if let Some(statuses) = socket_worker_statuses.try_lock(){
             for opt_status in statuses.iter(){
-                match opt_status {
-                    Some(Err(err)) => {
-                        return Err(::anyhow::anyhow!(err.to_owned()));
-                    },
-                    _ => {},
+                if let Some(Err(err))  = opt_status {
+                    return Err(::anyhow::anyhow!(err.to_owned()));
                 }
             }
 

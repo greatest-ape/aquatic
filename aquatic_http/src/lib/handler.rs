@@ -95,7 +95,7 @@ pub fn handle_announce_requests(
 ){
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
-    responses.extend(requests.into_iter().map(|(request_sender_meta, request)| {
+    responses.extend(requests.map(|(request_sender_meta, request)| {
         let torrent_data: &mut TorrentData = if request_sender_meta.peer_addr.is_ipv4(){
             torrent_maps.ipv4.entry(request.info_hash).or_default()
         } else {
@@ -117,7 +117,7 @@ pub fn handle_announce_requests(
             };
 
             let ip_or_key = request.key
-                .map(|k| Either::Right(k))
+                .map(Either::Right)
                 .unwrap_or_else(||
                     Either::Left(request_sender_meta.peer_addr.ip())
                 );

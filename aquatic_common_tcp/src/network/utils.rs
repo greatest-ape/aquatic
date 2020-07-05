@@ -22,7 +22,7 @@ pub fn create_tls_acceptor(
             .context("Couldn't read pkcs12 identity file")?;
 
         let identity = Identity::from_pkcs12(
-            &mut identity_bytes,
+            &identity_bytes[..],
             &config.tls_pkcs12_password
         ).context("Couldn't parse pkcs12 identity file")?;
 
