@@ -110,11 +110,11 @@ impl EstablishedConnection {
 
         let bytes_written = self.stream.write(&response)?;
 
-        if bytes_written != body.len(){
+        if bytes_written != response.len(){
             ::log::error!(
                 "send_response: only {} out of {} bytes written",
                 bytes_written,
-                body.len()
+                response.len()
             );
         }
 
