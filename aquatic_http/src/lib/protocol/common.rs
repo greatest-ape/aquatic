@@ -5,7 +5,7 @@ use serde::Serialize;
 use super::utils::*;
 
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct PeerId(
     #[serde(
@@ -15,7 +15,7 @@ pub struct PeerId(
 );
 
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(

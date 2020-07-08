@@ -1,6 +1,6 @@
 use std::time::Duration;
 use std::vec::Drain;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use either::Either;
 use hashbrown::HashMap;
@@ -97,119 +97,152 @@ pub fn handle_announce_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     responses.extend(requests.map(|(request_sender_meta, request)| {
-        let converted_request_sender_meta = request_sender_meta.map_ipv4_ip();
-
-        let torrent_data: &mut TorrentData = if converted_request_sender_meta.peer_addr.is_ipv4(){
-            torrent_maps.ipv4.entry(request.info_hash).or_default()
-        } else {
-            torrent_maps.ipv6.entry(request.info_hash).or_default()
-        };
-
-        // Insert/update/remove peer who sent this request
-        {
-            let request_sender_meta = converted_request_sender_meta;
-
-            let peer_status = PeerStatus::from_event_and_bytes_left(
-                request.event,
-                Some(request.bytes_left)
-            );
-
-            let peer = Peer {
-                connection_meta: request_sender_meta,
-                port: request.port,
-                status: peer_status,
-                valid_until,
-            };
-
-            let ip_or_key = request.key
-                .map(Either::Right)
-                .unwrap_or_else(||
-                    Either::Left(request_sender_meta.peer_addr.ip())
-                );
-
-            let peer_map_key = PeerMapKey {
-                peer_id: request.peer_id,
-                ip_or_key,
-            };
-
-            let opt_removed_peer = match peer_status {
-                PeerStatus::Leeching => {
-                    torrent_data.num_leechers += 1;
-
-                    torrent_data.peers.insert(peer_map_key, peer)
-                },
-                PeerStatus::Seeding => {
-                    torrent_data.num_seeders += 1;
-
-                    torrent_data.peers.insert(peer_map_key, peer)
-                },
-                PeerStatus::Stopped => {
-                    torrent_data.peers.remove(&peer_map_key)
-                }
-            };
-
-            match opt_removed_peer.map(|peer| peer.status){
-                Some(PeerStatus::Leeching) => {
-                    torrent_data.num_leechers -= 1;
-                },
-                Some(PeerStatus::Seeding) => {
-                    torrent_data.num_seeders -= 1;
-                },
-                _ => {}
-            }
-        }
-
-        let max_num_peers_to_take = match request.numwant {
-            Some(0) | None => config.protocol.max_peers,
-            Some(numwant) => numwant.min(config.protocol.max_peers),
-        };
-
-        // FIXME: proper protocol peer should be extracted here, not below.
-        // Ideally, protocol-specific IP should be stored in connection meta
-        // in peer map.
-        let response_peers: Vec<ResponsePeer> = extract_response_peers(
-            rng,
-            &torrent_data.peers,
-            max_num_peers_to_take,
-            ResponsePeer::from_peer 
+        let peer_ip = convert_ipv4_mapped_ipv4(
+            request_sender_meta.peer_addr.ip()
         );
 
-        let response_peers_v4 = response_peers.iter()
-            .filter_map(|peer| {
-                if let IpAddr::V4(ip_address) = peer.ip_address {
-                    Some(ResponsePeerV4 {
-                        ip_address,
-                        port: peer.port
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let response = match peer_ip {
+            IpAddr::V4(peer_ip_address) => {
+                let torrent_data: &mut TorrentData<Ipv4Addr> = torrent_maps.ipv4
+                    .entry(request.info_hash)
+                    .or_default();
+                
+                let peer_connection_meta = PeerConnectionMeta {
+                    worker_index: request_sender_meta.worker_index,
+                    poll_token: request_sender_meta.poll_token,
+                    peer_ip_address,
+                };
 
-        let response_peers_v6 = response_peers.iter()
-            .filter_map(|peer| {
-                if let IpAddr::V6(ip_address) = peer.ip_address {
-                    Some(ResponsePeerV6 {
-                        ip_address,
-                        port: peer.port
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
+                let (seeders, leechers, response_peers) = upsert_peer_and_get_response_peers(
+                    config,
+                    rng,
+                    peer_connection_meta,
+                    torrent_data,
+                    request,
+                    valid_until
+                );
 
-        let response = Response::Announce(AnnounceResponse {
-            complete: torrent_data.num_seeders,
-            incomplete: torrent_data.num_leechers,
-            announce_interval: config.protocol.peer_announce_interval,
-            peers: ResponsePeerListV4(response_peers_v4),
-            peers6: ResponsePeerListV6(response_peers_v6),
-        });
+                let response = AnnounceResponse {
+                    complete: seeders,
+                    incomplete: leechers,
+                    announce_interval: config.protocol.peer_announce_interval,
+                    peers: ResponsePeerListV4(response_peers),
+                    peers6: ResponsePeerListV6(vec![]),
+                };
+
+                Response::Announce(response)
+            },
+            IpAddr::V6(peer_ip_address) => {
+                let torrent_data: &mut TorrentData<Ipv6Addr> = torrent_maps.ipv6
+                    .entry(request.info_hash)
+                    .or_default();
+                
+                let peer_connection_meta = PeerConnectionMeta {
+                    worker_index: request_sender_meta.worker_index,
+                    poll_token: request_sender_meta.poll_token,
+                    peer_ip_address
+                };
+
+                let (seeders, leechers, response_peers) = upsert_peer_and_get_response_peers(
+                    config,
+                    rng,
+                    peer_connection_meta,
+                    torrent_data,
+                    request,
+                    valid_until
+                );
+
+                let response = AnnounceResponse {
+                    complete: seeders,
+                    incomplete: leechers,
+                    announce_interval: config.protocol.peer_announce_interval,
+                    peers: ResponsePeerListV4(vec![]),
+                    peers6: ResponsePeerListV6(response_peers),
+                };
+
+                Response::Announce(response)
+            },
+        };
 
         (request_sender_meta, response)
     }));
+}
+
+
+/// Insert/update peer. Return num_seeders, num_leechers and response peers
+fn upsert_peer_and_get_response_peers<P: Copy + Eq + ::std::hash::Hash>(
+    config: &Config,
+    rng: &mut impl Rng,
+    request_sender_meta: PeerConnectionMeta<P>,
+    torrent_data: &mut TorrentData<P>,
+    request: AnnounceRequest,
+    valid_until: ValidUntil,
+) -> (usize, usize, Vec<ResponsePeer<P>>) {
+    // Insert/update/remove peer who sent this request
+    {
+        let peer_status = PeerStatus::from_event_and_bytes_left(
+            request.event,
+            Some(request.bytes_left)
+        );
+
+        let peer = Peer {
+            connection_meta: request_sender_meta,
+            port: request.port,
+            status: peer_status,
+            valid_until,
+        };
+
+        let ip_or_key = request.key
+            .map(Either::Right)
+            .unwrap_or_else(||
+                Either::Left(request_sender_meta.peer_ip_address)
+            );
+
+        let peer_map_key = PeerMapKey {
+            peer_id: request.peer_id,
+            ip_or_key,
+        };
+
+        let opt_removed_peer = match peer_status {
+            PeerStatus::Leeching => {
+                torrent_data.num_leechers += 1;
+
+                torrent_data.peers.insert(peer_map_key, peer)
+            },
+            PeerStatus::Seeding => {
+                torrent_data.num_seeders += 1;
+
+                torrent_data.peers.insert(peer_map_key, peer)
+            },
+            PeerStatus::Stopped => {
+                torrent_data.peers.remove(&peer_map_key)
+            }
+        };
+
+        match opt_removed_peer.map(|peer| peer.status){
+            Some(PeerStatus::Leeching) => {
+                torrent_data.num_leechers -= 1;
+            },
+            Some(PeerStatus::Seeding) => {
+                torrent_data.num_seeders -= 1;
+            },
+            _ => {}
+        }
+    }
+
+    let max_num_peers_to_take = match request.numwant {
+        Some(0) | None => config.protocol.max_peers,
+        Some(numwant) => numwant.min(config.protocol.max_peers),
+    };
+
+    let response_peers: Vec<ResponsePeer<P>> = extract_response_peers(
+        rng,
+        &torrent_data.peers,
+        max_num_peers_to_take,
+        Peer::to_response_peer
+    );
+
+    (torrent_data.num_seeders, torrent_data.num_leechers, response_peers)
 }
 
 
@@ -228,25 +261,38 @@ pub fn handle_scrape_requests(
             files: HashMap::with_capacity(num_to_take),
         };
 
-        let torrent_map: &mut TorrentMap = if meta.peer_addr.is_ipv4(){
-            &mut torrent_maps.ipv4
-        } else {
-            &mut torrent_maps.ipv6
-        };
+        let peer_ip = convert_ipv4_mapped_ipv4(
+            meta.peer_addr.ip()
+        );
 
         // If request.info_hashes is empty, don't return scrape for all
         // torrents, even though reference server does it. It is too expensive.
-        for info_hash in request.info_hashes.into_iter().take(num_to_take){
-            if let Some(torrent_data) = torrent_map.get(&info_hash){
-                let stats = ScrapeStatistics {
-                    complete: torrent_data.num_seeders,
-                    downloaded: 0, // No implementation planned
-                    incomplete: torrent_data.num_leechers,
-                };
+        if peer_ip.is_ipv4(){
+            for info_hash in request.info_hashes.into_iter().take(num_to_take){
+                if let Some(torrent_data) = torrent_maps.ipv4.get(&info_hash){
+                    let stats = ScrapeStatistics {
+                        complete: torrent_data.num_seeders,
+                        downloaded: 0, // No implementation planned
+                        incomplete: torrent_data.num_leechers,
+                    };
 
-                response.files.insert(info_hash, stats);
+                    response.files.insert(info_hash, stats);
+                }
             }
-        }
+        } else {
+            for info_hash in request.info_hashes.into_iter().take(num_to_take){
+                if let Some(torrent_data) = torrent_maps.ipv6.get(&info_hash){
+                    let stats = ScrapeStatistics {
+                        complete: torrent_data.num_seeders,
+                        downloaded: 0, // No implementation planned
+                        incomplete: torrent_data.num_leechers,
+                    };
+
+                    response.files.insert(info_hash, stats);
+                }
+            }
+        };
+
 
         (meta, Response::Scrape(response))
     }));

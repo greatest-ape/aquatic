@@ -1,6 +1,8 @@
+use std::net::{Ipv4Addr, Ipv6Addr};
+
 use serde::Serializer;
 
-use super::response::{ResponsePeerV4, ResponsePeerV6};
+use super::response::ResponsePeer;
 
 
 /// Not for serde
@@ -41,7 +43,7 @@ pub fn serialize_20_bytes<S>(
 
 
 pub fn serialize_response_peers_ipv4<S>(
-    response_peers: &[ResponsePeerV4],
+    response_peers: &[ResponsePeer<Ipv4Addr>],
     serializer: S
 ) -> Result<S::Ok, S::Error> where S: Serializer {
     let mut bytes = Vec::with_capacity(response_peers.len() * 6);
@@ -56,7 +58,7 @@ pub fn serialize_response_peers_ipv4<S>(
 
 
 pub fn serialize_response_peers_ipv6<S>(
-    response_peers: &[ResponsePeerV6],
+    response_peers: &[ResponsePeer<Ipv6Addr>],
     serializer: S
 ) -> Result<S::Ok, S::Error> where S: Serializer {
     let mut bytes = Vec::with_capacity(response_peers.len() * 6);

@@ -1,4 +1,4 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 
 use either::Either;
@@ -13,7 +13,7 @@ pub use aquatic_common::{ValidUntil, convert_ipv4_mapped_ipv4};
 
 use crate::protocol::common::*;
 use crate::protocol::request::Request;
-use crate::protocol::response::Response;
+use crate::protocol::response::{Response, ResponsePeer};
 
 
 #[derive(Clone, Copy, Debug)]
@@ -26,19 +26,11 @@ pub struct ConnectionMeta {
 }
 
 
-impl ConnectionMeta {
-    pub fn map_ipv4_ip(&self) -> Self {
-        let peer_addr = SocketAddr::new(
-            convert_ipv4_mapped_ipv4(self.peer_addr.ip()),
-            self.peer_addr.port()
-        );
-
-        Self {
-            worker_index: self.worker_index,
-            peer_addr,
-            poll_token: self.poll_token
-        }
-    }
+#[derive(Clone, Copy, Debug)]
+pub struct PeerConnectionMeta<P> {
+    pub worker_index: usize,
+    pub poll_token: Token,
+    pub peer_ip_address: P,
 }
 
 
@@ -71,32 +63,42 @@ impl PeerStatus {
 
 
 #[derive(Clone, Copy)]
-pub struct Peer {
-    pub connection_meta: ConnectionMeta,
+pub struct Peer<P> {
+    pub connection_meta: PeerConnectionMeta<P>,
     pub port: u16,
     pub status: PeerStatus,
     pub valid_until: ValidUntil,
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PeerMapKey {
-    pub peer_id: PeerId,
-    pub ip_or_key: Either<IpAddr, String>
+impl <S: Copy>Peer<S> {
+    pub fn to_response_peer(&self) -> ResponsePeer<S> {
+        ResponsePeer {
+            ip_address: self.connection_meta.peer_ip_address,
+            port: self.port
+        }
+    }
 }
 
 
-pub type PeerMap = IndexMap<PeerMapKey, Peer>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PeerMapKey<P: Eq + ::std::hash::Hash> {
+    pub peer_id: PeerId,
+    pub ip_or_key: Either<P, String>
+}
 
 
-pub struct TorrentData {
-    pub peers: PeerMap,
+pub type PeerMap<P> = IndexMap<PeerMapKey<P>, Peer<P>>;
+
+
+pub struct TorrentData<P: Eq + ::std::hash::Hash> {
+    pub peers: PeerMap<P>,
     pub num_seeders: usize,
     pub num_leechers: usize,
 }
 
 
-impl Default for TorrentData {
+impl <P: Eq + ::std::hash::Hash> Default for TorrentData<P> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -108,13 +110,13 @@ impl Default for TorrentData {
 }
 
 
-pub type TorrentMap = HashMap<InfoHash, TorrentData>;
+pub type TorrentMap<P> = HashMap<InfoHash, TorrentData<P>>;
 
 
 #[derive(Default)]
 pub struct TorrentMaps {
-    pub ipv4: TorrentMap,
-    pub ipv6: TorrentMap,
+    pub ipv4: TorrentMap<Ipv4Addr>,
+    pub ipv6: TorrentMap<Ipv6Addr>,
 }
 
 

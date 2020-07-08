@@ -2,7 +2,9 @@
 
 ## General
 
-* use ipv4-mapped address functions
+* use ipv4-mapped address functions, but I should check that they really
+  work as they really work as they should. All announces over ipv4 should
+  go to ipv4 map, all over ipv6 to ipv6 map
 * avx-512 should be avoided, maybe this should be mentioned in README
   and maybe run scripts should be adjusted
 
@@ -11,8 +13,6 @@
   * test tls
   * current serialized byte strings valid
 * scrape: does it work with multiple hashes?
-* store Ipv4Addr / Ipv6 addr in peer map, for correctness and so that strange
-  conversion in handler doesn't have to occur
 * compact=0 should result in error response
 * tests of request parsing
 * tests of response serialization (against data known to be good would be nice)

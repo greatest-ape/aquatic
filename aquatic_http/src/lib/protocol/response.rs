@@ -1,42 +1,15 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use hashbrown::HashMap;
 use serde::Serialize;
-
-use crate::common::Peer;
 
 use super::common::*;
 use super::utils::*;
 
 
-pub struct ResponsePeer {
-    pub ip_address: IpAddr,
-    pub port: u16
-}
-
-
-impl ResponsePeer {
-    pub fn from_peer(peer: &Peer) -> Self {
-        let ip_address = peer.connection_meta.peer_addr.ip();
-
-        Self {
-            ip_address,
-            port: peer.port
-        }
-    }
-}
-
-
-#[derive(Clone, Copy, Debug, Serialize)]
-pub struct ResponsePeerV4 {
-    pub ip_address: Ipv4Addr,
-    pub port: u16
-}
-
-
-#[derive(Clone, Copy, Debug, Serialize)]
-pub struct ResponsePeerV6 {
-    pub ip_address: Ipv6Addr,
+#[derive(Debug, Clone, Serialize)]
+pub struct ResponsePeer<I>{
+    pub ip_address: I,
     pub port: u16
 }
 
@@ -45,7 +18,7 @@ pub struct ResponsePeerV6 {
 #[serde(transparent)]
 pub struct ResponsePeerListV4(
     #[serde(serialize_with = "serialize_response_peers_ipv4")]
-    pub Vec<ResponsePeerV4>
+    pub Vec<ResponsePeer<Ipv4Addr>>
 );
 
 
@@ -53,7 +26,7 @@ pub struct ResponsePeerListV4(
 #[serde(transparent)]
 pub struct ResponsePeerListV6(
     #[serde(serialize_with = "serialize_response_peers_ipv6")]
-    pub Vec<ResponsePeerV6>
+    pub Vec<ResponsePeer<Ipv6Addr>>
 );
 
 
