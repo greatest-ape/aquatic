@@ -21,6 +21,7 @@
 ### less important
 * use fastrand instead of rand? (also for ws and udp then I guess because of
   shared function)
+* use smartstring crate for announce request key and failure response reason?
 * request parsing in protocol module instead of in network, maybe from byte
   buffer? Not obvious what error return type to use then (anyhow maybe?)
 * log more info for all log modes (function location etc)? also for aquatic_ws
@@ -45,6 +46,7 @@
   aquatic_http (including ip uniqueness part of peer map key)
 * established connections do not get valid_until updated, I think?
 * tests
+* use enum as return type for handshake machine
 * ipv4 and ipv6 state split: think about this more..
 
 ## aquatic_udp
