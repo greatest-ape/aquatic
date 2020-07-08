@@ -2,6 +2,7 @@
 
 ## General
 
+* use ipv4-mapped address functions
 * avx-512 should be avoided, maybe this should be mentioned in README
   and maybe run scripts should be adjusted
 
@@ -10,9 +11,9 @@
   * test tls
   * current serialized byte strings valid
 * scrape: does it work with multiple hashes?
-* ipv6 response peers: use https://www.bittorrent.org/beps/bep_0007.html?
-  (peers6 compact key)
-  * compact=0 should result in error response
+* store Ipv4Addr / Ipv6 addr in peer map, for correctness and so that strange
+  conversion in handler doesn't have to occur
+* compact=0 should result in error response
 * tests of request parsing
 * tests of response serialization (against data known to be good would be nice)
 * Connection.send_response: handle case when all bytes are not written: can

@@ -9,7 +9,7 @@ use log::error;
 use mio::Token;
 use parking_lot::Mutex;
 
-pub use aquatic_common::ValidUntil;
+pub use aquatic_common::{ValidUntil, convert_ipv4_mapped_ipv4};
 
 use crate::protocol::common::*;
 use crate::protocol::request::Request;
@@ -23,6 +23,22 @@ pub struct ConnectionMeta {
     pub worker_index: usize,
     pub peer_addr: SocketAddr,
     pub poll_token: Token,
+}
+
+
+impl ConnectionMeta {
+    pub fn map_ipv4_ip(&self) -> Self {
+        let peer_addr = SocketAddr::new(
+            convert_ipv4_mapped_ipv4(self.peer_addr.ip()),
+            self.peer_addr.port()
+        );
+
+        Self {
+            worker_index: self.worker_index,
+            peer_addr,
+            poll_token: self.poll_token
+        }
+    }
 }
 
 

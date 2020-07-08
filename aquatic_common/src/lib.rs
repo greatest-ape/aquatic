@@ -1,4 +1,5 @@
 use std::time::{Duration, Instant};
+use std::net::IpAddr;
 
 use indexmap::IndexMap;
 use rand::Rng;
@@ -76,5 +77,19 @@ pub fn extract_response_peers<K, V, R, F>(
         debug_assert_eq!(peers.len(), max_num_peers_to_take);
 
         peers
+    }
+}
+
+
+#[inline]
+pub fn convert_ipv4_mapped_ipv4(ip_address: IpAddr) -> IpAddr {
+    if let IpAddr::V6(ip) = ip_address {
+        if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments(){
+            ip.to_ipv4().expect("convert ipv4-mapped ip").into()
+        } else {
+            ip_address
+        }   
+    } else {
+        ip_address
     }
 }

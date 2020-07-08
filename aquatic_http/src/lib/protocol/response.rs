@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use hashbrown::HashMap;
 use serde::Serialize;
@@ -9,7 +9,6 @@ use super::common::*;
 use super::utils::*;
 
 
-#[derive(Clone, Copy, Debug, Serialize)]
 pub struct ResponsePeer {
     pub ip_address: IpAddr,
     pub port: u16
@@ -28,6 +27,36 @@ impl ResponsePeer {
 }
 
 
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct ResponsePeerV4 {
+    pub ip_address: Ipv4Addr,
+    pub port: u16
+}
+
+
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct ResponsePeerV6 {
+    pub ip_address: Ipv6Addr,
+    pub port: u16
+}
+
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(transparent)]
+pub struct ResponsePeerListV4(
+    #[serde(serialize_with = "serialize_response_peers_ipv4")]
+    pub Vec<ResponsePeerV4>
+);
+
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(transparent)]
+pub struct ResponsePeerListV6(
+    #[serde(serialize_with = "serialize_response_peers_ipv6")]
+    pub Vec<ResponsePeerV6>
+);
+
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ScrapeStatistics {
     pub complete: usize,
@@ -42,10 +71,8 @@ pub struct AnnounceResponse {
     pub announce_interval: usize,
     pub complete: usize,
     pub incomplete: usize,
-    #[serde(
-        serialize_with = "serialize_response_peers_compact"
-    )]
-    pub peers: Vec<ResponsePeer>,
+    pub peers: ResponsePeerListV4,
+    pub peers6: ResponsePeerListV6,
 }
 
 

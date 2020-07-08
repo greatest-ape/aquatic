@@ -1,5 +1,6 @@
 use std::time::Duration;
 use std::vec::Drain;
+use std::net::IpAddr;
 
 use either::Either;
 use hashbrown::HashMap;
@@ -96,7 +97,9 @@ pub fn handle_announce_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     responses.extend(requests.map(|(request_sender_meta, request)| {
-        let torrent_data: &mut TorrentData = if request_sender_meta.peer_addr.is_ipv4(){
+        let converted_request_sender_meta = request_sender_meta.map_ipv4_ip();
+
+        let torrent_data: &mut TorrentData = if converted_request_sender_meta.peer_addr.is_ipv4(){
             torrent_maps.ipv4.entry(request.info_hash).or_default()
         } else {
             torrent_maps.ipv6.entry(request.info_hash).or_default()
@@ -104,6 +107,8 @@ pub fn handle_announce_requests(
 
         // Insert/update/remove peer who sent this request
         {
+            let request_sender_meta = converted_request_sender_meta;
+
             let peer_status = PeerStatus::from_event_and_bytes_left(
                 request.event,
                 Some(request.bytes_left)
@@ -159,18 +164,48 @@ pub fn handle_announce_requests(
             Some(numwant) => numwant.min(config.protocol.max_peers),
         };
 
+        // FIXME: proper protocol peer should be extracted here, not below.
+        // Ideally, protocol-specific IP should be stored in connection meta
+        // in peer map.
         let response_peers: Vec<ResponsePeer> = extract_response_peers(
             rng,
             &torrent_data.peers,
             max_num_peers_to_take,
-            ResponsePeer::from_peer
+            ResponsePeer::from_peer 
         );
+
+        let response_peers_v4 = response_peers.iter()
+            .filter_map(|peer| {
+                if let IpAddr::V4(ip_address) = peer.ip_address {
+                    Some(ResponsePeerV4 {
+                        ip_address,
+                        port: peer.port
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let response_peers_v6 = response_peers.iter()
+            .filter_map(|peer| {
+                if let IpAddr::V6(ip_address) = peer.ip_address {
+                    Some(ResponsePeerV6 {
+                        ip_address,
+                        port: peer.port
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         let response = Response::Announce(AnnounceResponse {
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
             announce_interval: config.protocol.peer_announce_interval,
-            peers: response_peers,
+            peers: ResponsePeerListV4(response_peers_v4),
+            peers6: ResponsePeerListV6(response_peers_v6),
         });
 
         (request_sender_meta, response)

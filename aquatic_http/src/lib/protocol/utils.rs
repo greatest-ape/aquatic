@@ -1,8 +1,6 @@
-use std::net::IpAddr;
-
 use serde::Serializer;
 
-use super::response::ResponsePeer;
+use super::response::{ResponsePeerV4, ResponsePeerV6};
 
 
 /// Not for serde
@@ -42,22 +40,30 @@ pub fn serialize_20_bytes<S>(
 }
 
 
-pub fn serialize_response_peers_compact<S>(
-    response_peers: &[ResponsePeer],
+pub fn serialize_response_peers_ipv4<S>(
+    response_peers: &[ResponsePeerV4],
     serializer: S
 ) -> Result<S::Ok, S::Error> where S: Serializer {
     let mut bytes = Vec::with_capacity(response_peers.len() * 6);
 
     for peer in response_peers {
-        match peer.ip_address {
-            IpAddr::V4(ip) => {
-                bytes.extend_from_slice(&u32::from(ip).to_be_bytes());
-                bytes.extend_from_slice(&peer.port.to_be_bytes())
-            },
-            IpAddr::V6(_) => {
-                continue;
-            }
-        }
+        bytes.extend_from_slice(&u32::from(peer.ip_address).to_be_bytes());
+        bytes.extend_from_slice(&peer.port.to_be_bytes())
+    }
+
+    serializer.serialize_bytes(&bytes)
+}
+
+
+pub fn serialize_response_peers_ipv6<S>(
+    response_peers: &[ResponsePeerV6],
+    serializer: S
+) -> Result<S::Ok, S::Error> where S: Serializer {
+    let mut bytes = Vec::with_capacity(response_peers.len() * 6);
+
+    for peer in response_peers {
+        bytes.extend_from_slice(&u128::from(peer.ip_address).to_be_bytes());
+        bytes.extend_from_slice(&peer.port.to_be_bytes())
     }
 
     serializer.serialize_bytes(&bytes)
