@@ -16,6 +16,12 @@ use crate::protocol::request::Request;
 use crate::protocol::response::{Response, ResponsePeer};
 
 
+pub trait Ip: Copy + Eq + ::std::hash::Hash {}
+
+impl Ip for Ipv4Addr {}
+impl Ip for Ipv6Addr {}
+
+
 #[derive(Clone, Copy, Debug)]
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
@@ -27,10 +33,10 @@ pub struct ConnectionMeta {
 
 
 #[derive(Clone, Copy, Debug)]
-pub struct PeerConnectionMeta<P> {
+pub struct PeerConnectionMeta<I: Ip> {
     pub worker_index: usize,
     pub poll_token: Token,
-    pub peer_ip_address: P,
+    pub peer_ip_address: I,
 }
 
 
@@ -63,16 +69,16 @@ impl PeerStatus {
 
 
 #[derive(Clone, Copy)]
-pub struct Peer<P> {
-    pub connection_meta: PeerConnectionMeta<P>,
+pub struct Peer<I: Ip> {
+    pub connection_meta: PeerConnectionMeta<I>,
     pub port: u16,
     pub status: PeerStatus,
     pub valid_until: ValidUntil,
 }
 
 
-impl <S: Copy>Peer<S> {
-    pub fn to_response_peer(&self) -> ResponsePeer<S> {
+impl <I: Ip>Peer<I> {
+    pub fn to_response_peer(&self) -> ResponsePeer<I> {
         ResponsePeer {
             ip_address: self.connection_meta.peer_ip_address,
             port: self.port
@@ -82,23 +88,23 @@ impl <S: Copy>Peer<S> {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PeerMapKey<P: Eq + ::std::hash::Hash> {
+pub struct PeerMapKey<I: Ip> {
     pub peer_id: PeerId,
-    pub ip_or_key: Either<P, String>
+    pub ip_or_key: Either<I, String>
 }
 
 
-pub type PeerMap<P> = IndexMap<PeerMapKey<P>, Peer<P>>;
+pub type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
 
 
-pub struct TorrentData<P: Eq + ::std::hash::Hash> {
-    pub peers: PeerMap<P>,
+pub struct TorrentData<I: Ip> {
+    pub peers: PeerMap<I>,
     pub num_seeders: usize,
     pub num_leechers: usize,
 }
 
 
-impl <P: Eq + ::std::hash::Hash> Default for TorrentData<P> {
+impl <I: Ip> Default for TorrentData<I> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -110,7 +116,7 @@ impl <P: Eq + ::std::hash::Hash> Default for TorrentData<P> {
 }
 
 
-pub type TorrentMap<P> = HashMap<InfoHash, TorrentData<P>>;
+pub type TorrentMap<I> = HashMap<InfoHash, TorrentData<I>>;
 
 
 #[derive(Default)]

@@ -12,7 +12,7 @@ pub fn clean_torrents(state: &State){
 }
 
 
-fn clean_torrent_map<I: Eq + ::std::hash::Hash>(
+fn clean_torrent_map<I: Ip>(
     torrent_map: &mut TorrentMap<I>,
 ){
     let now = Instant::now();

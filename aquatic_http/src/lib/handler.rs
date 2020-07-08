@@ -170,14 +170,14 @@ pub fn handle_announce_requests(
 
 
 /// Insert/update peer. Return num_seeders, num_leechers and response peers
-fn upsert_peer_and_get_response_peers<P: Copy + Eq + ::std::hash::Hash>(
+fn upsert_peer_and_get_response_peers<I: Ip>(
     config: &Config,
     rng: &mut impl Rng,
-    request_sender_meta: PeerConnectionMeta<P>,
-    torrent_data: &mut TorrentData<P>,
+    request_sender_meta: PeerConnectionMeta<I>,
+    torrent_data: &mut TorrentData<I>,
     request: AnnounceRequest,
     valid_until: ValidUntil,
-) -> (usize, usize, Vec<ResponsePeer<P>>) {
+) -> (usize, usize, Vec<ResponsePeer<I>>) {
     // Insert/update/remove peer who sent this request
     {
         let peer_status = PeerStatus::from_event_and_bytes_left(
@@ -235,7 +235,7 @@ fn upsert_peer_and_get_response_peers<P: Copy + Eq + ::std::hash::Hash>(
         Some(numwant) => numwant.min(config.protocol.max_peers),
     };
 
-    let response_peers: Vec<ResponsePeer<P>> = extract_response_peers(
+    let response_peers: Vec<ResponsePeer<I>> = extract_response_peers(
         rng,
         &torrent_data.peers,
         max_num_peers_to_take,
