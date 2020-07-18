@@ -9,14 +9,12 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* scape response to bytes: does bendy encode info hashes here? I think it
-  should
 * faster Request creation (splitn functions) using memchr, possibly
   iterate over several bytes (& and =)
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
-* scrape: does it work with multiple hashes?
+  * scrape: does it work (serialization etc), and with multiple hashes?
 * compact=0 should result in error response
 * tests of request parsing
 * tests of response serialization (against data known to be good would be nice)

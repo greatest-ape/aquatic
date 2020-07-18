@@ -1,9 +1,9 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 use std::vec::Drain;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use either::Either;
-use hashbrown::HashMap;
 use parking_lot::MutexGuard;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
@@ -258,7 +258,7 @@ pub fn handle_scrape_requests(
         );
 
         let mut response = ScrapeResponse {
-            files: HashMap::with_capacity(num_to_take),
+            files: BTreeMap::new(),
         };
 
         let peer_ip = convert_ipv4_mapped_ipv4(

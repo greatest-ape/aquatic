@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use hashbrown::HashMap;
+use std::collections::BTreeMap;
 use serde::Serialize;
 
 use super::common::*;
@@ -101,13 +101,42 @@ impl AnnounceResponse {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ScrapeResponse {
-    pub files: HashMap<InfoHash, ScrapeStatistics>,
+    /// BTreeMap instead of HashMap since keys need to be serialized in order
+    pub files: BTreeMap<InfoHash, ScrapeStatistics>,
 }
 
 
 impl ScrapeResponse {
     fn to_bytes(&self) -> Vec<u8> {
-        unimplemented!()
+        let mut bytes = Vec::with_capacity(
+            9 +
+            self.files.len() * (
+                3 +
+                20 +
+                12 +
+                5 + // Upper estimate
+                31 +
+                5 + // Upper estimate
+                2
+            ) +
+            2
+        );
+
+        bytes.extend_from_slice(b"d5:filesd");
+        
+        for (info_hash, statistics) in self.files.iter(){
+            bytes.extend_from_slice(b"20:");
+            bytes.extend_from_slice(&info_hash.0);
+            bytes.extend_from_slice(b"d8:completei");
+            let _ = itoa::write(&mut bytes, statistics.complete);
+            bytes.extend_from_slice(b"e10:downloadedi0e10:incompletei");
+            let _ = itoa::write(&mut bytes, statistics.incomplete);
+            bytes.extend_from_slice(b"ee");
+        }
+
+        bytes.extend_from_slice(b"ee");
+
+        bytes
     }
 }
 
@@ -153,22 +182,9 @@ pub enum Response {
 impl Response {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
-            Response::Announce(r) => {
-                r.to_bytes()
-            },
-            Response::Failure(r) => {
-                r.to_bytes()
-            },
-            Response::Scrape(r) => {
-                match bendy::serde::to_bytes(r){
-                    Ok(bytes) => bytes,
-                    Err(err) => {
-                        ::log::error!("Response::to_bytes: {}", err);
-
-                        Vec::new()
-                    },
-                }
-            }
+            Response::Announce(r) => r.to_bytes(),
+            Response::Failure(r) => r.to_bytes(),
+            Response::Scrape(r) => r.to_bytes(),
         }
     }
 }
@@ -213,6 +229,18 @@ impl quickcheck::Arbitrary for ResponsePeerListV6 {
 
 
 #[cfg(test)]
+impl quickcheck::Arbitrary for ScrapeStatistics {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        Self {
+            complete: usize::arbitrary(g),
+            incomplete: usize::arbitrary(g),
+            downloaded: 0,
+        }
+    }
+}
+
+
+#[cfg(test)]
 impl quickcheck::Arbitrary for AnnounceResponse {
     fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
         Self {
@@ -221,6 +249,16 @@ impl quickcheck::Arbitrary for AnnounceResponse {
             incomplete: usize::arbitrary(g),
             peers: ResponsePeerListV4::arbitrary(g),
             peers6: ResponsePeerListV6::arbitrary(g),
+        }
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for ScrapeResponse {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        Self {
+            files: BTreeMap::arbitrary(g),
         }
     }
 }
@@ -249,7 +287,24 @@ mod tests {
         ).unwrap();
 
         response.to_bytes() == reference
-    }  
+    }
+
+    #[quickcheck]
+    fn test_scrape_response_to_bytes(response: ScrapeResponse) -> bool {
+        let reference = bendy::serde::to_bytes(
+            &Response::Scrape(response.clone())
+        ).unwrap();
+        let hand_written = response.to_bytes();
+
+        let success = hand_written == reference;
+
+        if !success {
+            println!("reference: {}", String::from_utf8_lossy(&reference));
+            println!("hand_written: {}", String::from_utf8_lossy(&hand_written));
+        }
+
+        success
+    }
 
     #[quickcheck]
     fn test_failure_response_to_bytes(response: FailureResponse) -> bool {

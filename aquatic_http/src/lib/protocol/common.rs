@@ -15,7 +15,7 @@ pub struct PeerId(
 );
 
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(
@@ -52,5 +52,20 @@ impl FromStr for AnnounceEvent {
             "empty" => Ok(Self::Empty),
             value => Err(format!("Unknown value: {}", value))
         }
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for InfoHash {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        let mut arr = [b'x'; 20];
+
+        arr[0] = u8::arbitrary(g);
+        arr[1] = u8::arbitrary(g);
+        arr[18] = u8::arbitrary(g);
+        arr[19] = u8::arbitrary(g);
+
+        Self(arr)
     }
 }
