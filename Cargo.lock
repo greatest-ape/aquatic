@@ -83,6 +83,7 @@ dependencies = [
  "indexmap",
  "itoa",
  "log",
+ "memchr",
  "mimalloc",
  "mio",
  "native-tls",

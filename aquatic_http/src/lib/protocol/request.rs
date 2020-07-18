@@ -60,8 +60,7 @@ impl Request {
                 .with_context(|| format!("no key in {}", part))?;
             let value = key_and_value.next()
                 .with_context(|| format!("no value in {}", part))?;
-            let value = Self::urldecode(value)?
-                .to_string();
+            let value = Self::urldecode_memchr(value)?;
 
             if key == "info_hash" {
                 info_hashes.push(value);
@@ -169,5 +168,63 @@ impl Request {
         }
 
         Ok(processed)
+    }
+
+    fn urldecode_memchr(value: &str) -> anyhow::Result<String> {
+        let mut processed = String::with_capacity(value.len());
+
+        let bytes = value.as_bytes();
+        let iter = ::memchr::memchr_iter(b'%', bytes);
+
+        let mut str_index_after_hex = 0usize;
+
+        for i in iter {
+            match (bytes.get(i), bytes.get(i + 1), bytes.get(i + 2)){
+                (Some(0..=127), Some(0..=127), Some(0..=127)) => {
+                    if i > 0 {
+                        processed.push_str(&value[str_index_after_hex..i]);
+                    }
+    
+                    str_index_after_hex = i + 3;
+    
+                    let hex = &value[i + 1..i + 3];
+                    let byte = u8::from_str_radix(&hex, 16)?;
+    
+                    processed.push(byte as char);
+                },
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "invalid urlencoded segment at byte {} in {}", i, value
+                    ));
+                }
+            }
+        }
+
+        if let Some(rest_of_str) = value.get(str_index_after_hex..){
+            processed.push_str(rest_of_str);
+        }
+
+        processed.shrink_to_fit();
+
+        Ok(processed)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_urldecode(){
+        let f = Request::urldecode_memchr;
+
+        assert_eq!(f("").unwrap(), "".to_string());
+        assert_eq!(f("abc").unwrap(), "abc".to_string());
+        assert_eq!(f("%21").unwrap(), "!".to_string());
+        assert_eq!(f("%21%3D").unwrap(), "!=".to_string());
+        assert_eq!(f("abc%21def%3Dghi").unwrap(), "abc!def=ghi".to_string());
+        assert!(f("%").is_err());
+        assert!(f("%å7").is_err());
     }
 }
