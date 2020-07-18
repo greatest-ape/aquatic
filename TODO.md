@@ -9,6 +9,10 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
+* scape response to bytes: does bendy encode info hashes here? I think it
+  should
+* faster Request creation (splitn functions) using memchr, possibly
+  iterate over several bytes (& and =)
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
