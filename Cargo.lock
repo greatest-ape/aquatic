@@ -81,6 +81,7 @@ dependencies = [
  "hashbrown",
  "httparse",
  "indexmap",
+ "itoa",
  "log",
  "mimalloc",
  "mio",

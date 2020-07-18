@@ -100,17 +100,22 @@ impl EstablishedConnection {
     }
 
     pub fn send_response(&mut self, body: &[u8]) -> ::std::io::Result<()> {
-        let mut response = Vec::new();
+        let content_len = body.len() + 2; // 2 is for newlines at end
+        let content_len_num_digits = Self::num_digits_in_usize(content_len);
+
+        let mut response = Vec::with_capacity(
+            39 + content_len_num_digits + body.len()
+        );
 
         response.extend_from_slice(b"HTTP/1.1 200 OK\r\nContent-Length: ");
-        response.extend_from_slice(format!("{}", body.len() + 2).as_bytes());
+        ::itoa::write(&mut response, content_len)?;
         response.extend_from_slice(b"\r\n\r\n");
         response.extend_from_slice(body);
         response.extend_from_slice(b"\r\n");
 
         let bytes_written = self.stream.write(&response)?;
 
-        if bytes_written != response.len(){
+        if bytes_written != response.len() {
             ::log::error!(
                 "send_response: only {} out of {} bytes written",
                 bytes_written,
@@ -121,6 +126,18 @@ impl EstablishedConnection {
         self.stream.flush()?;
 
         Ok(())
+    }
+
+    fn num_digits_in_usize(mut number: usize) -> usize {
+        let mut num_digits = 1usize;
+
+        while number >= 10 {
+            num_digits += 1;
+
+            number /= 10;
+        }
+
+        num_digits
     }
 
     #[inline]
@@ -285,3 +302,24 @@ impl Connection {
 
 
 pub type ConnectionMap = HashMap<Token, Connection>;
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_num_digits_in_usize(){
+        let f = EstablishedConnection::num_digits_in_usize;
+
+        assert_eq!(f(0), 1);
+        assert_eq!(f(1), 1);
+        assert_eq!(f(9), 1);
+        assert_eq!(f(10), 2);
+        assert_eq!(f(11), 2);
+        assert_eq!(f(99), 2);
+        assert_eq!(f(100), 3);
+        assert_eq!(f(101), 3);
+        assert_eq!(f(1000), 4);
+    }
+}

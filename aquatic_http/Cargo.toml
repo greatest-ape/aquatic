@@ -24,6 +24,7 @@ flume = "0.7"
 hashbrown = { version = "0.7", features = ["serde"] }
 httparse = "1"
 indexmap = "1"
+itoa = "0.4"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
