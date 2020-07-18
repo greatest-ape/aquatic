@@ -52,22 +52,12 @@ impl Request {
 
         let mut info_hashes = Vec::new();
         let mut data = HashMap::new();
-
-        for part in query_string.split('&'){
-            let mut key_and_value = part.splitn(2, '=');
-
-            let key = key_and_value.next()
-                .with_context(|| format!("no key in {}", part))?;
-            let value = key_and_value.next()
-                .with_context(|| format!("no value in {}", part))?;
-            let value = Self::urldecode_memchr(value)?;
-
-            if key == "info_hash" {
-                info_hashes.push(value);
-            } else {
-                data.insert(key, value);
-            }
-        }
+ 
+        Self::parse_key_value_pairs_memchr(
+            &mut info_hashes,
+            &mut data,
+            query_string
+        )?;
 
         if location == "/announce" {
             let numwant = if let Some(s) = data.get("numwant"){
@@ -131,6 +121,68 @@ impl Request {
 
             Ok(Request::Scrape(request))
         }
+    }
+
+    fn parse_key_value_pairs<'a>(
+        info_hashes: &mut Vec<String>,
+        data: &mut HashMap<&'a str, String>,
+        query_string: &'a str,
+    ) -> anyhow::Result<()> {
+        for part in query_string.split('&'){
+            let mut key_and_value = part.splitn(2, '=');
+        
+            let key = key_and_value.next()
+                .with_context(|| format!("no key in {}", part))?;
+            let value = key_and_value.next()
+                .with_context(|| format!("no value in {}", part))?;
+            let value = Self::urldecode_memchr(value)?;
+
+            if key == "info_hash" {
+                info_hashes.push(value);
+            } else {
+                data.insert(key, value);
+            }
+        }
+
+        Ok(())
+    }
+
+    // Seems to be a bit faster than non-memchr version
+    fn parse_key_value_pairs_memchr<'a>(
+        info_hashes: &mut Vec<String>,
+        data: &mut HashMap<&'a str, String>,
+        query_string: &'a str,
+    ) -> anyhow::Result<()> {
+        let query_string_bytes = query_string.as_bytes();
+
+        let mut ampersand_iter = ::memchr::memchr_iter(b'&', query_string_bytes);
+        let mut position = 0usize;
+
+        for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes){
+            let segment_end = ampersand_iter.next()
+                .unwrap_or(query_string.len());
+
+            let key = query_string.get(position..equal_sign_index)
+                .with_context(|| format!("no key at {}..{}", position, equal_sign_index))?;
+            let value = query_string.get(equal_sign_index + 1..segment_end)
+                .with_context(|| format!("no value at {}..{}", equal_sign_index + 1, segment_end))?;
+
+            let value = Self::urldecode_memchr(value)?;
+
+            if key == "info_hash" {
+                info_hashes.push(value);
+            } else {
+                data.insert(key, value);
+            }
+
+            position = segment_end + 1;
+
+            if position == query_string.len(){
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     /// The info hashes and peer id's that are received are url-encoded byte

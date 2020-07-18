@@ -9,8 +9,8 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* faster Request creation (splitn functions) using memchr? possibly
-  iterate over several bytes (& and =)
+* request parsing: tests and benchmarks of the various helper functions,
+  as well as tests of main parsing function
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
