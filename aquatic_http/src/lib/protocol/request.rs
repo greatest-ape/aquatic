@@ -147,7 +147,7 @@ impl Request {
         Ok(())
     }
 
-    // Seems to be a bit faster than non-memchr version
+    /// Seems to be somewhat faster than non-memchr version
     fn parse_key_value_pairs_memchr<'a>(
         info_hashes: &mut Vec<String>,
         data: &mut HashMap<&'a str, String>,
@@ -222,6 +222,7 @@ impl Request {
         Ok(processed)
     }
 
+    /// Quite a bit faster than non-memchr version
     fn urldecode_memchr(value: &str) -> anyhow::Result<String> {
         let mut processed = String::with_capacity(value.len());
 

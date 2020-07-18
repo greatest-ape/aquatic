@@ -9,8 +9,7 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* request parsing: tests and benchmarks of the various helper functions,
-  as well as tests of main parsing function
+* request parsing: tests of main function and the various helper functions
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid

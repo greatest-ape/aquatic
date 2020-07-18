@@ -13,6 +13,11 @@ path = "src/lib/lib.rs"
 name = "aquatic_http"
 path = "src/bin/main.rs"
 
+[[bench]]
+name = "bench_request_from_path"
+path = "benches/bench_request_from_path.rs"
+harness = false
+
 [dependencies]
 anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
@@ -37,5 +42,6 @@ serde = { version = "1", features = ["derive"] }
 simplelog = "0.8"
 
 [dev-dependencies]
+criterion = "0.3"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
