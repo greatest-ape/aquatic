@@ -9,7 +9,7 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* faster Request creation (splitn functions) using memchr, possibly
+* faster Request creation (splitn functions) using memchr? possibly
   iterate over several bytes (& and =)
 * test torrent transfer with real clients
   * test tls
