@@ -10,7 +10,8 @@
 
 ## aquatic_http
 * request parsing:
-  * add test of scrape request parsing with multiple info hashes
+  * test multiple scrape hashes
+  * test with strange/bad inputs, with and without quickcheck
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid

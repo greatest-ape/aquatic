@@ -278,6 +278,7 @@ mod tests {
     use super::*;
 
     static ANNOUNCE_REQUEST_PATH: &str = "/announce?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%c3%c9.%40%24%00%b9&peer_id=-ABC940-5ert69muw5t8&port=12345&uploaded=0&downloaded=0&left=1&numwant=0&key=4ab4b877&compact=1&supportcrypto=1&event=started";
+    static SCRAPE_REQUEST_PATH: &str = "/scrape?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%c3%c9.%40%24%00%b9";
     static REFERENCE_INFO_HASH: [u8; 20] = [0x04, 0x0b, b'k', b'V', 0x3f, 0x5c, b'r', 0x14, 0xa6, 0xb7, 0x98, 0xad, b'C', 0xc3, 0xc9, b'.', 0x40, 0x24, 0x00, 0xb9];
     static REFERENCE_PEER_ID: [u8; 20] = [b'-', b'A', b'B', b'C', b'9', b'4', b'0', b'-', b'5', b'e', b'r', b't', b'6', b'9', b'm', b'u', b'w', b'5', b't', b'8'];
 
@@ -309,6 +310,19 @@ mod tests {
             compact: true,
             numwant: Some(0),
             key: Some("4ab4b877".to_string())
+        });
+
+        assert_eq!(parsed_request, reference_request);
+    }
+
+    #[test]
+    fn test_scrape_request_from_path(){
+        let parsed_request = Request::from_http_get_path(
+            SCRAPE_REQUEST_PATH
+        ).unwrap();
+
+        let reference_request = Request::Scrape(ScrapeRequest {
+            info_hashes: vec![InfoHash(REFERENCE_INFO_HASH)],
         });
 
         assert_eq!(parsed_request, reference_request);
