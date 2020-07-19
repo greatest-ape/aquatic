@@ -75,8 +75,7 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_common_tcp",
- "bendy",
- "criterion",
+ "aquatic_http_protocol",
  "either",
  "flume",
  "hashbrown",
@@ -95,6 +94,24 @@ dependencies = [
  "rand",
  "serde",
  "simplelog",
+ "smartstring",
+]
+
+[[package]]
+name = "aquatic_http_protocol"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bendy",
+ "criterion",
+ "hashbrown",
+ "itoa",
+ "log",
+ "memchr",
+ "quickcheck",
+ "quickcheck_macros",
+ "rand",
+ "serde",
  "smartstring",
 ]
 

@@ -13,22 +13,12 @@ path = "src/lib/lib.rs"
 name = "aquatic_http"
 path = "src/bin/main.rs"
 
-[[bench]]
-name = "bench_request_from_path"
-path = "benches/bench_request_from_path.rs"
-harness = false
-
-[[bench]]
-name = "bench_announce_response_to_bytes"
-path = "benches/bench_announce_response_to_bytes.rs"
-harness = false
-
 [dependencies]
 anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
 aquatic_common_tcp = { path = "../aquatic_common_tcp" }
-bendy = { version = "0.3", features = ["std", "serde"] }
+aquatic_http_protocol = { path = "../aquatic_http_protocol" }
 either = "1"
 flume = "0.7"
 hashbrown = { version = "0.7", features = ["serde"] }
@@ -48,6 +38,5 @@ simplelog = "0.8"
 smartstring = "0.2"
 
 [dev-dependencies]
-criterion = "0.3"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"

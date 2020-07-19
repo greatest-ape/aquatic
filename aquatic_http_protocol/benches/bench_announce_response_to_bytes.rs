@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use aquatic_http::protocol::response::*;
+use aquatic_http_protocol::response::*;
 
 
 pub fn bench(c: &mut Criterion) {

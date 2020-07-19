@@ -12,10 +12,10 @@ use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
 
 use aquatic_common_tcp::network::utils::create_listener;
+use aquatic_http_protocol::response::*;
 
 use crate::common::*;
 use crate::config::Config;
-use crate::protocol::response::*;
 
 use connection::*;
 

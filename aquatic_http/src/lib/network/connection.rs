@@ -9,9 +9,9 @@ use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
 
 use aquatic_common_tcp::network::stream::Stream;
+use aquatic_http_protocol::request::Request;
 
 use crate::common::*;
-use crate::protocol::request::Request;
 
 
 #[derive(Debug)]

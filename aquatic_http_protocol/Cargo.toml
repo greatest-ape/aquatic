@@ -1,0 +1,35 @@
+[package]
+name = "aquatic_http_protocol"
+version = "0.1.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2018"
+license = "Apache-2.0"
+
+[lib]
+name = "aquatic_http_protocol"
+
+[[bench]]
+name = "bench_request_from_path"
+path = "benches/bench_request_from_path.rs"
+harness = false
+
+[[bench]]
+name = "bench_announce_response_to_bytes"
+path = "benches/bench_announce_response_to_bytes.rs"
+harness = false
+
+[dependencies]
+anyhow = "1"
+bendy = { version = "0.3", features = ["std", "serde"] }
+hashbrown = { version = "0.7", features = ["serde"] }
+itoa = "0.4"
+log = "0.4"
+memchr = "2"
+rand = { version = "0.7", features = ["small_rng"] }
+serde = { version = "1", features = ["derive"] }
+smartstring = "0.2"
+
+[dev-dependencies]
+criterion = "0.3"
+quickcheck = "0.9"
+quickcheck_macros = "0.9"

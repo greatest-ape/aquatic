@@ -12,9 +12,9 @@ use smartstring::{SmartString, LazyCompact};
 
 pub use aquatic_common::{ValidUntil, convert_ipv4_mapped_ipv4};
 
-use crate::protocol::common::*;
-use crate::protocol::request::Request;
-use crate::protocol::response::{Response, ResponsePeer};
+use aquatic_http_protocol::common::*;
+use aquatic_http_protocol::request::Request;
+use aquatic_http_protocol::response::{Response, ResponsePeer};
 
 
 pub trait Ip: Copy + Eq + ::std::hash::Hash {}
