@@ -175,10 +175,10 @@ impl Request {
                 data.insert(key, value);
             }
 
-            position = segment_end + 1;
-
-            if position == query_string.len(){
-                break;
+            if segment_end == query_string.len(){
+                break
+            } else {
+                position = segment_end + 1;
             }
         }
 
