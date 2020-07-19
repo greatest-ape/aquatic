@@ -60,7 +60,7 @@ impl Request {
         )?;
 
         if location == "/announce" {
-            let numwant = if let Some(s) = data.get("numwant"){
+            let numwant = if let Some(s) = data.remove("numwant"){
                 let numwant = s.parse::<usize>()
                     .map_err(|err|
                         anyhow::anyhow!("parse 'numwant': {}", err)
@@ -70,12 +70,12 @@ impl Request {
             } else {
                 None
             };
-            let key = if let Some(s) = data.get("key"){
+            let key = if let Some(s) = data.remove("key"){
                 if s.len() > 100 {
                     return Err(anyhow::anyhow!("'key' is too long"))
                 }
 
-                Some(s.clone())
+                Some(s)
             } else {
                 None
             };
@@ -89,18 +89,18 @@ impl Request {
                     .with_context(|| "no peer_id")
                     .and_then(|s| deserialize_20_bytes(s))
                     .map(PeerId)?,
-                port: data.get("port")
+                port: data.remove("port")
                     .with_context(|| "no port")
                     .and_then(|s| s.parse()
                     .map_err(|err| anyhow::anyhow!("parse 'port': {}", err)))?,
-                bytes_left: data.get("left")
+                bytes_left: data.remove("left")
                     .with_context(|| "no left")
                     .and_then(|s| s.parse()
                     .map_err(|err| anyhow::anyhow!("parse 'left': {}", err)))?,
-                event: data.get("event")
+                event: data.remove("event")
                     .and_then(|s| s.parse().ok())
                     .unwrap_or_default(),
-                compact: data.get("compact")
+                compact: data.remove("compact")
                     .map(|s| s == "1")
                     .unwrap_or(true),
                 numwant,
