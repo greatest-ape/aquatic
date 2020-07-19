@@ -1,12 +1,13 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use serde::Serializer;
+use smartstring::{SmartString, LazyCompact};
 
 use super::response::ResponsePeer;
 
 
 /// Not for serde
-pub fn deserialize_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
+pub fn deserialize_20_bytes(value: SmartString<LazyCompact>) -> anyhow::Result<[u8; 20]> {
     let mut arr = [0u8; 20];
     let mut char_iter = value.chars();
 

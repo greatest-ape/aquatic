@@ -24,7 +24,7 @@
 ### less important
 * use fastrand instead of rand? (also for ws and udp then I guess because of
   shared function)
-* use smartstring crate for announce request key and failure response reason?
+* use smartstring crate for failure response reason?
 * request parsing in protocol module instead of in network, maybe from byte
   buffer? Not obvious what error return type to use then (anyhow maybe?)
 * log more info for all log modes (function location etc)? also for aquatic_ws

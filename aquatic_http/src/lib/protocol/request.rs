@@ -1,5 +1,6 @@
 use anyhow::Context;
 use hashbrown::HashMap;
+use smartstring::{SmartString, LazyCompact};
 
 use super::common::*;
 use super::utils::*;
@@ -15,7 +16,7 @@ pub struct AnnounceRequest {
     pub compact: bool,
     /// Number of response peers wanted
     pub numwant: Option<usize>,
-    pub key: Option<String>,
+    pub key: Option<SmartString<LazyCompact>>,
 }
 
 
@@ -79,30 +80,48 @@ impl Request {
             } else {
                 None
             };
+            let port = if let Some(port) = data.remove("port"){
+                port.parse().with_context(|| "parse port")?
+            } else {
+                return Err(anyhow::anyhow!("no port"));
+            };
+            let bytes_left = if let Some(left) = data.remove("left"){
+                left.parse().with_context(|| "parse bytes left")?
+            } else {
+                return Err(anyhow::anyhow!("no left"));
+            };
+            let event = if let Some(event) = data.remove("event"){
+                if let Ok(event) = event.parse(){
+                    event
+                } else {
+                    return Err(anyhow::anyhow!("invalid event: {}", event));
+                }
+            } else {
+                AnnounceEvent::default()
+            };
+            let compact = if let Some(compact) = data.remove("compact"){
+                if compact.as_str() == "1" {
+                    true
+                } else {
+                    return Err(anyhow::anyhow!("compact set, but not to 1"));
+                }
+            } else {
+                true
+            };
 
             let request = AnnounceRequest {
-                info_hash: info_hashes.get(0)
+                info_hash: info_hashes.pop()
                     .with_context(|| "no info_hash")
-                    .and_then(|s| deserialize_20_bytes(s))
+                    .and_then(deserialize_20_bytes)
                     .map(InfoHash)?,
-                peer_id: data.get("peer_id")
+                peer_id: data.remove("peer_id")
                     .with_context(|| "no peer_id")
-                    .and_then(|s| deserialize_20_bytes(s))
+                    .and_then(deserialize_20_bytes)
                     .map(PeerId)?,
-                port: data.remove("port")
-                    .with_context(|| "no port")
-                    .and_then(|s| s.parse()
-                    .map_err(|err| anyhow::anyhow!("parse 'port': {}", err)))?,
-                bytes_left: data.remove("left")
-                    .with_context(|| "no left")
-                    .and_then(|s| s.parse()
-                    .map_err(|err| anyhow::anyhow!("parse 'left': {}", err)))?,
-                event: data.remove("event")
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or_default(),
-                compact: data.remove("compact")
-                    .map(|s| s == "1")
-                    .unwrap_or(true),
+                port,
+                bytes_left,
+                event,
+                compact,
                 numwant,
                 key,
             };
@@ -112,7 +131,7 @@ impl Request {
             let mut parsed_info_hashes = Vec::with_capacity(info_hashes.len());
 
             for info_hash in info_hashes {
-                parsed_info_hashes.push(InfoHash(deserialize_20_bytes(&info_hash)?));
+                parsed_info_hashes.push(InfoHash(deserialize_20_bytes(info_hash)?));
             }
 
             let request = ScrapeRequest {
@@ -123,34 +142,10 @@ impl Request {
         }
     }
 
-    fn parse_key_value_pairs<'a>(
-        info_hashes: &mut Vec<String>,
-        data: &mut HashMap<&'a str, String>,
-        query_string: &'a str,
-    ) -> anyhow::Result<()> {
-        for part in query_string.split('&'){
-            let mut key_and_value = part.splitn(2, '=');
-        
-            let key = key_and_value.next()
-                .with_context(|| format!("no key in {}", part))?;
-            let value = key_and_value.next()
-                .with_context(|| format!("no value in {}", part))?;
-            let value = Self::urldecode_memchr(value)?;
-
-            if key == "info_hash" {
-                info_hashes.push(value);
-            } else {
-                data.insert(key, value);
-            }
-        }
-
-        Ok(())
-    }
-
     /// Seems to be somewhat faster than non-memchr version
     fn parse_key_value_pairs_memchr<'a>(
-        info_hashes: &mut Vec<String>,
-        data: &mut HashMap<&'a str, String>,
+        info_hashes: &mut Vec<SmartString<LazyCompact>>,
+        data: &mut HashMap<&'a str, SmartString<LazyCompact>>,
         query_string: &'a str,
     ) -> anyhow::Result<()> {
         let query_string_bytes = query_string.as_bytes();
@@ -232,8 +227,8 @@ impl Request {
     }
 
     /// Quite a bit faster than non-memchr version
-    fn urldecode_memchr(value: &str) -> anyhow::Result<String> {
-        let mut processed = String::with_capacity(value.len());
+    fn urldecode_memchr(value: &str) -> anyhow::Result<SmartString<LazyCompact>> {
+        let mut processed = SmartString::new();
 
         let bytes = value.as_bytes();
         let iter = ::memchr::memchr_iter(b'%', bytes);
@@ -265,8 +260,6 @@ impl Request {
         if let Some(rest_of_str) = value.get(str_index_after_hex..){
             processed.push_str(rest_of_str);
         }
-
-        processed.shrink_to_fit();
 
         Ok(processed)
     }
@@ -309,7 +302,7 @@ mod tests {
             event: AnnounceEvent::Started,
             compact: true,
             numwant: Some(0),
-            key: Some("4ab4b877".to_string())
+            key: Some("4ab4b877".into())
         });
 
         assert_eq!(parsed_request, reference_request);

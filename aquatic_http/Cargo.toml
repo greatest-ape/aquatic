@@ -40,6 +40,7 @@ privdrop = "0.3"
 rand = { version = "0.7", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 simplelog = "0.8"
+smartstring = "0.2"
 
 [dev-dependencies]
 criterion = "0.3"

@@ -8,6 +8,7 @@ use indexmap::IndexMap;
 use log::error;
 use mio::Token;
 use parking_lot::Mutex;
+use smartstring::{SmartString, LazyCompact};
 
 pub use aquatic_common::{ValidUntil, convert_ipv4_mapped_ipv4};
 
@@ -90,7 +91,7 @@ impl <I: Ip>Peer<I> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PeerMapKey<I: Ip> {
     pub peer_id: PeerId,
-    pub ip_or_key: Either<I, String>
+    pub ip_or_key: Either<I, SmartString<LazyCompact>>
 }
 
 
