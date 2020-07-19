@@ -10,7 +10,7 @@
 
 ## aquatic_http
 * request parsing:
-  * tests of main function and the various helper functions
+  * add test of scrape request parsing with multiple info hashes
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
