@@ -9,13 +9,18 @@
   and maybe run scripts should be adjusted
 
 ## aquatic_http
-* request parsing: tests of main function and the various helper functions
+* request parsing:
+  * tests of main function and the various helper functions
+  * hashmap needs ddos protecting hash function, or keys could be checked
+    against list before insertion
+  * deserialize 20 bytes: possibly rewrite (just check length of underlying
+    bytes == 20 and then copy them), also maybe remove String from map for
+    these cases too
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
   * scrape: does it work (serialization etc), and with multiple hashes?
 * compact=0 should result in error response
-* tests of request parsing
 * tests of response serialization (against data known to be good would be nice)
 * Connection.send_response: handle case when all bytes are not written: can
   write actually block here? And what action should be taken then?
@@ -42,6 +47,11 @@
   is finding supportcrypto peers (and even better requirecrypto peers) to send
   back to requirecrypto peers. Doesn't really work according to reference in
   https://en.wikipedia.org/wiki/BitTorrent_protocol_encryption
+
+### don't do
+
+* request from path: only urldecode peer_id and info_hash: doesn't really
+  improve performance
 
 ## aquatic_ws
 * is 'key' sent in announce request? if so, maybe handle it like in
