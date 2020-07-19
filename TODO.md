@@ -11,8 +11,6 @@
 ## aquatic_http
 * request parsing:
   * tests of main function and the various helper functions
-  * hashmap needs ddos protecting hash function, or keys could be checked
-    against list before insertion
   * deserialize 20 bytes: possibly rewrite (just check length of underlying
     bytes == 20 and then copy them), also maybe remove String from map for
     these cases too

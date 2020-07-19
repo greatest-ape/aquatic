@@ -166,13 +166,22 @@ impl Request {
                 .with_context(|| format!("no key at {}..{}", position, equal_sign_index))?;
             let value = query_string.get(equal_sign_index + 1..segment_end)
                 .with_context(|| format!("no value at {}..{}", equal_sign_index + 1, segment_end))?;
+            
+            // whitelist keys to avoid having to use ddos-resistant hashmap
+            match key {
+                "info_hash" => {
+                    let value = Self::urldecode_memchr(value)?;
 
-            let value = Self::urldecode_memchr(value)?;
+                    info_hashes.push(value);
+                },
+                "peer_id" | "port" | "left" | "event" | "compact" | "numwant" | "key" => {
+                    let value = Self::urldecode_memchr(value)?;
 
-            if key == "info_hash" {
-                info_hashes.push(value);
-            } else {
-                data.insert(key, value);
+                    data.insert(key, value);
+                },
+                k => {
+                    ::log::info!("ignored unrecognized key: {}", k)
+                }
             }
 
             if segment_end == query_string.len(){
