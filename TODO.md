@@ -11,9 +11,6 @@
 ## aquatic_http
 * request parsing:
   * tests of main function and the various helper functions
-  * deserialize 20 bytes: possibly rewrite (just check length of underlying
-    bytes == 20 and then copy them), also maybe remove String from map for
-    these cases too
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
@@ -48,8 +45,11 @@
 
 ### don't do
 
-* request from path: only urldecode peer_id and info_hash: doesn't really
-  improve performance
+* request from path:
+  * only urldecode peer_id and info_hash: doesn't really improve performance
+  * deserialize 20 bytes: possibly rewrite (just check length of underlying
+    bytes == 20 and then copy them), also maybe remove String from map for
+    these cases too. doesn't really improve performance
 
 ## aquatic_ws
 * is 'key' sent in announce request? if so, maybe handle it like in
