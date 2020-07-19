@@ -1,0 +1,25 @@
+[package]
+name = "aquatic_http_load_test"
+version = "0.1.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2018"
+license = "Apache-2.0"
+
+[[bin]]
+name = "aquatic_http_load_test"
+
+[dependencies]
+anyhow = "1"
+aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
+aquatic_http_protocol = { path = "../aquatic_http_protocol" }
+crossbeam-channel = "0.4"
+mimalloc = { version = "0.1", default-features = false }
+mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
+rand = { version = "0.7", features = ["small_rng"] }
+rand_distr = "0.2"
+serde = { version = "1", features = ["derive"] }
+socket2 = { version = "0.3", features = ["reuseport"] }
+
+[dev-dependencies]
+quickcheck = "0.9"
+quickcheck_macros = "0.9"

@@ -98,6 +98,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "aquatic_http_load_test"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aquatic_cli_helpers",
+ "aquatic_http_protocol",
+ "crossbeam-channel",
+ "mimalloc",
+ "mio",
+ "quickcheck",
+ "quickcheck_macros",
+ "rand",
+ "rand_distr",
+ "serde",
+ "socket2",
+]
+
+[[package]]
 name = "aquatic_http_protocol"
 version = "0.1.0"
 dependencies = [
