@@ -81,37 +81,46 @@ impl Connection {
         state.statistics.bytes_received
             .fetch_add(self.bytes_read, Ordering::SeqCst);
 
-        let res_response = Response::from_bytes(
-            &self.read_buffer[..self.bytes_read]
-        );
+        let interesting_bytes = &self.read_buffer[..self.bytes_read];
 
         self.bytes_read = 0;
 
-        match res_response {
-            Ok(Response::Announce(_)) => {
-                state.statistics.responses_announce
-                    .fetch_add(1, Ordering::SeqCst);
-            },
-            Ok(Response::Scrape(_)) => {
-                state.statistics.responses_scrape
-                    .fetch_add(1, Ordering::SeqCst);
-            },
-            Ok(Response::Failure(_)) => {
-                state.statistics.responses_failure
-                    .fetch_add(1, Ordering::SeqCst);
-            },
-            Err(err) => {
-                eprintln!("response from bytes error: {}", err);
-
-                return;
-            }
-        }
+        Self::register_response_type(state, interesting_bytes);
 
         self.send_request(
             config,
             state,
             rng
         );
+    }
+
+    /// Ultra-crappy byte searches to determine response type with some degree
+    /// of certainty.
+    fn register_response_type(
+        state: &LoadTestState,
+        response_bytes: &[u8],
+    ){
+        for chunk in response_bytes.windows(12){
+            if chunk == b"e8:intervali" {
+                state.statistics.responses_announce.fetch_add(1, Ordering::SeqCst);
+
+                return;
+            }
+        }
+        for chunk in response_bytes.windows(9){
+            if chunk == b"d5:filesd" {
+                state.statistics.responses_scrape.fetch_add(1, Ordering::SeqCst);
+
+                return;
+            }
+        }
+        for chunk in response_bytes.windows(18){
+            if chunk == b"d14:failure_reason" {
+                state.statistics.responses_failure.fetch_add(1, Ordering::SeqCst);
+
+                return;
+            }
+        }
     }
 
     pub fn send_request(
