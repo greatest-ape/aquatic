@@ -174,10 +174,12 @@ impl Request {
             .with_context(|| "no query string")?;
 
         let mut info_hashes = Vec::new();
+        let mut opt_peer_id = None;
         let mut data = HashMap::new();
  
         Self::parse_key_value_pairs_memchr(
             &mut info_hashes,
+            &mut opt_peer_id,
             &mut data,
             query_string
         )?;
@@ -232,14 +234,8 @@ impl Request {
             };
 
             let request = AnnounceRequest {
-                info_hash: info_hashes.pop()
-                    .with_context(|| "no info_hash")
-                    .and_then(deserialize_20_bytes)
-                    .map(InfoHash)?,
-                peer_id: data.remove("peer_id")
-                    .with_context(|| "no peer_id")
-                    .and_then(deserialize_20_bytes)
-                    .map(PeerId)?,
+                info_hash: info_hashes.pop().with_context(|| "no info_hash")?,
+                peer_id: opt_peer_id.with_context(|| "no peer_id")?,
                 port,
                 bytes_left,
                 event,
@@ -250,14 +246,8 @@ impl Request {
 
             Ok(Request::Announce(request))
         } else {
-            let mut parsed_info_hashes = Vec::with_capacity(info_hashes.len());
-
-            for info_hash in info_hashes {
-                parsed_info_hashes.push(InfoHash(deserialize_20_bytes(info_hash)?));
-            }
-
             let request = ScrapeRequest {
-                info_hashes: parsed_info_hashes,
+                info_hashes,
             };
 
             Ok(Request::Scrape(request))
@@ -266,7 +256,8 @@ impl Request {
 
     /// Seems to be somewhat faster than non-memchr version
     fn parse_key_value_pairs_memchr<'a>(
-        info_hashes: &mut Vec<SmartString<LazyCompact>>,
+        info_hashes: &mut Vec<InfoHash>,
+        opt_peer_id: &mut Option<PeerId>,
         data: &mut HashMap<&'a str, SmartString<LazyCompact>>,
         query_string: &'a str,
     ) -> anyhow::Result<()> {
@@ -287,14 +278,17 @@ impl Request {
             // whitelist keys to avoid having to use ddos-resistant hashmap
             match key {
                 "info_hash" => {
-                    let value = Self::urldecode_memchr(value)?;
+                    let value = Self::urldecode_20_bytes(value)?;
 
-                    info_hashes.push(value);
+                    info_hashes.push(InfoHash(value));
                 },
-                "peer_id" | "port" | "left" | "event" | "compact" | "numwant" | "key" => {
-                    let value = Self::urldecode_memchr(value)?;
+                "peer_id" => {
+                    let value = Self::urldecode_20_bytes(value)?;
 
-                    data.insert(key, value);
+                    *opt_peer_id = Some(PeerId(value));
+                },
+                "port" | "left" | "event" | "compact" | "numwant" | "key" => {
+                    data.insert(key, value.into());
                 },
                 k => {
                     ::log::info!("ignored unrecognized key: {}", k)
@@ -384,6 +378,52 @@ impl Request {
         }
 
         Ok(processed)
+    }
+
+    fn urldecode_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
+        let mut out_arr = [0u8; 20];
+
+        let mut chars = value.chars();
+
+        for i in 0..20 {
+            let c = chars.next()
+                .with_context(|| "less than 20 chars")?;
+
+            if c as u32 > 255 {
+                return Err(anyhow::anyhow!(
+                    "character not in single byte range: {:#?}",
+                    c
+                ));
+            }
+
+            if c == '%' {
+                let first = chars.next()
+                    .with_context(|| "missing first urldecode char in pair")?;
+                let second = chars.next()
+                    .with_context(|| "missing second urldecode char in pair")?;
+
+                let hex = [first as u8, second as u8];
+
+                hex::decode_to_slice(&hex, &mut out_arr[i..i+1]).map_err(|err|
+                    anyhow::anyhow!("hex decode error: {:?}", err)
+                )?;
+            } else {
+                if c as u32 > 255 {
+                    return Err(anyhow::anyhow!(
+                        "character not in single byte range: {:#?}",
+                        c
+                    ));
+                }
+    
+                out_arr[i] = c as u8;
+            }
+        }
+
+        if chars.next().is_some(){
+            return Err(anyhow::anyhow!("more than 20 chars"));
+        }
+
+        Ok(out_arr)
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
