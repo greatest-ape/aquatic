@@ -158,6 +158,12 @@ impl Request {
     /// values with same key, and serde_qs pulls in lots of dependencies. Both
     /// would need preprocessing for the binary format used for info_hash and
     /// peer_id.
+    ///
+    /// The info hashes and peer id's that are received are url-encoded byte
+    /// by byte, e.g., %fa for byte 0xfa. However, they need to be parsed as
+    /// UTF-8 string, meaning that non-ascii bytes are invalid characters.
+    /// Therefore, these bytes must be converted to their equivalent multi-byte
+    /// UTF-8 encodings.
     pub fn from_http_get_path(path: &str) -> anyhow::Result<Self> {
         ::log::debug!("request GET path: {}", path);
 
@@ -194,12 +200,12 @@ impl Request {
             
             match key {
                 "info_hash" => {
-                    let value = Self::urldecode_20_bytes(value)?;
+                    let value = urldecode_20_bytes(value)?;
 
                     info_hashes.push(InfoHash(value));
                 },
                 "peer_id" => {
-                    let value = Self::urldecode_20_bytes(value)?;
+                    let value = urldecode_20_bytes(value)?;
 
                     opt_peer_id = Some(PeerId(value));
                 },
@@ -264,127 +270,6 @@ impl Request {
         }
     }
 
-    /// The info hashes and peer id's that are received are url-encoded byte
-    /// by byte, e.g., %fa for byte 0xfa. However, they need to be parsed as
-    /// UTF-8 string, meaning that non-ascii bytes are invalid characters.
-    /// Therefore, these bytes must be converted to their equivalent multi-byte
-    /// UTF-8 encodings.
-    fn urldecode(value: &str) -> anyhow::Result<String> {
-        let mut processed = String::new();
-
-        for (i, part) in value.split('%').enumerate(){
-            if i == 0 {
-                processed.push_str(part);
-            } else if part.len() >= 2 {
-                let mut two_first = String::with_capacity(2);
-
-                for (j, c) in part.chars().enumerate(){
-                    if j == 0 {
-                        two_first.push(c);
-                    } else if j == 1 {
-                        two_first.push(c);
-
-                        let byte = u8::from_str_radix(&two_first, 16)?;
-
-                        processed.push(byte as char);
-                    } else {
-                        processed.push(c);
-                    }
-                }
-            } else {
-                return Err(anyhow::anyhow!(
-                    "url decode: too few characters in '%{}'", part
-                ))
-            }
-        }
-
-        Ok(processed)
-    }
-
-    /// Quite a bit faster than non-memchr version
-    fn urldecode_memchr(value: &str) -> anyhow::Result<SmartString<LazyCompact>> {
-        let mut processed = SmartString::new();
-
-        let bytes = value.as_bytes();
-        let iter = ::memchr::memchr_iter(b'%', bytes);
-
-        let mut str_index_after_hex = 0usize;
-
-        for i in iter {
-            match (bytes.get(i), bytes.get(i + 1), bytes.get(i + 2)){
-                (Some(0..=127), Some(0..=127), Some(0..=127)) => {
-                    if i > 0 {
-                        processed.push_str(&value[str_index_after_hex..i]);
-                    }
-    
-                    str_index_after_hex = i + 3;
-    
-                    let hex = &value[i + 1..i + 3];
-                    let byte = u8::from_str_radix(&hex, 16)?;
-    
-                    processed.push(byte as char);
-                },
-                _ => {
-                    return Err(anyhow::anyhow!(
-                        "invalid urlencoded segment at byte {} in {}", i, value
-                    ));
-                }
-            }
-        }
-
-        if let Some(rest_of_str) = value.get(str_index_after_hex..){
-            processed.push_str(rest_of_str);
-        }
-
-        Ok(processed)
-    }
-
-    fn urldecode_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
-        let mut out_arr = [0u8; 20];
-
-        let mut chars = value.chars();
-
-        for i in 0..20 {
-            let c = chars.next()
-                .with_context(|| "less than 20 chars")?;
-
-            if c as u32 > 255 {
-                return Err(anyhow::anyhow!(
-                    "character not in single byte range: {:#?}",
-                    c
-                ));
-            }
-
-            if c == '%' {
-                let first = chars.next()
-                    .with_context(|| "missing first urldecode char in pair")?;
-                let second = chars.next()
-                    .with_context(|| "missing second urldecode char in pair")?;
-
-                let hex = [first as u8, second as u8];
-
-                hex::decode_to_slice(&hex, &mut out_arr[i..i+1]).map_err(|err|
-                    anyhow::anyhow!("hex decode error: {:?}", err)
-                )?;
-            } else {
-                if c as u32 > 255 {
-                    return Err(anyhow::anyhow!(
-                        "character not in single byte range: {:#?}",
-                        c
-                    ));
-                }
-    
-                out_arr[i] = c as u8;
-            }
-        }
-
-        if chars.next().is_some(){
-            return Err(anyhow::anyhow!("more than 20 chars"));
-        }
-
-        Ok(out_arr)
-    }
-
     pub fn as_bytes(&self) -> Vec<u8> {
         match self {
             Self::Announce(r) => r.as_bytes(),
@@ -402,19 +287,6 @@ mod tests {
     static SCRAPE_REQUEST_PATH: &str = "/scrape?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%c3%c9.%40%24%00%b9";
     static REFERENCE_INFO_HASH: [u8; 20] = [0x04, 0x0b, b'k', b'V', 0x3f, 0x5c, b'r', 0x14, 0xa6, 0xb7, 0x98, 0xad, b'C', 0xc3, 0xc9, b'.', 0x40, 0x24, 0x00, 0xb9];
     static REFERENCE_PEER_ID: [u8; 20] = [b'-', b'A', b'B', b'C', b'9', b'4', b'0', b'-', b'5', b'e', b'r', b't', b'6', b'9', b'm', b'u', b'w', b'5', b't', b'8'];
-
-    #[test]
-    fn test_urldecode(){
-        let f = Request::urldecode_memchr;
-
-        assert_eq!(f("").unwrap(), "".to_string());
-        assert_eq!(f("abc").unwrap(), "abc".to_string());
-        assert_eq!(f("%21").unwrap(), "!".to_string());
-        assert_eq!(f("%21%3D").unwrap(), "!=".to_string());
-        assert_eq!(f("abc%21def%3Dghi").unwrap(), "abc!def=ghi".to_string());
-        assert!(f("%").is_err());
-        assert!(f("%å7").is_err());
-    }
 
     fn get_reference_announce_request() -> Request {
         Request::Announce(AnnounceRequest {

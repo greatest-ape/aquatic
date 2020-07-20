@@ -1,6 +1,7 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::io::Write;
 
+use anyhow::Context;
 use serde::Serializer;
 use smartstring::{SmartString, LazyCompact};
 
@@ -19,13 +20,34 @@ pub fn urlencode_20_bytes(input: [u8; 20], output: &mut impl Write){
 }
 
 
-/// Not for serde
-pub fn deserialize_20_bytes(value: SmartString<LazyCompact>) -> anyhow::Result<[u8; 20]> {
-    let mut arr = [0u8; 20];
-    let mut char_iter = value.chars();
+pub fn urldecode_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
+    let mut out_arr = [0u8; 20];
 
-    for a in arr.iter_mut(){
-        if let Some(c) = char_iter.next(){
+    let mut chars = value.chars();
+
+    for i in 0..20 {
+        let c = chars.next()
+            .with_context(|| "less than 20 chars")?;
+
+        if c as u32 > 255 {
+            return Err(anyhow::anyhow!(
+                "character not in single byte range: {:#?}",
+                c
+            ));
+        }
+
+        if c == '%' {
+            let first = chars.next()
+                .with_context(|| "missing first urldecode char in pair")?;
+            let second = chars.next()
+                .with_context(|| "missing second urldecode char in pair")?;
+
+            let hex = [first as u8, second as u8];
+
+            hex::decode_to_slice(&hex, &mut out_arr[i..i+1]).map_err(|err|
+                anyhow::anyhow!("hex decode error: {:?}", err)
+            )?;
+        } else {
             if c as u32 > 255 {
                 return Err(anyhow::anyhow!(
                     "character not in single byte range: {:#?}",
@@ -33,17 +55,53 @@ pub fn deserialize_20_bytes(value: SmartString<LazyCompact>) -> anyhow::Result<[
                 ));
             }
 
-            *a = c as u8;
-        } else {
-            return Err(anyhow::anyhow!("less than 20 bytes: {:#?}", value));
+            out_arr[i] = c as u8;
         }
     }
 
-    if char_iter.next().is_some(){
-        Err(anyhow::anyhow!("more than 20 bytes: {:#?}", value))
-    } else {
-        Ok(arr)
+    if chars.next().is_some(){
+        return Err(anyhow::anyhow!("more than 20 chars"));
     }
+
+    Ok(out_arr)
+}
+
+
+pub fn urldecode(value: &str) -> anyhow::Result<SmartString<LazyCompact>> {
+    let mut processed = SmartString::new();
+
+    let bytes = value.as_bytes();
+    let iter = ::memchr::memchr_iter(b'%', bytes);
+
+    let mut str_index_after_hex = 0usize;
+
+    for i in iter {
+        match (bytes.get(i), bytes.get(i + 1), bytes.get(i + 2)){
+            (Some(0..=127), Some(0..=127), Some(0..=127)) => {
+                if i > 0 {
+                    processed.push_str(&value[str_index_after_hex..i]);
+                }
+
+                str_index_after_hex = i + 3;
+
+                let hex = &value[i + 1..i + 3];
+                let byte = u8::from_str_radix(&hex, 16)?;
+
+                processed.push(byte as char);
+            },
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "invalid urlencoded segment at byte {} in {}", i, value
+                ));
+            }
+        }
+    }
+
+    if let Some(rest_of_str) = value.get(str_index_after_hex..){
+        processed.push_str(rest_of_str);
+    }
+
+    Ok(processed)
 }
 
 
@@ -116,5 +174,16 @@ mod tests {
 
             assert_eq!(chunk, reference);
         }
+    }
+
+    #[test]
+    fn test_urldecode(){
+        assert_eq!(urldecode("").unwrap(), "".to_string());
+        assert_eq!(urldecode("abc").unwrap(), "abc".to_string());
+        assert_eq!(urldecode("%21").unwrap(), "!".to_string());
+        assert_eq!(urldecode("%21%3D").unwrap(), "!=".to_string());
+        assert_eq!(urldecode("abc%21def%3Dghi").unwrap(), "abc!def=ghi".to_string());
+        assert!(urldecode("%").is_err());
+        assert!(urldecode("%å7").is_err());
     }
 }
