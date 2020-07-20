@@ -13,7 +13,7 @@ anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_udp = { path = "../aquatic_udp" }
 crossbeam-channel = "0.4"
-indicatif = "0.14"
+indicatif = "0.15"
 mimalloc = { version = "0.1", default-features = false }
 num-format = "0.4"
 rand = { version = "0.7", features = ["small_rng"] }
