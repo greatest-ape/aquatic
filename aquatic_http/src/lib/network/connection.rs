@@ -9,7 +9,7 @@ use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
 
 use aquatic_common_tcp::network::stream::Stream;
-use aquatic_http_protocol::request::Request;
+use aquatic_http_protocol::request::{Request, RequestParseError};
 
 use crate::common::*;
 
@@ -17,10 +17,9 @@ use crate::common::*;
 #[derive(Debug)]
 pub enum RequestReadError {
     NeedMoreData,
-    Invalid(anyhow::Error),
     StreamEnded,
+    Parse(anyhow::Error),
     Io(::std::io::Error),
-    Parse(::httparse::Error),
 }
 
 
@@ -71,31 +70,20 @@ impl EstablishedConnection {
             }
         }
 
-        let mut headers = [httparse::EMPTY_HEADER; 16];
-        let mut http_request = httparse::Request::new(&mut headers);
+        match Request::from_bytes(&self.buf[..self.bytes_read]){
+            Ok(request) => {
+                self.clear_buffer();
 
-        match http_request.parse(&self.buf[..self.bytes_read]){
-            Ok(httparse::Status::Complete(_)) => {
-                if let Some(path) = http_request.path {
-                    let res_request = Request::from_http_get_path(path);
-
-                    self.clear_buffer();
-
-                    res_request.map_err(RequestReadError::Invalid)
-                } else {
-                    self.clear_buffer();
-
-                    Err(RequestReadError::Invalid(anyhow::anyhow!("no http path")))
-                }
+                Ok(request)
             },
-            Ok(httparse::Status::Partial) => {
+            Err(RequestParseError::NeedMoreData) => {
                 Err(RequestReadError::NeedMoreData)
             },
-            Err(err) => {
+            Err(RequestParseError::Invalid(err)) => {
                 self.clear_buffer();
 
                 Err(RequestReadError::Parse(err))
-            }
+            },
         }
     }
 

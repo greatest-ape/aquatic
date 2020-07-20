@@ -22,7 +22,6 @@ aquatic_http_protocol = { path = "../aquatic_http_protocol" }
 either = "1"
 flume = "0.7"
 hashbrown = { version = "0.7", features = ["serde"] }
-httparse = "1"
 indexmap = "1"
 itoa = "0.4"
 log = "0.4"

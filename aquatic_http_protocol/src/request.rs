@@ -109,6 +109,12 @@ impl ScrapeRequest {
 }
 
 
+pub enum RequestParseError {
+    NeedMoreData,
+    Invalid(anyhow::Error),
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Announce(AnnounceRequest),
@@ -117,6 +123,30 @@ pub enum Request {
 
 
 impl Request {
+    /// Parse Request from HTTP request bytes
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, RequestParseError> {
+        let mut headers = [httparse::EMPTY_HEADER; 16];
+        let mut http_request = httparse::Request::new(&mut headers);
+
+        match http_request.parse(bytes){
+            Ok(httparse::Status::Complete(_)) => {
+                if let Some(path) = http_request.path {
+                    let res_request = Self::from_http_get_path(path);
+
+                    res_request.map_err(RequestParseError::Invalid)
+                } else {
+                    Err(RequestParseError::Invalid(anyhow::anyhow!("no http path")))
+                }
+            },
+            Ok(httparse::Status::Partial) => {
+                Err(RequestParseError::NeedMoreData)
+            },
+            Err(err) => {
+                Err(RequestParseError::Invalid(anyhow::anyhow!("httparse: {:?}", err)))
+            }
+        }
+    }
+
     /// Parse Request from http path (GET `/announce?info_hash=...`)
     ///
     /// Existing serde-url decode crates were insufficient, so the decision was

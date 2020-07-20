@@ -227,8 +227,8 @@ pub fn handle_connection_read_event(
                     // Stop reading data (defer to later events)
                     break;
                 },
-                Err(RequestReadError::Invalid(err)) => {
-                    info!("error reading request (invalid): {}", err);
+                Err(RequestReadError::Parse(err)) => {
+                    info!("error reading request (invalid): {:#?}", err);
 
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
@@ -250,11 +250,6 @@ pub fn handle_connection_read_event(
                     ::log::debug!("stream ended");
             
                     connections.remove(&poll_token);
-
-                    break
-                },
-                Err(RequestReadError::Parse(err)) => {
-                    ::log::info!("request httparse error: {}", err);
 
                     break
                 },
