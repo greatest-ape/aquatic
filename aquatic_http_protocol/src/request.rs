@@ -93,11 +93,7 @@ impl ScrapeRequest {
             }
 
             bytes.extend_from_slice(b"info_hash=");
-
-            for b in info_hash.0.iter() {
-                bytes.push(b'%');
-                bytes.extend_from_slice(format!("{:02x}", b).as_bytes());
-            }
+            urlencode_20_bytes(info_hash.0, &mut bytes);
 
             first = false;
         }
