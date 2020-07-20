@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use anyhow::Context;
 use hashbrown::HashMap;
 use smartstring::{SmartString, LazyCompact};
@@ -20,9 +22,77 @@ pub struct AnnounceRequest {
 }
 
 
+impl AnnounceRequest {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(b"GET /announce?info_hash=");
+        bytes.extend_from_slice(&urlencode_20_bytes(self.info_hash.0));
+
+        bytes.extend_from_slice(b"&peer_id=");
+        bytes.extend_from_slice(&urlencode_20_bytes(self.peer_id.0));
+
+        bytes.extend_from_slice(b"&port=");
+        itoa::write(&mut bytes, self.port);
+
+        bytes.extend_from_slice(b"&left=");
+        itoa::write(&mut bytes, self.bytes_left);
+
+        bytes.extend_from_slice(b"&event=started"); // FIXME
+
+        bytes.extend_from_slice(b"&compact=");
+        itoa::write(&mut bytes, self.compact as u8);
+
+        if let Some(numwant) = self.numwant {
+            bytes.extend_from_slice(b"&numwant=");
+            itoa::write(&mut bytes, numwant);
+        }
+
+        if let Some(ref key) = self.key {
+            bytes.extend_from_slice(b"&key=");
+            bytes.extend_from_slice(key.as_str().as_bytes());
+        }
+
+        bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+
+        bytes
+    }
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScrapeRequest {
     pub info_hashes: Vec<InfoHash>,
+}
+
+
+impl ScrapeRequest {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(b"GET /scrape?");
+
+        let mut first = true;
+
+        for info_hash in self.info_hashes.iter() {
+            if !first {
+                bytes.push(b'&')
+            }
+
+            bytes.extend_from_slice(b"info_hash=");
+
+            for b in info_hash.0.iter() {
+                bytes.push(b'%');
+                bytes.extend_from_slice(format!("{:02x}", b).as_bytes());
+            }
+
+            first = false;
+        }
+
+        bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+
+        bytes
+    }
 }
 
 
@@ -262,6 +332,13 @@ impl Request {
         }
 
         Ok(processed)
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Announce(r) => r.as_bytes(),
+            Self::Scrape(r) => r.as_bytes(),
+        }
     }
 }
 

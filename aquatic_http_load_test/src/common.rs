@@ -133,7 +133,7 @@ impl Default for HandlerConfig {
             peer_seeder_probability: 0.25,
             scrape_max_torrents: 50,
             weight_announce: 5,
-            weight_scrape: 1,
+            weight_scrape: 0,
             additional_request_factor: 0.4,
             max_responses_per_iter: 10_000,
             channel_timeout: 200,

@@ -40,8 +40,10 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     
     let mut info_hashes = Vec::with_capacity(config.handler.number_of_torrents);
 
+    let mut rng = SmallRng::from_entropy();
+
     for _ in 0..config.handler.number_of_torrents {
-        info_hashes.push(generate_info_hash());
+        info_hashes.push(generate_info_hash(&mut rng));
     }
 
     let pareto = Pareto::new(
@@ -57,60 +59,20 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     // Start socket workers
 
-    let (response_sender, response_receiver) = unbounded();
-
     let mut request_senders = Vec::new();
 
-    for i in 0..config.num_socket_workers {
-        let thread_id = ThreadId(i);
+    for _ in 0..config.num_socket_workers {
         let (sender, receiver) = unbounded();
-        let port = config.network.first_port + (i as u16);
-
-        let addr = if config.network.multiple_client_ips {
-            let ip = if config.network.ipv6_client { // FIXME: test ipv6
-                Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1 + i as u16).into()
-            } else {
-                Ipv4Addr::new(127, 0, 0, 1 + i).into()
-            };
-
-            SocketAddr::new(ip, port)
-        } else {
-            let ip = if config.network.ipv6_client {
-                Ipv6Addr::LOCALHOST.into()
-            } else {
-                Ipv4Addr::LOCALHOST.into()
-            };
-
-            SocketAddr::new(ip, port)
-        };
 
         request_senders.push(sender);
 
         let config = config.clone();
-        let response_sender = response_sender.clone();
         let state = state.clone();
 
         thread::spawn(move || run_socket_thread(
+            &config,
             state,
-            response_sender,
             receiver,
-            &config,
-            addr,
-            thread_id
-        ));
-    }
-
-    for _ in 0..config.num_request_workers {
-        let config = config.clone();
-        let state= state.clone();
-        let request_senders = request_senders.clone();
-        let response_receiver = response_receiver.clone();
-
-        thread::spawn(move || run_handler_thread(
-            &config,
-            state,
-            request_senders,
-            response_receiver,
         ));
     }
 

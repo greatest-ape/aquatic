@@ -22,6 +22,7 @@ harness = false
 anyhow = "1"
 bendy = { version = "0.3", features = ["std", "serde"] }
 hashbrown = { version = "0.7", features = ["serde"] }
+hex = { version = "0.4", default-features = false }
 itoa = "0.4"
 log = "0.4"
 memchr = "2"

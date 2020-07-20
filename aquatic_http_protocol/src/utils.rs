@@ -6,6 +6,22 @@ use smartstring::{SmartString, LazyCompact};
 use super::response::ResponsePeer;
 
 
+pub fn urlencode_20_bytes(input: [u8; 20]) -> Vec<u8> {
+    let mut tmp = [0u8; 40];
+
+    hex::encode_to_slice(&input, &mut tmp);
+
+    let mut output = Vec::with_capacity(60);
+
+    for chunk in tmp.chunks_exact(2){
+        output.push(b'%');
+        output.extend_from_slice(chunk);
+    }
+
+    output
+}
+
+
 /// Not for serde
 pub fn deserialize_20_bytes(value: SmartString<LazyCompact>) -> anyhow::Result<[u8; 20]> {
     let mut arr = [0u8; 20];
