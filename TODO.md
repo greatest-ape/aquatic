@@ -22,7 +22,6 @@
 ## aquatic_http
 * upper limit on request read buffer
 * request parsing:
-  * just skip the hashmap and save data directly into struct?
   * smartstring: maybe use for keys? maybe use less? needs benchmarking
   * test multiple scrape hashes
   * test with strange/bad inputs, with and without quickcheck

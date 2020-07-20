@@ -1,5 +1,4 @@
 use anyhow::Context;
-use hashbrown::HashMap;
 use smartstring::{SmartString, LazyCompact};
 
 use super::common::*;
@@ -169,94 +168,16 @@ impl Request {
         let query_string = split_parts.next()
             .with_context(|| "no query string")?;
 
+        // -- Parse key-value pairs
+
         let mut info_hashes = Vec::new();
         let mut opt_peer_id = None;
-        let mut data = HashMap::new();
+        let mut opt_port = None;
+        let mut opt_bytes_left = None;
+        let mut event = AnnounceEvent::default();
+        let mut opt_numwant = None;
+        let mut opt_key = None;
  
-        Self::parse_key_value_pairs_memchr(
-            &mut info_hashes,
-            &mut opt_peer_id,
-            &mut data,
-            query_string
-        )?;
-
-        if location == "/announce" {
-            let numwant = if let Some(s) = data.remove("numwant"){
-                let numwant = s.parse::<usize>()
-                    .map_err(|err|
-                        anyhow::anyhow!("parse 'numwant': {}", err)
-                    )?;
-                
-                Some(numwant)
-            } else {
-                None
-            };
-            let key = if let Some(s) = data.remove("key"){
-                if s.len() > 100 {
-                    return Err(anyhow::anyhow!("'key' is too long"))
-                }
-
-                Some(s)
-            } else {
-                None
-            };
-            let port = if let Some(port) = data.remove("port"){
-                port.parse().with_context(|| "parse port")?
-            } else {
-                return Err(anyhow::anyhow!("no port"));
-            };
-            let bytes_left = if let Some(left) = data.remove("left"){
-                left.parse().with_context(|| "parse bytes left")?
-            } else {
-                return Err(anyhow::anyhow!("no left"));
-            };
-            let event = if let Some(event) = data.remove("event"){
-                if let Ok(event) = event.parse(){
-                    event
-                } else {
-                    return Err(anyhow::anyhow!("invalid event: {}", event));
-                }
-            } else {
-                AnnounceEvent::default()
-            };
-            let compact = if let Some(compact) = data.remove("compact"){
-                if compact.as_str() == "1" {
-                    true
-                } else {
-                    return Err(anyhow::anyhow!("compact set, but not to 1"));
-                }
-            } else {
-                true
-            };
-
-            let request = AnnounceRequest {
-                info_hash: info_hashes.pop().with_context(|| "no info_hash")?,
-                peer_id: opt_peer_id.with_context(|| "no peer_id")?,
-                port,
-                bytes_left,
-                event,
-                compact,
-                numwant,
-                key,
-            };
-
-            Ok(Request::Announce(request))
-        } else {
-            let request = ScrapeRequest {
-                info_hashes,
-            };
-
-            Ok(Request::Scrape(request))
-        }
-    }
-
-    /// Seems to be somewhat faster than non-memchr version
-    fn parse_key_value_pairs_memchr<'a>(
-        info_hashes: &mut Vec<InfoHash>,
-        opt_peer_id: &mut Option<PeerId>,
-        data: &mut HashMap<&'a str, SmartString<LazyCompact>>,
-        query_string: &'a str,
-    ) -> anyhow::Result<()> {
         let query_string_bytes = query_string.as_bytes();
 
         let mut ampersand_iter = ::memchr::memchr_iter(b'&', query_string_bytes);
@@ -271,7 +192,6 @@ impl Request {
             let value = query_string.get(equal_sign_index + 1..segment_end)
                 .with_context(|| format!("no value at {}..{}", equal_sign_index + 1, segment_end))?;
             
-            // whitelist keys to avoid having to use ddos-resistant hashmap
             match key {
                 "info_hash" => {
                     let value = Self::urldecode_20_bytes(value)?;
@@ -281,10 +201,32 @@ impl Request {
                 "peer_id" => {
                     let value = Self::urldecode_20_bytes(value)?;
 
-                    *opt_peer_id = Some(PeerId(value));
+                    opt_peer_id = Some(PeerId(value));
                 },
-                "port" | "left" | "event" | "compact" | "numwant" | "key" => {
-                    data.insert(key, value.into());
+                "port" => {
+                    opt_port = Some(value.parse::<u16>().with_context(|| "parse port")?);
+                },
+                "left"  => {
+                    opt_bytes_left = Some(value.parse::<usize>().with_context(|| "parse left")?);
+                },
+                "event"  => {
+                    event = value.parse::<AnnounceEvent>().map_err(|err|
+                        anyhow::anyhow!("invalid event: {}", err)
+                    )?;
+                },
+                "compact"  => {
+                    if value != "1" {
+                        return Err(anyhow::anyhow!("compact set, but not to 1"));
+                    }
+                },
+                "numwant"  => {
+                    opt_numwant = Some(value.parse::<usize>().with_context(|| "parse numwant")?);
+                },
+                "key" => {
+                    if value.len() > 100 {
+                        return Err(anyhow::anyhow!("'key' is too long"))
+                    }
+                    opt_key = Some(value.into());
                 },
                 k => {
                     ::log::info!("ignored unrecognized key: {}", k)
@@ -298,7 +240,28 @@ impl Request {
             }
         }
 
-        Ok(())
+        // -- Put together request
+
+        if location == "/announce" {
+            let request = AnnounceRequest {
+                info_hash: info_hashes.pop().with_context(|| "no info_hash")?,
+                peer_id: opt_peer_id.with_context(|| "no peer_id")?,
+                port: opt_port.with_context(|| "no port")?,
+                bytes_left: opt_bytes_left.with_context(|| "no left")?,
+                event,
+                compact: true,
+                numwant: opt_numwant,
+                key: opt_key,
+            };
+
+            Ok(Request::Announce(request))
+        } else {
+            let request = ScrapeRequest {
+                info_hashes,
+            };
+
+            Ok(Request::Scrape(request))
+        }
     }
 
     /// The info hashes and peer id's that are received are url-encoded byte
