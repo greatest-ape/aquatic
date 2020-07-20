@@ -146,6 +146,8 @@ pub fn serialize_response_peers_ipv6<S>(
 
 #[cfg(test)]
 mod tests {
+    use quickcheck_macros::*;
+
     use super::*;
 
     #[test]
@@ -174,6 +176,34 @@ mod tests {
 
             assert_eq!(chunk, reference);
         }
+    }
+
+    #[quickcheck]
+    fn test_urlencode_urldecode_20_bytes(
+        a: u8,
+        b: u8,
+        c: u8,
+        d: u8,
+        e: u8,
+        f: u8,
+        g: u8,
+        h: u8,
+    ) -> bool {
+        let input: [u8; 20] = [
+            a, b, c, d, e, f, g, h, b, c, d, a, e, f, g, h, a, b, d, c
+        ];
+
+        let mut output = Vec::new();
+
+        urlencode_20_bytes(input, &mut output);
+
+        let s = ::std::str::from_utf8(&output).unwrap();
+
+        let decoded = urldecode_20_bytes(s).unwrap();
+
+        assert_eq!(input, decoded);
+
+        input == decoded
     }
 
     #[test]
