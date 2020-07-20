@@ -20,6 +20,7 @@
 * opening new connections in current form causes macOS issues, why?
 
 ## aquatic_http
+* upper limit on request read buffer
 * request parsing:
   * just skip the hashmap and save data directly into struct?
   * smartstring: maybe use for keys? maybe use less? needs benchmarking
