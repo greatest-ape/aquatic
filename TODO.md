@@ -10,8 +10,9 @@
 
 ## aquatic_http_load_test
 
-* request sending: too many allocations, likely due to request to byte
-  conversion. optimize!
+* 80k responses per second is possible (as long as those weren't errors).
+  Probably has to do with exact timing of receiving responses and sending
+  requests.
 * think about when to open new connections
 * requests per seconds only goes up with lower poll timeout in tracker or
   more connections (if they don't all send stuff at the same time), in my

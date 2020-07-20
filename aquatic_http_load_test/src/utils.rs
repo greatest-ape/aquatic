@@ -13,12 +13,12 @@ pub fn create_random_request(
     state: &LoadTestState,
     rng: &mut impl Rng,
 ) -> Request {
-    let weights = vec![
+    let weights = [
         config.torrents.weight_announce as u32,
         config.torrents.weight_scrape as u32, 
     ];
 
-    let items = vec![
+    let items = [
         RequestType::Announce,
         RequestType::Scrape,
     ];
@@ -41,6 +41,7 @@ pub fn create_random_request(
 }
 
 
+#[inline]
 fn create_announce_request(
     config: &Config,
     state: &LoadTestState,
@@ -69,14 +70,15 @@ fn create_announce_request(
 }
 
 
+#[inline]
 fn create_scrape_request(
     config: &Config,
     state: &LoadTestState,
     rng: &mut impl Rng,
 ) -> Request {
-    let mut scrape_hashes = Vec::new();
+    let mut scrape_hashes = Vec::with_capacity(5);
 
-    for _ in 0..20 {
+    for _ in 0..5 {
         let info_hash_index = select_info_hash_index(config, &state, rng);
 
         scrape_hashes.push(state.info_hashes[info_hash_index]);
@@ -88,6 +90,7 @@ fn create_scrape_request(
 }
 
 
+#[inline]
 fn select_info_hash_index(
     config: &Config,
     state: &LoadTestState,
@@ -97,6 +100,7 @@ fn select_info_hash_index(
 }
 
 
+#[inline]
 fn pareto_usize(
     rng: &mut impl Rng,
     pareto: &Arc<Pareto<f64>>,

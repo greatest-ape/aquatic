@@ -22,13 +22,28 @@ pub struct AnnounceRequest {
 
 impl AnnounceRequest {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(
+            24 +
+            60 +
+            9 +
+            60 +
+            6 +
+            5 + // high estimate
+            6 +
+            2 + // estimate
+            14 + // FIXME event
+            9 + 
+            1 +
+            20 + // numwant bad estimate
+            20 + // key bad estimate
+            13
+        );
 
         bytes.extend_from_slice(b"GET /announce?info_hash=");
-        bytes.extend_from_slice(&urlencode_20_bytes(self.info_hash.0));
+        urlencode_20_bytes(self.info_hash.0, &mut bytes);
 
         bytes.extend_from_slice(b"&peer_id=");
-        bytes.extend_from_slice(&urlencode_20_bytes(self.peer_id.0));
+        urlencode_20_bytes(self.info_hash.0, &mut bytes);
 
         bytes.extend_from_slice(b"&port=");
         let _ = itoa::write(&mut bytes, self.port);

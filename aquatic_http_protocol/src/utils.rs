@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::io::Write;
 
 use serde::Serializer;
 use smartstring::{SmartString, LazyCompact};
@@ -6,19 +7,15 @@ use smartstring::{SmartString, LazyCompact};
 use super::response::ResponsePeer;
 
 
-pub fn urlencode_20_bytes(input: [u8; 20]) -> Vec<u8> {
-    let mut tmp = [0u8; 40];
+pub fn urlencode_20_bytes(input: [u8; 20], output: &mut impl Write){
+    let mut tmp = [0u8; 2];
 
-    hex::encode_to_slice(&input, &mut tmp).unwrap();
+    for i in 0..input.len() {
+        hex::encode_to_slice(&input[i..i+1], &mut tmp).unwrap();
 
-    let mut output = Vec::with_capacity(60);
-
-    for chunk in tmp.chunks_exact(2){
-        output.push(b'%');
-        output.extend_from_slice(chunk);
+        output.write(b"%");
+        output.write(&tmp);
     }
-
-    output
 }
 
 
@@ -86,4 +83,38 @@ pub fn serialize_response_peers_ipv6<S>(
     }
 
     serializer.serialize_bytes(&bytes)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_urlencode_20_bytes(){
+        let mut input = [0u8; 20];
+
+        for (i, b) in input.iter_mut().enumerate(){
+            *b = i as u8 % 10;
+        }
+
+        let mut output = Vec::new();
+
+        urlencode_20_bytes(input, &mut output);
+
+        assert_eq!(output.len(), 60);
+
+        for (i, chunk) in output.chunks_exact(3).enumerate(){
+            // Not perfect but should do the job
+            let reference = [b'%', b'0', input[i] + 48];
+
+            let success = chunk == reference;
+
+            if !success {
+                println!("failing index: {}", i);
+            }
+
+            assert_eq!(chunk, reference);
+        }
+    }
 }
