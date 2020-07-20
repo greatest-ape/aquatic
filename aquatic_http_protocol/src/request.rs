@@ -109,6 +109,7 @@ impl ScrapeRequest {
 }
 
 
+#[derive(Debug)]
 pub enum RequestParseError {
     NeedMoreData,
     Invalid(anyhow::Error),
@@ -408,13 +409,8 @@ mod tests {
         assert!(f("%å7").is_err());
     }
 
-    #[test]
-    fn test_announce_request_from_path(){
-        let parsed_request = Request::from_http_get_path(
-            ANNOUNCE_REQUEST_PATH
-        ).unwrap();
-
-        let reference_request = Request::Announce(AnnounceRequest {
+    fn get_reference_announce_request() -> Request {
+        Request::Announce(AnnounceRequest {
             info_hash: InfoHash(REFERENCE_INFO_HASH),
             peer_id: PeerId(REFERENCE_PEER_ID),
             port: 12345,
@@ -423,7 +419,33 @@ mod tests {
             compact: true,
             numwant: Some(0),
             key: Some("4ab4b877".into())
-        });
+        })
+    }
+
+    #[test]
+    fn test_announce_request_from_bytes(){
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(b"GET ");
+        bytes.extend_from_slice(&ANNOUNCE_REQUEST_PATH.as_bytes());
+        bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+
+        let parsed_request = Request::from_bytes(
+            &bytes[..]
+        ).unwrap();
+
+        let reference_request = get_reference_announce_request();
+
+        assert_eq!(parsed_request, reference_request);
+    }
+
+    #[test]
+    fn test_announce_request_from_path(){
+        let parsed_request = Request::from_http_get_path(
+            ANNOUNCE_REQUEST_PATH
+        ).unwrap();
+
+        let reference_request = get_reference_announce_request();
 
         assert_eq!(parsed_request, reference_request);
     }

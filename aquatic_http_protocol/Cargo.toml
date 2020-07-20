@@ -14,6 +14,11 @@ path = "benches/bench_request_from_path.rs"
 harness = false
 
 [[bench]]
+name = "bench_request_from_bytes"
+path = "benches/bench_request_from_bytes.rs"
+harness = false
+
+[[bench]]
 name = "bench_announce_response_to_bytes"
 path = "benches/bench_announce_response_to_bytes.rs"
 harness = false
