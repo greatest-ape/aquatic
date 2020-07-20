@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use anyhow::Context;
 use hashbrown::HashMap;
 use smartstring::{SmartString, LazyCompact};
@@ -33,19 +31,19 @@ impl AnnounceRequest {
         bytes.extend_from_slice(&urlencode_20_bytes(self.peer_id.0));
 
         bytes.extend_from_slice(b"&port=");
-        itoa::write(&mut bytes, self.port);
+        let _ = itoa::write(&mut bytes, self.port);
 
         bytes.extend_from_slice(b"&left=");
-        itoa::write(&mut bytes, self.bytes_left);
+        let _ = itoa::write(&mut bytes, self.bytes_left);
 
         bytes.extend_from_slice(b"&event=started"); // FIXME
 
         bytes.extend_from_slice(b"&compact=");
-        itoa::write(&mut bytes, self.compact as u8);
+        let _ = itoa::write(&mut bytes, self.compact as u8);
 
         if let Some(numwant) = self.numwant {
             bytes.extend_from_slice(b"&numwant=");
-            itoa::write(&mut bytes, numwant);
+            let _ = itoa::write(&mut bytes, numwant);
         }
 
         if let Some(ref key) = self.key {

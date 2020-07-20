@@ -1,49 +1,14 @@
-use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::io::{Read, Write, ErrorKind};
 
-use anyhow::Context;
-use crossbeam_channel::{Receiver, Sender};
 use hashbrown::HashMap;
 use mio::{net::TcpStream, Events, Poll, Interest, Token};
-use socket2::{Socket, Domain, Type, Protocol};
 use rand::{rngs::SmallRng, prelude::*};
 
 use crate::common::*;
-use crate::handler::create_random_request;
-
-
-const MAX_PACKET_SIZE: usize = 4096;
-
-
-
-pub fn create_socket(
-    address: SocketAddr,
-    server_address: SocketAddr,
-    ipv6_only: bool
-) -> ::anyhow::Result<TcpStream> {
-    let builder = if address.is_ipv4(){
-        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp()))
-    } else {
-        Socket::new(Domain::ipv6(), Type::stream(), Some(Protocol::tcp()))
-    }.context("Couldn't create socket2::Socket")?;
-
-    if ipv6_only {
-        builder.set_only_v6(true)
-            .context("Couldn't put socket in ipv6 only mode")?
-    }
-
-    builder.set_nonblocking(true)
-        .context("Couldn't put socket in non-blocking mode")?;
-    builder.set_reuse_port(true)
-        .context("Couldn't put socket in reuse_port mode")?;
-    builder.connect(&server_address.into()).with_context(||
-        format!("Couldn't connect to address {}", server_address)
-    )?;
-
-    Ok(TcpStream::from_std(builder.into_tcp_stream()))
-}
+use crate::config::*;
+use crate::utils::create_random_request;
 
 
 
@@ -58,7 +23,6 @@ pub struct Connection {
 impl Connection {
     pub fn create_and_register(
         config: &Config,
-        state: &LoadTestState,
         connections: &mut ConnectionMap,
         poll: &mut Poll,
         token_counter: &mut usize,
@@ -188,7 +152,7 @@ pub type ConnectionMap = HashMap<usize, Connection>;
 pub fn run_socket_thread(
     config: &Config,
     state: LoadTestState,
-    request_receiver: Receiver<Request>,
+    num_initial_requests: usize,
 ) {
     let timeout = Duration::from_micros(config.network.poll_timeout);
 
@@ -199,10 +163,9 @@ pub fn run_socket_thread(
 
     let mut token_counter = 0usize;
 
-    for _ in request_receiver.try_recv(){
+    for _ in 0..num_initial_requests {
         Connection::create_and_register(
             config,
-            &state,
             &mut connections,
             &mut poll,
             &mut token_counter,
@@ -238,7 +201,6 @@ pub fn run_socket_thread(
         if token_counter < 1 && responses_received > 0 {
             Connection::create_and_register(
                 config,
-                &state,
                 &mut connections,
                 &mut poll,
                 &mut token_counter,

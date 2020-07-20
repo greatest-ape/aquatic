@@ -1,22 +1,18 @@
-use std::net::{SocketAddr, Ipv4Addr, Ipv6Addr};
 use std::thread;
 use std::sync::{Arc, atomic::Ordering};
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::unbounded;
 use rand::prelude::*;
 use rand_distr::Pareto;
 
 mod common;
-mod handler;
+mod config;
 mod network;
 mod utils;
 
 use common::*;
-use utils::*;
-use handler::create_random_request;
+use config::*;
 use network::*;
-use handler::run_handler_thread;
 
 
 #[global_allocator]
@@ -43,7 +39,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     let mut rng = SmallRng::from_entropy();
 
     for _ in 0..config.handler.number_of_torrents {
-        info_hashes.push(generate_info_hash(&mut rng));
+        info_hashes.push(InfoHash(rng.gen()));
     }
 
     let pareto = Pareto::new(
@@ -59,12 +55,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     // Start socket workers
 
-    let mut request_senders = Vec::new();
-
     for _ in 0..config.num_socket_workers {
-        let (sender, receiver) = unbounded();
-
-        request_senders.push(sender);
 
         let config = config.clone();
         let state = state.clone();
@@ -72,20 +63,8 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         thread::spawn(move || run_socket_thread(
             &config,
             state,
-            receiver,
+            1
         ));
-    }
-
-    // Bootstrap request cycle by adding a request to each request channel
-    for sender in request_senders.iter(){
-        let request = create_random_request(
-            &config,
-            &state,
-            &mut thread_rng()
-        );
-
-        sender.send(request.into())
-            .expect("bootstrap: add initial request to request queue");
     }
 
     monitor_statistics(

@@ -9,7 +9,7 @@ use super::response::ResponsePeer;
 pub fn urlencode_20_bytes(input: [u8; 20]) -> Vec<u8> {
     let mut tmp = [0u8; 40];
 
-    hex::encode_to_slice(&input, &mut tmp);
+    hex::encode_to_slice(&input, &mut tmp).unwrap();
 
     let mut output = Vec::with_capacity(60);
 

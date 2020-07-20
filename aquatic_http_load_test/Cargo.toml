@@ -12,14 +12,12 @@ name = "aquatic_http_load_test"
 anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_http_protocol = { path = "../aquatic_http_protocol" }
-crossbeam-channel = "0.4"
 hashbrown = { version = "0.7", features = ["serde"] }
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 rand = { version = "0.7", features = ["small_rng"] }
 rand_distr = "0.2"
 serde = { version = "1", features = ["derive"] }
-socket2 = { version = "0.3", features = ["reuseport"] }
 
 [dev-dependencies]
 quickcheck = "0.9"

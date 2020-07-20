@@ -104,7 +104,6 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_http_protocol",
- "crossbeam-channel",
  "hashbrown",
  "mimalloc",
  "mio",
@@ -113,7 +112,6 @@ dependencies = [
  "rand",
  "rand_distr",
  "serde",
- "socket2",
 ]
 
 [[package]]
