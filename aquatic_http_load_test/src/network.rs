@@ -170,6 +170,9 @@ pub fn run_socket_thread(
     }
 
     let mut initial_sent = false;
+    let mut iter_counter = 0usize;
+
+    const CREATE_CONN_INTERVAL: usize = 2 ^ 20;
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -201,13 +204,18 @@ pub fn run_socket_thread(
             }
         }
 
-        if token_counter < 1 { // Only create one connection at the moment
+        // Slowly create new connections
+        if token_counter < 128 && iter_counter % CREATE_CONN_INTERVAL == 0 {
             Connection::create_and_register(
                 config,
                 &mut connections,
                 &mut poll,
                 &mut token_counter,
             ).unwrap();
+
+            initial_sent = false;
         }
+
+        iter_counter = iter_counter.wrapping_add(1);
     }
 }
