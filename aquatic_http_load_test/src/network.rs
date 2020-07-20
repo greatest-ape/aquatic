@@ -78,6 +78,9 @@ impl Connection {
             }
         };
 
+        state.statistics.bytes_received
+            .fetch_add(self.bytes_read, Ordering::SeqCst);
+
         let res_response = Response::from_bytes(
             &self.read_buffer[..self.bytes_read]
         );
@@ -123,7 +126,7 @@ impl Connection {
             rng
         );
 
-        match self.send_request_inner(&request.as_bytes()){
+        match self.send_request_inner(state, &request.as_bytes()){
             Ok(_) => {
                 state.statistics.requests.fetch_add(1, Ordering::SeqCst);
             },
@@ -135,8 +138,16 @@ impl Connection {
         self.can_send_initial = false;
     }
 
-    fn send_request_inner(&mut self, request: &[u8]) -> ::std::io::Result<()> {
-        self.stream.write(request)?;
+    fn send_request_inner(
+        &mut self,
+        state: &LoadTestState,
+        request: &[u8]
+    ) -> ::std::io::Result<()> {
+        let bytes_sent = self.stream.write(request)?;
+
+        state.statistics.bytes_sent
+            .fetch_add(bytes_sent, Ordering::SeqCst);
+
         self.stream.flush()?;
 
         Ok(())

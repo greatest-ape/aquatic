@@ -27,6 +27,8 @@ pub struct Statistics {
     pub responses_announce: AtomicUsize,
     pub responses_scrape: AtomicUsize,
     pub responses_failure: AtomicUsize,
+    pub bytes_sent: AtomicUsize,
+    pub bytes_received: AtomicUsize,
 }
 
 
@@ -42,14 +44,4 @@ pub struct LoadTestState {
 pub enum RequestType {
     Announce,
     Scrape
-}
-
-
-#[derive(Default)]
-pub struct SocketWorkerLocalStatistics {
-    pub requests: usize,
-    pub response_peers: usize,
-    pub responses_announce: usize,
-    pub responses_scrape: usize,
-    pub responses_failure: usize,
 }

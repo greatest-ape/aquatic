@@ -19,6 +19,10 @@ use network::*;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 
+/// Multiply bytes during a second with this to get Mbit/s
+const MBITS_FACTOR: f64 = 1.0 / ((1024.0 * 1024.0) / 8.0);
+
+
 pub fn main(){
     aquatic_cli_helpers::run_app_with_cli_and_config::<Config>(
         "aquatic: udp bittorrent tracker: load tester",
@@ -103,6 +107,11 @@ fn monitor_statistics(
         let responses_failure_per_second = statistics.responses_failure
             .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
 
+        let bytes_sent_per_second = statistics.bytes_sent
+            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let bytes_received_per_second = statistics.bytes_received
+            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+
         let responses_announce_per_second =  responses_announce / interval_f64;
 
         let responses_per_second = 
@@ -119,6 +128,8 @@ fn monitor_statistics(
         println!("  - Scrape responses:   {:.2}", responses_scrape_per_second);
         println!("  - Failure responses:  {:.2}", responses_failure_per_second);
         println!("Peers per announce response: {:.2}", response_peers / responses_announce);
+        println!("Bandwidth out: {:.2}Mbit/s", bytes_sent_per_second * MBITS_FACTOR);
+        println!("Bandwidth in:  {:.2}Mbit/s", bytes_received_per_second * MBITS_FACTOR);
         
         let time_elapsed = start_time.elapsed();
         let duration = Duration::from_secs(config.duration as u64);
