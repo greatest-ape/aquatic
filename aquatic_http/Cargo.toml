@@ -21,7 +21,7 @@ aquatic_common_tcp = { path = "../aquatic_common_tcp" }
 aquatic_http_protocol = { path = "../aquatic_http_protocol" }
 either = "1"
 flume = "0.7"
-hashbrown = { version = "0.7", features = ["serde"] }
+hashbrown = "0.8"
 indexmap = "1"
 itoa = "0.4"
 log = "0.4"
@@ -29,7 +29,7 @@ mimalloc = { version = "0.1", default-features = false }
 memchr = "2"
 mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
 native-tls = "0.2"
-parking_lot = "0.10"
+parking_lot = "0.11"
 privdrop = "0.3"
 rand = { version = "0.7", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
