@@ -10,7 +10,6 @@
 
 ## aquatic_http_load_test
 
-* use slab for connections? HashMap not necessary
 * request sending: too many allocations, likely due to request to byte
   conversion. optimize!
 * think about when to open new connections

@@ -2,9 +2,9 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::io::{Read, Write, ErrorKind};
 
-use hashbrown::HashMap;
 use mio::{net::TcpStream, Events, Poll, Interest, Token};
 use rand::{rngs::SmallRng, prelude::*};
+use slab::Slab;
 
 use crate::common::*;
 use crate::config::*;
@@ -27,6 +27,10 @@ impl Connection {
         token_counter: &mut usize,
     ) -> anyhow::Result<()> {
         let mut stream = TcpStream::connect(config.server_address)?;
+
+        let entry = connections.vacant_entry();
+
+        *token_counter = entry.key();
     
         poll.registry()
             .register(&mut stream, Token(*token_counter), Interest::READABLE)
@@ -39,9 +43,7 @@ impl Connection {
             can_send_initial: true,
         };
     
-        connections.insert(*token_counter, connection);
-
-        *token_counter = token_counter.wrapping_add(1);
+        entry.insert(connection);
     
         Ok(())
     }
@@ -143,7 +145,10 @@ impl Connection {
 }
 
 
-pub type ConnectionMap = HashMap<usize, Connection>;
+pub type ConnectionMap = Slab<Connection>;
+
+
+const NUM_CONNECTIONS: usize = 128;
 
 
 pub fn run_socket_thread(
@@ -153,7 +158,7 @@ pub fn run_socket_thread(
 ) {
     let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
 
-    let mut connections: ConnectionMap = HashMap::new();
+    let mut connections: ConnectionMap = Slab::with_capacity(NUM_CONNECTIONS);
     let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut rng = SmallRng::from_entropy();
@@ -182,7 +187,7 @@ pub fn run_socket_thread(
             if event.is_readable(){
                 let token = event.token();
 
-                if let Some(connection) = connections.get_mut(&token.0){
+                if let Some(connection) = connections.get_mut(token.0){
                     connection.read_response_and_send_request(
                         config,
                         &state,
@@ -195,7 +200,7 @@ pub fn run_socket_thread(
         }
 
         if !initial_sent {
-            for connection in connections.values_mut(){
+            for (_, connection) in connections.iter_mut(){
                 if connection.can_send_initial {
                     connection.send_request(config, &state, &mut rng);
 
@@ -205,7 +210,7 @@ pub fn run_socket_thread(
         }
 
         // Slowly create new connections
-        if token_counter < 128 && iter_counter % CREATE_CONN_INTERVAL == 0 {
+        if token_counter < NUM_CONNECTIONS && iter_counter % CREATE_CONN_INTERVAL == 0 {
             Connection::create_and_register(
                 config,
                 &mut connections,
