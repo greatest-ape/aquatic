@@ -14,8 +14,8 @@ pub fn create_random_request(
     rng: &mut impl Rng,
 ) -> Request {
     let weights = vec![
-        config.handler.weight_announce as u32,
-        config.handler.weight_scrape as u32, 
+        config.torrents.weight_announce as u32,
+        config.torrents.weight_scrape as u32, 
     ];
 
     let items = vec![
@@ -47,7 +47,7 @@ fn create_announce_request(
     rng: &mut impl Rng,
 ) -> Request {
     let (event, bytes_left) = {
-        if rng.gen_bool(config.handler.peer_seeder_probability) {
+        if rng.gen_bool(config.torrents.peer_seeder_probability) {
             (AnnounceEvent::Completed, 0)
         } else {
             (AnnounceEvent::Started, 50)
@@ -93,7 +93,7 @@ fn select_info_hash_index(
     state: &LoadTestState,
     rng: &mut impl Rng,
 ) -> usize {
-    pareto_usize(rng, &state.pareto, config.handler.number_of_torrents - 1)
+    pareto_usize(rng, &state.pareto, config.torrents.number_of_torrents - 1)
 }
 
 

@@ -11,7 +11,6 @@ use crate::config::*;
 use crate::utils::create_random_request;
 
 
-
 pub struct Connection {
     stream: TcpStream,
     read_buffer: [u8; 2048],
@@ -154,7 +153,7 @@ pub fn run_socket_thread(
     state: LoadTestState,
     num_initial_requests: usize,
 ) {
-    let timeout = Duration::from_micros(config.network.poll_timeout);
+    let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
 
     let mut connections: ConnectionMap = HashMap::new();
     let mut poll = Poll::new().expect("create poll");

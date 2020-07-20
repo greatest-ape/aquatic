@@ -28,23 +28,23 @@ pub fn main(){
 
 
 fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.handler.weight_announce + config.handler.weight_scrape == 0 {
+    if config.torrents.weight_announce + config.torrents.weight_scrape == 0 {
         panic!("Error: at least one weight must be larger than zero.");
     }
 
     println!("Starting client with config: {:#?}", config);
     
-    let mut info_hashes = Vec::with_capacity(config.handler.number_of_torrents);
+    let mut info_hashes = Vec::with_capacity(config.torrents.number_of_torrents);
 
     let mut rng = SmallRng::from_entropy();
 
-    for _ in 0..config.handler.number_of_torrents {
+    for _ in 0..config.torrents.number_of_torrents {
         info_hashes.push(InfoHash(rng.gen()));
     }
 
     let pareto = Pareto::new(
         1.0,
-        config.handler.torrent_selection_pareto_shape
+        config.torrents.torrent_selection_pareto_shape
     ).unwrap();
 
     let state = LoadTestState {
@@ -55,7 +55,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     // Start socket workers
 
-    for _ in 0..config.num_socket_workers {
+    for _ in 0..config.num_workers {
 
         let config = config.clone();
         let state = state.clone();
