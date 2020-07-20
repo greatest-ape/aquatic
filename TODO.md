@@ -28,13 +28,6 @@
     * vec reserve
   * test multiple scrape hashes
   * test with strange/bad inputs, with and without quickcheck
-  * maybe do crazy http parsing: check for newline with memchr, take slice until
-    there. then iter over space newlines/just take relevant data:
-    ```
-    let before_path = iter.next()?;
-    let after_path = iter.next()?;
-    let path = buffer[a+1..b] // then add some security checks
-    ```
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
@@ -74,6 +67,9 @@
   * deserialize 20 bytes: possibly rewrite (just check length of underlying
     bytes == 20 and then copy them), also maybe remove String from map for
     these cases too. doesn't really improve performance
+  * crazy http parsing: check for newline with memchr, take slice until
+    there. then iter over space newlines/just take relevant data. Not faster
+    than httparse and a lot worse
 
 ## aquatic_ws
 * is 'key' sent in announce request? if so, maybe handle it like in
