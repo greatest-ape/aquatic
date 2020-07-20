@@ -30,7 +30,7 @@ pub struct NetworkConfig {
     #[serde(flatten)]
     pub tls: TlsConfig,
     pub poll_event_capacity: usize,
-    pub poll_timeout_milliseconds: u64,
+    pub poll_timeout_microseconds: u64,
 }
 
 
@@ -68,7 +68,7 @@ impl Default for NetworkConfig {
             ipv6_only: false,
             tls: TlsConfig::default(),
             poll_event_capacity: 4096,
-            poll_timeout_milliseconds: 50,
+            poll_timeout_microseconds: 10_000,
         }
     }
 }

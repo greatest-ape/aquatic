@@ -58,8 +58,8 @@ pub fn run_poll_loop(
     listener: ::std::net::TcpListener,
     opt_tls_acceptor: Option<TlsAcceptor>,
 ){
-    let poll_timeout = Duration::from_millis(
-        config.network.poll_timeout_milliseconds
+    let poll_timeout = Duration::from_micros(
+        config.network.poll_timeout_microseconds
     );
 
     let mut listener = TcpListener::from_std(listener);
@@ -81,41 +81,43 @@ pub fn run_poll_loop(
     loop {
         poll.poll(&mut events, Some(poll_timeout))
             .expect("failed polling");
-        
-        let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
         for event in events.iter(){
             let token = event.token();
 
             if token.0 == 0 {
                 accept_new_streams(
+                    &config,
                     &mut listener,
                     &mut poll,
                     &mut connections,
-                    valid_until,
                     &mut poll_token_counter,
                     &opt_tls_acceptor,
                 );
             } else {
                 handle_connection_read_event(
+                    &config,
                     socket_worker_index,
                     &request_channel_sender,
                     &mut local_responses,
                     &mut connections,
                     token,
-                    valid_until,
                 );
             }
         }
 
-        send_responses(
-            local_responses.drain(..),
-            response_channel_receiver.drain(),
-            &mut connections
-        );
+        let response_drain = response_channel_receiver.drain();
+
+        if !(local_responses.is_empty() & (response_drain.len() == 0)) {
+            send_responses(
+                local_responses.drain(..),
+                response_drain,
+                &mut connections
+            );
+        }
 
         // Remove inactive connections, but not every iteration
-        if iter_counter % 128 == 0 {
+        if iter_counter % 32768 == 0 {
             remove_inactive_connections(&mut connections);
         }
 
@@ -125,13 +127,15 @@ pub fn run_poll_loop(
 
 
 fn accept_new_streams(
+    config: &Config,
     listener: &mut TcpListener,
     poll: &mut Poll,
     connections: &mut ConnectionMap,
-    valid_until: ValidUntil,
     poll_token_counter: &mut Token,
     opt_tls_acceptor: &Option<Arc<TlsAcceptor>>,
 ){
+    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
+
     loop {
         match listener.accept(){
             Ok((mut stream, _)) => {
@@ -173,13 +177,15 @@ fn accept_new_streams(
 /// On the stream given by poll_token, get TLS up and running if requested,
 /// then read requests and pass on through channel.
 pub fn handle_connection_read_event(
+    config: &Config,
     socket_worker_index: usize,
     request_channel_sender: &RequestChannelSender,
     local_responses: &mut Vec<(ConnectionMeta, Response)>,
     connections: &mut ConnectionMap,
     poll_token: Token,
-    valid_until: ValidUntil,
 ){
+    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
+
     loop {
         // Get connection, updating valid_until
         let connection = if let Some(c) = connections.get_mut(&poll_token){
