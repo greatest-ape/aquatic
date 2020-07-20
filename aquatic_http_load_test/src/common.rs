@@ -7,10 +7,6 @@ pub use aquatic_http_protocol::response::*;
 pub use aquatic_http_protocol::request::*;
 
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub struct ThreadId(pub u8);
-
-
 #[derive(PartialEq, Eq, Clone)]
 pub struct TorrentPeer {
     pub info_hash: InfoHash,

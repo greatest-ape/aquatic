@@ -6,7 +6,6 @@ use serde::{Serialize, Deserialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    /// Server address
     pub server_address: SocketAddr,
     pub num_workers: u8,
     pub duration: usize,
@@ -26,10 +25,7 @@ pub struct NetworkConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TorrentConfig {
-    /// Number of torrents to simulate
     pub number_of_torrents: usize,
-    /// Maximum number of torrents to ask about in scrape requests
-    pub scrape_max_torrents: usize,
     /// Pareto shape
     /// 
     /// Fake peers choose torrents according to Pareto distribution.
@@ -72,7 +68,6 @@ impl Default for TorrentConfig {
         Self {
             number_of_torrents: 10_000,
             peer_seeder_probability: 0.25,
-            scrape_max_torrents: 50,
             torrent_selection_pareto_shape: 2.0,
             weight_announce: 5,
             weight_scrape: 0,
