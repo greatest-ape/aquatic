@@ -10,6 +10,9 @@
 
 ## aquatic_http_load_test
 
+* use slab for connections? HashMap not necessary
+* request sending: too many allocations, likely due to request to byte
+  conversion. optimize!
 * think about when to open new connections
 * requests per seconds only goes up with lower poll timeout in tracker or
   more connections (if they don't all send stuff at the same time), in my
@@ -18,6 +21,11 @@
 
 ## aquatic_http
 * request parsing:
+  * urldecode_memchr is extreme bottleneck (15% CPU usage in network worker),
+    with heavy subfunctions mainly:
+    * smartstr push str
+    * from str radix
+    * vec reserve
   * test multiple scrape hashes
   * test with strange/bad inputs, with and without quickcheck
   * maybe do crazy http parsing: check for newline with memchr, take slice until
