@@ -8,10 +8,25 @@
 * avx-512 should be avoided, maybe this should be mentioned in README
   and maybe run scripts should be adjusted
 
+## aquatic_http_load_test
+
+* think about when to open new connections
+* requests per seconds only goes up with lower poll timeout in tracker or
+  more connections (if they don't all send stuff at the same time), in my
+  understanding
+* opening new connections in current form causes macOS issues, why?
+
 ## aquatic_http
 * request parsing:
   * test multiple scrape hashes
   * test with strange/bad inputs, with and without quickcheck
+  * maybe do crazy http parsing: check for newline with memchr, take slice until
+    there. then iter over space newlines/just take relevant data:
+    ```
+    let before_path = iter.next()?;
+    let after_path = iter.next()?;
+    let path = buffer[a+1..b] // then add some security checks
+    ```
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
