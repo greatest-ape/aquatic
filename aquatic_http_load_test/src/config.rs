@@ -60,7 +60,7 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            poll_timeout_microseconds: 20,
+            poll_timeout_microseconds: 1000,
             poll_event_capacity: 4096,
         }
     }

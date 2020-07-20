@@ -172,7 +172,7 @@ pub fn run_socket_thread(
     let mut initial_sent = false;
     let mut iter_counter = 0usize;
 
-    const CREATE_CONN_INTERVAL: usize = 2 ^ 20;
+    const CREATE_CONN_INTERVAL: usize = 2 ^ 16;
 
     loop {
         poll.poll(&mut events, Some(timeout))
