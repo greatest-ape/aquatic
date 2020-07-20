@@ -189,9 +189,7 @@ impl Response {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
-        Ok(Self::Failure(FailureResponse {
-            failure_reason: "fake response".to_string()
-        }))
+        unimplemented!()
     }
 }
 
