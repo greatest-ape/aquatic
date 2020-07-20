@@ -21,11 +21,8 @@
 
 ## aquatic_http
 * request parsing:
-  * urldecode_memchr is extreme bottleneck (15% CPU usage in network worker),
-    with heavy subfunctions mainly:
-    * smartstr push str
-    * from str radix
-    * vec reserve
+  * just skip the hashmap and save data directly into struct?
+  * smartstring: maybe use for keys? maybe use less? needs benchmarking
   * test multiple scrape hashes
   * test with strange/bad inputs, with and without quickcheck
 * test torrent transfer with real clients
