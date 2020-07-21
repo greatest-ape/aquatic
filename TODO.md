@@ -17,24 +17,25 @@
 
 ## aquatic_http
 * upper limit on request read buffer
-* request parsing:
-  * smartstring: maybe use for keys? maybe use less? needs benchmarking
-  * test with strange/bad inputs, with and without quickcheck
+* add tests
+  * test response serialization (against data known to be good would be nice)
+  * test request parsing with strange/bad inputs, with and without quickcheck
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
   * scrape: does it work (serialization etc), and with multiple hashes?
   * 'left' optional in magnet requests? Probably not. Transmission sends huge
     positive number.
-* tests of response serialization (against data known to be good would be nice)
 * compact=0 should result in error response
 * Connection.send_response: handle case when all bytes are not written: can
   write actually block here? And what action should be taken then?
 
 ### less important
+* request parsing:
+  * smartstring: maybe use for keys? maybe use less? needs benchmarking
 * use fastrand instead of rand? (also for ws and udp then I guess because of
   shared function)
-* use smartstring crate for failure response reason?
+* use smartstring for failure response reason?
 * log more info for all log modes (function location etc)? also for aquatic_ws
 * Support supportcrypto/requirecrypto keys? Official extension according to
   https://wiki.theory.org/index.php/BitTorrentSpecification#Connection_Obfuscation.
