@@ -16,14 +16,18 @@ Copyright (c) 2020 Joakim Frostegård
 
 Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
-## Technical overview
+## Technical overview of tracker design
 
 One or more socket workers open sockets, read and parse requests from peers and
 send them through channels to request workers. They in turn go through the
 requests, update internal state as appropriate and generate responses, which
 are sent back to the socket workers, which serialize them and send them to
 peers. This design means little waiting for locks on internal state occurs,
-while network work can be efficiently distributed over multiple threads.
+while network work can be efficiently distributed over multiple threads,
+making use of SO_REUSEPORT setting.
+
+Currently, `aquatic_ws` and `aquatic_http` only support a single request
+worker. Benchmarks of `aquatic_udp` indicate that this is sufficient.
 
 ## Installation prerequisites
 
@@ -171,17 +175,24 @@ Please refer to the `aquatic_ws` section for information about setting up TLS.
 There are two load test binaries. They use the same CLI structure as the
 trackers, including configuration file generation and loading.
 
+### aquatic_udp_load_test
+
 To load test `aquatic_udp`, start it and then run:
 
 ```sh
 ./scripts/run-load-test-udp.sh
 ```
 
+### aquatic_http_load_test
+
 To load test `aquatic_http`, start it and then run:
 
 ```sh
 ./scripts/run-load-test-http.sh
 ```
+
+To achieve high throughput, it is currently necessary to sharply reduce the
+poll timeout setting in the tracker, and reduce it somewhat in the load tester.
 
 ## Trivia
 
