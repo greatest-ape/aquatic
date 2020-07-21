@@ -4,8 +4,9 @@ Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
 
 Consists of separate executables:
   * `aquatic_udp`: UDP BitTorrent tracker with double the throughput of
-    opentracker
+    opentracker (see benchmarks below)
   * `aquatic_ws`: WebTorrent tracker (experimental)
+  * `aquatic_http`: HTTP BitTorrent tracker (experimental)
 
 These are described in detail below, after the general information.
 
@@ -28,17 +29,16 @@ while network work can be efficiently distributed over multiple threads.
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- For `aquatic_ws` on GNU/Linux, also install the OpenSSL components necessary
-  for dynamic linking (e.g., `apt-get install libssl-dev`)
+- For `aquatic_ws` and `aquatic_http` on GNU/Linux, also install the OpenSSL
+  components necessary for dynamic linking (e.g., `apt-get install libssl-dev`)
 - Clone the git repository and refer to the next section.
 
 ## Compile and run
 
-The command line interfaces for `aquatic_udp` and `aquatic_ws` are identical.
-To run the respective tracker, just run its binary. You can also run any of
-the helper scripts, which will compile the binary for you and pass on any
-command line parameters. (After compilation, the binaries are found in
-directory `target/release/`.)
+The command line interfaces for the tracker executables are identical. To run
+the respective tracker, just run its binary. You can also run any of the helper
+scripts, which will compile the binary for you and pass on any command line
+parameters. (After compilation, the binaries are found in `target/release/`.)
 
 To run with default settings:
 
@@ -50,6 +50,10 @@ To run with default settings:
 ./scripts/run-aquatic-ws.sh
 ```
 
+```sh
+./scripts/run-aquatic-http.sh
+```
+
 To print default settings to standard output, pass the "-p" flag to the binary:
 
 ```sh
@@ -58,6 +62,10 @@ To print default settings to standard output, pass the "-p" flag to the binary:
 
 ```sh
 ./scripts/run-aquatic-ws.sh -p
+```
+
+```sh
+./scripts/run-aquatic-http.sh -p
 ```
 
 To adjust the settings, save the output of the previous command to a file and
@@ -72,15 +80,17 @@ file, e.g.:
 ./scripts/run-aquatic-ws.sh -c "/path/to/aquatic-ws-config.toml"
 ```
 
+```sh
+./scripts/run-aquatic-http.sh -c "/path/to/aquatic-http-config.toml"
+```
+
 The configuration file values you will most likely want to adjust are
 `socket_workers` (number of threads reading from and writing to sockets) and
-`address` under the `network` section (listening address). This goes for both
-`aquatic_udp` and `aquatic_ws`.
+`address` under the `network` section (listening address). This goes for all
+three executables.
 
-Some documentation of the various options is available in source code files
-`aquatic_udp/src/lib/config.rs` and `aquatic_ws/src/lib/config.rs`. The
-default settings are also included in in this document, under the section for
-each executable below.
+Some documentation of the various options might be available in source code
+files `src/lib/config.rs` in the respective tracker crates.
 
 ## Details on protocol-specific executables
 
@@ -95,40 +105,6 @@ except that it:
   * Doesn't track of the number of torrent downloads (0 is always sent). 
 
 Supports IPv4 and IPv6.
-
-#### Default configuration:
-
-```toml
-socket_workers = 1
-request_workers = 1
-
-[network]
-address = '0.0.0.0:3000'
-socket_recv_buffer_size = 524288
-poll_event_capacity = 4096
-
-[protocol]
-max_scrape_torrents = 255
-max_response_peers = 255
-peer_announce_interval = 900
-
-[handlers]
-max_requests_per_iter = 10000
-channel_recv_timeout_microseconds = 200
-
-[statistics]
-interval = 0
-
-[cleaning]
-interval = 30
-max_peer_age = 1200
-max_connection_age = 300
-
-[privileges]
-drop_privileges = false
-chroot_path = '.'
-user = 'nobody'
-```
 
 #### Benchmarks
 
@@ -147,7 +123,8 @@ Server responses per second, best result in bold:
 |    6    |  __309k__   |     109k    |
 |    8    |  __408k__   |      96k    |
 
-(See `documents/aquatic-load-test-2020-04-19.pdf` for details.)
+See `documents/aquatic-load-test-2020-04-19.pdf` for details on benchmark, and
+end of README for more information about load testing.
 
 ### aquatic_ws: WebTorrent tracker
 
@@ -162,43 +139,6 @@ exceptions:
 successfully used as the tracker for a file transfer between two webtorrent
 peers.
 
-#### Default configuration
-
-```toml
-socket_workers = 1
-log_level = 'error'
-
-[network]
-address = '0.0.0.0:3000'
-ipv6_only = false
-use_tls = false
-tls_pkcs12_path = ''
-tls_pkcs12_password = ''
-poll_event_capacity = 4096
-poll_timeout_milliseconds = 50
-websocket_max_message_size = 65536
-websocket_max_frame_size = 16384
-
-[protocol]
-max_scrape_torrents = 255
-max_offers = 10
-peer_announce_interval = 120
-
-[handlers]
-max_requests_per_iter = 10000
-channel_recv_timeout_microseconds = 200
-
-[cleaning]
-interval = 30
-max_peer_age = 180
-max_connection_age = 180
-
-[privileges]
-drop_privileges = false
-chroot_path = '.'
-user = 'nobody'
-```
-
 #### TLS
 
 To run over TLS (wss protocol), a pkcs12 file (`.pkx`) is needed. It can be
@@ -212,6 +152,36 @@ openssl pkcs12 -export -out identity.pfx -inkey privkey.pem -in cert.pem -certfi
 Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
 and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
 the password in the field `tls_pkcs12_password` and set `use_tls` to true.
+
+### aquatic_http: HTTP BitTorrent tracker
+
+Aims for compatibility with the HTTP BitTorrent protocol, as described
+[here](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol),
+including TLS and scrape request support. There are some exceptions:
+
+  * Doesn't track of the number of torrent downloads (0 is always sent). 
+  * Doesn't allow full scrapes, i.e. of all registered info hashes
+
+`aquatic_http` is a work in progress and hasn't been tested very much yet.
+
+Please refer to the `aquatic_ws` section for information about setting up TLS.
+
+## Load testing
+
+There are two load test binaries. They use the same CLI structure as the
+trackers, including configuration file generation and loading.
+
+To load test `aquatic_udp`, start it and then run:
+
+```sh
+./scripts/run-load-test-udp.sh
+```
+
+To load test `aquatic_http`, start it and then run:
+
+```sh
+./scripts/run-load-test-http.sh
+```
 
 ## Trivia
 
