@@ -187,10 +187,6 @@ impl Response {
             Response::Scrape(r) => r.to_bytes(),
         }
     }
-
-    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
-        unimplemented!()
-    }
 }
 
 
