@@ -10,27 +10,24 @@
 
 ## aquatic_http_load_test
 
-* 80k responses per second is possible (as long as those weren't errors).
-  Probably has to do with exact timing of receiving responses and sending
-  requests.
+* 80k responses per second is possible with low poll timeout values. Probably
+  has to do with exact timing of receiving responses and sending requests.
 * think about when to open new connections
-* requests per seconds only goes up with lower poll timeout in tracker or
-  more connections (if they don't all send stuff at the same time), in my
-  understanding
 * opening new connections in current form causes macOS issues, why?
 
 ## aquatic_http
 * upper limit on request read buffer
 * request parsing:
   * smartstring: maybe use for keys? maybe use less? needs benchmarking
-  * test multiple scrape hashes
   * test with strange/bad inputs, with and without quickcheck
 * test torrent transfer with real clients
   * test tls
   * current serialized byte strings valid
   * scrape: does it work (serialization etc), and with multiple hashes?
-* compact=0 should result in error response
+  * 'left' optional in magnet requests? Probably not. Transmission sends huge
+    positive number.
 * tests of response serialization (against data known to be good would be nice)
+* compact=0 should result in error response
 * Connection.send_response: handle case when all bytes are not written: can
   write actually block here? And what action should be taken then?
 
@@ -38,18 +35,7 @@
 * use fastrand instead of rand? (also for ws and udp then I guess because of
   shared function)
 * use smartstring crate for failure response reason?
-* request parsing in protocol module instead of in network, maybe from byte
-  buffer? Not obvious what error return type to use then (anyhow maybe?)
 * log more info for all log modes (function location etc)? also for aquatic_ws
-* move stuff to common crate with ws?
-* serialization for future load tester: write custom non-serde serializer
-  for url encode support maybe, or possibly existing crates handle byte
-  serialization well (then there would still be the question of multiple
-  values per key for scrape requests)
-* 'left' optional in magnet requests? Probably not. Transmission sends huge
-  positive number.
-* handle_connection_read_event: this is an ugly function, but I don't know
-  how to improve it
 * Support supportcrypto/requirecrypto keys? Official extension according to
   https://wiki.theory.org/index.php/BitTorrentSpecification#Connection_Obfuscation.
   More info: http://wiki.vuze.com/w/Message_Stream_Encryption. The tricky part
