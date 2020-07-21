@@ -55,26 +55,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "aquatic_common_tcp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "aquatic_common",
- "mio",
- "native-tls",
- "parking_lot",
- "serde",
- "socket2",
-]
-
-[[package]]
 name = "aquatic_http"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_common",
- "aquatic_common_tcp",
  "aquatic_http_protocol",
  "either",
  "flume",
@@ -94,6 +80,7 @@ dependencies = [
  "serde",
  "simplelog",
  "smartstring",
+ "socket2",
 ]
 
 [[package]]

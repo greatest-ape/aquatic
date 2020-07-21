@@ -1,5 +1,3 @@
-pub mod connection;
-
 use std::time::{Duration, Instant};
 use std::io::ErrorKind;
 use std::sync::Arc;
@@ -11,13 +9,17 @@ use native_tls::TlsAcceptor;
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
 
-use aquatic_common_tcp::network::utils::create_listener;
 use aquatic_http_protocol::response::*;
 
 use crate::common::*;
 use crate::config::Config;
 
+pub mod connection;
+pub mod stream;
+pub mod utils;
+
 use connection::*;
+use utils::*;
 
 
 pub fn run_socket_worker(

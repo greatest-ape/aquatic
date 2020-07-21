@@ -6,8 +6,6 @@ use anyhow::Context;
 use parking_lot::Mutex;
 use privdrop::PrivDrop;
 
-use aquatic_common_tcp::network::utils::create_tls_acceptor;
-
 pub mod common;
 pub mod config;
 pub mod handler;
@@ -16,6 +14,7 @@ pub mod tasks;
 
 use common::*;
 use config::Config;
+use network::utils::create_tls_acceptor;
 
 
 pub fn run(config: Config) -> anyhow::Result<()> {

@@ -3,7 +3,6 @@
 members = [ 
     "aquatic_cli_helpers",
     "aquatic_common",
-    "aquatic_common_tcp",
     "aquatic_http",
     "aquatic_http_load_test",
     "aquatic_http_protocol",

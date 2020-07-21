@@ -17,7 +17,6 @@ path = "src/bin/main.rs"
 anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
-aquatic_common_tcp = { path = "../aquatic_common_tcp" }
 aquatic_http_protocol = { path = "../aquatic_http_protocol" }
 either = "1"
 flume = "0.7"
@@ -35,6 +34,7 @@ rand = { version = "0.7", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 simplelog = "0.8"
 smartstring = "0.2"
+socket2 = { version = "0.3", features = ["reuseport"] }
 
 [dev-dependencies]
 quickcheck = "0.9"

@@ -8,10 +8,11 @@ use mio::Token;
 use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
 
-use aquatic_common_tcp::network::stream::Stream;
 use aquatic_http_protocol::request::{Request, RequestParseError};
 
 use crate::common::*;
+
+use super::stream::Stream;
 
 
 #[derive(Debug)]
