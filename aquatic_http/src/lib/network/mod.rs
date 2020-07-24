@@ -1,5 +1,5 @@
 use std::time::{Duration, Instant};
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Cursor};
 use std::sync::Arc;
 use std::vec::Drain;
 
@@ -81,6 +81,8 @@ pub fn run_poll_loop(
     let mut poll_token_counter = Token(0usize);
     let mut iter_counter = 0usize;
 
+    let mut response_buffer = [0u8; 4096];
+    let mut response_buffer = Cursor::new(&mut response_buffer[..]);
     let mut local_responses = Vec::new();
 
     loop {
@@ -113,6 +115,7 @@ pub fn run_poll_loop(
 
         if !(local_responses.is_empty() & (response_channel_receiver.is_empty())) {
             send_responses(
+                &mut response_buffer,
                 local_responses.drain(..),
                 response_channel_receiver.try_iter(),
                 &mut connections
@@ -301,6 +304,7 @@ pub fn handle_connection_read_event(
 
 /// Read responses from channel, send to peers
 pub fn send_responses(
+    buffer: &mut Cursor<&mut [u8]>,
     local_responses: Drain<(ConnectionMeta, Response)>,
     channel_responses: crossbeam_channel::TryIter<(ConnectionMeta, Response)>,
     connections: &mut ConnectionMap,
@@ -315,7 +319,11 @@ pub fn send_responses(
                 continue;
             }
 
-            match established.send_response(&response.to_bytes()){
+            buffer.set_position(0);
+
+            let bytes_written = response.write(buffer).unwrap();
+
+            match established.send_response(&buffer.get_mut()[..bytes_written]){
                 Ok(()) => {
                     debug!("sent response");
                 },

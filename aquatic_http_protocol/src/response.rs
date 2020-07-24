@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::io::Write;
 
 use std::collections::BTreeMap;
 use serde::Serialize;
@@ -50,51 +51,50 @@ pub struct AnnounceResponse {
 
 
 impl AnnounceResponse {
-    fn to_bytes(&self) -> Vec<u8> {
-        let peers_bytes_len = self.peers.0.len() * 6;
-        let peers6_bytes_len = self.peers6.0.len() * 18;
+    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+        let mut bytes_written = 0usize;
 
-        let mut bytes = Vec::with_capacity(
-            12 +
-            5 + // Upper estimate
-            15 + 
-            5 + // Upper estimate
-            12 +
-            5 + // Upper estimate
-            8 +
-            peers_bytes_len +
-            8 +
-            peers6_bytes_len +
-            1
-        );
+        bytes_written += output.write(b"d8:completei")?;
+        bytes_written += output.write(
+            itoa::Buffer::new().format(self.complete).as_bytes()
+        )?;
 
-        bytes.extend_from_slice(b"d8:completei");
-        let _ = itoa::write(&mut bytes, self.complete);
+        bytes_written += output.write(b"e10:incompletei")?;
+        bytes_written += output.write(
+            itoa::Buffer::new().format(self.incomplete).as_bytes()
+        )?;
 
-        bytes.extend_from_slice(b"e10:incompletei");
-        let _ = itoa::write(&mut bytes, self.incomplete);
+        bytes_written += output.write(b"e8:intervali")?;
+        bytes_written += output.write(
+            itoa::Buffer::new().format(self.announce_interval).as_bytes()
+        )?;
 
-        bytes.extend_from_slice(b"e8:intervali");
-        let _ = itoa::write(&mut bytes, self.announce_interval);
-
-        bytes.extend_from_slice(b"e5:peers");
-        let _ = itoa::write(&mut bytes, peers_bytes_len);
-        bytes.push(b':');
+        bytes_written += output.write(b"e5:peers")?;
+        bytes_written += output.write(
+            itoa::Buffer::new().format(self.peers.0.len() * 6).as_bytes()
+        )?;
+        bytes_written += output.write(b":")?;
         for peer in self.peers.0.iter() {
-            bytes.extend_from_slice(&u32::from(peer.ip_address).to_be_bytes());
-            bytes.extend_from_slice(&peer.port.to_be_bytes())
+            bytes_written += output.write(
+                &u32::from(peer.ip_address).to_be_bytes()
+            )?;
+            bytes_written += output.write(&peer.port.to_be_bytes())?;
         }
 
-        bytes.extend_from_slice(b"6:peers6");
-        let _ = itoa::write(&mut bytes, peers6_bytes_len);
-        bytes.push(b':');
+        bytes_written += output.write(b"6:peers6")?;
+        bytes_written += output.write(
+            itoa::Buffer::new().format(self.peers6.0.len() * 18).as_bytes()
+        )?;
+        bytes_written += output.write(b":")?;
         for peer in self.peers6.0.iter() {
-            bytes.extend_from_slice(&u128::from(peer.ip_address).to_be_bytes());
-            bytes.extend_from_slice(&peer.port.to_be_bytes())
+            bytes_written += output.write(
+                &u128::from(peer.ip_address).to_be_bytes()
+            )?;
+            bytes_written += output.write(&peer.port.to_be_bytes())?;
         }
-        bytes.push(b'e');
+        bytes_written += output.write(b"e")?;
 
-        bytes
+        Ok(bytes_written)
     }
 }
 
@@ -107,36 +107,28 @@ pub struct ScrapeResponse {
 
 
 impl ScrapeResponse {
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(
-            9 +
-            self.files.len() * (
-                3 +
-                20 +
-                12 +
-                5 + // Upper estimate
-                31 +
-                5 + // Upper estimate
-                2
-            ) +
-            2
-        );
+    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+        let mut bytes_written = 0usize;
 
-        bytes.extend_from_slice(b"d5:filesd");
+        bytes_written += output.write(b"d5:filesd")?;
         
         for (info_hash, statistics) in self.files.iter(){
-            bytes.extend_from_slice(b"20:");
-            bytes.extend_from_slice(&info_hash.0);
-            bytes.extend_from_slice(b"d8:completei");
-            let _ = itoa::write(&mut bytes, statistics.complete);
-            bytes.extend_from_slice(b"e10:downloadedi0e10:incompletei");
-            let _ = itoa::write(&mut bytes, statistics.incomplete);
-            bytes.extend_from_slice(b"ee");
+            bytes_written += output.write(b"20:")?;
+            bytes_written += output.write(&info_hash.0)?;
+            bytes_written += output.write(b"d8:completei")?;
+            bytes_written += output.write(
+                itoa::Buffer::new().format(statistics.complete).as_bytes()
+            )?;
+            bytes_written += output.write(b"e10:downloadedi0e10:incompletei")?;
+            bytes_written += output.write(
+                itoa::Buffer::new().format(statistics.incomplete).as_bytes()
+            )?;
+            bytes_written += output.write(b"ee")?;
         }
 
-        bytes.extend_from_slice(b"ee");
+        bytes_written += output.write(b"ee")?;
 
-        bytes
+        Ok(bytes_written)
     }
 }
 
@@ -148,24 +140,20 @@ pub struct FailureResponse {
 
 
 impl FailureResponse {
-    fn to_bytes(&self) -> Vec<u8> {
+    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+        let mut bytes_written = 0usize;
+
         let reason_bytes = self.failure_reason.as_bytes();
 
-        let mut bytes = Vec::with_capacity(
-            18 +
-            3 + // Upper estimate
-            1 +
-            reason_bytes.len() +
-            1
-        ); 
+        bytes_written += output.write(b"d14:failure_reason")?;
+        bytes_written += output.write(
+            itoa::Buffer::new().format(reason_bytes.len()).as_bytes()
+        )?;
+        bytes_written += output.write(b":")?;
+        bytes_written += output.write(reason_bytes)?;
+        bytes_written += output.write(b"e")?;
 
-        bytes.extend_from_slice(b"d14:failure_reason");
-        let _ = itoa::write(&mut bytes, reason_bytes.len());
-        bytes.push(b':');
-        bytes.extend_from_slice(reason_bytes);
-        bytes.push(b'e');
-
-        bytes
+        Ok(bytes_written)
     }
 }
 
@@ -180,11 +168,11 @@ pub enum Response {
 
 
 impl Response {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         match self {
-            Response::Announce(r) => r.to_bytes(),
-            Response::Failure(r) => r.to_bytes(),
-            Response::Scrape(r) => r.to_bytes(),
+            Response::Announce(r) => r.write(output),
+            Response::Failure(r) => r.write(output),
+            Response::Scrape(r) => r.write(output),
         }
     }
 }
@@ -286,7 +274,11 @@ mod tests {
             &Response::Announce(response.clone())
         ).unwrap();
 
-        response.to_bytes() == reference
+        let mut output = Vec::new();
+
+        response.write(&mut output).unwrap();
+
+        output == reference
     }
 
     #[quickcheck]
@@ -294,7 +286,10 @@ mod tests {
         let reference = bendy::serde::to_bytes(
             &Response::Scrape(response.clone())
         ).unwrap();
-        let hand_written = response.to_bytes();
+
+        let mut hand_written = Vec::new();
+
+        response.write(&mut hand_written).unwrap();
 
         let success = hand_written == reference;
 
@@ -312,6 +307,10 @@ mod tests {
             &Response::Failure(response.clone())
         ).unwrap();
 
-        response.to_bytes() == reference
+        let mut output = Vec::new();
+
+        response.write(&mut output).unwrap();
+
+        output == reference
     }
 }

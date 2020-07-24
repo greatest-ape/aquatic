@@ -26,9 +26,14 @@ pub fn bench(c: &mut Criterion) {
 
     let response = Response::Announce(announce_response);
 
-    c.bench_function("announce-response-to-bytes", |b| b.iter(||
-        Response::to_bytes(black_box(&response))
-    ));
+    let mut buffer = [0u8; 4096];
+    let mut buffer = ::std::io::Cursor::new(&mut buffer[..]);
+
+    c.bench_function("announce-response-to-bytes", |b| b.iter(|| {
+        buffer.set_position(0);
+
+        Response::write(black_box(&response), black_box(&mut buffer)).unwrap();
+    }));
 }
 
 criterion_group!{
