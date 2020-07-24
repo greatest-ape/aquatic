@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 use std::time::Duration;
-use std::io::{Read, Write, ErrorKind};
+use std::io::{Read, Write, ErrorKind, Cursor};
 
 use mio::{net::TcpStream, Events, Poll, Interest, Token};
 use rand::{rngs::SmallRng, prelude::*};
@@ -53,6 +53,7 @@ impl Connection {
         config: &Config,
         state: &LoadTestState,
         rng: &mut impl Rng,
+        request_buffer: &mut Cursor<&mut [u8]>,
     ){
         loop {
             match self.stream.read(&mut self.read_buffer[self.bytes_read..]){
@@ -90,7 +91,8 @@ impl Connection {
         self.send_request(
             config,
             state,
-            rng
+            rng,
+            request_buffer,
         );
     }
 
@@ -128,6 +130,7 @@ impl Connection {
         config: &Config,
         state: &LoadTestState,
         rng: &mut impl Rng,
+        request_buffer: &mut Cursor<&mut [u8]>,
     ){
         let request = create_random_request(
             &config,
@@ -135,7 +138,11 @@ impl Connection {
             rng
         );
 
-        match self.send_request_inner(state, &request.as_bytes()){
+        request_buffer.set_position(0);
+        request.write(request_buffer).unwrap();
+        let position = request_buffer.position() as usize;
+
+        match self.send_request_inner(state, &request_buffer.get_mut()[..position]){
             Ok(_) => {
                 state.statistics.requests.fetch_add(1, Ordering::SeqCst);
             },
@@ -183,6 +190,8 @@ pub fn run_socket_thread(
     let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut rng = SmallRng::from_entropy();
+    let mut request_buffer = [0u8; 1024];
+    let mut request_buffer = Cursor::new(&mut request_buffer[..]);
 
     let mut token_counter = 0usize;
 
@@ -210,7 +219,8 @@ pub fn run_socket_thread(
                     connection.read_response_and_send_request(
                         config,
                         &state,
-                        &mut rng
+                        &mut rng,
+                        &mut request_buffer
                     );
                 } else {
                     eprintln!("connection not found: {:?}", token);
@@ -221,7 +231,12 @@ pub fn run_socket_thread(
         if !initial_sent {
             for (_, connection) in connections.iter_mut(){
                 if connection.can_send_initial {
-                    connection.send_request(config, &state, &mut rng);
+                    connection.send_request(
+                        config,
+                        &state,
+                        &mut rng,
+                        &mut request_buffer
+                    );
 
                     initial_sent = true;
                 }

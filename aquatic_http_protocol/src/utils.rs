@@ -8,15 +8,20 @@ use smartstring::{SmartString, LazyCompact};
 use super::response::ResponsePeer;
 
 
-pub fn urlencode_20_bytes(input: [u8; 20], output: &mut impl Write){
+pub fn urlencode_20_bytes(
+    input: [u8; 20],
+    output: &mut impl Write
+) -> ::std::io::Result<()> {
     let mut tmp = [0u8; 2];
 
     for i in 0..input.len() {
         hex::encode_to_slice(&input[i..i+1], &mut tmp).unwrap();
 
-        output.write(b"%");
-        output.write(&tmp);
+        output.write(b"%")?;
+        output.write(&tmp)?;
     }
+
+    Ok(())
 }
 
 
@@ -160,7 +165,7 @@ mod tests {
 
         let mut output = Vec::new();
 
-        urlencode_20_bytes(input, &mut output);
+        urlencode_20_bytes(input, &mut output).unwrap();
 
         assert_eq!(output.len(), 60);
 
@@ -195,7 +200,7 @@ mod tests {
 
         let mut output = Vec::new();
 
-        urlencode_20_bytes(input, &mut output);
+        urlencode_20_bytes(input, &mut output).unwrap();
 
         let s = ::std::str::from_utf8(&output).unwrap();
 

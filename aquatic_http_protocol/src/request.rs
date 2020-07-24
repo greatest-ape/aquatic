@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use anyhow::Context;
 use smartstring::{SmartString, LazyCompact};
 
@@ -20,54 +22,37 @@ pub struct AnnounceRequest {
 
 
 impl AnnounceRequest {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(
-            24 +
-            60 +
-            9 +
-            60 +
-            6 +
-            5 + // high estimate
-            6 +
-            2 + // estimate
-            14 + // FIXME event
-            9 + 
-            1 +
-            20 + // numwant bad estimate
-            20 + // key bad estimate
-            13
-        );
+    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
+        output.write(b"GET /announce?info_hash=")?;
+        urlencode_20_bytes(self.info_hash.0, output)?;
 
-        bytes.extend_from_slice(b"GET /announce?info_hash=");
-        urlencode_20_bytes(self.info_hash.0, &mut bytes);
+        output.write(b"&peer_id=")?;
+        urlencode_20_bytes(self.info_hash.0, output)?;
 
-        bytes.extend_from_slice(b"&peer_id=");
-        urlencode_20_bytes(self.info_hash.0, &mut bytes);
+        output.write(b"&port=")?;
+        output.write(itoa::Buffer::new().format(self.port).as_bytes())?;
 
-        bytes.extend_from_slice(b"&port=");
-        let _ = itoa::write(&mut bytes, self.port);
+        output.write(b"&left=")?;
+        output.write(itoa::Buffer::new().format(self.bytes_left).as_bytes())?;
 
-        bytes.extend_from_slice(b"&left=");
-        let _ = itoa::write(&mut bytes, self.bytes_left);
+        output.write(b"&event=started")?; // FIXME
 
-        bytes.extend_from_slice(b"&event=started"); // FIXME
-
-        bytes.extend_from_slice(b"&compact=");
-        let _ = itoa::write(&mut bytes, self.compact as u8);
+        output.write(b"&compact=")?;
+        output.write(itoa::Buffer::new().format(self.compact as u8).as_bytes())?;
 
         if let Some(numwant) = self.numwant {
-            bytes.extend_from_slice(b"&numwant=");
-            let _ = itoa::write(&mut bytes, numwant);
+            output.write(b"&numwant=")?;
+            output.write(itoa::Buffer::new().format(numwant).as_bytes())?;
         }
 
         if let Some(ref key) = self.key {
-            bytes.extend_from_slice(b"&key=");
-            bytes.extend_from_slice(key.as_str().as_bytes());
+            output.write(b"&key=")?;
+            output.write(key.as_str().as_bytes())?;
         }
 
-        bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+        output.write(b" HTTP/1.1\r\n\r\n")?;
 
-        bytes
+        Ok(())
     }
 }
 
@@ -79,27 +64,25 @@ pub struct ScrapeRequest {
 
 
 impl ScrapeRequest {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-
-        bytes.extend_from_slice(b"GET /scrape?");
+    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
+        output.write(b"GET /scrape?")?;
 
         let mut first = true;
 
         for info_hash in self.info_hashes.iter() {
             if !first {
-                bytes.push(b'&')
+                output.write(b"&")?;
             }
 
-            bytes.extend_from_slice(b"info_hash=");
-            urlencode_20_bytes(info_hash.0, &mut bytes);
+            output.write(b"info_hash=")?;
+            urlencode_20_bytes(info_hash.0, output)?;
 
             first = false;
         }
 
-        bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+        output.write(b" HTTP/1.1\r\n\r\n")?;
 
-        bytes
+        Ok(())
     }
 }
 
@@ -270,10 +253,10 @@ impl Request {
         }
     }
 
-    pub fn as_bytes(&self) -> Vec<u8> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
         match self {
-            Self::Announce(r) => r.as_bytes(),
-            Self::Scrape(r) => r.as_bytes(),
+            Self::Announce(r) => r.write(output),
+            Self::Scrape(r) => r.write(output),
         }
     }
 }
