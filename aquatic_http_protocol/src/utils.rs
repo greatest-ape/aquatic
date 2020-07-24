@@ -12,14 +12,16 @@ pub fn urlencode_20_bytes(
     input: [u8; 20],
     output: &mut impl Write
 ) -> ::std::io::Result<()> {
-    let mut tmp = [0u8; 2];
+    let mut tmp = [b'%'; 60];
 
     for i in 0..input.len() {
-        hex::encode_to_slice(&input[i..i+1], &mut tmp).unwrap();
-
-        output.write(b"%")?;
-        output.write(&tmp)?;
+        hex::encode_to_slice(
+            &input[i..i + 1],
+            &mut tmp[i * 3 + 1..i * 3 + 3]
+        ).unwrap();
     }
+
+    output.write(&tmp)?;
 
     Ok(())
 }
