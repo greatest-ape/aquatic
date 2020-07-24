@@ -166,7 +166,9 @@ including TLS and scrape request support. There are some exceptions:
   * Doesn't track of the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
-`aquatic_http` is a work in progress and hasn't been tested very much yet.
+`aquatic_http` is a work in progress and hasn't been tested very much yet. It
+has however successfully been used as the (non-TLS) tracker for a BitTorrent
+file transfer.
 
 Please refer to the `aquatic_ws` section for information about setting up TLS.
 
