@@ -12,17 +12,25 @@
 
 * 80k responses per second is possible with low poll timeout values. Probably
   has to do with exact timing of receiving responses and sending requests.
+  I should also try to reduce event capacity.
 * think about when to open new connections
 * opening new connections in current form causes macOS issues, why?
+* try creating sockets with different ports (and also local ips if setting
+  enabled), then passing converting them to mio tcp streams
 
 ## aquatic_http
 * upper limit on request read buffer
+* don't allocate for response serialization, pass reference to cursor over
+  array instead and write to impl Write in functions instead (same in load
+  test, there also for urlencode)
+* try using crossbeam instead, see if it improves performance
+* check if connection ValidUntil's are really updated when necessary. there
+  are some connections dropped after a while when load testing
 * add tests
   * test response serialization (against data known to be good would be nice)
   * test request parsing with strange/bad inputs, with and without quickcheck
 * test torrent transfer with real clients
   * test tls
-  * current serialized byte strings valid
   * scrape: does it work (serialization etc), and with multiple hashes?
   * 'left' optional in magnet requests? Probably not. Transmission sends huge
     positive number.
