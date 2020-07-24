@@ -55,13 +55,6 @@ pub fn urldecode_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
                 anyhow::anyhow!("hex decode error: {:?}", err)
             )?;
         } else {
-            if c as u32 > 255 {
-                return Err(anyhow::anyhow!(
-                    "character not in single byte range: {:#?}",
-                    c
-                ));
-            }
-
             out_arr[i] = c as u8;
         }
     }
