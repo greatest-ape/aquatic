@@ -18,8 +18,8 @@ anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
 aquatic_http_protocol = { path = "../aquatic_http_protocol" }
+crossbeam-channel = "0.4"
 either = "1"
-flume = "0.7"
 hashbrown = "0.8"
 indexmap = "1"
 itoa = "0.4"

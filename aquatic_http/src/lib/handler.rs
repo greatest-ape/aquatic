@@ -15,7 +15,6 @@ use crate::common::*;
 use crate::config::Config;
 
 
-
 pub fn run_request_worker(
     config: Config,
     state: State,
@@ -100,6 +99,8 @@ pub fn handle_announce_requests(
         let peer_ip = convert_ipv4_mapped_ipv4(
             request_sender_meta.peer_addr.ip()
         );
+
+        ::log::debug!("peer ip: {:?}", peer_ip);
 
         let response = match peer_ip {
             IpAddr::V4(peer_ip_address) => {

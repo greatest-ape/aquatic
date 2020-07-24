@@ -22,6 +22,9 @@ use connection::*;
 use utils::*;
 
 
+const CONNECTION_CLEAN_INTERVAL: usize = 2 ^ 22;
+
+
 pub fn run_socket_worker(
     config: Config,
     socket_worker_index: usize,
@@ -108,18 +111,16 @@ pub fn run_poll_loop(
             }
         }
 
-        let response_drain = response_channel_receiver.drain();
-
-        if !(local_responses.is_empty() & (response_drain.len() == 0)) {
+        if !(local_responses.is_empty() & (response_channel_receiver.is_empty())) {
             send_responses(
                 local_responses.drain(..),
-                response_drain,
+                response_channel_receiver.try_iter(),
                 &mut connections
             );
         }
 
         // Remove inactive connections, but not every iteration
-        if iter_counter % 32768 == 0 {
+        if iter_counter % CONNECTION_CLEAN_INTERVAL == 0 {
             remove_inactive_connections(&mut connections);
         }
 
@@ -301,10 +302,10 @@ pub fn handle_connection_read_event(
 /// Read responses from channel, send to peers
 pub fn send_responses(
     local_responses: Drain<(ConnectionMeta, Response)>,
-    response_channel_receiver: ::flume::Drain<(ConnectionMeta, Response)>,
+    channel_responses: crossbeam_channel::TryIter<(ConnectionMeta, Response)>,
     connections: &mut ConnectionMap,
 ){
-    for (meta, response) in local_responses.chain(response_channel_receiver){
+    for (meta, response) in local_responses.chain(channel_responses){
         if let Some(established) = connections.get_mut(&meta.poll_token)
             .and_then(Connection::get_established)
         {

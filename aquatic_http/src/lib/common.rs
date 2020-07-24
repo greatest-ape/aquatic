@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 
 use either::Either;
-use flume::{Sender, Receiver};
+use crossbeam_channel::{Sender, Receiver};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use log::error;
