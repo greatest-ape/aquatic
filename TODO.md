@@ -10,20 +10,12 @@
 
 ## aquatic_http_load_test
 
-* 80k responses per second is possible with low poll timeout values. Probably
-  has to do with exact timing of receiving responses and sending requests.
-  I should also try to reduce event capacity.
-* think about when to open new connections
 * opening new connections in current form causes macOS issues, why?
 * try creating sockets with different ports (and also local ips if setting
-  enabled), then passing converting them to mio tcp streams
+  enabled), then converting them to mio tcp streams
 
 ## aquatic_http
 * upper limit on request read buffer
-* don't allocate for response serialization, pass reference to cursor over
-  array instead and write to impl Write in functions instead (same in load
-  test, there also for urlencode)
-* try using crossbeam instead, see if it improves performance
 * check if connection ValidUntil's are really updated when necessary. there
   are some connections dropped after a while when load testing
 * add tests
@@ -38,7 +30,26 @@
 * Connection.send_response: handle case when all bytes are not written: can
   write actually block here? And what action should be taken then?
 
-### less important
+## aquatic_ws
+* is 'key' sent in announce request? if so, maybe handle it like in
+  aquatic_http (including ip uniqueness part of peer map key)
+* established connections do not get valid_until updated, I think?
+* tests
+* use enum as return type for handshake machine
+* use crossbeam instead of flume (improved performance in aquatic_http)
+* ipv4 and ipv6 state split: think about this more..
+
+## aquatic_udp
+* mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
+* handle errors similarily to aquatic_ws, including errors in socket workers
+* Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
+  can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
+  use of Ipv4 ones, I have to check.
+* More tests?
+
+# Not important
+
+## aquatic_http
 * request parsing:
   * smartstring: maybe use for keys? maybe use less? needs benchmarking
 * use fastrand instead of rand? (also for ws and udp then I guess because of
@@ -51,38 +62,6 @@
   is finding supportcrypto peers (and even better requirecrypto peers) to send
   back to requirecrypto peers. Doesn't really work according to reference in
   https://en.wikipedia.org/wiki/BitTorrent_protocol_encryption
-
-### don't do
-
-* request from path:
-  * only urldecode peer_id and info_hash: doesn't really improve performance
-  * deserialize 20 bytes: possibly rewrite (just check length of underlying
-    bytes == 20 and then copy them), also maybe remove String from map for
-    these cases too. doesn't really improve performance
-  * crazy http parsing: check for newline with memchr, take slice until
-    there. then iter over space newlines/just take relevant data. Not faster
-    than httparse and a lot worse
-
-## aquatic_ws
-* is 'key' sent in announce request? if so, maybe handle it like in
-  aquatic_http (including ip uniqueness part of peer map key)
-* established connections do not get valid_until updated, I think?
-* tests
-* use enum as return type for handshake machine
-* ipv4 and ipv6 state split: think about this more..
-
-## aquatic_udp
-* mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
-* handle errors similarily to aquatic_ws, including errors in socket workers
-* Handle Ipv4 and Ipv6 peers. Probably split torrent state. Ipv4 peers
-  can't make use of Ipv6 ones. Ipv6 ones may or may note be able to make
-  use of Ipv4 ones, I have to check.
-* More tests?
-
-## aquatic_udp_protocol
-* Tests with good known byte sequences (requests and responses)
-
-# Not important
 
 ## aquatic_ws
 * copyless for vec pushes in request handler, instead of stack and then heap?
@@ -113,14 +92,12 @@
 * extract_response_peers
     * Cleaner code
     * Stack-allocated vector?
-* Use log crate for errors, including logging thread names? I could probably
-  use code from old rs_news project for that.
+* Use log crate for errors
 * Performance
-    * cpu-target=native good?
     * mialloc good?
-    * Try using flume (MPSC) or multiqueue2 (MPMC) instead of crossbeam channel
 
 ## aquatic_udp_protocol
+* Tests with good known byte sequences (requests and responses)
 * Avoid heap allocation in general if it can be avoided?
     * request from bytes for scrape: use arrayvec with some max size for
       torrents? With Vec, allocation takes quite a bit of CPU time
@@ -158,6 +135,16 @@ just like best results in last benchmark, multiple client ips=true:
 * target-cpu=native: 394k
 * target-cpu=skylake: 439k
 * no target-cpu set: 388k
+
+## aquatic_http
+* request from path:
+  * only urldecode peer_id and info_hash: doesn't really improve performance
+  * deserialize 20 bytes: possibly rewrite (just check length of underlying
+    bytes == 20 and then copy them), also maybe remove String from map for
+    these cases too. doesn't really improve performance
+  * crazy http parsing: check for newline with memchr, take slice until
+    there. then iter over space newlines/just take relevant data. Not faster
+    than httparse and a lot worse
 
 ## aquatic_http / aquatic_ws
 * Shared state for HTTP with and without TLS. Peers who announce over TLS

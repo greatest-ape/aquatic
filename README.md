@@ -195,6 +195,7 @@ To load test `aquatic_http`, start it and then run:
 
 To achieve high throughput, it is currently necessary to sharply reduce the
 poll timeout setting in the tracker, and reduce it somewhat in the load tester.
+Reducing event capacity can also help.
 
 ## Trivia
 
