@@ -17,8 +17,8 @@ path = "src/bin/main.rs"
 anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_common = { path = "../aquatic_common" }
+crossbeam-channel = "0.4"
 either = "1"
-flume = "0.7"
 hashbrown = { version = "0.8", features = ["serde"] }
 indexmap = "1"
 log = "0.4"

@@ -25,7 +25,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     let state = State::default();
 
-    let (in_message_sender, in_message_receiver) = ::flume::unbounded();
+    let (in_message_sender, in_message_receiver) = ::crossbeam_channel::unbounded();
 
     let mut out_message_senders = Vec::new();
 
@@ -45,7 +45,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let in_message_sender = in_message_sender.clone();
         let opt_tls_acceptor = opt_tls_acceptor.clone();
 
-        let (out_message_sender, out_message_receiver) = ::flume::unbounded();
+        let (out_message_sender, out_message_receiver) = ::crossbeam_channel::unbounded();
 
         out_message_senders.push(out_message_sender);
 

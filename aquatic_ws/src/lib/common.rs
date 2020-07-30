@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use flume::{Sender, Receiver};
+use crossbeam_channel::{Sender, Receiver};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use log::error;

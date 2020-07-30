@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::io::ErrorKind;
 
+use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
 use log::{info, debug, error};
 use native_tls::TlsAcceptor;
@@ -109,10 +110,12 @@ pub fn run_poll_loop(
             }
         }
 
-        send_out_messages(
-            out_message_receiver.drain(),
-            &mut connections
-        );
+        if !out_message_receiver.is_empty(){
+            send_out_messages(
+                &out_message_receiver,
+                &mut connections
+            );
+        }
 
         // Remove inactive connections, but not every iteration
         if iter_counter % 128 == 0 {
@@ -238,10 +241,10 @@ pub fn run_handshakes_and_read_messages(
 
 /// Read messages from channel, send to peers
 pub fn send_out_messages(
-    out_message_receiver: ::flume::Drain<(ConnectionMeta, OutMessage)>,
+    out_message_receiver: &Receiver<(ConnectionMeta, OutMessage)>,
     connections: &mut ConnectionMap,
 ){
-    for (meta, out_message) in out_message_receiver {
+    for (meta, out_message) in out_message_receiver.try_iter(){
         let opt_established_ws = connections.get_mut(&meta.poll_token)
             .and_then(Connection::get_established_ws);
         
