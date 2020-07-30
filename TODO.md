@@ -5,8 +5,6 @@
 * use ipv4-mapped address functions, but I should check that they really
   work as they really work as they should. All announces over ipv4 should
   go to ipv4 map, all over ipv6 to ipv6 map
-* avx-512 should be avoided, maybe this should be mentioned in README
-  and maybe run scripts should be adjusted
 
 ## aquatic_http_load_test
 
