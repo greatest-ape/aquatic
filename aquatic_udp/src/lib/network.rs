@@ -1,6 +1,6 @@
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::io::{Cursor, ErrorKind};
-use std::net::SocketAddr;
+use std::net::{SocketAddr, IpAddr};
 use std::time::Duration;
 use std::vec::Drain;
 
@@ -215,7 +215,9 @@ fn send_responses(
     for (response, src) in response_iterator {
         cursor.set_position(0);
 
-        response_to_bytes(&mut cursor, response, IpVersion::IPv4).unwrap();
+        let ip_version = ip_version_from_ip(src.ip());
+
+        response_to_bytes(&mut cursor, response, ip_version).unwrap();
 
         let amt = cursor.position() as usize;
 
@@ -239,5 +241,19 @@ fn send_responses(
             .fetch_add(responses_sent, Ordering::SeqCst);
         state.statistics.bytes_sent
             .fetch_add(bytes_sent, Ordering::SeqCst);
+    }
+}
+
+
+fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
+    match ip {
+        IpAddr::V4(_) => IpVersion::IPv4,
+        IpAddr::V6(ip) => {
+            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments(){
+                IpVersion::IPv4
+            } else {
+                IpVersion::IPv6
+            }
+        }
     }
 }

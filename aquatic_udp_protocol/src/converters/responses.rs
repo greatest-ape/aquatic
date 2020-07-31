@@ -7,6 +7,12 @@ use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
 use crate::types::*;
 
 
+/// Returning IPv6 peers doesn't really work with UDP. It is not supported by
+/// https://libtorrent.org/udp_tracker_protocol.html. There is a suggestion in
+/// https://web.archive.org/web/20170503181830/http://opentracker.blog.h3q.com/2007/12/28/the-ipv6-situation/
+/// of using action number 4 and returning IPv6 octets just like for IPv4
+/// addresses. Clients seem not to support it very well, but due to a lack of
+/// alternative solutions, it is implemented here.
 #[inline]
 pub fn response_to_bytes(
     bytes: &mut impl Write,
@@ -20,15 +26,14 @@ pub fn response_to_bytes(
             bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
         },
         Response::Announce(r) => {
-            bytes.write_i32::<NetworkEndian>(1)?;
-            bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
-            bytes.write_i32::<NetworkEndian>(r.announce_interval.0)?;
-            bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
-            bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
-
-            // Write peer IPs and ports. Silently ignore peers with wrong
-            // IP version
             if ip_version == IpVersion::IPv4 {
+                bytes.write_i32::<NetworkEndian>(1)?;
+                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
+                bytes.write_i32::<NetworkEndian>(r.announce_interval.0)?;
+                bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
+                bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
+
+                // Silently ignore peers with wrong IP version
                 for peer in r.peers {
                     if let IpAddr::V4(ip) = peer.ip_address {
                         bytes.write_all(&ip.octets())?;
@@ -36,6 +41,13 @@ pub fn response_to_bytes(
                     }
                 }
             } else {
+                bytes.write_i32::<NetworkEndian>(4)?;
+                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
+                bytes.write_i32::<NetworkEndian>(r.announce_interval.0)?;
+                bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
+                bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
+
+                // Silently ignore peers with wrong IP version
                 for peer in r.peers {
                     if let IpAddr::V6(ip) = peer.ip_address {
                         bytes.write_all(&ip.octets())?;

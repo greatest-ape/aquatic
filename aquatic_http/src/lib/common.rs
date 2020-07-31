@@ -10,7 +10,7 @@ use mio::Token;
 use parking_lot::Mutex;
 use smartstring::{SmartString, LazyCompact};
 
-pub use aquatic_common::{ValidUntil, convert_ipv4_mapped_ipv4};
+pub use aquatic_common::{ValidUntil, convert_ipv4_mapped_ipv6};
 
 use aquatic_http_protocol::common::*;
 use aquatic_http_protocol::request::Request;

@@ -18,7 +18,17 @@ pub fn clean_connections_and_torrents(state: &State){
     ::std::mem::drop(connections);
 
     let mut torrents = state.torrents.lock();
+    
+    clean_torrent_map(&mut torrents.ipv4, now);
+    clean_torrent_map(&mut torrents.ipv6, now);
+}
 
+
+#[inline]
+fn clean_torrent_map<I: Ip>(
+    torrents: &mut TorrentMap<I>,
+    now: Instant,
+){
     torrents.retain(|_, torrent| {
         let num_seeders = &mut torrent.num_seeders;
         let num_leechers = &mut torrent.num_leechers;
@@ -93,7 +103,14 @@ pub fn gather_and_print_statistics(
 
     let torrents = &mut state.torrents.lock();
 
-    for torrent in torrents.values(){
+    for torrent in torrents.ipv4.values(){
+        let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
+
+        if let Err(err) = peers_per_torrent.increment(num_peers){
+            eprintln!("error incrementing peers_per_torrent histogram: {}", err)
+        }
+    }
+    for torrent in torrents.ipv6.values(){
         let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
         if let Err(err) = peers_per_torrent.increment(num_peers){

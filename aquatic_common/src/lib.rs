@@ -82,7 +82,7 @@ pub fn extract_response_peers<K, V, R, F>(
 
 
 #[inline]
-pub fn convert_ipv4_mapped_ipv4(ip_address: IpAddr) -> IpAddr {
+pub fn convert_ipv4_mapped_ipv6(ip_address: IpAddr) -> IpAddr {
     if let IpAddr::V6(ip) = ip_address {
         if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments(){
             ip.to_ipv4().expect("convert ipv4-mapped ip").into()

@@ -96,7 +96,7 @@ pub fn handle_announce_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     responses.extend(requests.map(|(request_sender_meta, request)| {
-        let peer_ip = convert_ipv4_mapped_ipv4(
+        let peer_ip = convert_ipv4_mapped_ipv6(
             request_sender_meta.peer_addr.ip()
         );
 
@@ -262,7 +262,7 @@ pub fn handle_scrape_requests(
             files: BTreeMap::new(),
         };
 
-        let peer_ip = convert_ipv4_mapped_ipv4(
+        let peer_ip = convert_ipv4_mapped_ipv6(
             meta.peer_addr.ip()
         );
 
