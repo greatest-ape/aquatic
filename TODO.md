@@ -2,9 +2,6 @@
 
 ## General
 
-* use ipv4-mapped address functions, but I should check that they really
-  work as they really work as they should. All announces over ipv4 should
-  go to ipv4 map, all over ipv6 to ipv6 map
 * init logging in cli helper crate?
 
 ## aquatic_http_load_test
@@ -30,13 +27,14 @@
   write actually block here? And what action should be taken then?
 
 ## aquatic_ws
-* test transfer again with crossbeam-channel
+* test transfer again with changes made:
+  * crossbeam-channel
+  * ipv6/ipv4 mapping
 * is 'key' sent in announce request? if so, maybe handle it like in
   aquatic_http (including ip uniqueness part of peer map key)
 * established connections do not get valid_until updated, I think?
 * tests
 * use enum as return type for handshake machine
-* ipv4 and ipv6 state split: think about this more..
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?

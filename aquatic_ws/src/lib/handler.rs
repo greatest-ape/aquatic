@@ -93,7 +93,7 @@ pub fn handle_announce_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     for (request_sender_meta, request) in requests {
-        let torrent_data: &mut TorrentData = if request_sender_meta.peer_addr.is_ipv4(){
+        let torrent_data: &mut TorrentData = if request_sender_meta.converted_peer_ip.is_ipv4(){
             torrent_maps.ipv4.entry(request.info_hash).or_default()
         } else {
             torrent_maps.ipv6.entry(request.info_hash).or_default()
@@ -102,9 +102,11 @@ pub fn handle_announce_requests(
         // If there is already a peer with this peer_id, check that socket
         // addr is same as that of request sender. Otherwise, ignore request.
         // Since peers have access to each others peer_id's, they could send
-        // requests using them, causing all sorts of issues.
+        // requests using them, causing all sorts of issues. Checking naive
+        // (non-converted) socket addresses is enough, since state is split
+        // on converted peer ip.
         if let Some(previous_peer) = torrent_data.peers.get(&request.peer_id){
-            if request_sender_meta.peer_addr != previous_peer.connection_meta.peer_addr {
+            if request_sender_meta.naive_peer_addr != previous_peer.connection_meta.naive_peer_addr {
                 continue;
             }
         }
@@ -177,7 +179,7 @@ pub fn handle_announce_requests(
                 // possible to write a new version of that function which isn't
                 // shared with aquatic_udp and goes about it differently
                 // though.
-                if request_sender_meta.peer_addr == offer_receiver.connection_meta.peer_addr {
+                if request_sender_meta.naive_peer_addr == offer_receiver.connection_meta.naive_peer_addr {
                     continue;
                 }
 
@@ -244,7 +246,7 @@ pub fn handle_scrape_requests(
             files: HashMap::with_capacity(num_to_take),
         };
 
-        let torrent_map: &mut TorrentMap = if meta.peer_addr.is_ipv4(){
+        let torrent_map: &mut TorrentMap = if meta.converted_peer_ip.is_ipv4(){
             &mut torrent_maps.ipv4
         } else {
             &mut torrent_maps.ipv6

@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{SocketAddr, IpAddr};
 use std::sync::Arc;
 
 use crossbeam_channel::{Sender, Receiver};
@@ -18,7 +18,10 @@ pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
     pub worker_index: usize,
-    pub peer_addr: SocketAddr,
+    /// Peer address as received from socket, meaning it wasn't converted to
+    /// an IPv4 address if it was a IPv4-mapped IPv6 address
+    pub naive_peer_addr: SocketAddr,
+    pub converted_peer_ip: IpAddr,
     pub poll_token: Token,
 }
 

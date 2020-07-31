@@ -9,6 +9,8 @@ use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
 use tungstenite::protocol::WebSocketConfig;
 
+use aquatic_common::convert_ipv4_mapped_ipv6;
+
 use crate::common::*;
 use crate::config::Config;
 use crate::protocol::*;
@@ -187,10 +189,16 @@ pub fn run_handshakes_and_read_messages(
             match established_ws.ws.read_message(){
                 Ok(ws_message) => {
                     if let Some(in_message) = InMessage::from_ws_message(ws_message){
+                        let naive_peer_addr = established_ws.peer_addr;
+                        let converted_peer_ip = convert_ipv4_mapped_ipv6(
+                            naive_peer_addr.ip()
+                        );
+
                         let meta = ConnectionMeta {
                             worker_index: socket_worker_index,
                             poll_token,
-                            peer_addr: established_ws.peer_addr
+                            naive_peer_addr,
+                            converted_peer_ip,
                         };
 
                         debug!("read message");
@@ -249,7 +257,7 @@ pub fn send_out_messages(
             .and_then(Connection::get_established_ws);
         
         if let Some(established_ws) = opt_established_ws {
-            if established_ws.peer_addr != meta.peer_addr {
+            if established_ws.peer_addr != meta.naive_peer_addr {
                 info!("socket worker error: peer socket addrs didn't match");
 
                 continue;
