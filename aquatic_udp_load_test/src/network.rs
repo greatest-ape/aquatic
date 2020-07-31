@@ -60,11 +60,6 @@ pub fn run_socket_thread(
     let mut socket = UdpSocket::from_std(create_socket(config, addr));
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
-    let ip_version = match config.server_address {
-        SocketAddr::V4(_) => IpVersion::IPv4,
-        SocketAddr::V6(_) => IpVersion::IPv6,
-    };
-
     let token = Token(thread_id.0 as usize);
     let interests = Interest::READABLE;
     let timeout = Duration::from_micros(config.network.poll_timeout);
@@ -89,7 +84,6 @@ pub fn run_socket_thread(
                 if event.is_readable(){
                     read_responses(
                         thread_id,
-                        ip_version,
                         &socket,
                         &mut buffer,
                         &mut local_state,
@@ -132,14 +126,13 @@ pub fn run_socket_thread(
 
 fn read_responses(
     thread_id: ThreadId,
-    ip_version: IpVersion,
     socket: &UdpSocket,
     buffer: &mut [u8],
     ls: &mut SocketWorkerLocalStatistics,
     responses: &mut Vec<(ThreadId, Response)>,
 ){
     while let Ok(amt) = socket.recv(buffer) {
-        match response_from_bytes(&buffer[0..amt], ip_version){
+        match response_from_bytes(&buffer[0..amt]){
             Ok(response) => {
                 match response {
                     Response::Announce(ref r) => {

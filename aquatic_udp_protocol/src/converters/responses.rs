@@ -79,10 +79,7 @@ pub fn response_to_bytes(
 
 
 #[inline]
-pub fn response_from_bytes(
-    bytes: &[u8],
-    ip_version: IpVersion,
-) -> Result<Response, io::Error> {
+pub fn response_from_bytes(bytes: &[u8]) -> Result<Response, io::Error> {
     let mut cursor = Cursor::new(bytes);
 
     let action = cursor.read_i32::<NetworkEndian>()?;
@@ -107,29 +104,16 @@ pub fn response_from_bytes(
             let position = cursor.position() as usize;
             let inner = cursor.into_inner();
 
-            let peers = if ip_version == IpVersion::IPv4 {
-                inner[position..].chunks_exact(6).map(|chunk| {
-                    let ip_bytes: [u8; 4] = (&chunk[..4]).try_into().unwrap();
-                    let ip_address = IpAddr::V4(Ipv4Addr::from(ip_bytes));
-                    let port = (&chunk[4..]).read_u16::<NetworkEndian>().unwrap();
+            let peers = inner[position..].chunks_exact(6).map(|chunk| {
+                let ip_bytes: [u8; 4] = (&chunk[..4]).try_into().unwrap();
+                let ip_address = IpAddr::V4(Ipv4Addr::from(ip_bytes));
+                let port = (&chunk[4..]).read_u16::<NetworkEndian>().unwrap();
 
-                    ResponsePeer {
-                        ip_address,
-                        port: Port(port),
-                    }
-                }).collect()
-            } else {
-                inner[position..].chunks_exact(18).map(|chunk| {
-                    let ip_bytes: [u8; 16] = (&chunk[..16]).try_into().unwrap();
-                    let ip_address = IpAddr::V6(Ipv6Addr::from(ip_bytes));
-                    let port = (&chunk[16..]).read_u16::<NetworkEndian>().unwrap();
-
-                    ResponsePeer {
-                        ip_address,
-                        port: Port(port),
-                    }
-                }).collect()
-            };
+                ResponsePeer {
+                    ip_address,
+                    port: Port(port),
+                }
+            }).collect();
 
             Ok((AnnounceResponse {
                 transaction_id: TransactionId(transaction_id),
@@ -138,7 +122,6 @@ pub fn response_from_bytes(
                 seeders: NumberOfPeers(seeders),
                 peers
             }).into())
-
         },
         // Scrape
         2 => {
@@ -174,6 +157,34 @@ pub fn response_from_bytes(
                 message: String::from_utf8_lossy(&inner[position..]).into()
             }).into())
         },
+        // IPv6 announce
+        4 => {
+            let announce_interval = cursor.read_i32::<NetworkEndian>()?;
+            let leechers = cursor.read_i32::<NetworkEndian>()?;
+            let seeders = cursor.read_i32::<NetworkEndian>()?;
+
+            let position = cursor.position() as usize;
+            let inner = cursor.into_inner();
+
+            let peers = inner[position..].chunks_exact(18).map(|chunk| {
+                let ip_bytes: [u8; 16] = (&chunk[..16]).try_into().unwrap();
+                let ip_address = IpAddr::V6(Ipv6Addr::from(ip_bytes));
+                let port = (&chunk[16..]).read_u16::<NetworkEndian>().unwrap();
+
+                ResponsePeer {
+                    ip_address,
+                    port: Port(port),
+                }
+            }).collect();
+
+            Ok((AnnounceResponse {
+                transaction_id: TransactionId(transaction_id),
+                announce_interval: AnnounceInterval(announce_interval),
+                leechers: NumberOfPeers(leechers),
+                seeders: NumberOfPeers(seeders),
+                peers
+            }).into())
+        },
         _ => {
             Ok((ErrorResponse {
                 transaction_id: TransactionId(transaction_id),
@@ -195,7 +206,7 @@ mod tests {
         let mut buf = Vec::new();
 
         response_to_bytes(&mut buf, response.clone(), ip_version).unwrap();
-        let r2 = response_from_bytes(&buf[..], ip_version).unwrap();
+        let r2 = response_from_bytes(&buf[..]).unwrap();
 
         let success = response == r2;
 
