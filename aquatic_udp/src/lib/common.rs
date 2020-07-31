@@ -1,5 +1,6 @@
-use std::net::{SocketAddr, IpAddr};
+use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, atomic::AtomicUsize};
+use std::hash::Hash;
 
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -11,6 +12,24 @@ pub use aquatic_udp_protocol::types::*;
 
 pub const MAX_PACKET_SIZE: usize = 4096;
 
+
+pub trait Ip: Hash + PartialEq + Eq + Clone + Copy {
+    fn ip_addr(self) -> IpAddr;
+}
+
+
+impl Ip for Ipv4Addr {
+    fn ip_addr(self) -> IpAddr {
+        IpAddr::V4(self)
+    }
+}
+
+
+impl Ip for Ipv6Addr {
+    fn ip_addr(self) -> IpAddr {
+        IpAddr::V6(self)
+    }
+}
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -52,19 +71,19 @@ impl PeerStatus {
 
 
 #[derive(Clone, Debug)]
-pub struct Peer {
-    pub ip_address: IpAddr,
+pub struct Peer<I: Ip> {
+    pub ip_address: I,
     pub port: Port,
     pub status: PeerStatus,
     pub valid_until: ValidUntil
 }
 
 
-impl Peer {
+impl <I: Ip>Peer<I> {
     #[inline(always)]
     pub fn to_response_peer(&self) -> ResponsePeer {
         ResponsePeer {
-            ip_address: self.ip_address,
+            ip_address: self.ip_address.ip_addr(),
             port: self.port
         }
     }
@@ -72,23 +91,23 @@ impl Peer {
 
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub struct PeerMapKey {
-    pub ip: IpAddr,
+pub struct PeerMapKey<I: Ip> {
+    pub ip: I,
     pub peer_id: PeerId
 }
 
 
-pub type PeerMap = IndexMap<PeerMapKey, Peer>;
+pub type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
 
 
-pub struct TorrentData {
-    pub peers: PeerMap,
+pub struct TorrentData<I: Ip> {
+    pub peers: PeerMap<I>,
     pub num_seeders: usize,
     pub num_leechers: usize,
 }
 
 
-impl Default for TorrentData {
+impl <I: Ip>Default for TorrentData<I> {
     fn default() -> Self {
         Self {
             peers: IndexMap::new(),
@@ -99,7 +118,14 @@ impl Default for TorrentData {
 }
 
 
-pub type TorrentMap = HashMap<InfoHash, TorrentData>;
+pub type TorrentMap<I> = HashMap<InfoHash, TorrentData<I>>;
+
+
+#[derive(Default)]
+pub struct TorrentMaps {
+    pub ipv4: TorrentMap<Ipv4Addr>,
+    pub ipv6: TorrentMap<Ipv6Addr>,
+}
 
 
 #[derive(Default)]
@@ -115,7 +141,7 @@ pub struct Statistics {
 #[derive(Clone)]
 pub struct State {
     pub connections: Arc<Mutex<ConnectionMap>>,
-    pub torrents: Arc<Mutex<TorrentMap>>,
+    pub torrents: Arc<Mutex<TorrentMaps>>,
     pub statistics: Arc<Statistics>,
 }
 
@@ -124,7 +150,7 @@ impl State {
     pub fn new() -> Self {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
-            torrents: Arc::new(Mutex::new(HashMap::new())),
+            torrents: Arc::new(Mutex::new(TorrentMaps::default())),
             statistics: Arc::new(Statistics::default()),
         }
     }
