@@ -108,7 +108,8 @@ except that it:
     source IP is always used.
   * Doesn't track of the number of torrent downloads (0 is always sent). 
 
-Supports IPv4 and IPv6.
+Supports IPv4 and IPv6 (BitTorrent UDP protocol doesn't support IPv6 very well,
+however.)
 
 #### Benchmarks
 
