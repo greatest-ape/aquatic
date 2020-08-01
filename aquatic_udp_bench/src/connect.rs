@@ -48,12 +48,9 @@ pub fn bench_connect_handler(
         let total = bench_config.num_connect_requests * (round + 1);
 
         while num_responses < total {
-            match response_receiver.recv(){
-                Ok((Response::Connect(r), _)) => {
-                    num_responses += 1;
-                    dummy ^= r.connection_id.0;
-                },
-                _ => {}
+            if let Ok((Response::Connect(r), _)) = response_receiver.recv(){
+                num_responses += 1;
+                dummy ^= r.connection_id.0;
             }
         }
     }

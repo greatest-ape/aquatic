@@ -40,7 +40,7 @@ pub fn create_socket(
     }
 
     socket.bind(&addr.into())
-        .expect(&format!("socket: bind to {}", addr));
+        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", addr, err));
 
     socket.connect(&config.server_address.into())
         .expect("socket: connect to server");
@@ -80,28 +80,27 @@ pub fn run_socket_thread(
             .expect("failed polling");
 
         for event in events.iter(){
-            if event.token() == token {
-                if event.is_readable(){
-                    read_responses(
-                        thread_id,
-                        &socket,
-                        &mut buffer,
-                        &mut local_state,
-                        &mut responses
-                    );
+            if (event.token() == token) & event.is_readable(){
+                read_responses(
+                    thread_id,
+                    &socket,
+                    &mut buffer,
+                    &mut local_state,
+                    &mut responses
+                );
 
-                    for r in responses.drain(..){
-                        response_channel_sender.send(r)
-                            .expect(&format!(
-                                "add response to channel in socket worker {}",
-                                thread_id.0
-                            ));
-                    }
-
-                    poll.registry()
-                        .reregister(&mut socket, token, interests)
-                        .unwrap();
+                for r in responses.drain(..){
+                    response_channel_sender.send(r)
+                        .unwrap_or_else(|err| panic!(
+                            "add response to channel in socket worker {}: {:?}",
+                            thread_id.0,
+                            err
+                        ));
                 }
+
+                poll.registry()
+                    .reregister(&mut socket, token, interests)
+                    .unwrap();
             }
 
             send_requests(

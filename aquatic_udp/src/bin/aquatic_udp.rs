@@ -1,7 +1,3 @@
-use aquatic_udp;
-use aquatic_cli_helpers;
-
-
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 

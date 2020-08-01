@@ -271,7 +271,7 @@ pub enum OutMessage {
 
 impl OutMessage {
     #[inline]
-    pub fn to_ws_message(self) -> tungstenite::Message {
+    pub fn into_ws_message(self) -> tungstenite::Message {
         let json = match self {
             Self::AnnounceResponse(message) => {
                 serde_json::to_string(

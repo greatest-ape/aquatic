@@ -20,7 +20,7 @@ pub fn bench_scrape_handler(
     request_sender: &Sender<(Request, SocketAddr)>,
     response_receiver: &Receiver<(Response, SocketAddr)>,
     rng: &mut impl Rng,
-    info_hashes: &Vec<InfoHash>,
+    info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
     let requests = create_requests(
         state,
@@ -59,15 +59,12 @@ pub fn bench_scrape_handler(
         let total = bench_config.num_scrape_requests * (round + 1);
 
         while num_responses < total {
-            match response_receiver.recv(){
-                Ok((Response::Scrape(r), _)) => {
-                    num_responses += 1;
+            if let Ok((Response::Scrape(r), _)) = response_receiver.recv(){
+                num_responses += 1;
 
-                    if let Some(stat) = r.torrent_stats.last(){
-                        dummy ^= stat.leechers.0;
-                    }
-                },
-                _ => {}
+                if let Some(stat) = r.torrent_stats.last(){
+                    dummy ^= stat.leechers.0;
+                }
             }
         }
     }
@@ -86,7 +83,7 @@ pub fn bench_scrape_handler(
 pub fn create_requests(
     state: &State,
     rng: &mut impl Rng,
-    info_hashes: &Vec<InfoHash>,
+    info_hashes: &[InfoHash],
     number: usize,
     hashes_per_request: usize,
 ) -> Vec<(ScrapeRequest, SocketAddr)> {
@@ -103,7 +100,7 @@ pub fn create_requests(
 
     let mut requests = Vec::new();
 
-    for i in 0..number {
+    for connection_key in connection_keys.into_iter(){
         let mut request_info_hashes = Vec::new();
 
         for _ in 0..hashes_per_request {
@@ -111,17 +108,13 @@ pub fn create_requests(
             request_info_hashes.push(info_hashes[info_hash_index])
         }
 
-        // Will panic if less connection requests than scrape requests
-        let connection_id = connection_keys[i].connection_id; 
-        let src = connection_keys[i].socket_addr;
-
         let request = ScrapeRequest {
-            connection_id,
+            connection_id: connection_key.connection_id,
             transaction_id: TransactionId(rng.gen()),
             info_hashes: request_info_hashes,
         };
 
-        requests.push((request, src));
+        requests.push((request, connection_key.socket_addr));
     }
 
     requests

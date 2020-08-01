@@ -51,29 +51,27 @@ pub fn run_socket_worker(
         for event in events.iter(){
             let token = event.token();
 
-            if token.0 == token_num {
-                if event.is_readable(){
-                    read_requests(
-                        &state,
-                        &config,
-                        &mut socket,
-                        &mut buffer,
-                        &mut requests,
-                        &mut local_responses,
-                    );
+            if (token.0 == token_num) & event.is_readable(){
+                read_requests(
+                    &state,
+                    &config,
+                    &mut socket,
+                    &mut buffer,
+                    &mut requests,
+                    &mut local_responses,
+                );
 
-                    for r in requests.drain(..){
-                        if let Err(err) = request_sender.send(r){
-                            eprintln!("error sending to request_sender: {}", err);
-                        }
+                for r in requests.drain(..){
+                    if let Err(err) = request_sender.send(r){
+                        eprintln!("error sending to request_sender: {}", err);
                     }
-
-                    state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
-
-                    poll.registry()
-                        .reregister(&mut socket, token, interests)
-                        .unwrap();
                 }
+
+                state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
+
+                poll.registry()
+                    .reregister(&mut socket, token, interests)
+                    .unwrap();
             }
         }
 
@@ -102,8 +100,9 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     socket.set_nonblocking(true)
         .expect("socket: set nonblocking");
 
-    socket.bind(&config.network.address.into())
-        .expect(&format!("socket: bind to {}", &config.network.address));
+    socket.bind(&config.network.address.into()).unwrap_or_else(|err|
+        panic!("socket: bind to {}: {:?}", config.network.address, err)
+    );
     
     let recv_buffer_size = config.network.socket_recv_buffer_size;
     

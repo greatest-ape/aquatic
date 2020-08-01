@@ -4,7 +4,6 @@ use std::io::Read;
 use anyhow::Context;
 use gumdrop::Options;
 use serde::{Serialize, de::DeserializeOwned};
-use toml;
 
 
 #[derive(Debug, Options)]

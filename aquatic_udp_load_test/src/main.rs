@@ -122,7 +122,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
             generate_transaction_id(&mut thread_rng())
         );
 
-        sender.send(request.into())
+        sender.send(request)
             .expect("bootstrap: add initial request to request queue");
     }
 

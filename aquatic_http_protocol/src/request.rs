@@ -179,7 +179,7 @@ impl Request {
 
         for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes){
             let segment_end = ampersand_iter.next()
-                .unwrap_or(query_string.len());
+                .unwrap_or_else(|| query_string.len());
 
             let key = query_string.get(position..equal_sign_index)
                 .with_context(|| format!("no key at {}..{}", position, equal_sign_index))?;

@@ -146,8 +146,8 @@ pub struct State {
 }
 
 
-impl State {
-    pub fn new() -> Self {
+impl Default for State {
+    fn default() -> Self {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
             torrents: Arc::new(Mutex::new(TorrentMaps::default())),

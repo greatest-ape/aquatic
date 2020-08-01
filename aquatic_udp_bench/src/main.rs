@@ -48,7 +48,7 @@ fn main(){
 pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     // Setup common state, spawn request handlers
 
-    let state = State::new();
+    let state = State::default();
     let aquatic_config = Config::default();
 
     let (request_sender, request_receiver) = unbounded();

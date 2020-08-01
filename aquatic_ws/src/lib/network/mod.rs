@@ -272,7 +272,9 @@ pub fn send_out_messages(
         
             use ::tungstenite::Error::Io;
 
-            match established_ws.ws.write_message(out_message.to_ws_message()){
+            let ws_message = out_message.into_ws_message();
+
+            match established_ws.ws.write_message(ws_message){
                 Ok(()) => {
                     debug!("sent message");
                 },

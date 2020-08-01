@@ -12,6 +12,8 @@ use crate::config::*;
 use crate::utils::create_random_request;
 
 
+// Allow large enum variant WebSocket because it should be very common
+#[allow(clippy::large_enum_variant)]
 pub enum ConnectionState {
     TcpStream(TcpStream),
     WebSocket(WebSocket<TcpStream>),
@@ -321,11 +323,8 @@ pub fn run_socket_thread(
                         }
 
                         connections.insert(k, connection);
-
-                    } else {
-                        if let Some(connection) = connection.advance(config){
-                            connections.insert(k, connection);
-                        }
+                    } else if let Some(c) = connection.advance(config){
+                        connections.insert(k, c);
                     }
                 } else {
                     // println!("connection not found for token {}", k);

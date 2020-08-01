@@ -16,7 +16,7 @@ use common::State;
 
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    let state = State::new();
+    let state = State::default();
 
     let (request_sender, request_receiver) = unbounded();
     let (response_sender, response_receiver) = unbounded();

@@ -20,7 +20,7 @@ pub fn bench_announce_handler(
     request_sender: &Sender<(Request, SocketAddr)>,
     response_receiver: &Receiver<(Response, SocketAddr)>,
     rng: &mut impl Rng,
-    info_hashes: &Vec<InfoHash>,
+    info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
     let requests = create_requests(
         state,
@@ -58,15 +58,12 @@ pub fn bench_announce_handler(
         let total = bench_config.num_announce_requests * (round + 1);
 
         while num_responses < total {
-            match response_receiver.recv(){
-                Ok((Response::Announce(r), _)) => {
-                    num_responses += 1;
+            if let Ok((Response::Announce(r), _)) = response_receiver.recv() {
+                num_responses += 1;
 
-                    if let Some(last_peer) = r.peers.last(){
-                        dummy ^= last_peer.port.0;
-                    }
-                },
-                _ => {}
+                if let Some(last_peer) = r.peers.last(){
+                    dummy ^= last_peer.port.0;
+                }
             }
         }
     }
@@ -84,7 +81,7 @@ pub fn bench_announce_handler(
 pub fn create_requests(
     state: &State,
     rng: &mut impl Rng,
-    info_hashes: &Vec<InfoHash>,
+    info_hashes: &[InfoHash],
     number: usize,
 ) -> Vec<(AnnounceRequest, SocketAddr)> {
     let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
@@ -100,15 +97,11 @@ pub fn create_requests(
         .cloned()
         .collect();
 
-    for i in 0..number {
+    for connection_key in connection_keys.into_iter(){
         let info_hash_index = pareto_usize(rng, pareto, max_index);
 
-        // Will panic if less connection requests than announce requests
-        let connection_id = connection_keys[i].connection_id; 
-        let src = connection_keys[i].socket_addr;
-
         let request = AnnounceRequest {
-            connection_id,
+            connection_id: connection_key.connection_id,
             transaction_id: TransactionId(rng.gen()),
             info_hash: info_hashes[info_hash_index],
             peer_id: PeerId(rng.gen()),
@@ -122,7 +115,7 @@ pub fn create_requests(
             port: Port(rng.gen())
         };
 
-        requests.push((request, src));
+        requests.push((request, connection_key.socket_addr));
     }
 
     requests

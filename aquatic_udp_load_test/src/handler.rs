@@ -172,7 +172,7 @@ fn process_response(
                         pareto,
                         info_hashes,
                         r.connection_id
-                    ).to_owned()
+                    )
                 });
 
             let new_transaction_id = generate_transaction_id(rng);
@@ -191,22 +191,22 @@ fn process_response(
 
         },
         Response::Announce(r) => {
-            return if_torrent_peer_move_and_create_random_request(
+            if_torrent_peer_move_and_create_random_request(
                 config,
                 rng,
                 info_hashes,
                 torrent_peers,
                 r.transaction_id
-            );
+            )
         },
         Response::Scrape(r) => {
-            return if_torrent_peer_move_and_create_random_request(
+            if_torrent_peer_move_and_create_random_request(
                 config,
                 rng,
                 info_hashes,
                 torrent_peers,
                 r.transaction_id
-            );
+            )
         },
         Response::Error(r) => {
             if !r.message.to_lowercase().contains("connection"){
