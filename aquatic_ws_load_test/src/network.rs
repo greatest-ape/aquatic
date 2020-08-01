@@ -95,7 +95,7 @@ impl Connection {
     
         connections.insert(*token_counter, connection);
 
-        *token_counter = *token_counter + 1;
+        *token_counter += 1;
     
         Ok(())
     }

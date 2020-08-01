@@ -10,12 +10,12 @@ use crate::config::Config;
 pub fn clean_connections_and_torrents(state: &State){
     let now = Instant::now();
 
-    let mut connections = state.connections.lock();
+    {
+        let mut connections = state.connections.lock();
 
-    connections.retain(|_, v| v.0 > now);
-    connections.shrink_to_fit();
-
-    ::std::mem::drop(connections);
+        connections.retain(|_, v| v.0 > now);
+        connections.shrink_to_fit();
+    }
 
     let mut torrents = state.torrents.lock();
     
@@ -101,24 +101,24 @@ pub fn gather_and_print_statistics(
 
     let mut peers_per_torrent = Histogram::new();
 
-    let torrents = &mut state.torrents.lock();
+    {
+        let torrents = &mut state.torrents.lock();
 
-    for torrent in torrents.ipv4.values(){
-        let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
+        for torrent in torrents.ipv4.values(){
+            let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
-        if let Err(err) = peers_per_torrent.increment(num_peers){
-            eprintln!("error incrementing peers_per_torrent histogram: {}", err)
+            if let Err(err) = peers_per_torrent.increment(num_peers){
+                eprintln!("error incrementing peers_per_torrent histogram: {}", err)
+            }
+        }
+        for torrent in torrents.ipv6.values(){
+            let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
+
+            if let Err(err) = peers_per_torrent.increment(num_peers){
+                eprintln!("error incrementing peers_per_torrent histogram: {}", err)
+            }
         }
     }
-    for torrent in torrents.ipv6.values(){
-        let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
-
-        if let Err(err) = peers_per_torrent.increment(num_peers){
-            eprintln!("error incrementing peers_per_torrent histogram: {}", err)
-        }
-    }
-
-    ::std::mem::drop(torrents);
 
     if peers_per_torrent.entries() != 0 {
         println!(
