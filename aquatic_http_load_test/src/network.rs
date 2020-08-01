@@ -58,16 +58,12 @@ impl Connection {
         loop {
             match self.stream.read(&mut self.read_buffer[self.bytes_read..]){
                 Ok(bytes_read) => {
-                    self.bytes_read = bytes_read;
-
-                    break;
+                    self.bytes_read += bytes_read;
                 },
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
                     self.can_send_initial = false;
 
-                    eprintln!("handle_read_event error would block: {}", err);
-
-                    return;
+                    break;
                 },
                 Err(err) => {
                     self.bytes_read = 0;

@@ -23,39 +23,39 @@ pub struct AnnounceRequest {
 
 impl AnnounceRequest {
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
-        output.write(b"GET /announce?info_hash=")?;
+        output.write_all(b"GET /announce?info_hash=")?;
         urlencode_20_bytes(self.info_hash.0, output)?;
 
-        output.write(b"&peer_id=")?;
+        output.write_all(b"&peer_id=")?;
         urlencode_20_bytes(self.info_hash.0, output)?;
 
-        output.write(b"&port=")?;
-        output.write(itoa::Buffer::new().format(self.port).as_bytes())?;
+        output.write_all(b"&port=")?;
+        output.write_all(itoa::Buffer::new().format(self.port).as_bytes())?;
 
-        output.write(b"&left=")?;
-        output.write(itoa::Buffer::new().format(self.bytes_left).as_bytes())?;
+        output.write_all(b"&left=")?;
+        output.write_all(itoa::Buffer::new().format(self.bytes_left).as_bytes())?;
 
         match self.event {
-            AnnounceEvent::Started => output.write(b"&event=started")?,
-            AnnounceEvent::Stopped => output.write(b"&event=stopped")?,
-            AnnounceEvent::Completed => output.write(b"&event=completed")?,
-            AnnounceEvent::Empty => 0,
+            AnnounceEvent::Started => output.write_all(b"&event=started")?,
+            AnnounceEvent::Stopped => output.write_all(b"&event=stopped")?,
+            AnnounceEvent::Completed => output.write_all(b"&event=completed")?,
+            AnnounceEvent::Empty => (),
         };
 
-        output.write(b"&compact=")?;
-        output.write(itoa::Buffer::new().format(self.compact as u8).as_bytes())?;
+        output.write_all(b"&compact=")?;
+        output.write_all(itoa::Buffer::new().format(self.compact as u8).as_bytes())?;
 
         if let Some(numwant) = self.numwant {
-            output.write(b"&numwant=")?;
-            output.write(itoa::Buffer::new().format(numwant).as_bytes())?;
+            output.write_all(b"&numwant=")?;
+            output.write_all(itoa::Buffer::new().format(numwant).as_bytes())?;
         }
 
         if let Some(ref key) = self.key {
-            output.write(b"&key=")?;
-            output.write(key.as_str().as_bytes())?;
+            output.write_all(b"&key=")?;
+            output.write_all(key.as_str().as_bytes())?;
         }
 
-        output.write(b" HTTP/1.1\r\n\r\n")?;
+        output.write_all(b" HTTP/1.1\r\n\r\n")?;
 
         Ok(())
     }
@@ -70,22 +70,22 @@ pub struct ScrapeRequest {
 
 impl ScrapeRequest {
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
-        output.write(b"GET /scrape?")?;
+        output.write_all(b"GET /scrape?")?;
 
         let mut first = true;
 
         for info_hash in self.info_hashes.iter() {
             if !first {
-                output.write(b"&")?;
+                output.write_all(b"&")?;
             }
 
-            output.write(b"info_hash=")?;
+            output.write_all(b"info_hash=")?;
             urlencode_20_bytes(info_hash.0, output)?;
 
             first = false;
         }
 
-        output.write(b" HTTP/1.1\r\n\r\n")?;
+        output.write_all(b" HTTP/1.1\r\n\r\n")?;
 
         Ok(())
     }

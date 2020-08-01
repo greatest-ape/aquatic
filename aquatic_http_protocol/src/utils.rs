@@ -21,7 +21,7 @@ pub fn urlencode_20_bytes(
         ).unwrap();
     }
 
-    output.write(&tmp)?;
+    output.write_all(&tmp)?;
 
     Ok(())
 }
