@@ -102,6 +102,8 @@ fn monitor_statistics(
 
         let requests_per_second = statistics.requests
             .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let responses_offer_per_second = statistics.responses_offer
+            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
         let responses_scrape_per_second = statistics.responses_scrape
             .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
         let responses_failure_per_second = statistics.responses_failure
@@ -116,6 +118,7 @@ fn monitor_statistics(
 
         let responses_per_second = 
             responses_announce_per_second +
+            responses_offer_per_second +
             responses_scrape_per_second +
             responses_failure_per_second;
 
@@ -125,6 +128,7 @@ fn monitor_statistics(
         println!("Requests out: {:.2}/second", requests_per_second);
         println!("Responses in: {:.2}/second", responses_per_second);
         println!("  - Announce responses: {:.2}", responses_announce_per_second);
+        println!("  - Offer responses:    {:.2}", responses_offer_per_second);
         println!("  - Scrape responses:   {:.2}", responses_scrape_per_second);
         println!("  - Failure responses:  {:.2}", responses_failure_per_second);
         //println!("Peers per announce response: {:.2}", response_peers / responses_announce);

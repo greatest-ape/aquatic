@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 use std::time::Duration;
-use std::io::{Read, Write, ErrorKind, Cursor};
+use std::io::ErrorKind;
 
 use hashbrown::HashMap;
 use mio::{net::TcpStream, Events, Poll, Interest, Token};
@@ -10,9 +10,6 @@ use tungstenite::{WebSocket, HandshakeError, ClientHandshake, handshake::MidHand
 use crate::common::*;
 use crate::config::*;
 use crate::utils::create_random_request;
-
-
-type HandshakeResult<T> = std::result::Result<(tungstenite::protocol::WebSocket<TcpStream>, T), tungstenite::handshake::HandshakeError<tungstenite::handshake::client::ClientHandshake<TcpStream>>>;
 
 
 pub enum ConnectionState {
@@ -120,41 +117,56 @@ impl Connection {
         rng: &mut impl Rng,
     ){
         if let ConnectionState::WebSocket(ref mut ws) = self.stream {
+            let mut send_request = false;
+
             loop {
                 match ws.read_message(){
                     Ok(message) => {
-                        Self::register_response_type(state, message);
-
-                        break;
+                        send_request |= Self::register_response_type(state, message);
                     },
                     Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                         self.can_send_initial = false;
 
-                        eprintln!("handle_read_event error would block: {}", err);
-
-                        return;
+                        break;
                     },
                     Err(err) => {
                         eprintln!("handle_read_event error: {}", err);
 
-                        return;
+                        break;
                     }
                 }
             };
 
-            self.send_request(
-                config,
-                state,
-                rng,
-            );
+            if send_request {
+                self.send_request(
+                    config,
+                    state,
+                    rng,
+                );
+            }
         }
     }
 
     fn register_response_type(
         state: &LoadTestState,
         message: ::tungstenite::Message,
-    ){
-        state.statistics.responses_announce.fetch_add(1, Ordering::SeqCst); // FIXME
+    ) -> bool {
+        if let ::tungstenite::Message::Text(text) = message {
+            if text.contains("offer"){
+                state.statistics.responses_offer
+                    .fetch_add(1, Ordering::SeqCst);
+                
+                return false;
+            } else if text.contains("announce"){
+                state.statistics.responses_announce
+                    .fetch_add(1, Ordering::SeqCst);
+            } else if text.contains("scrape"){
+                state.statistics.responses_scrape
+                    .fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        true
     }
 
     pub fn send_request(

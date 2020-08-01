@@ -57,13 +57,22 @@ fn create_announce_request(
 
     let info_hash_index = select_info_hash_index(config, &state, rng);
 
+    let mut offers = Vec::with_capacity(10);
+    
+    for _ in 0..10 {
+        offers.push(AnnounceRequestOffer {
+            offer_id: OfferId(rng.gen()),
+            offer: JsonValue(::serde_json::Value::from("{}")),
+        })
+    }
+
     InMessage::AnnounceRequest(AnnounceRequest {
         info_hash: state.info_hashes[info_hash_index],
         peer_id: PeerId(rng.gen()),
         bytes_left: Some(bytes_left),
         event,
         numwant: None,
-        offers: None, // FIXME
+        offers: Some(offers),
         answer: None,
         to_peer_id: None,
         offer_id: None,
