@@ -7,6 +7,6 @@ license = "Apache-2.0"
 
 [dependencies]
 anyhow = "1"
-gumdrop = "0.7"
+gumdrop = "0.8"
 serde = { version = "1", features = ["derive"] }
 toml = "0.5"
