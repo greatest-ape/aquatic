@@ -21,7 +21,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub fn main(){
     aquatic_cli_helpers::run_app_with_cli_and_config::<Config>(
-        "aquatic: udp bittorrent tracker: load tester",
+        "aquatic: webtorrent tracker load tester",
         run,
     )
 }
