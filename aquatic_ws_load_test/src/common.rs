@@ -22,9 +22,6 @@ pub struct Statistics {
     pub responses_offer: AtomicUsize,
     pub responses_answer: AtomicUsize,
     pub responses_scrape: AtomicUsize,
-    pub responses_failure: AtomicUsize,
-    pub bytes_sent: AtomicUsize,
-    pub bytes_received: AtomicUsize,
 }
 
 
