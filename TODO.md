@@ -25,6 +25,7 @@
   * 'left' optional in magnet requests? Probably not. Transmission sends huge
     positive number.
 * compact=0 should result in error response
+* config: multiple request workers
 * Connection.send_response: handle case when all bytes are not written: can
   write actually block here? And what action should be taken then?
 
@@ -37,6 +38,7 @@
   aquatic_http (including ip uniqueness part of peer map key)
 * tests
 * use enum as return type for handshake machine
+* config: multiple request workers
 * optimize serialize_20_bytes (10% cpu utilization). deserialize_20_bytes
   doesn't seem to be that expensive (1-2% cpu)
 
