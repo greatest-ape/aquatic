@@ -2,10 +2,10 @@
 
 ## General
 
-* init logging in cli helper crate?
+* init logging in cli helper crate? kind of tricky, requires cli helper
+  knowledge of config, such as config implementing a trait to get log
+  level
 * automatic tests running real clients in container?
-* peer extractor: extract one extra, remove peer if same as sender, otherwise
-  just remove one
 
 ## aquatic_http_load_test
 
@@ -46,11 +46,15 @@
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
   and using log crate
+* use key from request as part of peer map key like in aquatic_http? need to
+  check protocol specification
 
 # Not important
 
 ## General
 * mio oneshot setting: could it be beneficial?
+* peer extractor: extract one extra, remove peer if same as sender, otherwise
+  just remove one?
 
 ## aquatic_http
 * request parsing:
