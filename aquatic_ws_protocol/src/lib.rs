@@ -81,7 +81,7 @@ pub struct MiddlemanOfferToPeer {
 /// If announce request has answer = true, send this to peer with
 /// peer id == "to_peer_id" field
 /// Action field should be 'announce'
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MiddlemanAnswerToPeer {
     /// Note: if equal to client peer_id, client ignores answer
     pub peer_id: PeerId,
@@ -134,7 +134,7 @@ pub struct AnnounceRequest {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnnounceResponse {
     pub info_hash: InfoHash,
     /// Client checks if this is null, not clear why
@@ -159,7 +159,7 @@ pub struct ScrapeRequest {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeStatistics {
     pub complete: usize,
     pub incomplete: usize,
@@ -167,7 +167,7 @@ pub struct ScrapeStatistics {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeResponse {
     pub files: HashMap<InfoHash, ScrapeStatistics>,
     // Looks like `flags` field is ignored in reference client
@@ -296,5 +296,30 @@ impl OutMessage {
         };
                 
         tungstenite::Message::from(json)
+    }
+
+    #[inline]
+    pub fn from_ws_message(
+        message: ::tungstenite::Message
+    ) -> ::anyhow::Result<Self> {
+        use tungstenite::Message::{Text, Binary};
+
+        let text = match message {
+            Text(text) => text,
+            Binary(bytes) => String::from_utf8(bytes)?,
+            _ => return Err(anyhow::anyhow!("message type not supported")),
+        };
+
+        if text.contains("answer"){
+            Ok(Self::Answer(::serde_json::from_str(&text)?))
+        } else if text.contains("offer"){
+            Ok(Self::Offer(::serde_json::from_str(&text)?))
+        } else if text.contains("interval"){
+            Ok(Self::AnnounceResponse(::serde_json::from_str(&text)?))
+        } else if text.contains("scrape"){
+            Ok(Self::ScrapeResponse(::serde_json::from_str(&text)?))
+        } else {
+            Err(anyhow::anyhow!("Could not determine response type"))
+        }
     }
 }

@@ -125,39 +125,39 @@ impl Connection {
             loop {
                 match ws.read_message(){
                     Ok(message) => {
-                        if let ::tungstenite::Message::Text(text) = message {
-                            if text.contains("answer"){
+                        match OutMessage::from_ws_message(message){
+                            Ok(OutMessage::Offer(offer)) => {
+                                state.statistics.responses_offer
+                                    .fetch_add(1, Ordering::SeqCst);
+                                
+                                self.send_answer = Some((
+                                    offer.peer_id,
+                                    offer.offer_id
+                                ));
+
+                                send_random_request = true;
+                            },
+                            Ok(OutMessage::Answer(_)) => {
                                 state.statistics.responses_answer
                                     .fetch_add(1, Ordering::SeqCst);
-                            } else if text.contains("offer"){
-                                // If message is an offer, send an answer but
-                                // no new offers in next announce request.
 
-                                let res_offer: Result<MiddlemanOfferToPeer, _> = ::serde_json::from_str(&text);
-
-                                match res_offer {
-                                    Ok(offer) => {
-                                        state.statistics.responses_offer
-                                            .fetch_add(1, Ordering::SeqCst);
-                                        
-                                        self.send_answer = Some((
-                                            offer.peer_id,
-                                            offer.offer_id
-                                        ));
-                                    },
-                                    Err(err) => {
-                                        eprintln!("error decoding offer: {:?}", err);
-                                    }
-                                }
-                            } else if text.contains("interval"){
+                                send_random_request = true;
+                            },
+                            Ok(OutMessage::AnnounceResponse(_)) => {
                                 state.statistics.responses_announce
                                     .fetch_add(1, Ordering::SeqCst);
-                            } else if text.contains("scrape"){
+
+                                send_random_request = true;
+                            },
+                            Ok(OutMessage::ScrapeResponse(_)) => {
                                 state.statistics.responses_scrape
                                     .fetch_add(1, Ordering::SeqCst);
-                            }
 
-                            send_random_request = true;
+                                send_random_request = true;
+                            },
+                            Err(err) => {
+                                eprintln!("error deserializing offer: {:?}", err);
+                            }
                         }
                     },
                     Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {

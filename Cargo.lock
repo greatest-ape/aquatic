@@ -239,6 +239,7 @@ dependencies = [
 name = "aquatic_ws_protocol"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "hashbrown",
  "serde",
  "serde_json",
