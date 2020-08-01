@@ -261,7 +261,7 @@ impl Connection {
         if let Either::Left(ref mut ews) = self.inner {
             if ews.ws.can_read(){
                 if let Err(err) = ews.ws.close(None){
-                    ::log::error!("error closing ws: {}", err);
+                    ::log::info!("error closing ws: {}", err);
                 }
 
                 // Required after ws.close()
