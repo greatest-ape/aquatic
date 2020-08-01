@@ -62,7 +62,7 @@ fn create_announce_request(
     for _ in 0..10 {
         offers.push(AnnounceRequestOffer {
             offer_id: OfferId(rng.gen()),
-            offer: JsonValue(::serde_json::Value::from("{}")),
+            offer: JsonValue(::serde_json::Value::from(JSON_VALUE)),
         })
     }
 
