@@ -9,7 +9,6 @@
 * opening new connections in current form causes macOS issues, why?
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
-* num_connections config field as in ws load test
 
 ## aquatic_http
 * upper limit on request read buffer
