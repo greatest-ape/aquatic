@@ -9,6 +9,7 @@
 * opening new connections in current form causes macOS issues, why?
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
+* num_connections config field as in ws load test
 
 ## aquatic_http
 * upper limit on request read buffer
@@ -35,6 +36,8 @@
   aquatic_http (including ip uniqueness part of peer map key)
 * tests
 * use enum as return type for handshake machine
+* optimize serialize_20_bytes (10% cpu utilization). deserialize_20_bytes
+  doesn't seem to be that expensive (1-2% cpu)
 
 ## aquatic_udp
 * mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
