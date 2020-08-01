@@ -104,6 +104,8 @@ fn monitor_statistics(
             .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
         let responses_offer_per_second = statistics.responses_offer
             .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let responses_answer_per_second = statistics.responses_answer
+            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
         let responses_scrape_per_second = statistics.responses_scrape
             .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
         let responses_failure_per_second = statistics.responses_failure
@@ -119,6 +121,7 @@ fn monitor_statistics(
         let responses_per_second = 
             responses_announce_per_second +
             responses_offer_per_second +
+            responses_answer_per_second +
             responses_scrape_per_second +
             responses_failure_per_second;
 
@@ -129,11 +132,12 @@ fn monitor_statistics(
         println!("Responses in: {:.2}/second", responses_per_second);
         println!("  - Announce responses: {:.2}", responses_announce_per_second);
         println!("  - Offer responses:    {:.2}", responses_offer_per_second);
+        println!("  - Answer responses:   {:.2}", responses_answer_per_second);
         println!("  - Scrape responses:   {:.2}", responses_scrape_per_second);
-        println!("  - Failure responses:  {:.2}", responses_failure_per_second);
-        //println!("Peers per announce response: {:.2}", response_peers / responses_announce);
-        println!("Bandwidth out: {:.2}Mbit/s", bytes_sent_per_second * MBITS_FACTOR);
-        println!("Bandwidth in:  {:.2}Mbit/s", bytes_received_per_second * MBITS_FACTOR);
+        // println!("  - Failure responses:  {:.2}", responses_failure_per_second);
+        // println!("Peers per announce response: {:.2}", response_peers / responses_announce);
+        // println!("Bandwidth out: {:.2}Mbit/s", bytes_sent_per_second * MBITS_FACTOR);
+        // println!("Bandwidth in:  {:.2}Mbit/s", bytes_received_per_second * MBITS_FACTOR);
         
         let time_elapsed = start_time.elapsed();
         let duration = Duration::from_secs(config.duration as u64);

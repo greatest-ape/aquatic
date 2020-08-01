@@ -65,7 +65,7 @@ impl Default for AnnounceEvent {
 /// Apparently, these are sent to a number of peers when they are set
 /// in an AnnounceRequest
 /// action = "announce"
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MiddlemanOfferToPeer {
     /// Peer id of peer sending offer
     /// Note: if equal to client peer_id, client ignores offer

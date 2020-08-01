@@ -20,6 +20,7 @@ pub struct Statistics {
     pub response_peers: AtomicUsize,
     pub responses_announce: AtomicUsize,
     pub responses_offer: AtomicUsize,
+    pub responses_answer: AtomicUsize,
     pub responses_scrape: AtomicUsize,
     pub responses_failure: AtomicUsize,
     pub bytes_sent: AtomicUsize,
