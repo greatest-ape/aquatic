@@ -39,7 +39,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main(){
     run_app_with_cli_and_config::<BenchConfig>(
-        "aquatic benchmarker",
+        "aquatic udp bittorrent tracker: benchmarker",
         run
     )
 }
