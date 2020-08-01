@@ -42,6 +42,7 @@
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
+  and using log crate
 * More tests?
 * Protocol crate: converter functions should be trait functions
 
@@ -93,16 +94,11 @@
 * extract_response_peers
     * Cleaner code
     * Stack-allocated vector?
-* Use log crate for errors
 * Performance
     * mialloc good?
 
 ## aquatic_udp_protocol
 * Tests with good known byte sequences (requests and responses)
-* Avoid heap allocation in general if it can be avoided?
-    * request from bytes for scrape: use arrayvec with some max size for
-      torrents? With Vec, allocation takes quite a bit of CPU time
-    * Optimize bytes to scrape request: Vec::with_capacity or other solution (SmallVec?)
 * Don't do endian conversion where unnecessary, such as for connection id and
   transaction id?
 
