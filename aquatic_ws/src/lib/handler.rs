@@ -6,10 +6,10 @@ use parking_lot::MutexGuard;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
 use aquatic_common::extract_response_peers;
+use aquatic_ws_protocol::*;
 
 use crate::common::*;
 use crate::config::Config;
-use crate::protocol::*;
 
 
 pub fn run_request_worker(

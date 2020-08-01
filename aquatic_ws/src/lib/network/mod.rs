@@ -10,10 +10,10 @@ use mio::net::TcpListener;
 use tungstenite::protocol::WebSocketConfig;
 
 use aquatic_common::convert_ipv4_mapped_ipv6;
+use aquatic_ws_protocol::*;
 
 use crate::common::*;
 use crate::config::Config;
-use crate::protocol::*;
 
 pub mod connection;
 pub mod utils;
@@ -242,6 +242,8 @@ pub fn run_handshakes_and_read_messages(
             if stop_loop {
                 break;
             }
+        } else {
+            break
         }
     }
 }

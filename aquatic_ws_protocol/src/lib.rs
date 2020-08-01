@@ -45,7 +45,7 @@ pub struct OfferId(
 pub struct JsonValue(pub ::serde_json::Value);
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AnnounceEvent {
     Started,
@@ -92,14 +92,14 @@ pub struct MiddlemanAnswerToPeer {
 
 
 /// Element of AnnounceRequest.offers
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnnounceRequestOffer {
     pub offer: JsonValue,
     pub offer_id: OfferId,
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnnounceRequest {
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
@@ -145,7 +145,7 @@ pub struct AnnounceResponse {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeRequest {
     // If omitted, scrape for all torrents, apparently
     // There is some kind of parsing here too which accepts a single info hash
@@ -243,6 +243,19 @@ impl InMessage {
         }
 
         None
+    }
+
+    pub fn to_ws_message(&self) -> ::tungstenite::Message {
+        let text = match self {
+            InMessage::AnnounceRequest(r) => {
+                serde_json::to_string(&ActionWrapper::announce(r)).unwrap()
+            },
+            InMessage::ScrapeRequest(r) => {
+                serde_json::to_string(&ActionWrapper::scrape(r)).unwrap()
+            },
+        };
+
+        ::tungstenite::Message::from(text)
     }
 }
 

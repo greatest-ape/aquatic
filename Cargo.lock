@@ -195,6 +195,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_common",
+ "aquatic_ws_protocol",
  "crossbeam-channel",
  "either",
  "hashbrown",
@@ -209,9 +210,37 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "serde",
- "serde_json",
  "simplelog",
  "socket2",
+ "tungstenite",
+]
+
+[[package]]
+name = "aquatic_ws_load_test"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aquatic_cli_helpers",
+ "aquatic_ws_protocol",
+ "hashbrown",
+ "mimalloc",
+ "mio",
+ "quickcheck",
+ "quickcheck_macros",
+ "rand",
+ "rand_distr",
+ "serde",
+ "slab",
+ "tungstenite",
+]
+
+[[package]]
+name = "aquatic_ws_protocol"
+version = "0.1.0"
+dependencies = [
+ "hashbrown",
+ "serde",
+ "serde_json",
  "tungstenite",
 ]
 

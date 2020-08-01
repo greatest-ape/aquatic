@@ -10,7 +10,7 @@ use parking_lot::Mutex;
 
 pub use aquatic_common::ValidUntil;
 
-use crate::protocol::*;
+use aquatic_ws_protocol::*;
 
 
 #[derive(Clone, Copy, Debug)]
