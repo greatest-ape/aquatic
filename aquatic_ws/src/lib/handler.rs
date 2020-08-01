@@ -198,25 +198,24 @@ pub fn handle_announce_requests(
         }
 
         // If peer sent answer, send it on to relevant peer
-        match (request.answer, request.to_peer_id, request.offer_id){
-            (Some(answer), Some(answer_receiver_id), Some(offer_id)) => {
-                if let Some(answer_receiver) = torrent_data.peers
-                    .get(&answer_receiver_id)
-                {
-                    let middleman_answer = MiddlemanAnswerToPeer {
-                        peer_id: request.peer_id,
-                        info_hash: request.info_hash,
-                        answer,
-                        offer_id,
-                    };
+        if let (Some(answer), Some(answer_receiver_id), Some(offer_id)) =
+            (request.answer, request.to_peer_id, request.offer_id)
+        {
+            if let Some(answer_receiver) = torrent_data.peers
+                .get(&answer_receiver_id)
+            {
+                let middleman_answer = MiddlemanAnswerToPeer {
+                    peer_id: request.peer_id,
+                    info_hash: request.info_hash,
+                    answer,
+                    offer_id,
+                };
 
-                    messages_out.push((
-                        answer_receiver.connection_meta,
-                        OutMessage::Answer(middleman_answer)
-                    ));
-                }
-            },
-            _ => (),
+                messages_out.push((
+                    answer_receiver.connection_meta,
+                    OutMessage::Answer(middleman_answer)
+                ));
+            }
         }
 
         let response = OutMessage::AnnounceResponse(AnnounceResponse {

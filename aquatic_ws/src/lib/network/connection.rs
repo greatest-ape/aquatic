@@ -222,7 +222,7 @@ impl Connection {
     }
 
     #[inline]
-    pub fn get_established_ws<'a>(&mut self) -> Option<&mut EstablishedWs> {
+    pub fn get_established_ws(&mut self) -> Option<&mut EstablishedWs> {
         match self.inner {
             Either::Left(ref mut ews) => Some(ews),
             Either::Right(_) => None,
