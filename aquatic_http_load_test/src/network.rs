@@ -175,18 +175,15 @@ impl Connection {
 pub type ConnectionMap = Slab<Connection>;
 
 
-const NUM_CONNECTIONS: usize = 128;
-const CREATE_CONN_INTERVAL: usize = 2 ^ 18;
-
-
 pub fn run_socket_thread(
     config: &Config,
     state: LoadTestState,
     num_initial_requests: usize,
 ) {
     let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
+    let create_conn_interval = 2 ^ config.network.connection_creation_interval;
 
-    let mut connections: ConnectionMap = Slab::with_capacity(NUM_CONNECTIONS);
+    let mut connections: ConnectionMap = Slab::with_capacity(config.num_connections);
     let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut rng = SmallRng::from_entropy();
@@ -244,7 +241,7 @@ pub fn run_socket_thread(
         }
 
         // Slowly create new connections
-        if token_counter < NUM_CONNECTIONS && iter_counter % CREATE_CONN_INTERVAL == 0 {
+        if token_counter < config.num_connections && iter_counter % create_conn_interval == 0 {
             Connection::create_and_register(
                 config,
                 &mut connections,

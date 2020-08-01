@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 pub struct Config {
     pub server_address: SocketAddr,
     pub num_workers: u8,
+    pub num_connections: usize,
     pub duration: usize,
     pub network: NetworkConfig,
     pub torrents: TorrentConfig,
@@ -17,6 +18,7 @@ pub struct Config {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
+    pub connection_creation_interval: usize,
     pub poll_timeout_microseconds: u64,
     pub poll_event_capacity: usize,
 }
@@ -46,6 +48,7 @@ impl Default for Config {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
             num_workers: 1,
+            num_connections: 128,
             duration: 0,
             network: NetworkConfig::default(),
             torrents: TorrentConfig::default(),
@@ -56,8 +59,9 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            poll_timeout_microseconds: 1000,
-            poll_event_capacity: 4096,
+            connection_creation_interval: 40,
+            poll_timeout_microseconds: 47,
+            poll_event_capacity: 1024,
         }
     }
 }
