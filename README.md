@@ -175,8 +175,8 @@ Please refer to the `aquatic_ws` section for information about setting up TLS.
 
 ## Load testing
 
-There are two load test binaries. They use the same CLI structure as the
-trackers, including configuration file generation and loading.
+There are load test binaries for all protocols. They use the same CLI structure
+as the trackers, including configuration file generation and loading.
 
 ### aquatic_udp_load_test
 
@@ -185,6 +185,17 @@ To load test `aquatic_udp`, start it and then run:
 ```sh
 ./scripts/run-load-test-udp.sh
 ```
+
+### aquatic_ws_load_test
+
+To load test `aquatic_ws`, start it and then run:
+
+```sh
+./scripts/run-load-test-ws.sh
+```
+
+To achieve high throughput, it is currently necessary to sharply reduce the
+poll timeout setting in the tracker, and reduce it somewhat in the load tester.
 
 ### aquatic_http_load_test
 
