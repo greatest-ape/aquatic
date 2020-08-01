@@ -129,13 +129,9 @@ impl Connection {
                             if text.contains("answer"){
                                 state.statistics.responses_answer
                                     .fetch_add(1, Ordering::SeqCst);
-
-                                send_random_request = true;
                             } else if text.contains("offer"){
-                                // If message is an offer, don't send random
-                                // request in return, since that would cause
-                                // exponential growth of number of requests.
-                                // However, add an answer to next request.
+                                // If message is an offer, send an answer but
+                                // no new offers in next announce request.
 
                                 let res_offer: Result<MiddlemanOfferToPeer, _> = ::serde_json::from_str(&text);
 
@@ -156,14 +152,12 @@ impl Connection {
                             } else if text.contains("interval"){
                                 state.statistics.responses_announce
                                     .fetch_add(1, Ordering::SeqCst);
-
-                                send_random_request = true;
                             } else if text.contains("scrape"){
                                 state.statistics.responses_scrape
                                     .fetch_add(1, Ordering::SeqCst);
-
-                                send_random_request = true;
                             }
+
+                            send_random_request = true;
                         }
                     },
                     Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
@@ -201,12 +195,14 @@ impl Connection {
             rng
         );
 
-        // Add offer answer data if applicable
+        // If self.send_answer is set and request is announce request, make
+        // the request an offer answer
         let request = if let InMessage::AnnounceRequest(mut r) = request {
             if let Some((peer_id, offer_id)) = self.send_answer {
                 r.to_peer_id = Some(peer_id);
                 r.offer_id = Some(offer_id);
                 r.answer = Some(JsonValue(::serde_json::Value::from("{}")));
+                r.offers = None;
             }
 
             self.send_answer = None;
