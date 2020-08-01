@@ -204,7 +204,6 @@ impl Connection {
 pub type ConnectionMap = HashMap<usize, Connection>;
 
 
-const NUM_CONNECTIONS: usize = 5;
 const CREATE_CONN_INTERVAL: usize = 2 ^ 30;
 
 
@@ -215,7 +214,7 @@ pub fn run_socket_thread(
 ) {
     let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
 
-    let mut connections: ConnectionMap = HashMap::with_capacity(NUM_CONNECTIONS);
+    let mut connections: ConnectionMap = HashMap::with_capacity(config.num_connections);
     let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut rng = SmallRng::from_entropy();
@@ -315,7 +314,7 @@ pub fn run_socket_thread(
         }
 
         // Slowly create new connections
-        if token_counter < NUM_CONNECTIONS && iter_counter % CREATE_CONN_INTERVAL == 0 {
+        if token_counter < config.num_connections && iter_counter % CREATE_CONN_INTERVAL == 0 {
             let res = Connection::create_and_register(
                 config,
                 &mut connections,

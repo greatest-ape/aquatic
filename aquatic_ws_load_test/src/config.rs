@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 pub struct Config {
     pub server_address: SocketAddr,
     pub num_workers: u8,
+    pub num_connections: usize,
     pub duration: usize,
     pub network: NetworkConfig,
     pub torrents: TorrentConfig,
@@ -46,6 +47,7 @@ impl Default for Config {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
             num_workers: 1,
+            num_connections: 8,
             duration: 0,
             network: NetworkConfig::default(),
             torrents: TorrentConfig::default(),
