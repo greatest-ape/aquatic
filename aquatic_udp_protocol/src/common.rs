@@ -49,6 +49,7 @@ pub struct ResponsePeer {
 }
 
 
+
 #[cfg(test)]
 impl quickcheck::Arbitrary for IpVersion {
     fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {

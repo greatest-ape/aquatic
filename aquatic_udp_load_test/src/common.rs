@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use parking_lot::Mutex;
 use serde::{Serialize, Deserialize};
 
-use aquatic_udp_protocol::types::*;
+use aquatic_udp_protocol::*;
 
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]

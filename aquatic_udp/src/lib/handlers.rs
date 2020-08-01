@@ -7,7 +7,7 @@ use parking_lot::MutexGuard;
 use rand::{SeedableRng, Rng, rngs::{SmallRng, StdRng}};
 
 use aquatic_common::{convert_ipv4_mapped_ipv6, extract_response_peers};
-use aquatic_udp_protocol::types::*;
+use aquatic_udp_protocol::*;
 
 use crate::common::*;
 use crate::config::Config;

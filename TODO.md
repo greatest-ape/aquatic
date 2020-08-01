@@ -44,7 +44,6 @@
 * handle errors similarily to aquatic_ws, including errors in socket workers
   and using log crate
 * More tests?
-* Protocol crate: converter functions should be trait functions
 
 # Not important
 

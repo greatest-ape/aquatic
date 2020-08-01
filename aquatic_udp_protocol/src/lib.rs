@@ -1,11 +1,7 @@
-//! UDP BitTorrent tracker protocol structures
+pub mod common;
+pub mod request;
+pub mod response;
 
-#[cfg(test)]
-extern crate quickcheck;
-#[cfg(test)]
-#[macro_use(quickcheck)]
-extern crate quickcheck_macros;
-
-
-pub mod converters;
-pub mod types;
+pub use self::common::*;
+pub use self::request::*;
+pub use self::response::*;

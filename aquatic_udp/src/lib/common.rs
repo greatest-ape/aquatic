@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use parking_lot::Mutex;
 
 pub use aquatic_common::ValidUntil;
-pub use aquatic_udp_protocol::types::*;
+pub use aquatic_udp_protocol::*;
 
 
 pub const MAX_PACKET_SIZE: usize = 4096;

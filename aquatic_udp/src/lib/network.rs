@@ -9,8 +9,7 @@ use mio::{Events, Poll, Interest, Token};
 use mio::net::UdpSocket;
 use socket2::{Socket, Domain, Type, Protocol};
 
-use aquatic_udp_protocol::types::IpVersion;
-use aquatic_udp_protocol::converters::{response_to_bytes, request_from_bytes};
+use aquatic_udp_protocol::{Request, Response, IpVersion};
 
 use crate::common::*;
 use crate::config::Config;
@@ -131,7 +130,7 @@ fn read_requests(
     loop {
         match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
-                let request = request_from_bytes(
+                let request = Request::from_bytes(
                     &buffer[..amt],
                     config.protocol.max_scrape_torrents
                 );
@@ -212,7 +211,7 @@ fn send_responses(
 
         let ip_version = ip_version_from_ip(src.ip());
 
-        response_to_bytes(&mut cursor, response, ip_version).unwrap();
+        response.write(&mut cursor, ip_version).unwrap();
 
         let amt = cursor.position() as usize;
 

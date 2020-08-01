@@ -7,8 +7,7 @@ use crossbeam_channel::{Receiver, Sender};
 use mio::{net::UdpSocket, Events, Poll, Interest, Token};
 use socket2::{Socket, Domain, Type, Protocol};
 
-use aquatic_udp_protocol::converters::*;
-use aquatic_udp_protocol::types::*;
+use aquatic_udp_protocol::*;
 
 use crate::common::*;
 
@@ -131,7 +130,7 @@ fn read_responses(
     responses: &mut Vec<(ThreadId, Response)>,
 ){
     while let Ok(amt) = socket.recv(buffer) {
-        match response_from_bytes(&buffer[0..amt]){
+        match Response::from_bytes(&buffer[0..amt]){
             Ok(response) => {
                 match response {
                     Response::Announce(ref r) => {
@@ -171,7 +170,7 @@ fn send_requests(
     while let Ok(request) = receiver.try_recv() {
         cursor.set_position(0);
 
-        if let Err(err) = request_to_bytes(&mut cursor, request){
+        if let Err(err) = request.write(&mut cursor){
             eprintln!("request_to_bytes err: {}", err);
         }
 
