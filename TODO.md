@@ -2,6 +2,7 @@
 
 ## General
 
+* don't print RUSTFLAGS in scripts, it causes issues with config printing
 * init logging in cli helper crate?
 
 ## aquatic_http_load_test
