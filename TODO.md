@@ -3,6 +3,9 @@
 ## General
 
 * init logging in cli helper crate?
+* automatic tests running real clients in container?
+* peer extractor: extract one extra, remove peer if same as sender, otherwise
+  just remove one
 
 ## aquatic_http_load_test
 
@@ -43,7 +46,6 @@
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
   and using log crate
-* More tests?
 
 # Not important
 
