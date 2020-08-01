@@ -8,6 +8,4 @@ DISABLE_AVX512=$(rustc --print target-features | grep "    avx512" |
 
 export RUSTFLAGS="-C target-cpu=native $DISABLE_AVX512"
 
-echo "Compiling with RUSTFLAGS=$RUSTFLAGS"
-
 cargo run --release --bin aquatic_udp_load_test -- $@
