@@ -68,10 +68,6 @@ pub fn run_socket_worker(
                 }
 
                 state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
-
-                poll.registry()
-                    .reregister(&mut socket, token, interests)
-                    .unwrap();
             }
         }
 

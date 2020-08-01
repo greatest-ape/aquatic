@@ -41,12 +41,14 @@
   doesn't seem to be that expensive (1-2% cpu)
 
 ## aquatic_udp
-* mio: set oneshot for epoll and kqueue? otherwise, stop reregistering?
 * handle errors similarily to aquatic_ws, including errors in socket workers
 * More tests?
 * Protocol crate: converter functions should be trait functions
 
 # Not important
+
+## General
+* mio oneshot setting: could it be beneficial?
 
 ## aquatic_http
 * request parsing:
