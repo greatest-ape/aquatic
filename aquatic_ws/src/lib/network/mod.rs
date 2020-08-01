@@ -182,6 +182,11 @@ pub fn run_handshakes_and_read_messages(
 ){
     loop {
         if let Some(established_ws) = connections.get_mut(&poll_token)
+            .map(|c| { // Ugly but works
+                c.valid_until = valid_until;
+
+                c
+            })
             .and_then(Connection::get_established_ws)
         {
             use ::tungstenite::Error::Io;

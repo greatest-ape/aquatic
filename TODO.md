@@ -33,7 +33,6 @@
   * tungstenite 0.11
 * is 'key' sent in announce request? if so, maybe handle it like in
   aquatic_http (including ip uniqueness part of peer map key)
-* established connections do not get valid_until updated, I think?
 * tests
 * use enum as return type for handshake machine
 
