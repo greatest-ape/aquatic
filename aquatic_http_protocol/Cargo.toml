@@ -25,7 +25,6 @@ harness = false
 
 [dependencies]
 anyhow = "1"
-bendy = { version = "0.3", features = ["std", "serde"] }
 hashbrown = "0.8"
 hex = { version = "0.4", default-features = false }
 httparse = "1"
@@ -37,6 +36,7 @@ serde = { version = "1", features = ["derive"] }
 smartstring = "0.2"
 
 [dev-dependencies]
+bendy = { version = "0.3", features = ["std", "serde"] }
 criterion = "0.3"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
