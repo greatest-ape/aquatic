@@ -137,7 +137,6 @@ just like best results in last benchmark, multiple client ips=true:
 
 ## aquatic_http
 * request from path:
-  * only urldecode peer_id and info_hash: doesn't really improve performance
   * deserialize 20 bytes: possibly rewrite (just check length of underlying
     bytes == 20 and then copy them), also maybe remove String from map for
     these cases too. doesn't really improve performance
