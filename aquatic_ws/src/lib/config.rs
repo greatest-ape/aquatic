@@ -48,7 +48,7 @@ pub struct NetworkConfig {
     pub tls_pkcs12_path: String,
     pub tls_pkcs12_password: String,
     pub poll_event_capacity: usize,
-    pub poll_timeout_milliseconds: u64,
+    pub poll_timeout_microseconds: u64,
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
 }
@@ -124,7 +124,7 @@ impl Default for NetworkConfig {
             tls_pkcs12_path: "".into(),
             tls_pkcs12_password: "".into(),
             poll_event_capacity: 4096,
-            poll_timeout_milliseconds: 50,
+            poll_timeout_microseconds: 1000,
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
         }

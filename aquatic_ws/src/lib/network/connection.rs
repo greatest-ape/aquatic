@@ -260,11 +260,13 @@ impl Connection {
     pub fn close(&mut self){
         if let Either::Left(ref mut ews) = self.inner {
             if ews.ws.can_read(){
-                ews.ws.close(None).unwrap();
+                if let Err(err) = ews.ws.close(None){
+                    ::log::error!("error closing ws: {}", err);
+                }
 
                 // Required after ws.close()
                 if let Err(err) = ews.ws.write_pending(){
-                    info!(
+                    ::log::info!(
                         "error writing pending messages after closing ws: {}",
                         err
                     )

@@ -60,8 +60,8 @@ pub fn run_poll_loop(
     listener: ::std::net::TcpListener,
     opt_tls_acceptor: Option<TlsAcceptor>,
 ){
-    let poll_timeout = Duration::from_millis(
-        config.network.poll_timeout_milliseconds
+    let poll_timeout = Duration::from_micros(
+        config.network.poll_timeout_microseconds
     );
     let ws_config = WebSocketConfig {
         max_message_size: Some(config.network.websocket_max_message_size),
