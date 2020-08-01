@@ -35,7 +35,12 @@ impl AnnounceRequest {
         output.write(b"&left=")?;
         output.write(itoa::Buffer::new().format(self.bytes_left).as_bytes())?;
 
-        output.write(b"&event=started")?; // FIXME
+        match self.event {
+            AnnounceEvent::Started => output.write(b"&event=started")?,
+            AnnounceEvent::Stopped => output.write(b"&event=stopped")?,
+            AnnounceEvent::Completed => output.write(b"&event=completed")?,
+            AnnounceEvent::Empty => 0,
+        };
 
         output.write(b"&compact=")?;
         output.write(itoa::Buffer::new().format(self.compact as u8).as_bytes())?;
