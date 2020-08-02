@@ -142,7 +142,7 @@ impl Connection {
         let position = request_buffer.position() as usize;
 
         match self.send_request_inner(state, &request_buffer.get_mut()[..position]){
-            Ok(_) => {
+            Ok(()) => {
                 state.statistics.requests.fetch_add(1, Ordering::SeqCst);
 
                 self.can_send = false;
@@ -224,7 +224,6 @@ pub fn run_socket_thread(
                         connections.remove(&token.0);
                         num_to_create += 1;
                     }
-
                 } else {
                     eprintln!("connection not found: {:?}", token);
                 }
@@ -255,17 +254,15 @@ pub fn run_socket_thread(
             num_to_create += 1;
         }
 
-        let num_new = num_to_create.min(max_new);
-
-        for _ in 0..num_new {
-            let err = Connection::create_and_register(
+        for _ in 0..num_to_create.min(max_new){
+            let ok = Connection::create_and_register(
                 config,
                 &mut connections,
                 &mut poll,
                 &mut token_counter,
-            ).is_err();
+            ).is_ok();
 
-            if !err {
+            if ok {
                 num_to_create -= 1;
             }
         }
