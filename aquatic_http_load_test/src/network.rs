@@ -27,7 +27,7 @@ impl Connection {
         token_counter: &mut usize,
     ) -> anyhow::Result<()> {
         let mut stream = TcpStream::connect(config.server_address)?;
-    
+
         poll.registry()
             .register(&mut stream, Token(*token_counter), Interest::READABLE)
             .unwrap();
