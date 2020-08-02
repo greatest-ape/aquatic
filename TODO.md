@@ -12,14 +12,13 @@
 * opening new connections in current form causes macOS issues, why?
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
-* find out how to fully load opentracker. adding more connections helps.
-  Try turning on keepalive in opentracker too.
-* why does opentracker only send back half number of responses as requests?
+* find out how to fully load opentracker
+* only half the number of requests are sent back as responses in opentracker
+  and in aquatic when keep_alive is set to false, why?
 * Don't send keepalive header, it is not necessary with HTTP/1.1? (But
   opentracker might want it)
 
 ## aquatic_http
-* drop connection after sending response? might be good, might be bad
 * check if connection ValidUntil's are really updated when necessary. there
   are some connections dropped after a while when load testing
 * add tests
