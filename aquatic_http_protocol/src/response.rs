@@ -143,6 +143,7 @@ impl ScrapeResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FailureResponse {
+    #[serde(rename = "failure reason")]
     pub failure_reason: String,
 }
 
@@ -318,10 +319,17 @@ mod tests {
             &Response::Failure(response.clone())
         ).unwrap();
 
-        let mut output = Vec::new();
+        let mut hand_written = Vec::new();
 
-        response.write(&mut output).unwrap();
+        response.write(&mut hand_written).unwrap();
 
-        output == reference
+        let success = hand_written == reference;
+
+        if !success {
+            println!("reference:    {}", String::from_utf8_lossy(&reference));
+            println!("hand_written: {}", String::from_utf8_lossy(&hand_written));
+        }
+
+        success
     }
 }
