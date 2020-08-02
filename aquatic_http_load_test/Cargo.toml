@@ -18,7 +18,6 @@ mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 rand = { version = "0.7", features = ["small_rng"] }
 rand_distr = "0.2"
 serde = { version = "1", features = ["derive"] }
-slab = "0.4"
 
 [dev-dependencies]
 quickcheck = "0.9"
