@@ -46,7 +46,7 @@ impl EstablishedConnection {
     }
 
     pub fn read_request(&mut self) -> Result<Request, RequestReadError> {
-        if self.buf.len() - self.bytes_read < 512 {
+        if (self.buf.len() - self.bytes_read < 512) & (self.buf.len() <= 3072){
             self.buf.extend_from_slice(&[0; 1024]);
         }
 

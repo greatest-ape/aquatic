@@ -14,7 +14,6 @@
   enabled), then converting them to mio tcp streams
 
 ## aquatic_http
-* upper limit on request read buffer
 * check if connection ValidUntil's are really updated when necessary. there
   are some connections dropped after a while when load testing
 * add tests
