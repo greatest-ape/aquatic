@@ -15,6 +15,7 @@ pub struct Connection {
     stream: TcpStream,
     read_buffer: [u8; 4096],
     bytes_read: usize,
+    can_send: bool,
 }
 
 
@@ -35,6 +36,7 @@ impl Connection {
             stream,
             read_buffer: [0; 4096],
             bytes_read: 0,
+            can_send: true,
         };
     
         connections.insert(*token_counter, connection);
@@ -73,8 +75,6 @@ impl Connection {
                                 state.statistics.bytes_received
                                     .fetch_add(self.bytes_read, Ordering::SeqCst);
 
-                                self.bytes_read = 0;
-
                                 match response {
                                     Response::Announce(_) => {
                                         state.statistics.responses_announce
@@ -89,6 +89,9 @@ impl Connection {
                                             .fetch_add(1, Ordering::SeqCst);
                                     },
                                 }
+
+                                self.bytes_read = 0;
+                                self.can_send = true;
 
                                 break false;
                             },
@@ -124,6 +127,10 @@ impl Connection {
         rng: &mut impl Rng,
         request_buffer: &mut Cursor<&mut [u8]>,
     ) -> bool { // bool = remove connection
+        if !self.can_send {
+            return false;
+        }
+
         let request = create_random_request(
             &config,
             &state,
@@ -137,6 +144,8 @@ impl Connection {
         match self.send_request_inner(state, &request_buffer.get_mut()[..position]){
             Ok(_) => {
                 state.statistics.requests.fetch_add(1, Ordering::SeqCst);
+
+                self.can_send = false;
 
                 false
             },
@@ -195,9 +204,10 @@ pub fn run_socket_thread(
         ).unwrap();
     }
 
-    let mut initial_sent = false;
     let mut iter_counter = 0usize;
     let mut num_to_create = 0usize;
+
+    let mut drop_connections = Vec::with_capacity(config.num_connections);
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -208,9 +218,9 @@ pub fn run_socket_thread(
                 let token = event.token();
 
                 if let Some(connection) = connections.get_mut(&token.0){
-                    let remove = connection.read_response(&state);
+                    let remove_connection = connection.read_response(&state);
 
-                    if remove {
+                    if remove_connection {
                         connections.remove(&token.0);
                         num_to_create += 1;
                     }
@@ -221,8 +231,6 @@ pub fn run_socket_thread(
             }
         }
 
-        let mut drop_keys = Vec::new();
-
         for (k, connection) in connections.iter_mut(){
             let remove_connection = connection.send_request(
                 config,
@@ -232,17 +240,21 @@ pub fn run_socket_thread(
             );
 
             if remove_connection {
-                drop_keys.push(*k);
+                drop_connections.push(*k);
             }
         }
 
-        for k in drop_keys {
+        for k in drop_connections.drain(..) {
             connections.remove(&k);
             num_to_create += 1;
         }
 
-        // num_to_create += 1;
-        let max_new = 8 - connections.len();
+        let max_new = config.num_connections - connections.len();
+
+        if max_new != 0 && iter_counter % create_conn_interval == 0 {
+            num_to_create += 1;
+        }
+
         let num_new = num_to_create.min(max_new);
 
         for _ in 0..num_new {
@@ -256,8 +268,6 @@ pub fn run_socket_thread(
             if !err {
                 num_to_create -= 1;
             }
-
-            initial_sent = false;
         }
 
         iter_counter = iter_counter.wrapping_add(1);
