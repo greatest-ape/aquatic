@@ -12,14 +12,13 @@
 * opening new connections in current form causes macOS issues, why?
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
-* decode response properly, full response determines if message was fully
-  received. this means proper deserializers need to be written..
-* open new connections every time. opentracker doesn't really do keepalive
-  (has an ifdef without entry in makefile and closes soon anyway, seemingly)
-  so we should adjust to that.
+* find out how to fully load opentracker. adding more connections helps.
+* why does opentracker only send back half number of responses as requests?
+* can't load in instruments, maybe because I tried using the debugger before?
 
 ## aquatic_http
-* opentracker doesn't really do keepalive. should we?
+* opentracker doesn't really do keepalive. should we check for keepalive header
+  and drop connection after sending response if it doesn't exist?
 * check if connection ValidUntil's are really updated when necessary. there
   are some connections dropped after a while when load testing
 * add tests
