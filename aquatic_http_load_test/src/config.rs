@@ -18,6 +18,7 @@ pub struct Config {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
+    pub close_connection_after_response: bool,
     pub connection_creation_interval: usize,
     pub poll_timeout_microseconds: u64,
     pub poll_event_capacity: usize,
@@ -59,6 +60,7 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
+            close_connection_after_response: false,
             connection_creation_interval: 40,
             poll_timeout_microseconds: 47,
             poll_event_capacity: 1024,
