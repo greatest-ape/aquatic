@@ -48,7 +48,6 @@ impl Connection {
 
     pub fn read_response(
         &mut self,
-        config: &Config,
         state: &LoadTestState,
     ) -> bool { // bool = remove connection
         loop {
@@ -100,8 +99,6 @@ impl Connection {
 
                                 self.bytes_read = 0;
                                 self.can_send = true;
-
-                                break config.network.close_connection_after_response;
                             },
                             Err(err) => {
                                 eprintln!(
@@ -226,10 +223,7 @@ pub fn run_socket_thread(
                 let token = event.token();
 
                 if let Some(connection) = connections.get_mut(&token.0){
-                    let remove_connection = connection.read_response(
-                        config,
-                        &state
-                    );
+                    let remove_connection = connection.read_response(&state);
 
                     if remove_connection {
                         connections.remove(&token.0);
