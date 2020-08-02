@@ -61,9 +61,9 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             close_connection_after_response: false,
-            connection_creation_interval: 40,
-            poll_timeout_microseconds: 47,
-            poll_event_capacity: 1024,
+            connection_creation_interval: 10,
+            poll_timeout_microseconds: 197,
+            poll_event_capacity: 64,
         }
     }
 }
