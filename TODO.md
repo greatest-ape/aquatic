@@ -9,6 +9,7 @@
 * opening new connections in current form causes macOS issues, why?
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
+* really break and remove connection when reading 0 bytes?
 * find out how to fully load opentracker
 * only half the number of requests are sent back as responses in opentracker
   and in aquatic when keep_alive is set to false, why?

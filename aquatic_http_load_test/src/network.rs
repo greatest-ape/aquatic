@@ -53,6 +53,13 @@ impl Connection {
     ) -> bool { // bool = remove connection
         loop {
             match self.stream.read(&mut self.read_buffer[self.bytes_read..]){
+                Ok(0) => {
+                    if self.bytes_read == self.read_buffer.len(){
+                        eprintln!("read buffer is full");
+                    }
+
+                    break true;
+                }
                 Ok(bytes_read) => {
                     self.bytes_read += bytes_read;
 
