@@ -45,17 +45,6 @@ impl EstablishedConnection {
         }
     }
 
-    pub fn shutdown(&mut self){
-        match self.stream {
-            Stream::TcpStream(ref mut s) => {
-                s.shutdown(::std::net::Shutdown::Both);
-            },
-            Stream::TlsStream(ref mut s) => {
-                s.shutdown();
-            },
-        }
-    }
-
     pub fn read_request(&mut self) -> Result<Request, RequestReadError> {
         if (self.buf.len() - self.bytes_read < 512) & (self.buf.len() <= 3072){
             self.buf.extend_from_slice(&[0; 1024]);
