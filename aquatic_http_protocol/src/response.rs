@@ -15,7 +15,7 @@ pub struct ResponsePeer<I: Eq>{
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct ResponsePeerListV4(
     #[serde(
@@ -26,7 +26,7 @@ pub struct ResponsePeerListV4(
 );
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct ResponsePeerListV6(
     #[serde(
@@ -51,7 +51,9 @@ pub struct AnnounceResponse {
     pub announce_interval: usize,
     pub complete: usize,
     pub incomplete: usize,
+    #[serde(default)]
     pub peers: ResponsePeerListV4,
+    #[serde(default)]
     pub peers6: ResponsePeerListV6,
 }
 
