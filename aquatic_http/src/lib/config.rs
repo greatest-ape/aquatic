@@ -55,6 +55,7 @@ pub struct NetworkConfig {
     pub ipv6_only: bool,
     #[serde(flatten)]
     pub tls: TlsConfig,
+    pub keep_alive: bool,
     pub poll_event_capacity: usize,
     pub poll_timeout_microseconds: u64,
 }
@@ -128,6 +129,7 @@ impl Default for NetworkConfig {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             ipv6_only: false,
             tls: TlsConfig::default(),
+            keep_alive: true,
             poll_event_capacity: 4096,
             poll_timeout_microseconds: 10_000,
         }

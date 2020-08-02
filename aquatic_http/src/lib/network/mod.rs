@@ -115,6 +115,7 @@ pub fn run_poll_loop(
 
         if !(local_responses.is_empty() & (response_channel_receiver.is_empty())) {
             send_responses(
+                &config,
                 &mut response_buffer,
                 local_responses.drain(..),
                 response_channel_receiver.try_iter(),
@@ -304,6 +305,7 @@ pub fn handle_connection_read_event(
 
 /// Read responses from channel, send to peers
 pub fn send_responses(
+    config: &Config,
     buffer: &mut Cursor<&mut [u8]>,
     local_responses: Drain<(ConnectionMeta, Response)>,
     channel_responses: crossbeam_channel::TryIter<(ConnectionMeta, Response)>,
@@ -327,7 +329,9 @@ pub fn send_responses(
                 Ok(()) => {
                     debug!("sent response");
 
-                    // established.shutdown();
+                    if !config.network.keep_alive {
+                        connections.remove(&meta.poll_token);
+                    }
                 },
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
                     debug!("send response: would block");
