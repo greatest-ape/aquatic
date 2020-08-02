@@ -11,8 +11,6 @@
   enabled), then converting them to mio tcp streams
 * really break and remove connection when reading 0 bytes?
 * find out how to fully load opentracker
-* only half the number of requests are sent back as responses in opentracker
-  and in aquatic when keep_alive is set to false, why?
 * Don't send keepalive header, it is not necessary with HTTP/1.1? (But
   opentracker might want it)
 
@@ -54,7 +52,9 @@
 # Not important
 
 ## General
-* mio oneshot setting: could it be beneficial?
+* mio oneshot setting: could it be beneficial? I think not, I think it is
+  only useful when there are multiple references to a fd, which shouldn't
+  be the case?
 * peer extractor: extract one extra, remove peer if same as sender, otherwise
   just remove one?
 
