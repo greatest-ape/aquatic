@@ -1,25 +1,27 @@
 use std::str::FromStr;
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 use super::utils::*;
 
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PeerId(
     #[serde(
         serialize_with = "serialize_20_bytes",
+        deserialize_with = "deserialize_20_bytes",
     )]
     pub [u8; 20]
 );
 
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct InfoHash(
     #[serde(
         serialize_with = "serialize_20_bytes",
+        deserialize_with = "deserialize_20_bytes",
     )]
     pub [u8; 20]
 );

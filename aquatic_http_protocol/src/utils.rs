@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use std::io::Write;
 
 use anyhow::Context;
-use serde::Serializer;
+use serde::{Serializer, Deserializer, de::Visitor};
 use smartstring::{SmartString, LazyCompact};
 
 use super::response::ResponsePeer;
@@ -114,6 +114,42 @@ pub fn serialize_20_bytes<S>(
 }
 
 
+struct TwentyByteVisitor;
+
+impl<'de> Visitor<'de> for TwentyByteVisitor {
+    type Value = [u8; 20];
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("20 bytes")
+    }
+
+    #[inline]
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+        where E: ::serde::de::Error,
+    {
+        if value.len() != 20 {
+            return Err(::serde::de::Error::custom("not 20 bytes"));
+        }
+
+        let mut arr = [0u8; 20];
+
+        arr.copy_from_slice(value);
+
+        Ok(arr)
+    }
+}
+
+
+#[inline]
+pub fn deserialize_20_bytes<'de, D>(
+    deserializer: D
+) -> Result<[u8; 20], D::Error>
+    where D: Deserializer<'de>
+{
+    deserializer.deserialize_any(TwentyByteVisitor)
+}
+
+
 pub fn serialize_response_peers_ipv4<S>(
     response_peers: &[ResponsePeer<Ipv4Addr>],
     serializer: S
@@ -144,9 +180,115 @@ pub fn serialize_response_peers_ipv6<S>(
 }
 
 
+struct ResponsePeersIpv4Visitor;
+
+
+impl<'de> Visitor<'de> for ResponsePeersIpv4Visitor {
+    type Value = Vec<ResponsePeer<Ipv4Addr>>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("byte-encoded ipv4 address-port pairs")
+    }
+
+    #[inline]
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+        where E: ::serde::de::Error,
+    {
+        let mut peers = Vec::new();
+
+        let mut ip_bytes = [0u8; 4];
+        let mut port_bytes = [0u8; 2];
+
+        let chunks = value.chunks_exact(6);
+
+        if !chunks.remainder().is_empty(){
+            return Err(::serde::de::Error::custom("trailing bytes"));
+        }
+
+        for chunk in chunks {
+            ip_bytes.copy_from_slice(&chunk[0..4]);
+            port_bytes.copy_from_slice(&chunk[4..6]);
+
+            let peer = ResponsePeer {
+                ip_address: Ipv4Addr::from(u32::from_be_bytes(ip_bytes)),
+                port: u16::from_be_bytes(port_bytes),
+            };
+
+            peers.push(peer);
+        }
+
+        Ok(peers)
+    }
+}
+
+
+#[inline]
+pub fn deserialize_response_peers_ipv4<'de, D>(
+    deserializer: D
+) -> Result<Vec<ResponsePeer<Ipv4Addr>>, D::Error>
+    where D: Deserializer<'de>
+{
+    deserializer.deserialize_any(ResponsePeersIpv4Visitor)
+}
+
+
+struct ResponsePeersIpv6Visitor;
+
+
+impl<'de> Visitor<'de> for ResponsePeersIpv6Visitor {
+    type Value = Vec<ResponsePeer<Ipv6Addr>>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("byte-encoded ipv6 address-port pairs")
+    }
+
+    #[inline]
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+        where E: ::serde::de::Error,
+    {
+        let mut peers = Vec::new();
+
+        let mut ip_bytes = [0u8; 16];
+        let mut port_bytes = [0u8; 2];
+
+        let chunks = value.chunks_exact(18);
+
+        if !chunks.remainder().is_empty(){
+            return Err(::serde::de::Error::custom("trailing bytes"));
+        }
+
+        for chunk in chunks {
+            ip_bytes.copy_from_slice(&chunk[0..16]);
+            port_bytes.copy_from_slice(&chunk[16..18]);
+
+            let peer = ResponsePeer {
+                ip_address: Ipv6Addr::from(u128::from_be_bytes(ip_bytes)),
+                port: u16::from_be_bytes(port_bytes),
+            };
+
+            peers.push(peer);
+        }
+
+        Ok(peers)
+    }
+}
+
+
+#[inline]
+pub fn deserialize_response_peers_ipv6<'de, D>(
+    deserializer: D
+) -> Result<Vec<ResponsePeer<Ipv6Addr>>, D::Error>
+    where D: Deserializer<'de>
+{
+    deserializer.deserialize_any(ResponsePeersIpv6Visitor)
+}
+
+
 #[cfg(test)]
 mod tests {
     use quickcheck_macros::*;
+
+    use crate::common::InfoHash;
 
     use super::*;
 
@@ -215,5 +357,38 @@ mod tests {
         assert_eq!(urldecode("abc%21def%3Dghi").unwrap(), "abc!def=ghi".to_string());
         assert!(urldecode("%").is_err());
         assert!(urldecode("%å7").is_err());
+    }
+
+    #[quickcheck]
+    fn test_serde_response_peers_ipv4(
+        peers: Vec<ResponsePeer<Ipv4Addr>>,
+    ) -> bool {
+        let serialized = bendy::serde::to_bytes(&peers).unwrap();
+        let deserialized: Vec<ResponsePeer<Ipv4Addr>> =
+            ::bendy::serde::from_bytes(&serialized).unwrap();
+
+        peers == deserialized
+    }
+
+    #[quickcheck]
+    fn test_serde_response_peers_ipv6(
+        peers: Vec<ResponsePeer<Ipv6Addr>>,
+    ) -> bool {
+        let serialized = bendy::serde::to_bytes(&peers).unwrap();
+        let deserialized: Vec<ResponsePeer<Ipv6Addr>> =
+            ::bendy::serde::from_bytes(&serialized).unwrap();
+
+        peers == deserialized
+    }
+
+    #[quickcheck]
+    fn test_serde_info_hash(
+        info_hash: InfoHash,
+    ) -> bool {
+        let serialized = bendy::serde::to_bytes(&info_hash).unwrap();
+        let deserialized: InfoHash =
+            ::bendy::serde::from_bytes(&serialized).unwrap();
+
+        info_hash == deserialized
     }
 }

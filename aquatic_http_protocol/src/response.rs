@@ -2,36 +2,42 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use std::io::Write;
 
 use std::collections::BTreeMap;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 use super::common::*;
 use super::utils::*;
 
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ResponsePeer<I>{
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResponsePeer<I: Eq>{
     pub ip_address: I,
     pub port: u16
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ResponsePeerListV4(
-    #[serde(serialize_with = "serialize_response_peers_ipv4")]
+    #[serde(
+        serialize_with = "serialize_response_peers_ipv4",
+        deserialize_with = "deserialize_response_peers_ipv4",
+    )]
     pub Vec<ResponsePeer<Ipv4Addr>>
 );
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ResponsePeerListV6(
-    #[serde(serialize_with = "serialize_response_peers_ipv6")]
+    #[serde(
+        serialize_with = "serialize_response_peers_ipv6",
+        deserialize_with = "deserialize_response_peers_ipv6",
+    )]
     pub Vec<ResponsePeer<Ipv6Addr>>
 );
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeStatistics {
     pub complete: usize,
     pub incomplete: usize,
@@ -39,7 +45,7 @@ pub struct ScrapeStatistics {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnnounceResponse {
     #[serde(rename = "interval")]
     pub announce_interval: usize,
@@ -99,7 +105,7 @@ impl AnnounceResponse {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeResponse {
     /// BTreeMap instead of HashMap since keys need to be serialized in order
     pub files: BTreeMap<InfoHash, ScrapeStatistics>,
@@ -133,7 +139,7 @@ impl ScrapeResponse {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FailureResponse {
     pub failure_reason: String,
 }
@@ -158,7 +164,7 @@ impl FailureResponse {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Response {
     Announce(AnnounceResponse),
@@ -174,6 +180,9 @@ impl Response {
             Response::Failure(r) => r.write(output),
             Response::Scrape(r) => r.write(output),
         }
+    }
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ::bendy::serde::Error> {
+        ::bendy::serde::de::from_bytes(bytes)
     }
 }
 
