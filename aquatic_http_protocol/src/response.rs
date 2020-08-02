@@ -145,7 +145,7 @@ impl FailureResponse {
 
         let reason_bytes = self.failure_reason.as_bytes();
 
-        bytes_written += output.write(b"d14:failure_reason")?;
+        bytes_written += output.write(b"d14:failure reason")?;
         bytes_written += output.write(
             itoa::Buffer::new().format(reason_bytes.len()).as_bytes()
         )?;

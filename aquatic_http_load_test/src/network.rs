@@ -113,7 +113,7 @@ impl Connection {
             }
         }
         for chunk in response_bytes.windows(18){
-            if chunk == b"d14:failure_reason" {
+            if chunk == b"d14:failure reason" {
                 state.statistics.responses_failure.fetch_add(1, Ordering::SeqCst);
 
                 return;
