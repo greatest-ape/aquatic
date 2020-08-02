@@ -43,6 +43,7 @@ dependencies = [
  "anyhow",
  "gumdrop",
  "serde",
+ "simplelog",
  "toml",
 ]
 
@@ -78,7 +79,6 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "serde",
- "simplelog",
  "smartstring",
  "socket2",
 ]
@@ -210,7 +210,6 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "serde",
- "simplelog",
  "socket2",
  "tungstenite",
 ]

@@ -24,3 +24,6 @@ impl Default for BenchConfig {
         }
     }
 }
+
+
+impl aquatic_cli_helpers::Config for BenchConfig {}

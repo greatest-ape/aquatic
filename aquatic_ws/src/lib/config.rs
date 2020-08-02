@@ -2,24 +2,7 @@ use std::net::SocketAddr;
 
 use serde::{Serialize, Deserialize};
 
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LogLevel {
-    Off,
-    Error,
-    Warn,
-    Info,
-    Debug,
-    Trace
-}
-
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        Self::Error
-    }
-}
+use aquatic_cli_helpers::LogLevel;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -35,6 +18,13 @@ pub struct Config {
     pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
+}
+
+
+impl aquatic_cli_helpers::Config for Config {
+    fn get_log_level(&self) -> Option<LogLevel> {
+        Some(self.log_level.clone())
+    }
 }
 
 

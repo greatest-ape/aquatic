@@ -2,9 +2,6 @@
 
 ## General
 
-* init logging in cli helper crate? kind of tricky, requires cli helper
-  knowledge of config, such as config implementing a trait to get log
-  level
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test

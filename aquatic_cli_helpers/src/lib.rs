@@ -3,7 +3,34 @@ use std::io::Read;
 
 use anyhow::Context;
 use gumdrop::Options;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use simplelog::{ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace
+}
+
+
+impl Default for LogLevel {
+    fn default() -> Self {
+        Self::Error
+    }
+}
+
+
+pub trait Config: Default + Serialize + DeserializeOwned {
+    fn get_log_level(&self) -> Option<LogLevel> {
+        None
+    }
+}
 
 
 #[derive(Debug, Options)]
@@ -21,7 +48,7 @@ pub fn run_app_with_cli_and_config<T>(
     title: &str,
     // Function that takes config file and runs application
     app_fn: fn(T) -> anyhow::Result<()>,
-) where T: Default + Serialize + DeserializeOwned {
+) where T: Config {
     ::std::process::exit(match run_inner(title, app_fn) {
         Ok(()) => 0,
         Err(err) => {
@@ -37,7 +64,7 @@ fn run_inner<T>(
     title: &str,
     // Function that takes config file and runs application
     app_fn: fn(T) -> anyhow::Result<()>,
-) -> anyhow::Result<()> where T: Default + Serialize + DeserializeOwned {
+) -> anyhow::Result<()> where T: Config {
     let args: Vec<String> = ::std::env::args().collect();
 
     let opts = AppOptions::parse_args_default(&args[1..])?;
@@ -51,12 +78,33 @@ fn run_inner<T>(
 
         Ok(())
     } else if let Some(config_file) = opts.config_file {
-        let config = config_from_toml_file(config_file)?;
+        let config: T = config_from_toml_file(config_file)?;
+
+        if let Some(log_level) = config.get_log_level(){
+            start_logger(log_level)?;
+        }
 
         app_fn(config)
     } else {
-        app_fn(T::default())
+        let config = T::default();
+
+        if let Some(log_level) = config.get_log_level(){
+            start_logger(log_level)?;
+        }
+
+        app_fn(config)
     }
+}
+
+
+fn print_help(title: &str, opt_error: Option<anyhow::Error>){
+    println!("{}", title);
+
+    if let Some(error) = opt_error {
+        println!("\nError: {:#}.", error);
+    }
+
+    println!("\n{}", AppOptions::usage());
 }
 
 
@@ -87,12 +135,27 @@ fn default_config_as_toml<T>() -> String
 }
 
 
-fn print_help(title: &str, opt_error: Option<anyhow::Error>){
-    println!("{}", title);
+fn start_logger(log_level: LogLevel) -> ::anyhow::Result<()> {
+    let level_filter = match log_level{
+        LogLevel::Off => LevelFilter::Off,
+        LogLevel::Error => LevelFilter::Error,
+        LogLevel::Warn => LevelFilter::Warn,
+        LogLevel::Info => LevelFilter::Info,
+        LogLevel::Debug => LevelFilter::Debug,
+        LogLevel::Trace => LevelFilter::Trace,
+    };
 
-    if let Some(error) = opt_error {
-        println!("\nError: {:#}.", error);
-    }
+    // Note: logger doesn't seem to pick up thread names. Not a huge loss.
+    let simplelog_config = ConfigBuilder::new()
+        .set_time_to_local(true)
+        .set_location_level(LevelFilter::Off)
+        .build();
 
-    println!("\n{}", AppOptions::usage());
+    TermLogger::init(
+        level_filter,
+        simplelog_config,
+        TerminalMode::Stderr
+    ).context("Couldn't initialize logger")?;
+
+    Ok(())
 }

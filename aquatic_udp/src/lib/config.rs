@@ -22,6 +22,9 @@ pub struct Config {
 }
 
 
+impl aquatic_cli_helpers::Config for Config {}
+
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {

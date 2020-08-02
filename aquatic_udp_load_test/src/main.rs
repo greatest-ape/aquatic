@@ -32,6 +32,9 @@ pub fn main(){
 }
 
 
+impl aquatic_cli_helpers::Config for Config {}
+
+
 fn run(config: Config) -> ::anyhow::Result<()> {
     if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape == 0 {
         panic!("Error: at least one weight must be larger than zero.");
