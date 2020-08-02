@@ -55,7 +55,7 @@ impl AnnounceRequest {
             output.write_all(key.as_str().as_bytes())?;
         }
 
-        output.write_all(b" HTTP/1.1\r\n\r\n")?;
+        output.write_all(b" HTTP/1.1\r\nConnection: keep-alive\r\n\r\n")?;
 
         Ok(())
     }
@@ -85,7 +85,7 @@ impl ScrapeRequest {
             first = false;
         }
 
-        output.write_all(b" HTTP/1.1\r\n\r\n")?;
+        output.write_all(b" HTTP/1.1\r\nConnection: keep-alive\r\n\r\n")?;
 
         Ok(())
     }

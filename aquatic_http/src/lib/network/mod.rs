@@ -326,6 +326,8 @@ pub fn send_responses(
             match established.send_response(&buffer.get_mut()[..bytes_written]){
                 Ok(()) => {
                     debug!("sent response");
+
+                    // established.shutdown();
                 },
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
                     debug!("send response: would block");

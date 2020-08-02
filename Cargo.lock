@@ -90,6 +90,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_http_protocol",
+ "hashbrown",
  "mimalloc",
  "mio",
  "quickcheck",

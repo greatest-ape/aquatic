@@ -12,6 +12,7 @@ name = "aquatic_http_load_test"
 anyhow = "1"
 aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
 aquatic_http_protocol = { path = "../aquatic_http_protocol" }
+hashbrown = "0.8"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 rand = { version = "0.7", features = ["small_rng"] }

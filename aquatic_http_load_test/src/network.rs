@@ -2,9 +2,9 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::io::{Read, Write, ErrorKind, Cursor};
 
+use hashbrown::HashMap;
 use mio::{net::TcpStream, Events, Poll, Interest, Token};
 use rand::{rngs::SmallRng, prelude::*};
-use slab::Slab;
 
 use crate::common::*;
 use crate::config::*;
@@ -27,10 +27,6 @@ impl Connection {
         token_counter: &mut usize,
     ) -> anyhow::Result<()> {
         let mut stream = TcpStream::connect(config.server_address)?;
-
-        let entry = connections.vacant_entry();
-
-        *token_counter = entry.key();
     
         poll.registry()
             .register(&mut stream, Token(*token_counter), Interest::READABLE)
@@ -43,34 +39,35 @@ impl Connection {
             can_send_initial: true,
         };
     
-        entry.insert(connection);
+        connections.insert(*token_counter, connection);
+
+        *token_counter = token_counter.wrapping_add(1);
     
         Ok(())
     }
 
-    pub fn read_response_and_send_request(
+    pub fn read_response(
         &mut self,
-        config: &Config,
         state: &LoadTestState,
-        rng: &mut impl Rng,
-        request_buffer: &mut Cursor<&mut [u8]>,
-    ){
+    ) -> bool {
         loop {
             match self.stream.read(&mut self.read_buffer[self.bytes_read..]){
                 Ok(bytes_read) => {
                     self.bytes_read += bytes_read;
+
+                    break
                 },
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                    self.can_send_initial = false;
+                    // self.can_send_initial = false;
 
-                    break;
+                    return false;
                 },
                 Err(err) => {
                     self.bytes_read = 0;
 
                     eprintln!("handle_read_event error: {}", err);
 
-                    return;
+                    return false;
                 }
             }
         };
@@ -84,12 +81,7 @@ impl Connection {
 
         Self::register_response_type(state, interesting_bytes);
 
-        self.send_request(
-            config,
-            state,
-            rng,
-            request_buffer,
-        );
+        true
     }
 
     /// Ultra-crappy byte searches to determine response type with some degree
@@ -119,6 +111,11 @@ impl Connection {
                 return;
             }
         }
+
+        eprintln!(
+            "couldn't determine response type: {}",
+            String::from_utf8_lossy(response_bytes)
+        );
     }
 
     pub fn send_request(
@@ -127,7 +124,7 @@ impl Connection {
         state: &LoadTestState,
         rng: &mut impl Rng,
         request_buffer: &mut Cursor<&mut [u8]>,
-    ){
+    ) -> bool {
         let request = create_random_request(
             &config,
             &state,
@@ -141,13 +138,17 @@ impl Connection {
         match self.send_request_inner(state, &request_buffer.get_mut()[..position]){
             Ok(_) => {
                 state.statistics.requests.fetch_add(1, Ordering::SeqCst);
+
+                self.can_send_initial = false;
+
+                true
             },
             Err(err) => {
-                eprintln!("send request error: {}", err);
+                // eprintln!("send request error: {}", err);
+
+                false
             }
         }
-
-        self.can_send_initial = false;
     }
 
     fn send_request_inner(
@@ -168,7 +169,7 @@ impl Connection {
 }
 
 
-pub type ConnectionMap = Slab<Connection>;
+pub type ConnectionMap = HashMap<usize, Connection>;
 
 
 pub fn run_socket_thread(
@@ -179,7 +180,7 @@ pub fn run_socket_thread(
     let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
     let create_conn_interval = 2 ^ config.network.connection_creation_interval;
 
-    let mut connections: ConnectionMap = Slab::with_capacity(config.num_connections);
+    let mut connections: ConnectionMap = HashMap::new();
     let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut rng = SmallRng::from_entropy();
@@ -199,6 +200,7 @@ pub fn run_socket_thread(
 
     let mut initial_sent = false;
     let mut iter_counter = 0usize;
+    let mut num_to_create = 0usize;
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -208,13 +210,12 @@ pub fn run_socket_thread(
             if event.is_readable(){
                 let token = event.token();
 
-                if let Some(connection) = connections.get_mut(token.0){
-                    connection.read_response_and_send_request(
-                        config,
-                        &state,
-                        &mut rng,
-                        &mut request_buffer
-                    );
+                if let Some(connection) = connections.get_mut(&token.0){
+                    if connection.read_response(&state){
+                        num_to_create += 1;
+                        connections.remove(&token.0);
+                    }
+
                 } else {
                     eprintln!("connection not found: {:?}", token);
                 }
@@ -222,20 +223,29 @@ pub fn run_socket_thread(
         }
 
         if !initial_sent {
-            for (_, connection) in connections.iter_mut(){
-                if connection.can_send_initial {
-                    connection.send_request(
-                        config,
-                        &state,
-                        &mut rng,
-                        &mut request_buffer
-                    );
+            let mut drop_keys = Vec::new();
 
-                    initial_sent = true;
+            for (k, connection) in connections.iter_mut(){
+                let success = connection.send_request(
+                    config,
+                    &state,
+                    &mut rng,
+                    &mut request_buffer
+                );
+
+                if !success {
+                    drop_keys.push(*k);
                 }
+                // initial_sent = true;
+            }
+
+            for k in drop_keys {
+                connections.remove(&k);
+                num_to_create += 1;
             }
         }
 
+        /*
         // Slowly create new connections
         if token_counter < config.num_connections && iter_counter % create_conn_interval == 0 {
             Connection::create_and_register(
@@ -244,6 +254,26 @@ pub fn run_socket_thread(
                 &mut poll,
                 &mut token_counter,
             ).unwrap();
+
+            initial_sent = false;
+        }
+        */
+
+        num_to_create += 1;
+        let max_new = 8 - connections.len();
+        let num_new = num_to_create.min(max_new);
+
+        for _ in 0..num_new {
+            let err = Connection::create_and_register(
+                config,
+                &mut connections,
+                &mut poll,
+                &mut token_counter,
+            ).is_err();
+
+            if !err {
+                num_to_create -= 1;
+            }
 
             initial_sent = false;
         }
