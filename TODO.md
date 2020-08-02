@@ -13,12 +13,13 @@
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
 * find out how to fully load opentracker. adding more connections helps.
+  Try turning on keepalive in opentracker too.
 * why does opentracker only send back half number of responses as requests?
-* can't load in instruments, maybe because I tried using the debugger before?
+* Don't send keepalive header, it is not necessary with HTTP/1.1? (But
+  opentracker might want it)
 
 ## aquatic_http
-* opentracker doesn't really do keepalive. should we check for keepalive header
-  and drop connection after sending response if it doesn't exist?
+* drop connection after sending response? might be good, might be bad
 * check if connection ValidUntil's are really updated when necessary. there
   are some connections dropped after a while when load testing
 * add tests
