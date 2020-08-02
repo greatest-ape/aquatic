@@ -194,28 +194,24 @@ impl<'de> Visitor<'de> for ResponsePeersIpv4Visitor {
     fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
-        let mut peers = Vec::new();
-
-        let mut ip_bytes = [0u8; 4];
-        let mut port_bytes = [0u8; 2];
-
         let chunks = value.chunks_exact(6);
 
         if !chunks.remainder().is_empty(){
             return Err(::serde::de::Error::custom("trailing bytes"));
         }
 
-        for chunk in chunks {
+        let mut ip_bytes = [0u8; 4];
+        let mut port_bytes = [0u8; 2];
+
+        let peers = chunks.into_iter().map(|chunk | {
             ip_bytes.copy_from_slice(&chunk[0..4]);
             port_bytes.copy_from_slice(&chunk[4..6]);
 
-            let peer = ResponsePeer {
+            ResponsePeer {
                 ip_address: Ipv4Addr::from(u32::from_be_bytes(ip_bytes)),
                 port: u16::from_be_bytes(port_bytes),
-            };
-
-            peers.push(peer);
-        }
+            }
+        }).collect();
 
         Ok(peers)
     }
@@ -246,28 +242,24 @@ impl<'de> Visitor<'de> for ResponsePeersIpv6Visitor {
     fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
         where E: ::serde::de::Error,
     {
-        let mut peers = Vec::new();
-
-        let mut ip_bytes = [0u8; 16];
-        let mut port_bytes = [0u8; 2];
-
         let chunks = value.chunks_exact(18);
 
         if !chunks.remainder().is_empty(){
             return Err(::serde::de::Error::custom("trailing bytes"));
         }
 
-        for chunk in chunks {
+        let mut ip_bytes = [0u8; 16];
+        let mut port_bytes = [0u8; 2];
+
+        let peers = chunks.into_iter().map(|chunk| {
             ip_bytes.copy_from_slice(&chunk[0..16]);
             port_bytes.copy_from_slice(&chunk[16..18]);
 
-            let peer = ResponsePeer {
+            ResponsePeer {
                 ip_address: Ipv6Addr::from(u128::from_be_bytes(ip_bytes)),
                 port: u16::from_be_bytes(port_bytes),
-            };
-
-            peers.push(peer);
-        }
+            }
+        }).collect();
 
         Ok(peers)
     }
