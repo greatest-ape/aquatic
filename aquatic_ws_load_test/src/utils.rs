@@ -83,7 +83,7 @@ fn create_announce_request(
         info_hash: state.info_hashes[info_hash_index],
         peer_id,
         bytes_left: Some(bytes_left),
-        event,
+        event: Some(event),
         numwant: Some(offers.len()),
         offers: Some(offers),
         answer: None,

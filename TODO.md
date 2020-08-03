@@ -51,8 +51,7 @@
 * still maybe too few answers received with aquatic_ws
 * why does wt-tracker freak out when numwant is set to offers.len()? lots
   of broken pipe errors etc. likely because it sends offers when it is set.
-* wt-tracker source: event needs to be undefined in answer for it to register
-  as an answer
+* wt-tracker: why lots of responses with no (new) requests?
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers

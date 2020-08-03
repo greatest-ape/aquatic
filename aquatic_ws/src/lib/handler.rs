@@ -114,7 +114,7 @@ pub fn handle_announce_requests(
         // Insert/update/remove peer who sent this request
         {
             let peer_status = PeerStatus::from_event_and_bytes_left(
-                request.event,
+                request.event.unwrap_or_default(),
                 request.bytes_left
             );
 

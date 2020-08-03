@@ -108,8 +108,8 @@ pub struct AnnounceRequest {
     #[serde(rename = "left")]
     pub bytes_left: Option<usize>,
     /// Can be empty. Then, default is "update"
-    #[serde(default)]
-    pub event: AnnounceEvent,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<AnnounceEvent>,
 
     /// Only when this is an array offers are sent to random peers
     /// Length of this is number of peers wanted?

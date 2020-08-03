@@ -196,7 +196,8 @@ impl Connection {
                 if let Some((peer_id, offer_id)) = self.send_answer {
                     r.to_peer_id = Some(peer_id);
                     r.offer_id = Some(offer_id);
-                    r.answer = Some(JsonValue(::serde_json::json!({"abc": "def"})));
+                    r.answer = Some(JsonValue(::serde_json::json!({"sdp": "def"})));
+                    r.event = None;
                     r.offers = None;
                 }
 
