@@ -53,18 +53,11 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         pareto: Arc::new(pareto),
     };
 
-    // Start socket workers
-
     for _ in 0..config.num_workers {
-
         let config = config.clone();
         let state = state.clone();
 
-        thread::spawn(move || run_socket_thread(
-            &config,
-            state,
-            1
-        ));
+        thread::spawn(move || run_socket_thread(&config, state,));
     }
 
     monitor_statistics(

@@ -260,7 +260,8 @@ impl InMessage {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
 pub enum OutMessage {
     AnnounceResponse(AnnounceResponse),
     ScrapeResponse(ScrapeResponse),
