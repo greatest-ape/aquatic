@@ -6,11 +6,11 @@
 
 ## aquatic_http_load_test
 
-* opening new connections in current form causes macOS issues, why?
+* multiple workers is broken
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
 * really break and remove connection when reading 0 bytes?
-* find out how to fully load opentracker
+* think about how to fully load opentracker. maybe keepalive can be activated
 * Don't send keepalive header, it is not necessary with HTTP/1.1? (But
   opentracker might want it)
 
@@ -42,6 +42,12 @@
 * config: multiple request workers
 * optimize serialize_20_bytes (10% cpu utilization). deserialize_20_bytes
   doesn't seem to be that expensive (1-2% cpu)
+
+## aquatic_ws_load_test
+* there are probably many failures when running against wt-tracker causing
+  removal of connections and for that reason bad performance. likely reason
+  is different peer_id on same connection
+* why are so few answers received?
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
