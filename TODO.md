@@ -6,11 +6,15 @@
 
 ## aquatic_http_load_test
 
+* do single peer_id per connection as in ws, can't hurt and might fix
+  opentracker issues
 * multiple workers is broken
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
 * really break and remove connection when reading 0 bytes?
 * think about how to fully load opentracker. maybe keepalive can be activated
+* maybe check against other well-known implementations (which hopefully
+  do keep-alive)
 * Don't send keepalive header, it is not necessary with HTTP/1.1? (But
   opentracker might want it)
 
@@ -31,6 +35,7 @@
   write actually block here? And what action should be taken then?
 
 ## aquatic_ws
+* what does numwant actually do?
 * test transfer again with changes made:
   * crossbeam-channel
   * ipv6/ipv4 mapping
@@ -38,7 +43,6 @@
 * is 'key' sent in announce request? if so, maybe handle it like in
   aquatic_http (including ip uniqueness part of peer map key)
 * tests
-* use enum as return type for handshake machine
 * config: multiple request workers
 * optimize serialize_20_bytes (10% cpu utilization). deserialize_20_bytes
   doesn't seem to be that expensive (1-2% cpu)
@@ -46,6 +50,8 @@
 ## aquatic_ws_load_test
 * still maybe too few answers received with aquatic_ws
 * no offers received with wt-tracker. does it check that they are valid?
+* why does wt-tracker freak out when numwant is set to offers.len()? lots
+  of broken pipe errors etc. maybe wheck source for when it sends offers
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
@@ -77,6 +83,7 @@
   https://en.wikipedia.org/wiki/BitTorrent_protocol_encryption
 
 ## aquatic_ws
+* use enum as return type for handshake machine
 * copyless for vec pushes in request handler, instead of stack and then heap?
 * config
   * send/recv buffer size?
