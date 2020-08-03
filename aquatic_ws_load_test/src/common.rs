@@ -5,9 +5,6 @@ use rand_distr::Pareto;
 pub use aquatic_ws_protocol::*;
 
 
-/// JSON string used as fake announce offer / offer response
-pub const JSON_VALUE: &str = r#"{ "offer": "abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh" }"#;
-
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct TorrentPeer {

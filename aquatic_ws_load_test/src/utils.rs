@@ -43,6 +43,7 @@ pub fn create_random_request(
 }
 
 
+
 #[inline]
 fn create_announce_request(
     config: &Config,
@@ -59,13 +60,17 @@ fn create_announce_request(
     };
 
     let info_hash_index = select_info_hash_index(config, &state, rng);
-
-    let mut offers = Vec::with_capacity(10);
     
-    for _ in 0..10 {
+    const NUM_OFFERS: usize = 2;
+
+    let mut offers = Vec::with_capacity(NUM_OFFERS);
+    
+    for _ in 0..NUM_OFFERS {
         offers.push(AnnounceRequestOffer {
             offer_id: OfferId(rng.gen()),
-            offer: JsonValue(::serde_json::Value::from(JSON_VALUE)),
+            offer: JsonValue(::serde_json::json!(
+                {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
+            )),
         })
     }
 
@@ -79,7 +84,7 @@ fn create_announce_request(
         peer_id,
         bytes_left: Some(bytes_left),
         event,
-        numwant: None,
+        numwant: Some(offers.len()),
         offers: Some(offers),
         answer: None,
         to_peer_id: None,
