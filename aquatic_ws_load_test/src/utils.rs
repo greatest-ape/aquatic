@@ -12,6 +12,7 @@ pub fn create_random_request(
     config: &Config,
     state: &LoadTestState,
     rng: &mut impl Rng,
+    connection_id: usize,
 ) -> InMessage {
     let weights = [
         config.torrents.weight_announce as u32,
@@ -31,6 +32,7 @@ pub fn create_random_request(
             config,
             state,
             rng,
+            connection_id
         ),
         RequestType::Scrape => create_scrape_request(
             config,
@@ -46,6 +48,7 @@ fn create_announce_request(
     config: &Config,
     state: &LoadTestState,
     rng: &mut impl Rng,
+    connection_id: usize
 ) -> InMessage {
     let (event, bytes_left) = {
         if rng.gen_bool(config.torrents.peer_seeder_probability) {
@@ -66,9 +69,14 @@ fn create_announce_request(
         })
     }
 
+    let mut peer_id = PeerId([0u8; 20]);
+
+    (&mut peer_id.0[..8])
+        .copy_from_slice(&connection_id.to_ne_bytes());
+
     InMessage::AnnounceRequest(AnnounceRequest {
         info_hash: state.info_hashes[info_hash_index],
-        peer_id: PeerId(rng.gen()),
+        peer_id,
         bytes_left: Some(bytes_left),
         event,
         numwant: None,

@@ -176,6 +176,7 @@ impl Connection {
         config: &Config,
         state: &LoadTestState,
         rng: &mut impl Rng,
+        connection_id: usize
     ) -> bool { // bool = remove connection
         if !self.can_send {
             return false;
@@ -185,7 +186,8 @@ impl Connection {
             let request = create_random_request(
                 &config,
                 &state,
-                rng
+                rng,
+                connection_id
             );
 
             // If self.send_answer is set and request is announce request, make
@@ -217,7 +219,7 @@ impl Connection {
                     false
                 }
                 Err(err) => {
-                    // eprintln!("send request error: {:?}", err);
+                    eprintln!("send request error: {:?}", err);
 
                     true
                 }
@@ -284,6 +286,7 @@ pub fn run_socket_thread(
                 config,
                 &state,
                 &mut rng,
+                *k
             );
 
             if drop_connection {

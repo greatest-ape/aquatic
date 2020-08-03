@@ -44,10 +44,8 @@
   doesn't seem to be that expensive (1-2% cpu)
 
 ## aquatic_ws_load_test
-* there are probably many failures when running against wt-tracker causing
-  removal of connections and for that reason bad performance. likely reason
-  is different peer_id on same connection
-* why are so few answers received?
+* still maybe too few answers received with aquatic_ws
+* no offers received with wt-tracker. does it check that they are valid?
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
