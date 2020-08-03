@@ -35,14 +35,15 @@
   write actually block here? And what action should be taken then?
 
 ## aquatic_ws
-* what does numwant actually do?
+* tests for request/response serialization and deserialization
+  * add Arbitrary instances, add conversion identity tests
+* what does numwant do in reference tracker? number of offers to send, right?
 * test transfer again with changes made:
   * crossbeam-channel
   * ipv6/ipv4 mapping
   * tungstenite 0.11
 * is 'key' sent in announce request? if so, maybe handle it like in
   aquatic_http (including ip uniqueness part of peer map key)
-* tests
 * config: multiple request workers
 * optimize serialize_20_bytes (10% cpu utilization). deserialize_20_bytes
   doesn't seem to be that expensive (1-2% cpu)
@@ -52,6 +53,8 @@
 * why does wt-tracker freak out when numwant is set to offers.len()? lots
   of broken pipe errors etc. likely because it sends offers when it is set.
 * wt-tracker: why lots of responses with no (new) requests?
+* offers_per_request or similar config var
+* consider writing custom serializers, they take up lots of time now
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
