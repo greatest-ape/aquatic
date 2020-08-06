@@ -45,7 +45,7 @@ pub struct OfferId(
 pub struct JsonValue(pub ::serde_json::Value);
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AnnounceEvent {
     Started,
@@ -65,7 +65,7 @@ impl Default for AnnounceEvent {
 /// Apparently, these are sent to a number of peers when they are set
 /// in an AnnounceRequest
 /// action = "announce"
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MiddlemanOfferToPeer {
     /// Peer id of peer sending offer
     /// Note: if equal to client peer_id, client ignores offer
@@ -81,7 +81,7 @@ pub struct MiddlemanOfferToPeer {
 /// If announce request has answer = true, send this to peer with
 /// peer id == "to_peer_id" field
 /// Action field should be 'announce'
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MiddlemanAnswerToPeer {
     /// Note: if equal to client peer_id, client ignores answer
     pub peer_id: PeerId,
@@ -92,14 +92,14 @@ pub struct MiddlemanAnswerToPeer {
 
 
 /// Element of AnnounceRequest.offers
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnnounceRequestOffer {
     pub offer: JsonValue,
     pub offer_id: OfferId,
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnnounceRequest {
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
@@ -134,7 +134,7 @@ pub struct AnnounceRequest {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnnounceResponse {
     pub info_hash: InfoHash,
     /// Client checks if this is null, not clear why
@@ -145,7 +145,7 @@ pub struct AnnounceResponse {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScrapeRequest {
     // If omitted, scrape for all torrents, apparently
     // There is some kind of parsing here too which accepts a single info hash
@@ -159,7 +159,7 @@ pub struct ScrapeRequest {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScrapeStatistics {
     pub complete: usize,
     pub incomplete: usize,
@@ -167,7 +167,7 @@ pub struct ScrapeStatistics {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScrapeResponse {
     pub files: HashMap<InfoHash, ScrapeStatistics>,
     // Looks like `flags` field is ignored in reference client
@@ -210,7 +210,7 @@ impl <T>ActionWrapper<T> {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InMessage {
     AnnounceRequest(AnnounceRequest),
     ScrapeRequest(ScrapeRequest),
@@ -260,7 +260,7 @@ impl InMessage {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(untagged)]
 pub enum OutMessage {
     AnnounceResponse(AnnounceResponse),
@@ -322,5 +322,214 @@ impl OutMessage {
         } else {
             Err(anyhow::anyhow!("Could not determine response type"))
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use quickcheck::Arbitrary;
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    fn arbitrary_20_bytes<G: quickcheck::Gen>(g: &mut G) -> [u8; 20] {
+        let mut bytes = [0u8; 20];
+
+        for byte in bytes.iter_mut() {
+            *byte = u8::arbitrary(g);
+        }
+
+        bytes
+    }
+
+    impl Arbitrary for InfoHash {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self(arbitrary_20_bytes(g))
+        }
+    }
+
+    impl Arbitrary for PeerId {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self(arbitrary_20_bytes(g))
+        }
+    }
+
+    impl Arbitrary for OfferId {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self(arbitrary_20_bytes(g))
+        }
+    }
+
+    impl Arbitrary for JsonValue {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self(::serde_json::json!(r#"{ "sdp": "test" }"#))
+        }
+    }
+
+    impl Arbitrary for AnnounceEvent {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            match (bool::arbitrary(g), bool::arbitrary(g)){
+                (false, false) => Self::Started,
+                (true, false) => Self::Started,
+                (false, true) => Self::Completed,
+                (true, true) => Self::Update,
+            }
+        }
+    }
+
+    impl Arbitrary for MiddlemanOfferToPeer {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                peer_id: Arbitrary::arbitrary(g),
+                info_hash: Arbitrary::arbitrary(g),
+                offer_id: Arbitrary::arbitrary(g),
+                offer: Arbitrary::arbitrary(g)
+            }
+        }
+    }
+
+    impl Arbitrary for MiddlemanAnswerToPeer {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                peer_id: Arbitrary::arbitrary(g),
+                info_hash: Arbitrary::arbitrary(g),
+                offer_id: Arbitrary::arbitrary(g),
+                answer: Arbitrary::arbitrary(g)
+            }
+        }
+    }
+
+    impl Arbitrary for AnnounceRequestOffer {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                offer_id: Arbitrary::arbitrary(g),
+                offer: Arbitrary::arbitrary(g)
+            }
+        }
+    }
+
+    impl Arbitrary for AnnounceRequest {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            let has_offers_or_answer_or_neither: Option<bool> = Arbitrary::arbitrary(g);
+
+            let mut offers: Option<Vec<AnnounceRequestOffer>> = None;
+            let mut answer: Option<JsonValue> = None;
+            let mut to_peer_id: Option<PeerId> = None;
+            let mut offer_id: Option<OfferId> = None;
+
+            match has_offers_or_answer_or_neither {
+                Some(true) => {
+                    offers = Some(Arbitrary::arbitrary(g));
+                },
+                Some(false) => {
+                    answer = Some(Arbitrary::arbitrary(g));
+                    to_peer_id = Some(Arbitrary::arbitrary(g));
+                    offer_id = Some(Arbitrary::arbitrary(g));
+                },
+                None => (),
+            }
+
+            let numwant = offers.as_ref()
+                .map(|offers| offers.len());
+
+            Self {
+                info_hash: Arbitrary::arbitrary(g),
+                peer_id: Arbitrary::arbitrary(g),
+                bytes_left: Arbitrary::arbitrary(g),
+                event: Arbitrary::arbitrary(g),
+                offers,
+                numwant,
+                answer,
+                to_peer_id,
+                offer_id,
+            }
+        }
+    }
+
+    impl Arbitrary for AnnounceResponse {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                info_hash: Arbitrary::arbitrary(g),
+                complete: Arbitrary::arbitrary(g),
+                incomplete: Arbitrary::arbitrary(g),
+                announce_interval: Arbitrary::arbitrary(g),
+            }
+        }
+    }
+
+    impl Arbitrary for ScrapeRequest {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                info_hashes: Arbitrary::arbitrary(g),
+            }
+        }
+    }
+
+    impl Arbitrary for ScrapeStatistics {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Self {
+                complete: Arbitrary::arbitrary(g),
+                incomplete: Arbitrary::arbitrary(g),
+                downloaded: Arbitrary::arbitrary(g),
+            }
+        }
+    }
+
+    impl Arbitrary for ScrapeResponse {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            let files: Vec<(InfoHash, ScrapeStatistics)> = Arbitrary::arbitrary(g);
+
+            Self {
+                files: files.into_iter().collect(),
+            }
+        }
+    }
+
+    impl Arbitrary for InMessage {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            if Arbitrary::arbitrary(g){
+                Self::AnnounceRequest(Arbitrary::arbitrary(g))
+            } else {
+                Self::ScrapeRequest(Arbitrary::arbitrary(g))
+            }
+        }
+    }
+
+    impl Arbitrary for OutMessage {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            match (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)){
+                (false, false) => Self::AnnounceResponse(Arbitrary::arbitrary(g)),
+                (true, false) => Self::ScrapeResponse(Arbitrary::arbitrary(g)),
+                (false, true) => Self::Offer(Arbitrary::arbitrary(g)),
+                (true, true) => Self::Answer(Arbitrary::arbitrary(g)),
+            }
+        }
+    }
+
+    #[quickcheck]
+    fn test_serialize_deserialize_in_message(in_message_1: InMessage){
+        dbg!(in_message_1.clone());
+
+        let ws_message = in_message_1.to_ws_message();
+        dbg!(ws_message.clone());
+
+        let in_message_2 = InMessage::from_ws_message(ws_message).unwrap();
+        dbg!(in_message_2.clone());
+
+        assert_eq!(in_message_1, in_message_2);
+    }
+
+    #[quickcheck]
+    fn test_serialize_deserialize_out_message(out_message_1: OutMessage){
+        dbg!(out_message_1.clone());
+
+        let ws_message = out_message_1.clone().into_ws_message();
+        dbg!(ws_message.clone());
+
+        let out_message_2 = OutMessage::from_ws_message(ws_message).unwrap();
+        dbg!(out_message_2.clone());
+
+        assert_eq!(out_message_1, out_message_2);
     }
 }

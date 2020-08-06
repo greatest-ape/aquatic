@@ -240,6 +240,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "hashbrown",
+ "quickcheck",
+ "quickcheck_macros",
  "serde",
  "serde_json",
  "tungstenite",
