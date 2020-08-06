@@ -55,6 +55,9 @@
 * wt-tracker: why lots of responses with no (new) requests?
 * offers_per_request or similar config var
 * consider writing custom serializers, they take up lots of time now
+* count number of announce requests sent, total number of offers sent,
+  and answers sent. compare these with responses received. same for
+  scrape requests I suppose.
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
