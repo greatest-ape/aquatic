@@ -2,6 +2,8 @@
 
 ## General
 
+* have main thread wait for any of the threads returning, quit
+  if that is the since since it means a panic occured
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test
@@ -35,8 +37,10 @@
   write actually block here? And what action should be taken then?
 
 ## aquatic_ws
-* tests for request/response serialization and deserialization
-  * add Arbitrary instances, add conversion identity tests
+* use mio waker, wake it when sending OutMessage's to socket workers? Not
+  necessarily very beneficial since this sending is batched anyway. A benefit
+  would be enabling setting poll timeout much higher so periods without
+  traffic don't really activate the CPU
 * what does numwant do in reference tracker? number of offers to send, right?
 * test transfer again with changes made:
   * crossbeam-channel
