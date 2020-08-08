@@ -17,6 +17,9 @@ use aquatic_http_protocol::request::Request;
 use aquatic_http_protocol::response::{Response, ResponsePeer};
 
 
+pub const LISTENER_TOKEN: Token = Token(0);
+
+
 pub trait Ip: Copy + Eq + ::std::hash::Hash {}
 
 impl Ip for Ipv4Addr {}

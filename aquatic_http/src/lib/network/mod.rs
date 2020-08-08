@@ -92,7 +92,7 @@ pub fn run_poll_loop(
         for event in events.iter(){
             let token = event.token();
 
-            if token.0 == 0 {
+            if token == LISTENER_TOKEN {
                 accept_new_streams(
                     &config,
                     &mut listener,
@@ -148,7 +148,7 @@ fn accept_new_streams(
             Ok((mut stream, _)) => {
                 poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
 
-                if poll_token_counter.0 == 0 {
+                if *poll_token_counter == LISTENER_TOKEN {
                     poll_token_counter.0 = 1;
                 }
 
