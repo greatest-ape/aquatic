@@ -23,7 +23,7 @@ pub struct Config {
 
 impl aquatic_cli_helpers::Config for Config {
     fn get_log_level(&self) -> Option<LogLevel> {
-        Some(self.log_level.clone())
+        Some(self.log_level)
     }
 }
 

@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use simplelog::{ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Off,
