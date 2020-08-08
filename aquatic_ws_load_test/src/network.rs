@@ -68,6 +68,7 @@ impl ConnectionState {
 
 pub struct Connection {
     stream: ConnectionState,
+    peer_id: PeerId,
     can_send: bool,
     send_answer: Option<(PeerId, OfferId)>,
 }
@@ -76,6 +77,7 @@ pub struct Connection {
 impl Connection {
     pub fn create_and_register(
         config: &Config,
+        rng: &mut impl Rng,
         connections: &mut ConnectionMap,
         poll: &mut Poll,
         token_counter: &mut usize,
@@ -88,6 +90,7 @@ impl Connection {
 
         let connection  = Connection {
             stream: ConnectionState::TcpStream(stream),
+            peer_id: PeerId(rng.gen()),
             can_send: false,
             send_answer: None,
         };
@@ -105,6 +108,7 @@ impl Connection {
 
             Some(Self {
                 stream,
+                peer_id: self.peer_id,
                 can_send,
                 send_answer: None,
             })
@@ -176,7 +180,6 @@ impl Connection {
         config: &Config,
         state: &LoadTestState,
         rng: &mut impl Rng,
-        connection_id: usize
     ) -> bool { // bool = remove connection
         if !self.can_send {
             return false;
@@ -187,7 +190,7 @@ impl Connection {
                 &config,
                 &state,
                 rng,
-                connection_id
+                self.peer_id
             );
 
             // If self.send_answer is set and request is announce request, make
@@ -287,7 +290,6 @@ pub fn run_socket_thread(
                 config,
                 &state,
                 &mut rng,
-                *k
             );
 
             if drop_connection {
@@ -303,6 +305,7 @@ pub fn run_socket_thread(
         if connections.len() < config.num_connections && iter_counter % create_conn_interval == 0 {
             let res = Connection::create_and_register(
                 config,
+                &mut rng,
                 &mut connections,
                 &mut poll,
                 &mut token_counter,

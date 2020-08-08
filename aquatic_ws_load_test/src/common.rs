@@ -5,16 +5,6 @@ use rand_distr::Pareto;
 pub use aquatic_ws_protocol::*;
 
 
-
-#[derive(PartialEq, Eq, Clone)]
-pub struct TorrentPeer {
-    pub info_hash: InfoHash,
-    pub scrape_hash_indeces: Vec<usize>,
-    pub peer_id: PeerId,
-    pub port: u16,
-}
-
-
 #[derive(Default)]
 pub struct Statistics {
     pub requests: AtomicUsize,
