@@ -61,13 +61,39 @@ impl FromStr for AnnounceEvent {
 #[cfg(test)]
 impl quickcheck::Arbitrary for InfoHash {
     fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-        let mut arr = [b'x'; 20];
+        let mut arr = [b'0'; 20];
 
-        arr[0] = u8::arbitrary(g);
-        arr[1] = u8::arbitrary(g);
-        arr[18] = u8::arbitrary(g);
-        arr[19] = u8::arbitrary(g);
+        for byte in arr.iter_mut(){
+            *byte = u8::arbitrary(g);
+        }
 
         Self(arr)
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for PeerId {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        let mut arr = [b'0'; 20];
+
+        for byte in arr.iter_mut(){
+            *byte = u8::arbitrary(g);
+        }
+
+        Self(arr)
+    }
+}
+
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for AnnounceEvent {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        match (bool::arbitrary(g), bool::arbitrary(g)){
+            (false, false) => Self::Started,
+            (true, false) => Self::Started,
+            (false, true) => Self::Completed,
+            (true, true) => Self::Empty,
+        }
     }
 }

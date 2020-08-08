@@ -27,7 +27,7 @@ impl AnnounceRequest {
         urlencode_20_bytes(self.info_hash.0, output)?;
 
         output.write_all(b"&peer_id=")?;
-        urlencode_20_bytes(self.info_hash.0, output)?;
+        urlencode_20_bytes(self.peer_id.0, output)?;
 
         output.write_all(b"&port=")?;
         output.write_all(itoa::Buffer::new().format(self.port).as_bytes())?;
@@ -269,6 +269,8 @@ impl Request {
 
 #[cfg(test)]
 mod tests {
+    use quickcheck::{Arbitrary, Gen, TestResult, quickcheck};
+
     use super::*;
 
     static ANNOUNCE_REQUEST_PATH: &str = "/announce?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%c3%c9.%40%24%00%b9&peer_id=-ABC940-5ert69muw5t8&port=12345&uploaded=0&downloaded=0&left=1&numwant=0&key=4ab4b877&compact=1&supportcrypto=1&event=started";
@@ -317,5 +319,70 @@ mod tests {
         });
 
         assert_eq!(parsed_request, reference_request);
+    }
+
+    impl Arbitrary for AnnounceRequest {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let key: Option<String> = Arbitrary::arbitrary(g);
+
+            AnnounceRequest {
+                info_hash: Arbitrary::arbitrary(g),
+                peer_id: Arbitrary::arbitrary(g),
+                port: Arbitrary::arbitrary(g),
+                bytes_left: Arbitrary::arbitrary(g),
+                event: Arbitrary::arbitrary(g),
+                compact: true,
+                numwant: Arbitrary::arbitrary(g),
+                key: key.map(|key| key.into()),
+            }
+        }
+    }
+
+    impl Arbitrary for ScrapeRequest {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            ScrapeRequest {
+                info_hashes: Arbitrary::arbitrary(g),
+            }
+        }
+    }
+
+    impl Arbitrary for Request {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            if Arbitrary::arbitrary(g){
+                Self::Announce(Arbitrary::arbitrary(g))
+            } else {
+                Self::Scrape(Arbitrary::arbitrary(g))
+            }
+        }
+    }
+
+    #[test]
+    fn quickcheck_serde_identity_request(){
+        fn prop(request: Request) -> TestResult {
+            if let Request::Announce(AnnounceRequest { key: Some(ref key), ..}) = request {
+                if !key.is_ascii(){
+                    // Only ascii allowed in headers
+                    return TestResult::discard();
+                }
+            }
+
+            let mut bytes = Vec::new();
+
+            request.write(&mut bytes).unwrap();
+
+            let parsed_request = Request::from_bytes(&bytes[..]).unwrap();
+
+            let success = request == parsed_request;
+
+            if !success {
+                println!("request:        {:?}", request);
+                println!("parsed request: {:?}", parsed_request);
+                println!("bytes as str:   {}", String::from_utf8_lossy(&bytes));
+            }
+
+            TestResult::from_bool(success)
+        }
+
+        quickcheck(prop as fn(Request) -> TestResult);
     }
 }
