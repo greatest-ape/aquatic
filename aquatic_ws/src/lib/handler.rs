@@ -184,6 +184,7 @@ pub fn handle_announce_requests(
                 }
 
                 let middleman_offer = MiddlemanOfferToPeer {
+                    action: AnnounceAction,
                     info_hash: request.info_hash,
                     peer_id: request.peer_id,
                     offer: offer.offer,
@@ -205,6 +206,7 @@ pub fn handle_announce_requests(
                 .get(&answer_receiver_id)
             {
                 let middleman_answer = MiddlemanAnswerToPeer {
+                    action: AnnounceAction,
                     peer_id: request.peer_id,
                     info_hash: request.info_hash,
                     answer,
@@ -219,6 +221,7 @@ pub fn handle_announce_requests(
         }
 
         let response = OutMessage::AnnounceResponse(AnnounceResponse {
+            action: AnnounceAction,
             info_hash: request.info_hash,
             complete: torrent_data.num_seeders,
             incomplete: torrent_data.num_leechers,
@@ -236,12 +239,19 @@ pub fn handle_scrape_requests(
     messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
     requests: Drain<(ConnectionMeta, ScrapeRequest)>,
 ){
-    messages_out.extend(requests.map(|(meta, request)| {
-        let num_to_take = request.info_hashes.len().min(
+    for (meta, request) in requests {
+        let info_hashes = if let Some(info_hashes) = request.info_hashes {
+            info_hashes.as_vec()
+        } else {
+            continue
+        };
+
+        let num_to_take = info_hashes.len().min(
             config.protocol.max_scrape_torrents
         );
 
         let mut response = ScrapeResponse {
+            action: ScrapeAction,
             files: HashMap::with_capacity(num_to_take),
         };
 
@@ -253,7 +263,7 @@ pub fn handle_scrape_requests(
 
         // If request.info_hashes is empty, don't return scrape for all
         // torrents, even though reference server does it. It is too expensive.
-        for info_hash in request.info_hashes.into_iter().take(num_to_take){
+        for info_hash in info_hashes.into_iter().take(num_to_take){
             if let Some(torrent_data) = torrent_map.get(&info_hash){
                 let stats = ScrapeStatistics {
                     complete: torrent_data.num_seeders,
@@ -265,6 +275,6 @@ pub fn handle_scrape_requests(
             }
         }
 
-        (meta, OutMessage::ScrapeResponse(response))
-    }));
+        messages_out.push((meta, OutMessage::ScrapeResponse(response)));
+    }
 }

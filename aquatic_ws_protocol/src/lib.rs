@@ -1,9 +1,62 @@
+use anyhow::Context;
 use hashbrown::HashMap;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 mod serde_helpers;
 
 use serde_helpers::*;
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnnounceAction;
+
+
+impl Serialize for AnnounceAction {
+    fn serialize<S>(
+        &self,
+        serializer: S
+    ) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_str("announce")
+    }
+}
+
+
+impl<'de> Deserialize<'de> for AnnounceAction {
+    fn deserialize<D>(deserializer: D) -> Result<AnnounceAction, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(AnnounceActionVisitor)
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScrapeAction;
+
+
+impl Serialize for ScrapeAction {
+    fn serialize<S>(
+        &self,
+        serializer: S
+    ) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_str("scrape")
+    }
+}
+
+
+impl<'de> Deserialize<'de> for ScrapeAction {
+    fn deserialize<D>(deserializer: D) -> Result<ScrapeAction, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ScrapeActionVisitor)
+    }
+}
 
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +120,7 @@ impl Default for AnnounceEvent {
 /// action = "announce"
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MiddlemanOfferToPeer {
+    pub action: AnnounceAction,
     /// Peer id of peer sending offer
     /// Note: if equal to client peer_id, client ignores offer
     pub peer_id: PeerId,
@@ -83,6 +137,7 @@ pub struct MiddlemanOfferToPeer {
 /// Action field should be 'announce'
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MiddlemanAnswerToPeer {
+    pub action: AnnounceAction,
     /// Note: if equal to client peer_id, client ignores answer
     pub peer_id: PeerId,
     pub info_hash: InfoHash,
@@ -101,6 +156,7 @@ pub struct AnnounceRequestOffer {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnnounceRequest {
+    pub action: AnnounceAction,
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
     /// Just called "left" in protocol. Is set to None in some cases, such as
@@ -136,6 +192,7 @@ pub struct AnnounceRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnnounceResponse {
+    pub action: AnnounceAction,
     pub info_hash: InfoHash,
     /// Client checks if this is null, not clear why
     pub complete: usize,
@@ -146,16 +203,31 @@ pub struct AnnounceResponse {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ScrapeRequestInfoHashes {
+    Single(InfoHash),
+    Multiple(Vec<InfoHash>),
+}
+
+
+impl ScrapeRequestInfoHashes {
+    pub fn as_vec(self) -> Vec<InfoHash> {
+        match self {
+            Self::Single(info_hash) => vec![info_hash],
+            Self::Multiple(info_hashes) => info_hashes,
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScrapeRequest {
+    pub action: ScrapeAction,
     // If omitted, scrape for all torrents, apparently
     // There is some kind of parsing here too which accepts a single info hash
     // and puts it into a vector
-    #[serde(
-        rename = "info_hash",
-        deserialize_with = "deserialize_info_hashes",
-        default
-    )]
-    pub info_hashes: Vec<InfoHash>,
+    #[serde(rename = "info_hash")]
+    pub info_hashes: Option<ScrapeRequestInfoHashes>,
 }
 
 
@@ -169,48 +241,15 @@ pub struct ScrapeStatistics {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScrapeResponse {
+    pub action: ScrapeAction,
     pub files: HashMap<InfoHash, ScrapeStatistics>,
     // Looks like `flags` field is ignored in reference client
     // pub flags: HashMap<String, usize>,
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Action {
-    Announce,
-    Scrape
-}
-
-
-/// Helper for serializing and deserializing messages
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ActionWrapper<T> {
-    pub action: Action,
-    #[serde(flatten)]
-    pub inner: T,
-}
-
-
-impl <T>ActionWrapper<T> {
-    #[inline]
-    pub fn announce(t: T) -> Self {
-        Self {
-            action: Action::Announce,
-            inner: t
-        }
-    }
-    #[inline]
-    pub fn scrape(t: T) -> Self {
-        Self {
-            action: Action::Scrape,
-            inner: t
-        }
-    }
-}
-
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum InMessage {
     AnnounceRequest(AnnounceRequest),
     ScrapeRequest(ScrapeRequest),
@@ -218,49 +257,26 @@ pub enum InMessage {
 
 
 impl InMessage {
-    /// Try parsing as announce request first. If that fails, try parsing as
-    /// scrape request, or return None
     #[inline]
-    pub fn from_ws_message(ws_message: tungstenite::Message) -> Option<Self> {
+    pub fn from_ws_message(ws_message: tungstenite::Message) -> ::anyhow::Result<Self> {
         use tungstenite::Message::{Text, Binary};
 
         let text = match ws_message {
-            Text(text) => Some(text),
-            Binary(bytes) => String::from_utf8(bytes).ok(),
-            _ => None
-        }?;
+            Text(text) => text,
+            Binary(bytes) => String::from_utf8(bytes)?,
+            _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
+        };
 
-        let res: Result<ActionWrapper<AnnounceRequest>, _> = serde_json::from_str(&text);
-
-        if let Ok(ActionWrapper { action: Action::Announce, inner }) = res {
-            return Some(InMessage::AnnounceRequest(inner));
-        }
-        
-        let res: Result<ActionWrapper<ScrapeRequest>, _> = serde_json::from_str(&text);
-
-        if let Ok(ActionWrapper { action: Action::Scrape, inner }) = res {
-            return Some(InMessage::ScrapeRequest(inner));
-        }
-
-        None
+        ::serde_json::from_str(&text).context("serialize with serde")
     }
 
     pub fn to_ws_message(&self) -> ::tungstenite::Message {
-        let text = match self {
-            InMessage::AnnounceRequest(r) => {
-                serde_json::to_string(&ActionWrapper::announce(r)).unwrap()
-            },
-            InMessage::ScrapeRequest(r) => {
-                serde_json::to_string(&ActionWrapper::scrape(r)).unwrap()
-            },
-        };
-
-        ::tungstenite::Message::from(text)
+        ::tungstenite::Message::from(::serde_json::to_string(&self).unwrap())
     }
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OutMessage {
     AnnounceResponse(AnnounceResponse),
@@ -273,30 +289,7 @@ pub enum OutMessage {
 impl OutMessage {
     #[inline]
     pub fn into_ws_message(self) -> tungstenite::Message {
-        let json = match self {
-            Self::AnnounceResponse(message) => {
-                serde_json::to_string(
-                    &ActionWrapper::announce(message)
-                ).unwrap()
-            },
-            Self::Offer(message) => {
-                serde_json::to_string(
-                    &ActionWrapper::announce(message)
-                ).unwrap()
-            },
-            Self::Answer(message) => {
-                serde_json::to_string(
-                    &ActionWrapper::announce(message)
-                ).unwrap()
-            },
-            Self::ScrapeResponse(message) => {
-                serde_json::to_string(
-                    &ActionWrapper::scrape(message)
-                ).unwrap()
-            },
-        };
-                
-        tungstenite::Message::from(json)
+        ::tungstenite::Message::from(::serde_json::to_string(&self).unwrap())
     }
 
     #[inline]
@@ -308,7 +301,7 @@ impl OutMessage {
         let text = match message {
             Text(text) => text,
             Binary(bytes) => String::from_utf8(bytes)?,
-            _ => return Err(anyhow::anyhow!("message type not supported")),
+            _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
         };
 
         if text.contains("answer"){
@@ -381,6 +374,7 @@ mod tests {
     impl Arbitrary for MiddlemanOfferToPeer {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self {
+                action: AnnounceAction,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
@@ -392,6 +386,7 @@ mod tests {
     impl Arbitrary for MiddlemanAnswerToPeer {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self {
+                action: AnnounceAction,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
@@ -434,6 +429,7 @@ mod tests {
                 .map(|offers| offers.len());
 
             Self {
+                action: AnnounceAction,
                 info_hash: Arbitrary::arbitrary(g),
                 peer_id: Arbitrary::arbitrary(g),
                 bytes_left: Arbitrary::arbitrary(g),
@@ -450,6 +446,7 @@ mod tests {
     impl Arbitrary for AnnounceResponse {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self {
+                action: AnnounceAction,
                 info_hash: Arbitrary::arbitrary(g),
                 complete: Arbitrary::arbitrary(g),
                 incomplete: Arbitrary::arbitrary(g),
@@ -461,7 +458,19 @@ mod tests {
     impl Arbitrary for ScrapeRequest {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self {
+                action: ScrapeAction,
                 info_hashes: Arbitrary::arbitrary(g),
+            }
+        }
+    }
+
+
+    impl Arbitrary for ScrapeRequestInfoHashes {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            if Arbitrary::arbitrary(g) {
+                ScrapeRequestInfoHashes::Multiple(Arbitrary::arbitrary(g))
+            } else {
+                ScrapeRequestInfoHashes::Single(Arbitrary::arbitrary(g))
             }
         }
     }
@@ -481,6 +490,7 @@ mod tests {
             let files: Vec<(InfoHash, ScrapeStatistics)> = Arbitrary::arbitrary(g);
 
             Self {
+                action: ScrapeAction,
                 files: files.into_iter().collect(),
             }
         }
@@ -508,28 +518,144 @@ mod tests {
     }
 
     #[quickcheck]
-    fn test_serialize_deserialize_in_message(in_message_1: InMessage){
-        dbg!(in_message_1.clone());
-
+    fn quickcheck_serde_identity_in_message(in_message_1: InMessage) -> bool {
         let ws_message = in_message_1.to_ws_message();
-        dbg!(ws_message.clone());
 
-        let in_message_2 = InMessage::from_ws_message(ws_message).unwrap();
-        dbg!(in_message_2.clone());
+        let in_message_2 = InMessage::from_ws_message(ws_message.clone()).unwrap();
 
-        assert_eq!(in_message_1, in_message_2);
+        let success = in_message_1 ==  in_message_2;
+
+        if !success {
+            dbg!(in_message_1);
+            dbg!(in_message_2);
+            if let ::tungstenite::Message::Text(text) = ws_message {
+                println!("{}", text);
+            }
+        }
+
+        success
     }
 
     #[quickcheck]
-    fn test_serialize_deserialize_out_message(out_message_1: OutMessage){
-        dbg!(out_message_1.clone());
-
+    fn quickcheck_serde_identity_out_message(out_message_1: OutMessage) -> bool {
         let ws_message = out_message_1.clone().into_ws_message();
-        dbg!(ws_message.clone());
 
-        let out_message_2 = OutMessage::from_ws_message(ws_message).unwrap();
-        dbg!(out_message_2.clone());
+        let out_message_2 = OutMessage::from_ws_message(ws_message.clone()).unwrap();
 
-        assert_eq!(out_message_1, out_message_2);
+        let success = out_message_1 ==  out_message_2;
+
+        if !success {
+            dbg!(out_message_1);
+            dbg!(out_message_2);
+            if let ::tungstenite::Message::Text(text) = ws_message {
+                println!("{}", text);
+            }
+        }
+
+        success
+    }
+
+    fn info_hash_from_bytes(bytes: &[u8]) -> InfoHash {
+        let mut arr = [0u8; 20];
+
+        assert!(bytes.len() == 20);
+
+        arr.copy_from_slice(&bytes[..]);
+
+        InfoHash(arr)
+    }
+
+    #[test]
+    fn test_deserialize_info_hashes_vec(){
+        let input = r#"{
+            "action": "scrape",
+            "info_hash": ["aaaabbbbccccddddeeee", "aaaabbbbccccddddeeee"]
+        }"#;
+
+        let info_hashes = ScrapeRequestInfoHashes::Multiple(
+            vec![
+                info_hash_from_bytes(b"aaaabbbbccccddddeeee"),
+                info_hash_from_bytes(b"aaaabbbbccccddddeeee"),
+            ]
+        );
+
+        let expected = ScrapeRequest {
+            action: ScrapeAction,
+            info_hashes: Some(info_hashes)
+        };
+
+        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+
+        assert_eq!(expected, observed);
+    }
+
+    #[test]
+    fn test_deserialize_info_hashes_str(){
+        let input = r#"{
+            "action": "scrape",
+            "info_hash": "aaaabbbbccccddddeeee"
+        }"#;
+
+        let info_hashes = ScrapeRequestInfoHashes::Single(
+            info_hash_from_bytes(b"aaaabbbbccccddddeeee")
+        );
+
+        let expected = ScrapeRequest {
+            action: ScrapeAction,
+            info_hashes: Some(info_hashes)
+        };
+
+        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+
+        assert_eq!(expected, observed);
+    }
+
+    #[test]
+    fn test_deserialize_info_hashes_null(){
+        let input = r#"{
+            "action": "scrape",
+            "info_hash": null
+        }"#;
+
+        let expected = ScrapeRequest {
+            action: ScrapeAction,
+            info_hashes: None
+        };
+
+        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+
+        assert_eq!(expected, observed);
+    }
+
+    #[test]
+    fn test_deserialize_info_hashes_missing(){
+        let input = r#"{
+            "action": "scrape"
+        }"#;
+
+        let expected = ScrapeRequest {
+            action: ScrapeAction,
+            info_hashes: None
+        };
+
+        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+
+        assert_eq!(expected, observed);
+    }
+
+    #[quickcheck]
+    fn quickcheck_serde_identity_info_hashes(info_hashes: ScrapeRequestInfoHashes) -> bool {
+        let json = ::serde_json::to_string(&info_hashes).unwrap();
+
+        println!("{}", json);
+
+        let deserialized: ScrapeRequestInfoHashes = ::serde_json::from_str(&json).unwrap();
+
+        let success = info_hashes == deserialized;
+
+        if !success {
+        }
+
+        success
     }
 }

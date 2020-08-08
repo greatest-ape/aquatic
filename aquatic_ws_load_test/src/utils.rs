@@ -80,6 +80,7 @@ fn create_announce_request(
         .copy_from_slice(&connection_id.to_ne_bytes());
 
     InMessage::AnnounceRequest(AnnounceRequest {
+        action: AnnounceAction,
         info_hash: state.info_hashes[info_hash_index],
         peer_id,
         bytes_left: Some(bytes_left),
@@ -108,7 +109,8 @@ fn create_scrape_request(
     }
 
     InMessage::ScrapeRequest(ScrapeRequest {
-        info_hashes: scrape_hashes,
+        action: ScrapeAction,
+        info_hashes: Some(ScrapeRequestInfoHashes::Multiple(scrape_hashes)),
     })
 }
 

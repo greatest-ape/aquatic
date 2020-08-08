@@ -1,13 +1,55 @@
-use serde::{Serializer, Deserializer, de::{Visitor, SeqAccess}};
+use serde::{Serializer, Deserializer, de::Visitor};
 
-use super::InfoHash;
+use super::{AnnounceAction, ScrapeAction};
+
+
+pub struct AnnounceActionVisitor;
+
+
+impl<'de> Visitor<'de> for AnnounceActionVisitor {
+    type Value = AnnounceAction;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("string with value 'announce'")
+    }
+    
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where E: ::serde::de::Error, {
+        if v == "announce" {
+            Ok(AnnounceAction)
+        } else {
+            Err(E::custom("value is not 'announce'"))
+        }
+    }
+}
+
+
+pub struct ScrapeActionVisitor;
+
+
+impl<'de> Visitor<'de> for ScrapeActionVisitor {
+    type Value = ScrapeAction;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("string with value 'scrape'")
+    }
+    
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where E: ::serde::de::Error, {
+        if v == "scrape" {
+            Ok(ScrapeAction)
+        } else {
+            Err(E::custom("value is not 'scrape'"))
+        }
+    }
+}
 
 
 pub fn serialize_20_bytes<S>(
     data: &[u8; 20],
     serializer: S
 ) -> Result<S::Ok, S::Error> where S: Serializer {
-    let text: String = data.iter().map(|byte| *byte as char).collect();
+    let text: String = data.iter().map(|byte| char::from(*byte)).collect();
 
     serializer.serialize_str(&text)
 }
@@ -71,69 +113,11 @@ pub fn deserialize_20_bytes<'de, D>(
 }
 
 
-pub struct InfoHashVecVisitor;
-
-
-impl<'de> Visitor<'de> for InfoHashVecVisitor {
-    type Value = Vec<InfoHash>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("string or array of strings consisting of 20 bytes")
-    }
-
-    #[inline]
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where E: ::serde::de::Error,
-    {
-        match TwentyByteVisitor::visit_str::<E>(TwentyByteVisitor, value){
-            Ok(arr) => Ok(vec![InfoHash(arr)]),
-            Err(err) => Err(E::custom(format!("got string, but {}", err)))
-        }
-    }
-
-    #[inline]
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where A: SeqAccess<'de>
-    {
-        let mut info_hashes: Self::Value = Vec::new();
-
-        while let Ok(Some(value)) = seq.next_element::<&str>(){
-            let arr = TwentyByteVisitor::visit_str(
-                TwentyByteVisitor, value
-            )?;
-
-            info_hashes.push(InfoHash(arr));
-        }
-
-        Ok(info_hashes)
-    }
-
-    #[inline]
-    fn visit_none<E>(self) -> Result<Self::Value, E>
-        where E: ::serde::de::Error
-    {
-        Ok(vec![])
-    }
-}
-
-
-/// Empty vector is returned if value is null or any invalid info hash
-/// is present
-#[inline]
-pub fn deserialize_info_hashes<'de, D>(
-    deserializer: D
-) -> Result<Vec<InfoHash>, D::Error>
-    where D: Deserializer<'de>,
-{
-    Ok(deserializer.deserialize_any(InfoHashVecVisitor).unwrap_or_default())
-}
-
-
 #[cfg(test)]
 mod tests {
-    use serde::Deserialize;
+    use quickcheck_macros::quickcheck;
 
-    use super::*;
+    use crate::InfoHash;
 
     fn info_hash_from_bytes(bytes: &[u8]) -> InfoHash {
         let mut arr = [0u8; 20];
@@ -175,73 +159,12 @@ mod tests {
         assert_eq!(info_hash, info_hash_2);
     }
 
-    #[derive(Debug, PartialEq, Eq, Deserialize)]
-    struct Test {
-        #[serde(deserialize_with = "deserialize_info_hashes", default)]
-        info_hashes: Vec<InfoHash>,
+    #[quickcheck]
+    fn quickcheck_serde_20_bytes(info_hash: InfoHash) -> bool {
+        let out = serde_json::to_string(&info_hash).unwrap();
+        let info_hash_2 = serde_json::from_str(&out).unwrap();
+
+        info_hash == info_hash_2
     }
 
-
-    #[test]
-    fn test_deserialize_info_hashes_vec(){
-        let input = r#"{
-            "info_hashes": ["aaaabbbbccccddddeeee", "aaaabbbbccccddddeeee"]
-        }"#;
-
-        let expected = Test {
-            info_hashes: vec![
-                info_hash_from_bytes(b"aaaabbbbccccddddeeee"),
-                info_hash_from_bytes(b"aaaabbbbccccddddeeee"),
-            ]
-        };
-
-        let observed: Test = serde_json::from_str(input).unwrap();
-
-        assert_eq!(observed, expected);
-    }
-
-    #[test]
-    fn test_deserialize_info_hashes_str(){
-        let input = r#"{
-            "info_hashes": "aaaabbbbccccddddeeee"
-        }"#;
-
-        let expected = Test {
-            info_hashes: vec![
-                info_hash_from_bytes(b"aaaabbbbccccddddeeee"),
-            ]
-        };
-
-        let observed: Test = serde_json::from_str(input).unwrap();
-
-        assert_eq!(observed, expected);
-    }
-
-    #[test]
-    fn test_deserialize_info_hashes_null(){
-        let input = r#"{
-            "info_hashes": null
-        }"#;
-
-        let expected = Test {
-            info_hashes: vec![]
-        };
-
-        let observed: Test = serde_json::from_str(input).unwrap();
-
-        assert_eq!(observed, expected);
-    }
-
-    #[test]
-    fn test_deserialize_info_hashes_missing(){
-        let input = r#"{}"#;
-
-        let expected = Test {
-            info_hashes: vec![]
-        };
-
-        let observed: Test = serde_json::from_str(input).unwrap();
-
-        assert_eq!(observed, expected);
-    }
 }
