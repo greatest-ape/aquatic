@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use mio::Token;
+use mio::{Token, Poll};
 use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
 
@@ -285,6 +285,31 @@ impl Connection {
             Some(machine)
         } else {
             None
+        }
+    }
+
+    pub fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
+        match &mut self.inner {
+            ConnectionInner::Established(established) => {
+                match &mut established.stream {
+                    Stream::TcpStream(ref mut stream) => {
+                        poll.registry().deregister(stream)
+                    },
+                    Stream::TlsStream(ref mut stream) => {
+                        poll.registry().deregister(stream.get_mut())
+                    },
+                }
+            },
+            ConnectionInner::InProgress(TlsHandshakeMachine { inner, ..}) => {
+                match inner {
+                    TlsHandshakeMachineInner::TcpStream(ref mut stream) => {
+                        poll.registry().deregister(stream)
+                    },
+                    TlsHandshakeMachineInner::TlsMidHandshake(ref mut mid_handshake) => {
+                        poll.registry().deregister(mid_handshake.get_mut())
+                    },
+                }
+            },
         }
     }
 }
