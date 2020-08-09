@@ -304,6 +304,8 @@ impl OutMessage {
             _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
         };
 
+        // This is brittle and could fail, but it doesn't matter too much
+        // since this function is only used in load tester
         if text.contains("answer"){
             Ok(Self::Answer(::serde_json::from_str(&text)?))
         } else if text.contains("offer"){
