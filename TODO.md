@@ -2,15 +2,13 @@
 
 ## General
 
-* have main thread wait for any of the threads returning, quit
-  if that is the since since it means a panic occured
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test
 
-* do single peer_id per connection as in ws, can't hurt and might fix
-  opentracker issues
-* multiple workers is broken
+* multiple workers is broken, results in a lot less responses per second
+* why is cpu usage in load test client so much higher than in aquatic_http
+  and in opentracker?
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams
 * really break and remove connection when reading 0 bytes?
@@ -21,11 +19,13 @@
   opentracker might want it)
 
 ## aquatic_http
+* fix large fluctuations in responses sent (same goes for aquatic_ws)
+  * using drain-like iteration over response channel could work (take at the
+    most the number of elements present when starting iteration)
+  * think about using mio waker when sending through response channel. this 
+    would have to happen often to make any difference.
 * check if connection ValidUntil's are really updated when necessary. there
   are some connections dropped after a while when load testing
-* add tests
-  * test response serialization (against data known to be good would be nice)
-  * test request parsing with strange/bad inputs, with and without quickcheck
 * test torrent transfer with real clients
   * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
@@ -33,35 +33,31 @@
     positive number.
 * compact=0 should result in error response
 * config: multiple request workers
-* Connection.send_response: handle case when all bytes are not written: can
-  write actually block here? And what action should be taken then?
+
+## aquatic_ws_load_test
+* still maybe too few answers received with aquatic_ws
+* wt-tracker: why lots of responses with no (new) requests?
+* offers_per_request or similar config var
+* count number of announce requests sent, total number of offers sent,
+  and answers sent. compare these with responses received. same for
+  scrape requests I suppose.
 
 ## aquatic_ws
-* use mio waker, wake it when sending OutMessage's to socket workers? Not
-  necessarily very beneficial since this sending is batched anyway. A benefit
-  would be enabling setting poll timeout much higher so periods without
-  traffic don't really activate the CPU
-* what does numwant do in reference tracker? number of offers to send, right?
+* deregistering from poll necessary? mio documentation indicates so
+* config: multiple request workers
+* create criterion benchmarks, then try out simd_json
+* might be old info: optimize serialize_20_bytes (10% cpu utilization).
+  deserialize_20_bytes doesn't seem to be that expensive (1-2% cpu)
 * test transfer again with changes made:
   * crossbeam-channel
   * ipv6/ipv4 mapping
   * tungstenite 0.11
 * is 'key' sent in announce request? if so, maybe handle it like in
   aquatic_http (including ip uniqueness part of peer map key)
-* config: multiple request workers
-* optimize serialize_20_bytes (10% cpu utilization). deserialize_20_bytes
-  doesn't seem to be that expensive (1-2% cpu)
-
-## aquatic_ws_load_test
-* still maybe too few answers received with aquatic_ws
-* why does wt-tracker freak out when numwant is set to offers.len()? lots
-  of broken pipe errors etc. likely because it sends offers when it is set.
-* wt-tracker: why lots of responses with no (new) requests?
-* offers_per_request or similar config var
-* consider writing custom serializers, they take up lots of time now
-* count number of announce requests sent, total number of offers sent,
-  and answers sent. compare these with responses received. same for
-  scrape requests I suppose.
+* use mio waker, wake it when sending OutMessage's to socket workers? Not
+  necessarily very beneficial since this sending is batched anyway. A benefit
+  would be enabling setting poll timeout much higher so periods without
+  traffic don't really activate the CPU
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
@@ -77,6 +73,9 @@
   be the case?
 * peer extractor: extract one extra, remove peer if same as sender, otherwise
   just remove one?
+* ctrl-c handlers
+* have main thread wait for any of the threads returning, quit
+  if that is the since since it means a panic occured
 
 ## aquatic_http
 * request parsing:
