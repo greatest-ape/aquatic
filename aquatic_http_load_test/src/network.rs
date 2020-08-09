@@ -177,6 +177,9 @@ impl Connection {
         Ok(())
     }
 
+    fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
+        poll.registry().deregister(&mut self.stream)
+    }
 }
 
 
@@ -223,10 +226,11 @@ pub fn run_socket_thread(
                 let token = event.token();
 
                 if let Some(connection) = connections.get_mut(&token.0){
-                    let remove_connection = connection.read_response(&state);
+                    // Note that this does not indicate successfully reading
+                    // response
+                    if connection.read_response(&state){
+                        remove_connection(&mut poll, &mut connections, token.0);
 
-                    if remove_connection {
-                        connections.remove(&token.0);
                         num_to_create += 1;
                     }
                 } else {
@@ -249,7 +253,8 @@ pub fn run_socket_thread(
         }
 
         for k in drop_connections.drain(..) {
-            connections.remove(&k);
+            remove_connection(&mut poll, &mut connections, k);
+
             num_to_create += 1;
         }
 
@@ -275,5 +280,18 @@ pub fn run_socket_thread(
         }
 
         iter_counter = iter_counter.wrapping_add(1);
+    }
+}
+
+
+fn remove_connection(
+    poll: &mut Poll,
+    connections: &mut ConnectionMap,
+    connection_id: usize,
+){
+    if let Some(mut connection) = connections.remove(&connection_id){
+        if let Err(err) = connection.deregister(poll){
+            eprintln!("couldn't deregister connection: {}", err);
+        }
     }
 }
