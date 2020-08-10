@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use anyhow::Context;
-use mio::Token;
+use mio::{Poll, Token};
 use socket2::{Socket, Domain, Type, Protocol};
 
 use crate::config::Config;
@@ -37,16 +37,17 @@ pub fn create_listener(
 }
 
 
-/// Don't bother with deregistering from Poll. In my understanding, this is
-/// done automatically when the stream is dropped, as long as there are no
-/// other references to the file descriptor, such as when it is accessed
-/// in multiple threads.
 pub fn remove_connection_if_exists(
+    poll: &mut Poll,
     connections: &mut ConnectionMap,
     token: Token,
 ){
     if let Some(mut connection) = connections.remove(&token){
         connection.close();
+
+        if let Err(err) = connection.deregister(poll){
+            ::log::error!("couldn't deregister stream: {}", err);
+        }
     }
 }
 

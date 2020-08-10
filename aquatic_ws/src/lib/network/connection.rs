@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use either::Either;
 use hashbrown::HashMap;
 use log::info;
-use mio::Token;
+use mio::{Poll, Token};
 use mio::net::TcpStream;
 use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
 use tungstenite::WebSocket;
@@ -27,6 +27,16 @@ impl Stream {
         match self {
             Self::TcpStream(stream) => stream.peer_addr().unwrap(),
             Self::TlsStream(stream) => stream.get_ref().peer_addr().unwrap(),
+        }
+    }
+
+    #[inline]
+    pub fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
+        match self {
+            Self::TcpStream(stream) =>
+                poll.registry().deregister(stream),
+            Self::TlsStream(stream) =>
+                poll.registry().deregister(stream.get_mut()),
         }
     }
 }
@@ -272,6 +282,28 @@ impl Connection {
                     )
                 }
             }
+        }
+    }
+
+    pub fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
+        use Either::{Left, Right};
+
+        match self.inner {
+            Left(EstablishedWs { ref mut ws, .. }) => {
+                ws.get_mut().deregister(poll)
+            },
+            Right(HandshakeMachine::TcpStream(ref mut stream)) => {
+                poll.registry().deregister(stream)
+            },
+            Right(HandshakeMachine::TlsMidHandshake(ref mut handshake)) => {
+                poll.registry().deregister(handshake.get_mut())
+            },
+            Right(HandshakeMachine::TlsStream(ref mut stream)) => {
+                poll.registry().deregister(stream.get_mut())
+            },
+            Right(HandshakeMachine::WsMidHandshake(ref mut handshake)) => {
+                handshake.get_mut().get_mut().deregister(poll)
+            },
         }
     }
 }

@@ -105,6 +105,7 @@ pub fn run_poll_loop(
                     socket_worker_index,
                     &in_message_sender,
                     &opt_tls_acceptor,
+                    &mut poll,
                     &mut connections,
                     token,
                     valid_until,
@@ -114,6 +115,7 @@ pub fn run_poll_loop(
 
         if !out_message_receiver.is_empty(){
             send_out_messages(
+                &mut poll,
                 &out_message_receiver,
                 &mut connections
             );
@@ -148,7 +150,7 @@ fn accept_new_streams(
 
                 let token = *poll_token_counter;
 
-                remove_connection_if_exists(connections, token);
+                remove_connection_if_exists(poll, connections, token);
 
                 poll.registry()
                     .register(&mut stream, token, Interest::READABLE)
@@ -176,6 +178,7 @@ pub fn run_handshakes_and_read_messages(
     socket_worker_index: usize,
     in_message_sender: &InMessageSender,
     opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
+    poll: &mut Poll,
     connections: &mut ConnectionMap,
     poll_token: Token,
     valid_until: ValidUntil,
@@ -222,14 +225,14 @@ pub fn run_handshakes_and_read_messages(
                     break;
                 },
                 Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(connections, poll_token);
+                    remove_connection_if_exists(poll, connections, poll_token);
 
                     break
                 },
                 Err(err) => {
                     info!("error reading messages: {}", err);
     
-                    remove_connection_if_exists(connections, poll_token);
+                    remove_connection_if_exists(poll, connections, poll_token);
     
                     break;
                 }
@@ -256,6 +259,7 @@ pub fn run_handshakes_and_read_messages(
 
 /// Read messages from channel, send to peers
 pub fn send_out_messages(
+    poll: &mut Poll,
     out_message_receiver: &Receiver<(ConnectionMeta, OutMessage)>,
     connections: &mut ConnectionMap,
 ){
@@ -280,12 +284,17 @@ pub fn send_out_messages(
                 },
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {},
                 Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(connections, meta.poll_token);
+                    remove_connection_if_exists(
+                        poll,
+                        connections,
+                        meta.poll_token
+                    );
                 },
                 Err(err) => {
                     info!("error writing ws message: {}", err);
 
                     remove_connection_if_exists(
+                        poll,
                         connections,
                         meta.poll_token
                     );
