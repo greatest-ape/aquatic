@@ -52,7 +52,7 @@ impl AnnounceRequest {
 
         if let Some(ref key) = self.key {
             output.write_all(b"&key=")?;
-            output.write_all(key.as_str().as_bytes())?;
+            output.write_all(::urlencoding::encode(key.as_str()).as_bytes())?;
         }
 
         output.write_all(b" HTTP/1.1\r\nConnection: keep-alive\r\n\r\n")?;
@@ -220,7 +220,7 @@ impl Request {
                     if value.len() > 100 {
                         return Err(anyhow::anyhow!("'key' is too long"))
                     }
-                    opt_key = Some(value.into());
+                    opt_key = Some(::urlencoding::decode(value)?.into());
                 },
                 k => {
                     ::log::info!("ignored unrecognized key: {}", k)
@@ -360,8 +360,7 @@ mod tests {
     fn quickcheck_serde_identity_request(){
         fn prop(request: Request) -> TestResult {
             if let Request::Announce(AnnounceRequest { key: Some(ref key), ..}) = request {
-                if !key.is_ascii(){
-                    // Only ascii allowed in headers
+                if key.len() > 30 {
                     return TestResult::discard();
                 }
             }

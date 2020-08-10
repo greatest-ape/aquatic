@@ -35,6 +35,7 @@ memchr = "2"
 rand = { version = "0.7", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 smartstring = "0.2"
+urlencoding = "1"
 
 [dev-dependencies]
 criterion = "0.3"
