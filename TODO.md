@@ -6,26 +6,20 @@
 
 ## aquatic_http_load_test
 
-* multiple workers is broken, results in a lot less responses per second
+* multiple workers combined with closing connections immediately in tracker
+  results in very few responses, why?
 * why is cpu usage in load test client so much higher than in aquatic_http
-  and in opentracker?
+  and in opentracker (when closing connections immediately in tracker)
+* maybe check performance against other well-known implementations than
+  opentracker (which hopefully do keep-alive)
+* Don't send keepalive header, it is not necessary with HTTP/1.1
 * try creating sockets with different ports (and also local ips if setting
-  enabled), then converting them to mio tcp streams
-* really break and remove connection when reading 0 bytes?
-* think about how to fully load opentracker. maybe keepalive can be activated
-* maybe check against other well-known implementations (which hopefully
-  do keep-alive)
-* Don't send keepalive header, it is not necessary with HTTP/1.1? (But
-  opentracker might want it)
+  enabled), then converting them to mio tcp streams? (so that so_reuseport
+  can distribute them to different workers)
 
 ## aquatic_http
-* fix large fluctuations in responses sent (same goes for aquatic_ws)
-  * using drain-like iteration over response channel could work (take at the
-    most the number of elements present when starting iteration)
-  * think about using mio waker when sending through response channel. this 
-    would have to happen often to make any difference.
-* check if connection ValidUntil's are really updated when necessary. there
-  are some connections dropped after a while when load testing
+* array buffer for EstablishedConnection.send_response, there is a lot of
+  allocating and deallocating now
 * test torrent transfer with real clients
   * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
