@@ -37,11 +37,9 @@
   scrape requests I suppose.
 
 ## aquatic_ws
-* deregistering from poll necessary? mio documentation indicates so
 * config: multiple request workers
-* create criterion benchmarks, then try out simd_json
-* might be old info: optimize serialize_20_bytes (10% cpu utilization).
-  deserialize_20_bytes doesn't seem to be that expensive (1-2% cpu)
+* create criterion benchmarks, then try out simd_json. deserializing InMessages
+  takes about 18% CPU, serializing OutMessages takes about 13.5% CPU
 * test transfer again with changes made:
   * crossbeam-channel
   * ipv6/ipv4 mapping
