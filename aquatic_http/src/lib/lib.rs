@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::thread::Builder;
 
 use anyhow::Context;
+use mio::{Poll, Waker};
 use parking_lot::Mutex;
 use privdrop::PrivDrop;
 
@@ -25,6 +26,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     let (request_channel_sender, request_channel_receiver) = ::crossbeam_channel::unbounded();
 
     let mut out_message_senders = Vec::new();
+    let mut wakers = Vec::new();
 
     let socket_worker_statuses: SocketWorkerStatuses = {
         let mut statuses = Vec::new();
@@ -41,10 +43,13 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let socket_worker_statuses = socket_worker_statuses.clone();
         let request_channel_sender = request_channel_sender.clone();
         let opt_tls_acceptor = opt_tls_acceptor.clone();
+        let poll = Poll::new().expect("create poll");
+        let waker = Arc::new(Waker::new(poll.registry(), CHANNEL_TOKEN).expect("create waker"));
 
         let (response_channel_sender, response_channel_receiver) = ::crossbeam_channel::unbounded();
 
         out_message_senders.push(response_channel_sender);
+        wakers.push(waker);
 
         Builder::new().name(format!("socket-{:02}", i + 1)).spawn(move || {
             network::run_socket_worker(
@@ -53,7 +58,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
                 socket_worker_statuses,
                 request_channel_sender,
                 response_channel_receiver,
-                opt_tls_acceptor
+                opt_tls_acceptor,
+                poll
             );
         })?;
     }
@@ -97,6 +103,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
                 state,
                 request_channel_receiver,
                 response_channel_sender,
+                wakers,
             );
         })?;
     }

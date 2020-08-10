@@ -2,8 +2,10 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 use std::vec::Drain;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::Arc;
 
 use either::Either;
+use mio::Waker;
 use parking_lot::MutexGuard;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
@@ -20,8 +22,9 @@ pub fn run_request_worker(
     state: State,
     request_channel_receiver: RequestChannelReceiver,
     response_channel_sender: ResponseChannelSender,
+    wakers: Vec<Arc<Waker>>,
 ){
-    let mut responses = Vec::new();
+    let mut wake_socket_workers: Vec<bool> = (0..config.socket_workers).map(|_| false).collect();
 
     let mut announce_requests = Vec::new();
     let mut scrape_requests = Vec::new();
@@ -35,6 +38,9 @@ pub fn run_request_worker(
     loop {
         let mut opt_torrent_map_guard: Option<MutexGuard<TorrentMaps>> = None;
 
+        // If torrent state mutex is locked, just keep collecting requests
+        // and process them later. This can happen with either multiple
+        // request workers or while cleaning is underway.
         for i in 0..config.handlers.max_requests_per_iter {
             let opt_in_message = if i == 0 {
                 request_channel_receiver.recv().ok()
@@ -66,21 +72,27 @@ pub fn run_request_worker(
             &config,
             &mut rng,
             &mut torrent_map_guard,
-            &mut responses,
+            &response_channel_sender,
+            &mut wake_socket_workers,
             announce_requests.drain(..)
         );
 
         handle_scrape_requests(
             &config,
             &mut torrent_map_guard,
-            &mut responses,
+            &response_channel_sender,
+            &mut wake_socket_workers,
             scrape_requests.drain(..)
         );
 
-        ::std::mem::drop(torrent_map_guard);
+        for (worker_index, wake) in wake_socket_workers.iter_mut().enumerate(){
+            if *wake {
+                if let Err(err) = wakers[worker_index].wake(){
+                    ::log::error!("request handler couldn't wake poll: {:?}", err);
+                }
 
-        for (meta, response) in responses.drain(..){
-            response_channel_sender.send(meta, response);
+                *wake = false;
+            }
         }
     }
 }
@@ -90,14 +102,15 @@ pub fn handle_announce_requests(
     config: &Config,
     rng: &mut impl Rng,
     torrent_maps: &mut TorrentMaps,
-    responses: &mut Vec<(ConnectionMeta, Response)>,
+    response_channel_sender: &ResponseChannelSender,
+    wake_socket_workers: &mut Vec<bool>,
     requests: Drain<(ConnectionMeta, AnnounceRequest)>,
 ){
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
-    responses.extend(requests.map(|(request_sender_meta, request)| {
+    for (meta, request) in requests {
         let peer_ip = convert_ipv4_mapped_ipv6(
-            request_sender_meta.peer_addr.ip()
+            meta.peer_addr.ip()
         );
 
         ::log::debug!("peer ip: {:?}", peer_ip);
@@ -109,8 +122,8 @@ pub fn handle_announce_requests(
                     .or_default();
                 
                 let peer_connection_meta = PeerConnectionMeta {
-                    worker_index: request_sender_meta.worker_index,
-                    poll_token: request_sender_meta.poll_token,
+                    worker_index: meta.worker_index,
+                    poll_token: meta.poll_token,
                     peer_ip_address,
                 };
 
@@ -139,8 +152,8 @@ pub fn handle_announce_requests(
                     .or_default();
                 
                 let peer_connection_meta = PeerConnectionMeta {
-                    worker_index: request_sender_meta.worker_index,
-                    poll_token: request_sender_meta.poll_token,
+                    worker_index: meta.worker_index,
+                    poll_token: meta.poll_token,
                     peer_ip_address
                 };
 
@@ -165,8 +178,9 @@ pub fn handle_announce_requests(
             },
         };
 
-        (request_sender_meta, response)
-    }));
+        response_channel_sender.send(meta, response);
+        wake_socket_workers[meta.worker_index] = true;
+    };
 }
 
 
@@ -250,10 +264,11 @@ fn upsert_peer_and_get_response_peers<I: Ip>(
 pub fn handle_scrape_requests(
     config: &Config,
     torrent_maps: &mut TorrentMaps,
-    messages_out: &mut Vec<(ConnectionMeta, Response)>,
+    response_channel_sender: &ResponseChannelSender,
+    wake_socket_workers: &mut Vec<bool>,
     requests: Drain<(ConnectionMeta, ScrapeRequest)>,
 ){
-    messages_out.extend(requests.map(|(meta, request)| {
+    for (meta, request) in requests {
         let num_to_take = request.info_hashes.len().min(
             config.protocol.max_scrape_torrents
         );
@@ -295,6 +310,7 @@ pub fn handle_scrape_requests(
         };
 
 
-        (meta, Response::Scrape(response))
-    }));
+        response_channel_sender.send(meta, Response::Scrape(response));
+        wake_socket_workers[meta.worker_index] = true;
+    };
 }

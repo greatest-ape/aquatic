@@ -18,6 +18,7 @@ use aquatic_http_protocol::response::{Response, ResponsePeer};
 
 
 pub const LISTENER_TOKEN: Token = Token(0);
+pub const CHANNEL_TOKEN: Token = Token(1);
 
 
 pub trait Ip: Copy + Eq + ::std::hash::Hash {}
@@ -150,12 +151,18 @@ pub type RequestChannelReceiver = Receiver<(ConnectionMeta, Request)>;
 pub type ResponseChannelReceiver = Receiver<(ConnectionMeta, Response)>;
 
 
-pub struct ResponseChannelSender(Vec<Sender<(ConnectionMeta, Response)>>);
+pub struct ResponseChannelSender {
+    senders: Vec<Sender<(ConnectionMeta, Response)>>,
+}
 
 
 impl ResponseChannelSender {
-    pub fn new(senders: Vec<Sender<(ConnectionMeta, Response)>>) -> Self {
-        Self(senders)
+    pub fn new(
+        senders: Vec<Sender<(ConnectionMeta, Response)>>,
+    ) -> Self {
+        Self {
+            senders,
+        }
     }
 
     #[inline]
@@ -164,7 +171,7 @@ impl ResponseChannelSender {
         meta: ConnectionMeta,
         message: Response
     ){
-        if let Err(err) = self.0[meta.worker_index].send((meta, message)){
+        if let Err(err) = self.senders[meta.worker_index].send((meta, message)){
             error!("ResponseChannelSender: couldn't send message: {:?}", err);
         }
     }

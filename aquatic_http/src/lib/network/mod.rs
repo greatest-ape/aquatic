@@ -32,6 +32,7 @@ pub fn run_socket_worker(
     request_channel_sender: RequestChannelSender,
     response_channel_receiver: ResponseChannelReceiver,
     opt_tls_acceptor: Option<TlsAcceptor>,
+    poll: Poll,
 ){
     match create_listener(config.network.address, config.network.ipv6_only){
         Ok(listener) => {
@@ -43,7 +44,8 @@ pub fn run_socket_worker(
                 request_channel_sender,
                 response_channel_receiver,
                 listener,
-                opt_tls_acceptor
+                opt_tls_acceptor,
+                poll,
             );
         },
         Err(err) => {
@@ -62,13 +64,13 @@ pub fn run_poll_loop(
     response_channel_receiver: ResponseChannelReceiver,
     listener: ::std::net::TcpListener,
     opt_tls_acceptor: Option<TlsAcceptor>,
+    mut poll: Poll,
 ){
     let poll_timeout = Duration::from_micros(
         config.network.poll_timeout_microseconds
     );
 
     let mut listener = TcpListener::from_std(listener);
-    let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
     poll.registry()
@@ -101,7 +103,7 @@ pub fn run_poll_loop(
                     &mut poll_token_counter,
                     &opt_tls_acceptor,
                 );
-            } else {
+            } else if token != CHANNEL_TOKEN {
                 handle_connection_read_event(
                     &config,
                     socket_worker_index,
@@ -112,15 +114,16 @@ pub fn run_poll_loop(
                     token,
                 );
             }
-        }
 
-        if !(local_responses.is_empty() & (response_channel_receiver.is_empty())) {
+            // Send responses for each event. Channel token is not interesting
+            // by itself, but is just for making sure responses are sent even
+            // if no new connects / requests come in.
             send_responses(
                 &config,
                 &mut poll,
                 &mut response_buffer,
                 local_responses.drain(..),
-                response_channel_receiver.try_iter(),
+                &response_channel_receiver,
                 &mut connections
             );
         }
@@ -150,8 +153,9 @@ fn accept_new_streams(
             Ok((mut stream, _)) => {
                 poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
 
-                if *poll_token_counter == LISTENER_TOKEN {
-                    poll_token_counter.0 = 1;
+                // Skip listener and channel tokens
+                if poll_token_counter.0 < 2 {
+                    poll_token_counter.0 = 2;
                 }
 
                 let token = *poll_token_counter;
@@ -312,10 +316,14 @@ pub fn send_responses(
     poll: &mut Poll,
     buffer: &mut Cursor<&mut [u8]>,
     local_responses: Drain<(ConnectionMeta, Response)>,
-    channel_responses: crossbeam_channel::TryIter<(ConnectionMeta, Response)>,
+    channel_responses: &ResponseChannelReceiver,
     connections: &mut ConnectionMap,
 ){
-    for (meta, response) in local_responses.chain(channel_responses){
+    let channel_responses_len = channel_responses.len();
+    let channel_responses_drain = channel_responses.try_iter()
+        .take(channel_responses_len);
+
+    for (meta, response) in local_responses.chain(channel_responses_drain){
         if let Some(established) = connections.get_mut(&meta.poll_token)
             .and_then(Connection::get_established)
         {

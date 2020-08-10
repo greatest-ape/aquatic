@@ -121,7 +121,7 @@ impl Default for NetworkConfig {
             tls: TlsConfig::default(),
             keep_alive: true,
             poll_event_capacity: 4096,
-            poll_timeout_microseconds: 10_000,
+            poll_timeout_microseconds: 200_000,
         }
     }
 }
@@ -141,7 +141,7 @@ impl Default for ProtocolConfig {
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
-            max_requests_per_iter: 10000,
+            max_requests_per_iter: 10_000,
             channel_recv_timeout_microseconds: 200,
         }
     }
