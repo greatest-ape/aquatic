@@ -258,6 +258,11 @@ pub enum InMessage {
 
 impl InMessage {
     #[inline]
+    pub fn to_ws_message(&self) -> ::tungstenite::Message {
+        ::tungstenite::Message::from(::serde_json::to_string(&self).unwrap())
+    }
+
+    #[inline]
     pub fn from_ws_message(
         ws_message: tungstenite::Message
     ) -> ::anyhow::Result<Self> {
@@ -271,10 +276,6 @@ impl InMessage {
 
         return ::simd_json::serde::from_str(&mut text)
             .context("deserialize with serde");
-    }
-
-    pub fn to_ws_message(&self) -> ::tungstenite::Message {
-        ::tungstenite::Message::from(::serde_json::to_string(&self).unwrap())
     }
 }
 
@@ -291,7 +292,7 @@ pub enum OutMessage {
 
 impl OutMessage {
     #[inline]
-    pub fn into_ws_message(self) -> tungstenite::Message {
+    pub fn to_ws_message(&self) -> tungstenite::Message {
         ::tungstenite::Message::from(::serde_json::to_string(&self).unwrap())
     }
 
@@ -545,7 +546,7 @@ mod tests {
 
     #[quickcheck]
     fn quickcheck_serde_identity_out_message(out_message_1: OutMessage) -> bool {
-        let ws_message = out_message_1.clone().into_ws_message();
+        let ws_message = out_message_1.to_ws_message();
 
         let out_message_2 = OutMessage::from_ws_message(
             ws_message.clone()
