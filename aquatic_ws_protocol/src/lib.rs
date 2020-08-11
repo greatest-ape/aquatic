@@ -259,17 +259,18 @@ pub enum InMessage {
 impl InMessage {
     #[inline]
     pub fn from_ws_message(
-        ws_message: &mut tungstenite::Message
+        ws_message: tungstenite::Message
     ) -> ::anyhow::Result<Self> {
         use tungstenite::Message::Text;
 
-        let text: &mut str = if let Text(text) = ws_message {
+        let mut text = if let Text(text) = ws_message {
             text
         } else {
             return Err(anyhow::anyhow!("Message is not text"));
         };
 
-        ::simd_json::serde::from_str(text).context("deserialize with serde")
+        return ::simd_json::serde::from_str(&mut text)
+            .context("deserialize with serde");
     }
 
     pub fn to_ws_message(&self) -> ::tungstenite::Message {
@@ -300,7 +301,7 @@ impl OutMessage {
     ) -> ::anyhow::Result<Self> {
         use tungstenite::Message::{Text, Binary};
 
-        let text = match message {
+        let mut text = match message {
             Text(text) => text,
             Binary(bytes) => String::from_utf8(bytes)?,
             _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
@@ -309,13 +310,13 @@ impl OutMessage {
         // This is brittle and could fail, but it doesn't matter too much
         // since this function is only used in load tester
         if text.contains("answer"){
-            Ok(Self::Answer(::serde_json::from_str(&text)?))
+            Ok(Self::Answer(::simd_json::serde::from_str(&mut text)?))
         } else if text.contains("offer"){
-            Ok(Self::Offer(::serde_json::from_str(&text)?))
+            Ok(Self::Offer(::simd_json::serde::from_str(&mut text)?))
         } else if text.contains("interval"){
-            Ok(Self::AnnounceResponse(::serde_json::from_str(&text)?))
+            Ok(Self::AnnounceResponse(::simd_json::serde::from_str(&mut text)?))
         } else if text.contains("scrape"){
-            Ok(Self::ScrapeResponse(::serde_json::from_str(&text)?))
+            Ok(Self::ScrapeResponse(::simd_json::serde::from_str(&mut text)?))
         } else {
             Err(anyhow::anyhow!("Could not determine response type"))
         }
@@ -523,9 +524,11 @@ mod tests {
 
     #[quickcheck]
     fn quickcheck_serde_identity_in_message(in_message_1: InMessage) -> bool {
-        let mut ws_message = in_message_1.to_ws_message();
+        let ws_message = in_message_1.to_ws_message();
 
-        let in_message_2 = InMessage::from_ws_message(&mut ws_message).unwrap();
+        let in_message_2 = InMessage::from_ws_message(
+            ws_message.clone()
+        ).unwrap();
 
         let success = in_message_1 ==  in_message_2;
 
@@ -544,7 +547,9 @@ mod tests {
     fn quickcheck_serde_identity_out_message(out_message_1: OutMessage) -> bool {
         let ws_message = out_message_1.clone().into_ws_message();
 
-        let out_message_2 = OutMessage::from_ws_message(ws_message.clone()).unwrap();
+        let out_message_2 = OutMessage::from_ws_message(
+            ws_message.clone()
+        ).unwrap();
 
         let success = out_message_1 ==  out_message_2;
 
