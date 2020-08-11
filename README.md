@@ -194,9 +194,6 @@ To load test `aquatic_ws`, start it and then run:
 ./scripts/run-load-test-ws.sh
 ```
 
-To achieve high throughput, it is currently necessary to sharply reduce the
-poll timeout setting in the tracker, and reduce it somewhat in the load tester.
-
 ### aquatic_http_load_test
 
 To load test `aquatic_http`, start it and then run:

@@ -30,6 +30,7 @@ pub struct NetworkConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TorrentConfig {
+    pub offers_per_request: usize,
     pub number_of_torrents: usize,
     /// Pareto shape
     /// 
@@ -73,6 +74,7 @@ impl Default for NetworkConfig {
 impl Default for TorrentConfig {
     fn default() -> Self {
         Self {
+            offers_per_request: 10,
             number_of_torrents: 10_000,
             peer_seeder_probability: 0.25,
             torrent_selection_pareto_shape: 2.0,

@@ -60,12 +60,12 @@ fn create_announce_request(
     };
 
     let info_hash_index = select_info_hash_index(config, &state, rng);
-    
-    const NUM_OFFERS: usize = 2;
 
-    let mut offers = Vec::with_capacity(NUM_OFFERS);
+    let mut offers = Vec::with_capacity(
+        config.torrents.offers_per_request
+    );
     
-    for _ in 0..NUM_OFFERS {
+    for _ in 0..config.torrents.offers_per_request {
         offers.push(AnnounceRequestOffer {
             offer_id: OfferId(rng.gen()),
             offer: JsonValue(::serde_json::json!(
