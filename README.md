@@ -205,9 +205,7 @@ To load test `aquatic_http`, start it and then run:
 ./scripts/run-load-test-http.sh
 ```
 
-To achieve high throughput, it is currently necessary to sharply reduce the
-poll timeout setting in the tracker, and reduce it somewhat in the load tester.
-Reducing event capacity can also help.
+To fairly compare to opentracker, set keepalive to false in aquatic_http settings.
 
 ## Trivia
 
