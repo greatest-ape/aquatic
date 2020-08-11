@@ -26,6 +26,7 @@ pub fn run_socket_worker(
     config: Config,
     socket_worker_index: usize,
     socket_worker_statuses: SocketWorkerStatuses,
+    poll: Poll,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
     opt_tls_acceptor: Option<TlsAcceptor>,
@@ -37,6 +38,7 @@ pub fn run_socket_worker(
             run_poll_loop(
                 config,
                 socket_worker_index,
+                poll,
                 in_message_sender,
                 out_message_receiver,
                 listener,
@@ -55,6 +57,7 @@ pub fn run_socket_worker(
 pub fn run_poll_loop(
     config: Config,
     socket_worker_index: usize,
+    mut poll: Poll,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
     listener: ::std::net::TcpListener,
@@ -70,11 +73,10 @@ pub fn run_poll_loop(
     };
 
     let mut listener = TcpListener::from_std(listener);
-    let mut poll = Poll::new().expect("create poll");
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
 
     poll.registry()
-        .register(&mut listener, Token(0), Interest::READABLE)
+        .register(&mut listener, LISTENER_TOKEN, Interest::READABLE)
         .unwrap();
 
     let mut connections: ConnectionMap = HashMap::new();
@@ -91,7 +93,7 @@ pub fn run_poll_loop(
         for event in events.iter(){
             let token = event.token();
 
-            if token.0 == 0 {
+            if token == LISTENER_TOKEN {
                 accept_new_streams(
                     ws_config,
                     &mut listener,
@@ -100,7 +102,7 @@ pub fn run_poll_loop(
                     valid_until,
                     &mut poll_token_counter,
                 );
-            } else {
+            } else if token != CHANNEL_TOKEN {
                 run_handshakes_and_read_messages(
                     socket_worker_index,
                     &in_message_sender,
@@ -111,9 +113,7 @@ pub fn run_poll_loop(
                     valid_until,
                 );
             }
-        }
 
-        if !out_message_receiver.is_empty(){
             send_out_messages(
                 &mut poll,
                 &out_message_receiver,
@@ -144,8 +144,8 @@ fn accept_new_streams(
             Ok((mut stream, _)) => {
                 poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
 
-                if poll_token_counter.0 == 0 {
-                    poll_token_counter.0 = 1;
+                if poll_token_counter.0 < 2 {
+                    poll_token_counter.0 = 2;
                 }
 
                 let token = *poll_token_counter;
@@ -263,7 +263,9 @@ pub fn send_out_messages(
     out_message_receiver: &Receiver<(ConnectionMeta, OutMessage)>,
     connections: &mut ConnectionMap,
 ){
-    for (meta, out_message) in out_message_receiver.try_iter(){
+    let len = out_message_receiver.len();
+
+    for (meta, out_message) in out_message_receiver.try_iter().take(len){
         let opt_established_ws = connections.get_mut(&meta.poll_token)
             .and_then(Connection::get_established_ws);
         

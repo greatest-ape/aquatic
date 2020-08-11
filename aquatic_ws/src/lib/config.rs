@@ -114,7 +114,7 @@ impl Default for NetworkConfig {
             tls_pkcs12_path: "".into(),
             tls_pkcs12_password: "".into(),
             poll_event_capacity: 4096,
-            poll_timeout_microseconds: 1000,
+            poll_timeout_microseconds: 200_000,
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
         }

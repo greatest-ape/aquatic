@@ -13,6 +13,10 @@ pub use aquatic_common::ValidUntil;
 use aquatic_ws_protocol::*;
 
 
+pub const LISTENER_TOKEN: Token = Token(0);
+pub const CHANNEL_TOKEN: Token = Token(1);
+
+
 #[derive(Clone, Copy, Debug)]
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for

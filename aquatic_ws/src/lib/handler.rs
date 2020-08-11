@@ -1,7 +1,9 @@
 use std::time::Duration;
 use std::vec::Drain;
+use std::sync::Arc;
 
 use hashbrown::HashMap;
+use mio::Waker;
 use parking_lot::MutexGuard;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
@@ -17,8 +19,11 @@ pub fn run_request_worker(
     state: State,
     in_message_receiver: InMessageReceiver,
     out_message_sender: OutMessageSender,
+    wakers: Vec<Arc<Waker>>,
 ){
-    let mut out_messages = Vec::new();
+    let mut wake_socket_workers: Vec<bool> = (0..config.socket_workers)
+        .map(|_| false)
+        .collect();
 
     let mut announce_requests = Vec::new();
     let mut scrape_requests = Vec::new();
@@ -63,21 +68,27 @@ pub fn run_request_worker(
             &config,
             &mut rng,
             &mut torrent_map_guard,
-            &mut out_messages,
+            &out_message_sender,
+            &mut wake_socket_workers,
             announce_requests.drain(..)
         );
 
         handle_scrape_requests(
             &config,
             &mut torrent_map_guard,
-            &mut out_messages,
+            &out_message_sender,
+            &mut wake_socket_workers,
             scrape_requests.drain(..)
         );
 
-        ::std::mem::drop(torrent_map_guard);
+        for (worker_index, wake) in wake_socket_workers.iter_mut().enumerate(){
+            if *wake {
+                if let Err(err) = wakers[worker_index].wake(){
+                    ::log::error!("request handler couldn't wake poll: {:?}", err);
+                }
 
-        for (meta, out_message) in out_messages.drain(..){
-            out_message_sender.send(meta, out_message);
+                *wake = false;
+            }
         }
     }
 }
@@ -87,7 +98,8 @@ pub fn handle_announce_requests(
     config: &Config,
     rng: &mut impl Rng,
     torrent_maps: &mut TorrentMaps,
-    messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
+    out_message_sender: &OutMessageSender,
+    wake_socket_workers: &mut Vec<bool>,
     requests: Drain<(ConnectionMeta, AnnounceRequest)>,
 ){
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
@@ -191,10 +203,11 @@ pub fn handle_announce_requests(
                     offer_id: offer.offer_id,
                 };
 
-                messages_out.push((
+                out_message_sender.send(
                     offer_receiver.connection_meta,
                     OutMessage::Offer(middleman_offer)
-                ));
+                );
+                wake_socket_workers[offer_receiver.connection_meta.worker_index] = true;
             }
         }
 
@@ -213,10 +226,11 @@ pub fn handle_announce_requests(
                     offer_id,
                 };
 
-                messages_out.push((
+                out_message_sender.send(
                     answer_receiver.connection_meta,
                     OutMessage::Answer(middleman_answer)
-                ));
+                );
+                wake_socket_workers[answer_receiver.connection_meta.worker_index] = true;
             }
         }
 
@@ -228,7 +242,8 @@ pub fn handle_announce_requests(
             announce_interval: config.protocol.peer_announce_interval,
         });
 
-        messages_out.push((request_sender_meta, response));
+        out_message_sender.send(request_sender_meta, response);
+        wake_socket_workers[request_sender_meta.worker_index] = true;
     }
 }
 
@@ -236,7 +251,8 @@ pub fn handle_announce_requests(
 pub fn handle_scrape_requests(
     config: &Config,
     torrent_maps: &mut TorrentMaps,
-    messages_out: &mut Vec<(ConnectionMeta, OutMessage)>,
+    out_message_sender: &OutMessageSender,
+    wake_socket_workers: &mut Vec<bool>,
     requests: Drain<(ConnectionMeta, ScrapeRequest)>,
 ){
     for (meta, request) in requests {
@@ -275,6 +291,7 @@ pub fn handle_scrape_requests(
             }
         }
 
-        messages_out.push((meta, OutMessage::ScrapeResponse(response)));
+        out_message_sender.send(meta, OutMessage::ScrapeResponse(response));
+        wake_socket_workers[meta.worker_index] = true;
     }
 }
