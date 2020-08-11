@@ -37,10 +37,10 @@ pub fn bench(c: &mut Criterion) {
         offer_id: Some(OfferId(info_hash.0))
     });
 
-    let ws_message = request.to_ws_message();
+    let mut ws_message = request.to_ws_message();
 
     c.bench_function("deserialize-announce-request", |b| b.iter(||
-        InMessage::from_ws_message(black_box(&ws_message))
+        InMessage::from_ws_message(black_box(&mut ws_message))
     ));
 }
 

@@ -2,6 +2,7 @@
 
 ## General
 
+* rustflags for scripts in own .env file or similar
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test
@@ -18,8 +19,6 @@
   can distribute them to different workers)
 
 ## aquatic_http
-* array buffer for EstablishedConnection.send_response, there is a lot of
-  allocating and deallocating now
 * test torrent transfer with real clients
   * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
@@ -27,6 +26,7 @@
     positive number.
 * compact=0 should result in error response
 * config: multiple request workers
+* actually delete old benchmark
 
 ## aquatic_ws_load_test
 * still maybe too few answers received with aquatic_ws
@@ -38,8 +38,6 @@
 
 ## aquatic_ws
 * config: multiple request workers
-* create criterion benchmarks, then try out simd_json. deserializing InMessages
-  takes about 18% CPU, serializing OutMessages takes about 13.5% CPU
 * test transfer again with changes made:
   * crossbeam-channel
   * ipv6/ipv4 mapping
@@ -70,6 +68,8 @@
   if that is the since since it means a panic occured
 
 ## aquatic_http
+* array buffer for EstablishedConnection.send_response? there is a lot of
+  allocating and deallocating now. Doesn't seem to help performance a lot.
 * request parsing:
   * smartstring: maybe use for keys? maybe use less? needs benchmarking
 * use fastrand instead of rand? (also for ws and udp then I guess because of

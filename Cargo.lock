@@ -65,7 +65,7 @@ dependencies = [
  "aquatic_http_protocol",
  "crossbeam-channel",
  "either",
- "hashbrown",
+ "hashbrown 0.8.1",
  "indexmap",
  "itoa",
  "log",
@@ -90,7 +90,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_http_protocol",
- "hashbrown",
+ "hashbrown 0.8.1",
  "mimalloc",
  "mio",
  "quickcheck",
@@ -107,7 +107,7 @@ dependencies = [
  "anyhow",
  "bendy",
  "criterion",
- "hashbrown",
+ "hashbrown 0.8.1",
  "hex",
  "httparse",
  "itoa",
@@ -130,7 +130,7 @@ dependencies = [
  "aquatic_common",
  "aquatic_udp_protocol",
  "crossbeam-channel",
- "hashbrown",
+ "hashbrown 0.8.1",
  "histogram",
  "indexmap",
  "mimalloc",
@@ -168,7 +168,7 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_udp_protocol",
  "crossbeam-channel",
- "hashbrown",
+ "hashbrown 0.8.1",
  "mimalloc",
  "mio",
  "parking_lot",
@@ -199,7 +199,7 @@ dependencies = [
  "aquatic_ws_protocol",
  "crossbeam-channel",
  "either",
- "hashbrown",
+ "hashbrown 0.8.1",
  "indexmap",
  "log",
  "mimalloc",
@@ -222,7 +222,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_ws_protocol",
- "hashbrown",
+ "hashbrown 0.8.1",
  "mimalloc",
  "mio",
  "quickcheck",
@@ -241,11 +241,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "criterion",
- "hashbrown",
+ "hashbrown 0.8.1",
  "quickcheck",
  "quickcheck_macros",
  "serde",
  "serde_json",
+ "simd-json",
  "tungstenite",
 ]
 
@@ -682,6 +683,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
+name = "float-cmp"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "499a1bfa03d254b047e7e5c1fc8dd23a8cf6b344a8eb7e622ae4bc76bfac8e68"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -753,6 +763,26 @@ name = "half"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d36fab90f82edc3c747f9d438e06cf0a491055896f2a279638bb5beed6c40177"
+
+[[package]]
+name = "halfbrown"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c12499524b5585419ab2f51545a19b842263a373580a83c0eb98a0142a260a10"
+dependencies = [
+ "hashbrown 0.7.2",
+ "serde",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96282e96bfcd3da0d3aa9938bedf1e50df3269b6db08b4876d2da0bb1a0841cf"
+dependencies = [
+ "ahash",
+ "autocfg",
+]
 
 [[package]]
 name = "hashbrown"
@@ -827,7 +857,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b88cd59ee5f71fea89a62248fc8f387d44400cefe05ef548466d61ced9029a7"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.8.1",
 ]
 
 [[package]]
@@ -1603,6 +1633,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "simd-json"
+version = "0.3.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0696059565e9aac60099f9ab388869551643fc2d04bf1535554e6ee157821a2f"
+dependencies = [
+ "halfbrown",
+ "serde",
+ "serde_json",
+ "value-trait",
+]
+
+[[package]]
 name = "simplelog"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1848,6 +1890,18 @@ name = "utf-8"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05e42f7c18b8f902290b009cde6d651262f956c98bc51bca4cd1d511c9cd85c7"
+
+[[package]]
+name = "value-trait"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3384a4788567e35113300281d737ab1b77917bd35cb99ffd8a4283345da9a825"
+dependencies = [
+ "float-cmp",
+ "halfbrown",
+ "itoa",
+ "ryu",
+]
 
 [[package]]
 name = "vcpkg"
