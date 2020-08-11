@@ -196,7 +196,7 @@ pub fn run_handshakes_and_read_messages(
 
             match established_ws.ws.read_message(){
                 Ok(ws_message) => {
-                    if let Ok(in_message) = InMessage::from_ws_message(ws_message){
+                    if let Ok(in_message) = InMessage::from_ws_message(&ws_message){
                         let naive_peer_addr = established_ws.peer_addr;
                         let converted_peer_ip = convert_ipv4_mapped_ipv6(
                             naive_peer_addr.ip()

@@ -258,16 +258,16 @@ pub enum InMessage {
 
 impl InMessage {
     #[inline]
-    pub fn from_ws_message(ws_message: tungstenite::Message) -> ::anyhow::Result<Self> {
+    pub fn from_ws_message(ws_message: &tungstenite::Message) -> ::anyhow::Result<Self> {
         use tungstenite::Message::{Text, Binary};
 
         let text = match ws_message {
             Text(text) => text,
-            Binary(bytes) => String::from_utf8(bytes)?,
+            Binary(bytes) => ::std::str::from_utf8(bytes)?,
             _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
         };
 
-        ::serde_json::from_str(&text).context("serialize with serde")
+        ::serde_json::from_str(text).context("serialize with serde")
     }
 
     pub fn to_ws_message(&self) -> ::tungstenite::Message {
@@ -523,7 +523,7 @@ mod tests {
     fn quickcheck_serde_identity_in_message(in_message_1: InMessage) -> bool {
         let ws_message = in_message_1.to_ws_message();
 
-        let in_message_2 = InMessage::from_ws_message(ws_message.clone()).unwrap();
+        let in_message_2 = InMessage::from_ws_message(&ws_message).unwrap();
 
         let success = in_message_1 ==  in_message_2;
 

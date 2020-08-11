@@ -240,6 +240,7 @@ name = "aquatic_ws_protocol"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "criterion",
  "hashbrown",
  "quickcheck",
  "quickcheck_macros",
