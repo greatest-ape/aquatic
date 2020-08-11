@@ -283,10 +283,10 @@ impl InMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OutMessage {
-    AnnounceResponse(AnnounceResponse),
-    ScrapeResponse(ScrapeResponse),
     Offer(MiddlemanOfferToPeer),
     Answer(MiddlemanAnswerToPeer),
+    AnnounceResponse(AnnounceResponse),
+    ScrapeResponse(ScrapeResponse),
 }
 
 
@@ -308,19 +308,7 @@ impl OutMessage {
             _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
         };
 
-        // This is brittle and could fail, but it doesn't matter too much
-        // since this function is only used in load tester
-        if text.contains("answer"){
-            Ok(Self::Answer(::simd_json::serde::from_str(&mut text)?))
-        } else if text.contains("offer"){
-            Ok(Self::Offer(::simd_json::serde::from_str(&mut text)?))
-        } else if text.contains("interval"){
-            Ok(Self::AnnounceResponse(::simd_json::serde::from_str(&mut text)?))
-        } else if text.contains("scrape"){
-            Ok(Self::ScrapeResponse(::simd_json::serde::from_str(&mut text)?))
-        } else {
-            Err(anyhow::anyhow!("Could not determine response type"))
-        }
+        Ok(::simd_json::serde::from_str(&mut text)?)
     }
 }
 
