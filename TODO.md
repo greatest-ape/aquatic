@@ -37,6 +37,7 @@
   scrape requests I suppose.
 
 ## aquatic_ws
+* instability in response number, do mio stuff. same in load test
 * config: multiple request workers
 * test transfer again with changes made:
   * crossbeam-channel
