@@ -52,7 +52,7 @@ impl Default for Config {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
             num_workers: 1,
-            num_connections: 8,
+            num_connections: 16,
             duration: 0,
             network: NetworkConfig::default(),
             torrents: TorrentConfig::default(),
