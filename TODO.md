@@ -19,6 +19,7 @@
   can distribute them to different workers)
 
 ## aquatic_http
+* update tests for simd-json
 * test torrent transfer with real clients
   * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
@@ -29,7 +30,7 @@
 * actually delete old benchmark
 
 ## aquatic_ws_load_test
-* still maybe too few answers received with aquatic_ws
+* too many responses received with aquatic_ws?
 * wt-tracker: why lots of responses with no (new) requests?
 * offers_per_request or similar config var
 * count number of announce requests sent, total number of offers sent,
@@ -37,7 +38,7 @@
   scrape requests I suppose.
 
 ## aquatic_ws
-* instability in response number, do mio stuff. same in load test
+* update tests for simd-json
 * config: multiple request workers
 * test transfer again with changes made:
   * crossbeam-channel
@@ -45,10 +46,6 @@
   * tungstenite 0.11
 * is 'key' sent in announce request? if so, maybe handle it like in
   aquatic_http (including ip uniqueness part of peer map key)
-* use mio waker, wake it when sending OutMessage's to socket workers? Not
-  necessarily very beneficial since this sending is batched anyway. A benefit
-  would be enabling setting poll timeout much higher so periods without
-  traffic don't really activate the CPU
 
 ## aquatic_udp
 * handle errors similarily to aquatic_ws, including errors in socket workers
