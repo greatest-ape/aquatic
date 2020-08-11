@@ -3,7 +3,7 @@
 
 set -e
 
-export RUSTFLAGS="-C target-cpu=native"
+. ./scripts/env-native-cpu-without-avx-512
 
 cargo bench --bench bench_request_from_bytes -- --noplot --baseline latest
 

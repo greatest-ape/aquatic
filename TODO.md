@@ -2,7 +2,6 @@
 
 ## General
 
-* rustflags for scripts in own .env file or similar
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test
