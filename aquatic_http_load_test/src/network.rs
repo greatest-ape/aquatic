@@ -115,10 +115,8 @@ impl Connection {
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
                     break false;
                 },
-                Err(err) => {
+                Err(_) => {
                     self.bytes_read = 0;
-
-                    // eprintln!("handle_read_event error: {}", err);
 
                     break true;
                 }
@@ -155,9 +153,7 @@ impl Connection {
 
                 false
             },
-            Err(err) => {
-                // eprintln!("send request error: {}", err);
-
+            Err(_) => {
                 true
             }
         }
