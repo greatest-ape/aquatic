@@ -223,7 +223,7 @@ impl Request {
                     opt_key = Some(::urlencoding::decode(value)?.into());
                 },
                 k => {
-                    ::log::info!("ignored unrecognized key: {}", k)
+                    ::log::debug!("ignored unrecognized key: {}", k)
                 }
             }
 
