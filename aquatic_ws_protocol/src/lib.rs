@@ -350,7 +350,7 @@ mod tests {
 
     impl Arbitrary for JsonValue {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            Self(::serde_json::json!(r#"{ "sdp": "test" }"#))
+            Self(::serde_json::json!({ "sdp": "test" }))
         }
     }
 
