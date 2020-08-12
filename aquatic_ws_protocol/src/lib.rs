@@ -330,6 +330,10 @@ mod tests {
         bytes
     }
 
+    fn sdp_json_value() -> JsonValue {
+        JsonValue(::serde_json::json!({ "sdp": "test" }))
+    }
+
     impl Arbitrary for InfoHash {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self(arbitrary_20_bytes(g))
@@ -345,12 +349,6 @@ mod tests {
     impl Arbitrary for OfferId {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self(arbitrary_20_bytes(g))
-        }
-    }
-
-    impl Arbitrary for JsonValue {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            Self(::serde_json::json!({ "sdp": "test" }))
         }
     }
 
@@ -372,7 +370,7 @@ mod tests {
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
-                offer: Arbitrary::arbitrary(g)
+                offer: sdp_json_value()
             }
         }
     }
@@ -384,7 +382,7 @@ mod tests {
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
-                answer: Arbitrary::arbitrary(g)
+                answer: sdp_json_value()
             }
         }
     }
@@ -393,7 +391,7 @@ mod tests {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             Self {
                 offer_id: Arbitrary::arbitrary(g),
-                offer: Arbitrary::arbitrary(g)
+                offer: sdp_json_value()
             }
         }
     }
@@ -412,7 +410,7 @@ mod tests {
                     offers = Some(Arbitrary::arbitrary(g));
                 },
                 Some(false) => {
-                    answer = Some(Arbitrary::arbitrary(g));
+                    answer = Some(sdp_json_value());
                     to_peer_id = Some(Arbitrary::arbitrary(g));
                     offer_id = Some(Arbitrary::arbitrary(g));
                 },
