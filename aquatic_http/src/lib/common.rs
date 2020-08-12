@@ -151,6 +151,7 @@ pub type RequestChannelReceiver = Receiver<(ConnectionMeta, Request)>;
 pub type ResponseChannelReceiver = Receiver<(ConnectionMeta, Response)>;
 
 
+#[derive(Clone)]
 pub struct ResponseChannelSender {
     senders: Vec<Sender<(ConnectionMeta, Response)>>,
 }

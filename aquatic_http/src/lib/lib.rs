@@ -22,9 +22,20 @@ pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
 
 
 pub fn run(config: Config) -> anyhow::Result<()> {
-    let opt_tls_acceptor = create_tls_acceptor(&config.network.tls)?;
-
     let state = State::default();
+
+    start_workers(config.clone(), state.clone())?;
+
+    loop {
+        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+
+        tasks::clean_torrents(&state);
+    }
+}
+
+
+pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
+    let opt_tls_acceptor = create_tls_acceptor(&config.network.tls)?;
 
     let (request_channel_sender, request_channel_receiver) = ::crossbeam_channel::unbounded();
 
@@ -96,11 +107,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     let response_channel_sender = ResponseChannelSender::new(out_message_senders);
 
-    {
+    for i in 0..config.request_workers {
         let config = config.clone();
         let state = state.clone();
+        let request_channel_receiver = request_channel_receiver.clone();
+        let response_channel_sender = response_channel_sender.clone();
+        let wakers = wakers.clone();
 
-        Builder::new().name("request".to_string()).spawn(move || {
+        Builder::new().name(format!("request-{:02}", i + 1)).spawn(move || {
             handler::run_request_worker(
                 config,
                 state,
@@ -111,10 +125,6 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         })?;
     }
 
-    loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
-
-        tasks::clean_torrents(&state);
-    }
+    Ok(())
 }
 

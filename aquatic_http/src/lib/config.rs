@@ -12,6 +12,9 @@ pub struct Config {
     /// them on to the request handler. They then recieve responses from the
     /// request handler, encode them and send them back over the socket.
     pub socket_workers: usize,
+    /// Request workers receive a number of requests from socket workers,
+    /// generate responses and send them back to the socket workers.
+    pub request_workers: usize,
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
@@ -102,6 +105,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             socket_workers: 1,
+            request_workers: 1,
             log_level: LogLevel::default(),
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
