@@ -32,7 +32,7 @@ impl AnnounceRequest {
         output.write_all(b"&port=")?;
         output.write_all(itoa::Buffer::new().format(self.port).as_bytes())?;
 
-        output.write_all(b"&left=")?;
+        output.write_all(b"&uploaded=0&downloaded=0&left=")?;
         output.write_all(itoa::Buffer::new().format(self.bytes_left).as_bytes())?;
 
         match self.event {
@@ -55,7 +55,7 @@ impl AnnounceRequest {
             output.write_all(::urlencoding::encode(key.as_str()).as_bytes())?;
         }
 
-        output.write_all(b" HTTP/1.1\r\nConnection: keep-alive\r\n\r\n")?;
+        output.write_all(b" HTTP/1.1\r\nHost: localhost\r\n\r\n")?;
 
         Ok(())
     }

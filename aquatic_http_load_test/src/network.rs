@@ -91,9 +91,10 @@ impl Connection {
                                         state.statistics.responses_scrape
                                             .fetch_add(1, Ordering::SeqCst);
                                     },
-                                    Response::Failure(_) => {
+                                    Response::Failure(response) => {
                                         state.statistics.responses_failure
                                             .fetch_add(1, Ordering::SeqCst);
+                                        println!("failure response: reason: {}", response.failure_reason);
                                     },
                                 }
 
