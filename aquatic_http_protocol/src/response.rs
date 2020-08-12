@@ -184,8 +184,8 @@ impl Response {
             Response::Scrape(r) => r.write(output),
         }
     }
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ::bendy::serde::Error> {
-        ::bendy::serde::de::from_bytes(bytes)
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ::serde_bencode::Error> {
+        ::serde_bencode::from_bytes(bytes)
     }
 }
 

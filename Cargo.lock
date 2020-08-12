@@ -117,6 +117,7 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "serde",
+ "serde_bencode",
  "smartstring",
  "urlencoding",
 ]
@@ -1577,6 +1578,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5317f7588f0a5078ee60ef675ef96735a1442132dc645eb1d12c018620ed8cd3"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde_bencode"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "008b9167b9bfe7b1a0bc0fd30ffd4447c1525872c746b8540e08d88ab6dbcc13"
+dependencies = [
+ "serde",
+ "serde_bytes",
 ]
 
 [[package]]
