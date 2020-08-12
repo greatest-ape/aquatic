@@ -24,9 +24,6 @@ peers. This design means little waiting for locks on internal state occurs,
 while network work can be efficiently distributed over multiple threads,
 making use of SO_REUSEPORT setting.
 
-Currently, `aquatic_ws` and `aquatic_http` only support a single request
-worker. Benchmarks of `aquatic_udp` indicate that this is sufficient.
-
 ## Installation prerequisites
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
