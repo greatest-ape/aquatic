@@ -131,20 +131,20 @@ mod tests {
 
     #[test]
     fn test_deserialize_20_bytes(){
-        let input = r#""aaaabbbbccccddddeeee""#;
+        let mut input = r#""aaaabbbbccccddddeeee""#.to_string();
 
         let expected = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
-        let observed: InfoHash = serde_json::from_str(input).unwrap();
+        let observed: InfoHash = ::simd_json::serde::from_str(&mut input).unwrap();
 
         assert_eq!(observed, expected);
 
-        let input = r#""aaaabbbbccccddddeee""#;
-        let res_info_hash: Result<InfoHash, _> = serde_json::from_str(input);
+        let mut input = r#""aaaabbbbccccddddeee""#.to_string();
+        let res_info_hash: Result<InfoHash, _> = ::simd_json::serde::from_str(&mut input);
 
         assert!(res_info_hash.is_err());
 
-        let input = r#""aaaabbbbccccddddeee𝕊""#;
-        let res_info_hash: Result<InfoHash, _> = serde_json::from_str(input);
+        let mut input = r#""aaaabbbbccccddddeee𝕊""#.to_string();
+        let res_info_hash: Result<InfoHash, _> = ::simd_json::serde::from_str(&mut input);
 
         assert!(res_info_hash.is_err());
     }
@@ -153,16 +153,16 @@ mod tests {
     fn test_serde_20_bytes(){
         let info_hash = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
 
-        let out = serde_json::to_string(&info_hash).unwrap();
-        let info_hash_2 = serde_json::from_str(&out).unwrap();
+        let mut out = ::simd_json::serde::to_string(&info_hash).unwrap();
+        let info_hash_2 = ::simd_json::serde::from_str(&mut out).unwrap();
 
         assert_eq!(info_hash, info_hash_2);
     }
 
     #[quickcheck]
     fn quickcheck_serde_20_bytes(info_hash: InfoHash) -> bool {
-        let out = serde_json::to_string(&info_hash).unwrap();
-        let info_hash_2 = serde_json::from_str(&out).unwrap();
+        let mut out = ::simd_json::serde::to_string(&info_hash).unwrap();
+        let info_hash_2 = ::simd_json::serde::from_str(&mut out).unwrap();
 
         info_hash == info_hash_2
     }

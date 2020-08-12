@@ -33,7 +33,6 @@
   scrape requests I suppose.
 
 ## aquatic_ws
-* update tests for simd-json
 * config: multiple request workers
 * test transfer again with changes made:
   * crossbeam-channel

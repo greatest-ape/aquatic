@@ -565,10 +565,10 @@ mod tests {
 
     #[test]
     fn test_deserialize_info_hashes_vec(){
-        let input = r#"{
+        let mut input: String = r#"{
             "action": "scrape",
             "info_hash": ["aaaabbbbccccddddeeee", "aaaabbbbccccddddeeee"]
-        }"#;
+        }"#.into();
 
         let info_hashes = ScrapeRequestInfoHashes::Multiple(
             vec![
@@ -582,17 +582,17 @@ mod tests {
             info_hashes: Some(info_hashes)
         };
 
-        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+        let observed: ScrapeRequest = ::simd_json::serde::from_str(&mut input).unwrap();
 
         assert_eq!(expected, observed);
     }
 
     #[test]
     fn test_deserialize_info_hashes_str(){
-        let input = r#"{
+        let mut input: String = r#"{
             "action": "scrape",
             "info_hash": "aaaabbbbccccddddeeee"
-        }"#;
+        }"#.into();
 
         let info_hashes = ScrapeRequestInfoHashes::Single(
             info_hash_from_bytes(b"aaaabbbbccccddddeeee")
@@ -603,51 +603,51 @@ mod tests {
             info_hashes: Some(info_hashes)
         };
 
-        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+        let observed: ScrapeRequest = ::simd_json::serde::from_str(&mut input).unwrap();
 
         assert_eq!(expected, observed);
     }
 
     #[test]
     fn test_deserialize_info_hashes_null(){
-        let input = r#"{
+        let mut input: String = r#"{
             "action": "scrape",
             "info_hash": null
-        }"#;
+        }"#.into();
 
         let expected = ScrapeRequest {
             action: ScrapeAction,
             info_hashes: None
         };
 
-        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+        let observed: ScrapeRequest = ::simd_json::serde::from_str(&mut input).unwrap();
 
         assert_eq!(expected, observed);
     }
 
     #[test]
     fn test_deserialize_info_hashes_missing(){
-        let input = r#"{
+        let mut input: String = r#"{
             "action": "scrape"
-        }"#;
+        }"#.into();
 
         let expected = ScrapeRequest {
             action: ScrapeAction,
             info_hashes: None
         };
 
-        let observed: ScrapeRequest = serde_json::from_str(input).unwrap();
+        let observed: ScrapeRequest = ::simd_json::serde::from_str(&mut input).unwrap();
 
         assert_eq!(expected, observed);
     }
 
     #[quickcheck]
     fn quickcheck_serde_identity_info_hashes(info_hashes: ScrapeRequestInfoHashes) -> bool {
-        let json = ::serde_json::to_string(&info_hashes).unwrap();
+        let mut json = ::simd_json::serde::to_string(&info_hashes).unwrap();
 
         println!("{}", json);
 
-        let deserialized: ScrapeRequestInfoHashes = ::serde_json::from_str(&json).unwrap();
+        let deserialized: ScrapeRequestInfoHashes = ::simd_json::serde::from_str(&mut json).unwrap();
 
         let success = info_hashes == deserialized;
 
