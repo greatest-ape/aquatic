@@ -24,9 +24,20 @@ pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 
 
 pub fn run(config: Config) -> anyhow::Result<()> {
-    let opt_tls_acceptor = create_tls_acceptor(&config)?;
-
     let state = State::default();
+
+    start_workers(config.clone(), state.clone())?;
+
+    loop {
+        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+
+        tasks::clean_torrents(&state);
+    }
+}
+
+
+pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
+    let opt_tls_acceptor = create_tls_acceptor(&config)?;
 
     let (in_message_sender, in_message_receiver) = ::crossbeam_channel::unbounded();
 
@@ -98,11 +109,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     let out_message_sender = OutMessageSender::new(out_message_senders);
 
-    {
+    for i in 0..config.request_workers {
         let config = config.clone();
         let state = state.clone();
+        let in_message_receiver = in_message_receiver.clone();
+        let out_message_sender = out_message_sender.clone();
+        let wakers = wakers.clone();
 
-        Builder::new().name("request".to_string()).spawn(move || {
+        Builder::new().name(format!("request-{:02}", i + 1)).spawn(move || {
             handler::run_request_worker(
                 config,
                 state,
@@ -113,11 +127,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         })?;
     }
 
-    loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
-
-        tasks::clean_torrents(&state);
-    }
+    Ok(())
 }
 
 

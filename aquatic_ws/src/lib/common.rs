@@ -118,6 +118,7 @@ pub type InMessageReceiver = Receiver<(ConnectionMeta, InMessage)>;
 pub type OutMessageReceiver = Receiver<(ConnectionMeta, OutMessage)>;
 
 
+#[derive(Clone)]
 pub struct OutMessageSender(Vec<Sender<(ConnectionMeta, OutMessage)>>);
 
 
