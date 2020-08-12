@@ -85,7 +85,7 @@ impl ScrapeRequest {
             first = false;
         }
 
-        output.write_all(b" HTTP/1.1\r\nConnection: keep-alive\r\n\r\n")?;
+        output.write_all(b" HTTP/1.1\r\nHost: localhost\r\n\r\n")?;
 
         Ok(())
     }
