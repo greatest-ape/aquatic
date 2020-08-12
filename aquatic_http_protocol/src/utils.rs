@@ -3,7 +3,6 @@ use std::io::Write;
 
 use anyhow::Context;
 use serde::{Serializer, Deserializer, de::Visitor};
-use smartstring::{SmartString, LazyCompact};
 
 use super::response::ResponsePeer;
 
@@ -64,44 +63,6 @@ pub fn urldecode_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
     }
 
     Ok(out_arr)
-}
-
-
-pub fn urldecode(value: &str) -> anyhow::Result<SmartString<LazyCompact>> {
-    let mut processed = SmartString::new();
-
-    let bytes = value.as_bytes();
-    let iter = ::memchr::memchr_iter(b'%', bytes);
-
-    let mut str_index_after_hex = 0usize;
-
-    for i in iter {
-        match (bytes.get(i), bytes.get(i + 1), bytes.get(i + 2)){
-            (Some(0..=127), Some(0..=127), Some(0..=127)) => {
-                if i > 0 {
-                    processed.push_str(&value[str_index_after_hex..i]);
-                }
-
-                str_index_after_hex = i + 3;
-
-                let hex = &value[i + 1..i + 3];
-                let byte = u8::from_str_radix(&hex, 16)?;
-
-                processed.push(byte as char);
-            },
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "invalid urlencoded segment at byte {} in {}", i, value
-                ));
-            }
-        }
-    }
-
-    if let Some(rest_of_str) = value.get(str_index_after_hex..){
-        processed.push_str(rest_of_str);
-    }
-
-    Ok(processed)
 }
 
 
@@ -338,17 +299,6 @@ mod tests {
         assert_eq!(input, decoded);
 
         input == decoded
-    }
-
-    #[test]
-    fn test_urldecode(){
-        assert_eq!(urldecode("").unwrap(), "".to_string());
-        assert_eq!(urldecode("abc").unwrap(), "abc".to_string());
-        assert_eq!(urldecode("%21").unwrap(), "!".to_string());
-        assert_eq!(urldecode("%21%3D").unwrap(), "!=".to_string());
-        assert_eq!(urldecode("abc%21def%3Dghi").unwrap(), "abc!def=ghi".to_string());
-        assert!(urldecode("%").is_err());
-        assert!(urldecode("%å7").is_err());
     }
 
     #[quickcheck]
