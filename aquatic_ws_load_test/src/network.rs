@@ -163,9 +163,7 @@ impl Connection {
                     Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                         return false;
                     },
-                    Err(err) => {
-                        // eprintln!("handle_read_event error: {}", err);
-
+                    Err(_) => {
                         return true;
                     }
                 }
@@ -224,9 +222,7 @@ impl Connection {
                 Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                     false
                 }
-                Err(err) => {
-                    // eprintln!("send request error: {:?}", err);
-
+                Err(_) => {
                     true
                 }
             }
