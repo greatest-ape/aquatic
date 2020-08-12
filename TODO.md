@@ -12,13 +12,11 @@
   and in opentracker (when closing connections immediately in tracker)
 * maybe check performance against other well-known implementations than
   opentracker (which hopefully do keep-alive)
-* Don't send keepalive header, it is not necessary with HTTP/1.1
 * try creating sockets with different ports (and also local ips if setting
   enabled), then converting them to mio tcp streams? (so that so_reuseport
   can distribute them to different workers)
 
 ## aquatic_http
-* update tests for simd-json
 * test torrent transfer with real clients
   * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
@@ -26,12 +24,10 @@
     positive number.
 * compact=0 should result in error response
 * config: multiple request workers
-* actually delete old benchmark
 
 ## aquatic_ws_load_test
 * too many responses received with aquatic_ws?
 * wt-tracker: why lots of responses with no (new) requests?
-* offers_per_request or similar config var
 * count number of announce requests sent, total number of offers sent,
   and answers sent. compare these with responses received. same for
   scrape requests I suppose.
