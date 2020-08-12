@@ -2,8 +2,6 @@
 
 ## General
 
-* README: replace separate executables with `aquatic` info, including
-  `build-aquatic.sh`
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test

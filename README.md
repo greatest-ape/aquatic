@@ -2,13 +2,11 @@
 
 Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
 
-Consists of separate executables:
-  * `aquatic_udp`: UDP BitTorrent tracker with double the throughput of
-    opentracker (see benchmarks below)
-  * `aquatic_ws`: WebTorrent tracker (experimental)
-  * `aquatic_http`: HTTP BitTorrent tracker (experimental)
-
-These are described in detail below, after the general information.
+Consists of three sub-implementations for different protocols:
+  * `aquatic_udp`: BitTorrent over UDP. Implementation achieves double the throughput
+    of opentracker (see benchmarks below)
+  * `aquatic_http`: BitTorrent over HTTP/TLS (experimental)
+  * `aquatic_ws`: WebTorrent (experimental)
 
 ## Copyright and license
 
@@ -33,70 +31,55 @@ worker. Benchmarks of `aquatic_udp` indicate that this is sufficient.
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- For `aquatic_ws` and `aquatic_http` on GNU/Linux, also install the OpenSSL
-  components necessary for dynamic linking (e.g., `apt-get install libssl-dev`)
+- On GNU/Linux, also install the OpenSSL components necessary for dynamic
+  linking (e.g., `apt-get install libssl-dev`)
 - Clone the git repository and refer to the next section.
 
 ## Compile and run
 
-The command line interfaces for the tracker executables are identical. To run
-the respective tracker, just run its binary. You can also run any of the helper
-scripts, which will compile the binary for you and pass on any command line
-parameters. (After compilation, the binaries are found in `target/release/`.)
-
-To run with default settings:
+To compile the master executable for all protocols, run:
 
 ```sh
-./scripts/run-aquatic-udp.sh
+./scripts/build-aquatic.sh
 ```
 
-```sh
-./scripts/run-aquatic-ws.sh
-```
+To start the tracker for a protocol with default settings, run:
 
 ```sh
-./scripts/run-aquatic-http.sh
+./target/release/aquatic udp
+./target/release/aquatic http
+./target/release/aquatic ws
 ```
 
 To print default settings to standard output, pass the "-p" flag to the binary:
 
 ```sh
-./scripts/run-aquatic-udp.sh -p
+./target/release/aquatic udp -p
+./target/release/aquatic http -p
+./target/release/aquatic ws -p
 ```
 
-```sh
-./scripts/run-aquatic-ws.sh -p
-```
+Note that the configuration files differ between protocols.
+
+To adjust the settings, save the output of the relevant previous command to a
+file and make your changes. Then run `aquatic` with a "-c" argument pointing to
+the file, e.g.:
 
 ```sh
-./scripts/run-aquatic-http.sh -p
-```
-
-To adjust the settings, save the output of the previous command to a file and
-make your changes. Then run the binaries with a "-c" argument pointing to the
-file, e.g.:
-
-```sh
-./scripts/run-aquatic-udp.sh -c "/path/to/aquatic-udp-config.toml"
-```
-
-```sh
-./scripts/run-aquatic-ws.sh -c "/path/to/aquatic-ws-config.toml"
-```
-
-```sh
-./scripts/run-aquatic-http.sh -c "/path/to/aquatic-http-config.toml"
+./target/release/aquatic udp -c "/path/to/aquatic-udp-config.toml"
+./target/release/aquatic http -c "/path/to/aquatic-http-config.toml"
+./target/release/aquatic ws -c "/path/to/aquatic-ws-config.toml"
 ```
 
 The configuration file values you will most likely want to adjust are
 `socket_workers` (number of threads reading from and writing to sockets) and
 `address` under the `network` section (listening address). This goes for all
-three executables.
+three protocols.
 
-Some documentation of the various options might be available in source code
-files `src/lib/config.rs` in the respective tracker crates.
+Some documentation of the various options might be available under
+`src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
 
-## Details on protocol-specific executables
+## Details on implementations
 
 ### aquatic_udp: UDP BitTorrent tracker
 
@@ -175,8 +158,9 @@ Please refer to the `aquatic_ws` section for information about setting up TLS.
 
 ## Load testing
 
-There are load test binaries for all protocols. They use the same CLI structure
-as the trackers, including configuration file generation and loading.
+There are load test binaries for all protocols. They use a CLI structure
+similar to the trackers and support generation and loading of configuration
+files.
 
 ### aquatic_udp_load_test
 
