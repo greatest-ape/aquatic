@@ -8,7 +8,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main(){
     run_app_with_cli_and_config::<Config>(
-        "aquatic: BitTorrent (HTTP/TLS) tracker",
-        aquatic_http::run
+        aquatic_http::APP_NAME,
+        aquatic_http::run,
+        None
     )
 }

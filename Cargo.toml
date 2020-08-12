@@ -1,6 +1,7 @@
 [workspace]
 
 members = [ 
+    "aquatic",
     "aquatic_cli_helpers",
     "aquatic_common",
     "aquatic_http",

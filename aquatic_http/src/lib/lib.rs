@@ -18,6 +18,9 @@ use config::Config;
 use network::utils::create_tls_acceptor;
 
 
+pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
+
+
 pub fn run(config: Config) -> anyhow::Result<()> {
     let opt_tls_acceptor = create_tls_acceptor(&config.network.tls)?;
 

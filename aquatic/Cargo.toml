@@ -1,0 +1,16 @@
+[package]
+name = "aquatic"
+version = "0.1.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2018"
+license = "Apache-2.0"
+
+[[bin]]
+name = "aquatic"
+
+[dependencies]
+aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
+aquatic_http = { path = "../aquatic_http" }
+aquatic_udp = { path = "../aquatic_udp" }
+aquatic_ws = { path = "../aquatic_ws" }
+mimalloc = { version = "0.1", default-features = false }

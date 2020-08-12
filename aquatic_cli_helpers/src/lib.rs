@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io::Read;
 
 use anyhow::Context;
-use gumdrop::Options;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use simplelog::{ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 
@@ -33,23 +32,60 @@ pub trait Config: Default + Serialize + DeserializeOwned {
 }
 
 
-#[derive(Debug, Options)]
-struct AppOptions {
-    #[options(help = "run with config file", short = "c", meta = "PATH")]
+#[derive(Debug, Default)]
+pub struct Options {
     config_file: Option<String>,
-    #[options(help = "print default config file", short = "p")]
     print_config: bool,
-    #[options(help = "print help message")]
-    help: bool,
+}
+
+
+impl Options {
+    pub fn parse_args<I>(
+        mut arg_iter: I
+    ) -> Result<Options, Option<String>>
+        where I: Iterator<Item = String>
+    {
+        let mut options = Options::default();
+
+        loop {
+            if let Some(arg) = arg_iter.next(){
+                match arg.as_str(){
+                    "-c" | "--config-file" => {
+                        if let Some(path) = arg_iter.next(){
+                            options.config_file = Some(path);
+                        } else {
+                            return Err(
+                                Some("No config file path given".to_string())
+                            );
+                        }
+                    },
+                    "-p" | "--print-config" => {
+                        options.print_config = true;
+                    },
+                    "-h" | "--help" => {
+                        return Err(None);
+                    },
+                    _ => {
+                        return Err(Some("Unrecognized argument".to_string()));
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(options)
+    }
 }
 
 
 pub fn run_app_with_cli_and_config<T>(
-    title: &str,
+    app_title: &str,
     // Function that takes config file and runs application
     app_fn: fn(T) -> anyhow::Result<()>,
+    opts: Option<Options>,
 ) where T: Config {
-    ::std::process::exit(match run_inner(title, app_fn) {
+    ::std::process::exit(match run_inner(app_title, app_fn, opts) {
         Ok(()) => 0,
         Err(err) => {
             eprintln!("Error: {:#}", err);
@@ -61,32 +97,45 @@ pub fn run_app_with_cli_and_config<T>(
 
 
 fn run_inner<T>(
-    title: &str,
+    app_title: &str,
     // Function that takes config file and runs application
     app_fn: fn(T) -> anyhow::Result<()>,
+    // Possibly preparsed options
+    options: Option<Options>,
 ) -> anyhow::Result<()> where T: Config {
-    let args: Vec<String> = ::std::env::args().collect();
+    let options = if let Some(options) = options {
+        options
+    } else {
+        let mut arg_iter = ::std::env::args();
 
-    let opts = AppOptions::parse_args_default(&args[1..])?;
+        let app_path = arg_iter.next().unwrap();
 
-    if opts.help_requested(){
-        print_help(title, None);
+        match Options::parse_args(arg_iter){
+            Ok(options) => options,
+            Err(opt_err) => {
+                let gen_info = || format!(
+                    "{}\n\nUsage: {} [OPTIONS]",
+                    app_title,
+                    app_path
+                );
 
-        Ok(())
-    } else if opts.print_config {
+                print_help(gen_info, opt_err);
+
+                return Ok(())
+            }
+        }
+    };
+
+    if options.print_config {
         print!("{}", default_config_as_toml::<T>());
 
         Ok(())
-    } else if let Some(config_file) = opts.config_file {
-        let config: T = config_from_toml_file(config_file)?;
-
-        if let Some(log_level) = config.get_log_level(){
-            start_logger(log_level)?;
-        }
-
-        app_fn(config)
     } else {
-        let config = T::default();
+        let config = if let Some(path) = options.config_file {
+            config_from_toml_file(path)?
+        } else {
+            T::default()
+        };
 
         if let Some(log_level) = config.get_log_level(){
             start_logger(log_level)?;
@@ -97,14 +146,20 @@ fn run_inner<T>(
 }
 
 
-fn print_help(title: &str, opt_error: Option<anyhow::Error>){
-    println!("{}", title);
+pub fn print_help<F>(
+    info_generator: F,
+    opt_error: Option<String>
+) where F: FnOnce() -> String {
+    println!("{}", info_generator());
+
+    println!("\nOptions:");
+    println!("    -c, --config-file     Load config from this path");
+    println!("    -p, --print-config    Print default config");
+    println!("    -h, --help            Print this help message");
 
     if let Some(error) = opt_error {
-        println!("\nError: {:#}.", error);
+        println!("\nError: {}.", error);
     }
-
-    println!("\n{}", AppOptions::usage());
 }
 
 

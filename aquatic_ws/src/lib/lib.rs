@@ -20,6 +20,9 @@ use common::*;
 use config::Config;
 
 
+pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
+
+
 pub fn run(config: Config) -> anyhow::Result<()> {
     let opt_tls_acceptor = create_tls_acceptor(&config)?;
 

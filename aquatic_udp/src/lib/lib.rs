@@ -15,6 +15,9 @@ use config::Config;
 use common::State;
 
 
+pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
+
+
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::default();
 
