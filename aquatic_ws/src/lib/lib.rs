@@ -127,6 +127,21 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         })?;
     }
 
+    if config.statistics.interval != 0 {
+        let state = state.clone();
+        let config = config.clone();
+
+        Builder::new().name("statistics".to_string()).spawn(move ||
+            loop {
+                ::std::thread::sleep(Duration::from_secs(
+                    config.statistics.interval
+                ));
+
+                tasks::print_statistics(&state);
+            }
+        ).expect("spawn statistics thread");
+    }
+
     Ok(())
 }
 

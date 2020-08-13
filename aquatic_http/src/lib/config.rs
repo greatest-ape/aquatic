@@ -20,6 +20,7 @@ pub struct Config {
     pub protocol: ProtocolConfig,
     pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
+    pub statistics: StatisticsConfig,
     pub privileges: PrivilegeConfig,
 }
 
@@ -66,7 +67,6 @@ pub struct ProtocolConfig {
 }
 
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
@@ -86,6 +86,14 @@ pub struct CleaningConfig {
     pub max_peer_age: u64,
     /// Remove connections that are older than this (seconds)
     pub max_connection_age: u64,
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StatisticsConfig {
+    /// Print statistics this often (seconds). Don't print when set to zero.
+    pub interval: u64,
 }
 
 
@@ -111,6 +119,7 @@ impl Default for Config {
             protocol: ProtocolConfig::default(),
             handlers: HandlerConfig::default(),
             cleaning: CleaningConfig::default(),
+            statistics: StatisticsConfig::default(),
             privileges: PrivilegeConfig::default(),
         }
     }
@@ -158,6 +167,15 @@ impl Default for CleaningConfig {
             interval: 30,
             max_peer_age: 180,
             max_connection_age: 180,
+        }
+    }
+}
+
+
+impl Default for StatisticsConfig {
+    fn default() -> Self {
+        Self {
+            interval: 0,
         }
     }
 }

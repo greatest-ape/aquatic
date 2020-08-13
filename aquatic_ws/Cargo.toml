@@ -21,6 +21,7 @@ aquatic_ws_protocol = { path = "../aquatic_ws_protocol" }
 crossbeam-channel = "0.4"
 either = "1"
 hashbrown = { version = "0.8", features = ["serde"] }
+histogram = "0.6"
 indexmap = "1"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
