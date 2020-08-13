@@ -2,6 +2,8 @@ use std::net::SocketAddr;
 
 use serde::{Serialize, Deserialize};
 
+use aquatic_cli_helpers::LogLevel;
+
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -13,6 +15,7 @@ pub struct Config {
     /// Request workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
     pub request_workers: usize,
+    pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
     pub handlers: HandlerConfig,
@@ -22,7 +25,11 @@ pub struct Config {
 }
 
 
-impl aquatic_cli_helpers::Config for Config {}
+impl aquatic_cli_helpers::Config for Config {
+    fn get_log_level(&self) -> Option<LogLevel> {
+        Some(self.log_level)
+    }
+}
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -108,6 +115,7 @@ impl Default for Config {
         Self {
             socket_workers: 1,
             request_workers: 1,
+            log_level: LogLevel::Error,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
             handlers: HandlerConfig::default(),

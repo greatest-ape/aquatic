@@ -108,14 +108,14 @@ pub fn gather_and_print_statistics(
             let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
             if let Err(err) = peers_per_torrent.increment(num_peers){
-                eprintln!("error incrementing peers_per_torrent histogram: {}", err)
+                ::log::error!("error incrementing peers_per_torrent histogram: {}", err)
             }
         }
         for torrent in torrents.ipv6.values(){
             let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
             if let Err(err) = peers_per_torrent.increment(num_peers){
-                eprintln!("error incrementing peers_per_torrent histogram: {}", err)
+                ::log::error!("error incrementing peers_per_torrent histogram: {}", err)
             }
         }
     }

@@ -145,6 +145,7 @@ dependencies = [
  "hashbrown 0.8.2",
  "histogram",
  "indexmap",
+ "log",
  "mimalloc",
  "mio",
  "parking_lot",

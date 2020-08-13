@@ -21,6 +21,7 @@ crossbeam-channel = "0.4"
 hashbrown = "0.8"
 histogram = "0.6"
 indexmap = "1"
+log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 parking_lot = "0.11"

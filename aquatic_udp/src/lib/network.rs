@@ -62,7 +62,7 @@ pub fn run_socket_worker(
 
                 for r in requests.drain(..){
                     if let Err(err) = request_sender.send(r){
-                        eprintln!("error sending to request_sender: {}", err);
+                        ::log::error!("error sending to request_sender: {}", err);
                     }
                 }
 
@@ -103,7 +103,7 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     
     if recv_buffer_size != 0 {
         if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size){
-            eprintln!(
+            ::log::error!(
                 "socket: failed setting recv buffer to {}: {:?}",
                 recv_buffer_size,
                 err
@@ -146,7 +146,7 @@ fn read_requests(
                         requests.push((request, src));
                     },
                     Err(err) => {
-                        eprintln!("request_from_bytes error: {:?}", err);
+                        ::log::debug!("request_from_bytes error: {:?}", err);
 
                         if let Some(transaction_id) = err.transaction_id {
                             let opt_message = if err.error.is_some() {
@@ -174,7 +174,7 @@ fn read_requests(
                     break;
                 }
 
-                eprintln!("recv_from error: {}", err);
+                ::log::info!("recv_from error: {}", err);
             }
         }
     }
@@ -225,7 +225,7 @@ fn send_responses(
                     break;
                 }
 
-                eprintln!("send_to error: {}", err);
+                ::log::info!("send_to error: {}", err);
             }
         }
     }

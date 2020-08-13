@@ -147,7 +147,7 @@ pub fn run_request_worker(
 
         for r in responses.drain(..){
             if let Err(err) = response_sender.send(r){
-                eprintln!("error sending response to channel: {}", err);
+                ::log::error!("error sending response to channel: {}", err);
             }
         }
     }
