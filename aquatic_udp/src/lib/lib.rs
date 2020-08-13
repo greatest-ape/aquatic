@@ -2,6 +2,7 @@ use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::time::Duration;
 use std::thread::Builder;
 
+use anyhow::Context;
 use crossbeam_channel::unbounded;
 use privdrop::PrivDrop;
 
@@ -31,8 +32,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 PrivDrop::default()
                     .chroot(config.privileges.chroot_path)
                     .user(config.privileges.user)
-                    .apply()
-                    .expect("drop privileges");
+                    .apply()?;
 
                 break;
             }
@@ -69,7 +69,7 @@ pub fn start_workers(
                 request_receiver,
                 response_sender
             )
-        ).expect("spawn request worker");
+        ).with_context(|| "spawn request worker")?;
     }
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
@@ -90,7 +90,7 @@ pub fn start_workers(
                 response_receiver,
                 num_bound_sockets,
             )
-        ).expect("spawn socket worker");
+        ).with_context(|| "spawn socket worker")?;
     }
 
     if config.statistics.interval != 0 {
@@ -105,7 +105,7 @@ pub fn start_workers(
 
                 tasks::gather_and_print_statistics(&state, &config);
             }
-        ).expect("spawn statistics thread");
+        ).with_context(|| "spawn statistics worker")?;
     }
 
     Ok(num_bound_sockets)
