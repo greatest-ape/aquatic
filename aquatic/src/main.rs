@@ -91,9 +91,9 @@ fn gen_info() -> String {
     let app_path = ::std::env::args().next().unwrap();
     info.push_str(&format!("\n\nUsage: {} PROTOCOL [OPTIONS]", app_path));
     info.push_str("\n\nAvailable protocols:");
-    info.push_str("\n    udp");
-    info.push_str("\n    http");
-    info.push_str("\n    ws");
+    info.push_str("\n    udp                   BitTorrent over UDP");
+    info.push_str("\n    http                  BitTorrent over HTTP");
+    info.push_str("\n    ws                    WebTorrent");
 
     info
 }
