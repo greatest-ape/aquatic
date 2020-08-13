@@ -21,6 +21,38 @@ pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::default();
 
+    let num_bound_sockets = start_workers(config.clone(), state.clone())?;
+
+    if config.privileges.drop_privileges {
+        loop {
+            let sockets = num_bound_sockets.load(Ordering::SeqCst);
+
+            if sockets == config.socket_workers {
+                PrivDrop::default()
+                    .chroot(config.privileges.chroot_path)
+                    .user(config.privileges.user)
+                    .apply()
+                    .expect("drop privileges");
+
+                break;
+            }
+
+            ::std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    loop {
+        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+
+        tasks::clean_connections_and_torrents(&state);
+    }
+}
+
+
+pub fn start_workers(
+    config: Config,
+    state: State
+) -> ::anyhow::Result<Arc<AtomicUsize>> {
     let (request_sender, request_receiver) = unbounded();
     let (response_sender, response_receiver) = unbounded();
 
@@ -76,27 +108,5 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         ).expect("spawn statistics thread");
     }
 
-    if config.privileges.drop_privileges {
-        loop {
-            let sockets = num_bound_sockets.load(Ordering::SeqCst);
-
-            if sockets == config.socket_workers {
-                PrivDrop::default()
-                    .chroot(config.privileges.chroot_path)
-                    .user(config.privileges.user)
-                    .apply()
-                    .expect("drop privileges");
-
-                break;
-            }
-
-            ::std::thread::sleep(Duration::from_millis(10));
-        }
-    }
-
-    loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
-
-        tasks::clean_connections_and_torrents(&state);
-    }
+    Ok(num_bound_sockets)
 }
