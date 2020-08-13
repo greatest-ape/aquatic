@@ -156,34 +156,19 @@ Please refer to the `aquatic_ws` section for information about setting up TLS.
 ## Load testing
 
 There are load test binaries for all protocols. They use a CLI structure
-similar to the trackers and support generation and loading of configuration
-files.
+similar to `aquatic` and support generation and loading of configuration files.
 
-### aquatic_udp_load_test
-
-To load test `aquatic_udp`, start it and then run:
+To run, first start the tracker that you want to test. Then run the
+corresponding load test binary:
 
 ```sh
 ./scripts/run-load-test-udp.sh
-```
-
-### aquatic_ws_load_test
-
-To load test `aquatic_ws`, start it and then run:
-
-```sh
+./scripts/run-load-test-http.sh
 ./scripts/run-load-test-ws.sh
 ```
 
-### aquatic_http_load_test
-
-To load test `aquatic_http`, start it and then run:
-
-```sh
-./scripts/run-load-test-http.sh
-```
-
-To fairly compare to opentracker, set keepalive to false in aquatic_http settings.
+To fairly compare HTTP performance to opentracker, set keepalive to false in
+`aquatic_http` settings.
 
 ## Trivia
 
