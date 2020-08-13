@@ -14,7 +14,6 @@ members = [
     "aquatic_ws",
     "aquatic_ws_load_test",
     "aquatic_ws_protocol",
-    "plot_pareto"
 ]
 
 [profile.release]
