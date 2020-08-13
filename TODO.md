@@ -4,6 +4,8 @@
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test
+* how handle large number of peers for "popular" torrents in keepalive mode?
+  maybe it is ok
 * multiple workers combined with closing connections immediately in tracker
   results in very few responses, why?
 * why is cpu usage in load test client so much higher than in aquatic_http
@@ -23,6 +25,8 @@
 * compact=0 should result in error response
 
 ## aquatic_ws_load_test
+* very small amount of connections means very small number of peers per
+  torrents, so tracker handling of large number is not really assessed
 * too many responses received with aquatic_ws?
 * wt-tracker: why lots of responses with no (new) requests?
 * count number of announce requests sent, total number of offers sent,
