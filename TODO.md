@@ -1,11 +1,9 @@
 # TODO
 
 ## General
-
 * automatic tests running real clients in container?
 
 ## aquatic_http_load_test
-
 * multiple workers combined with closing connections immediately in tracker
   results in very few responses, why?
 * why is cpu usage in load test client so much higher than in aquatic_http
@@ -23,7 +21,6 @@
   * 'left' optional in magnet requests? Probably not. Transmission sends huge
     positive number.
 * compact=0 should result in error response
-* config: multiple request workers
 
 ## aquatic_ws_load_test
 * too many responses received with aquatic_ws?
@@ -33,7 +30,6 @@
   scrape requests I suppose.
 
 ## aquatic_ws
-* config: multiple request workers
 * test transfer again with changes made:
   * crossbeam-channel
   * ipv6/ipv4 mapping
@@ -95,7 +91,6 @@
   config var, or the config var needs to be removed)
 
 ## aquatic_udp
-
 * Does it really make sense to include peer address in peer map key? I have
   to think about why I included it in the first place.
 * if socket workers panic while binding, don't sit around and wait for them
@@ -114,7 +109,6 @@
   transaction id?
 
 ## aquatic_cli_helpers
-
 * Include config field comments in exported toml (likely quite a bit of work)
 
 # Don't do
@@ -160,7 +154,6 @@ just like best results in last benchmark, multiple client ips=true:
   while announcing without TLS, this expectation would be broken.
 
 ## aquatic_udp
-
 * Other HashMap hashers (such as SeaHash): seemingly not worthwhile, see
   `https://github.com/tkaitchuck/aHash`
 * `sendmmsg`: can't send to multiple socket addresses, so doesn't help
@@ -171,7 +164,6 @@ just like best results in last benchmark, multiple client ips=true:
   readable reference to entry in torrent map, hurting concurrency.
 
 ## aquatic_udp_protocol
-
 * Use `bytes` crate: seems to worsen performance somewhat
 * Zerocopy (https://docs.rs/zerocopy/0.3.0/zerocopy/index.html) for requests
   and responses? Doesn't work on Vec etc
