@@ -1,0 +1,10 @@
+name: 'test-transfer-udp-http'
+description: 'test aquatic udp and http file transfer'
+outputs:
+  http_ipv4:
+    description: 'HTTP IPv4 status'
+  udp_ipv4:
+    description: 'UDP IPv4 status'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
