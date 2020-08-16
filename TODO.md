@@ -1,8 +1,10 @@
 # TODO
 
 ## General
-* extract response peers: extract "one extra" to compensate for removal
-  of sender if present in selection?
+* extract response peers: extract "one extra" to compensate for removal,
+  of sender if present in selection? maybe make criterion benchmark,
+  optimize. consider rerunning udp benchmark, last change (filtering out
+  sender) might have had an adverse impact on performance.
 * automatic tests running real clients in container?
   * https://docs.github.com/en/actions/creating-actions/creating-a-docker-container-action
   * https://hub.docker.com/_/rust
@@ -21,7 +23,6 @@
   can distribute them to different workers)
 
 ## aquatic_http
-* clean_torrent_map doesn't update statistics..
 * test torrent transfer with real clients
   * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
