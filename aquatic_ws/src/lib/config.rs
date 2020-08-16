@@ -161,8 +161,8 @@ impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             interval: 30,
-            max_peer_age: 180,
-            max_connection_age: 180,
+            max_peer_age: 1800,
+            max_connection_age: 1800,
         }
     }
 }
