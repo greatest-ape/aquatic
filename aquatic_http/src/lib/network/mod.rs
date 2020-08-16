@@ -339,7 +339,11 @@ pub fn send_responses(
 
             match established.send_response(&buffer.get_mut()[..bytes_written]){
                 Ok(()) => {
-                    debug!("sent response");
+                    ::log::debug!(
+                        "sent response: {:?} with response string {}",
+                        response,
+                        String::from_utf8_lossy(&buffer.get_ref()[..bytes_written])
+                    );
 
                     if !config.network.keep_alive {
                         remove_connection(poll, connections, &meta.poll_token);
