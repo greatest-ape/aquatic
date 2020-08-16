@@ -1,7 +1,11 @@
 # TODO
 
 ## General
+* extract response peers: extract "one extra" to compensate for removal
+  of sender if present in selection?
 * automatic tests running real clients in container?
+  * https://docs.github.com/en/actions/creating-actions/creating-a-docker-container-action
+  * https://hub.docker.com/_/rust
 
 ## aquatic_http_load_test
 * how handle large number of peers for "popular" torrents in keepalive mode?
@@ -17,6 +21,7 @@
   can distribute them to different workers)
 
 ## aquatic_http
+* clean_torrent_map doesn't update statistics..
 * test torrent transfer with real clients
   * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
