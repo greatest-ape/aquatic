@@ -178,23 +178,13 @@ pub fn handle_announce_requests(
                 rng,
                 &torrent_data.peers,
                 max_num_peers_to_take,
+                request.peer_id,
                 f
             );
 
             for (offer, offer_receiver) in offers.into_iter()
                 .zip(offer_receivers)
             {
-                // Avoid sending offer back to requesting peer. This could be
-                // done in extract_announce_peers, but it would likely hurt
-                // performance to check all peers there for their socket addr,
-                // especially if there are thousands of peers. It might be
-                // possible to write a new version of that function which isn't
-                // shared with aquatic_udp and goes about it differently
-                // though.
-                if request_sender_meta.naive_peer_addr == offer_receiver.connection_meta.naive_peer_addr {
-                    continue;
-                }
-
                 let middleman_offer = MiddlemanOfferToPeer {
                     action: AnnounceAction,
                     info_hash: request.info_hash,

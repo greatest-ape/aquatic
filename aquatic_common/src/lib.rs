@@ -26,13 +26,14 @@ impl ValidUntil {
 /// If there are more peers in map than `max_num_peers_to_take`, do a
 /// half-random selection of peers from first and second halves of map,
 /// in order to avoid returning too homogeneous peers.
-/// 
-/// Don't care if we send back announcing peer.
+///
+/// Might return one less peer than wanted since sender is filtered out.
 #[inline]
 pub fn extract_response_peers<K, V, R, F>(
     rng: &mut impl Rng,
     peer_map: &IndexMap<K, V>,
     max_num_peers_to_take: usize,
+    sender_peer_map_key: K,
     peer_conversion_function: F
 ) -> Vec<R>
     where
@@ -41,9 +42,15 @@ pub fn extract_response_peers<K, V, R, F>(
 {
     let peer_map_len = peer_map.len();
 
-    if peer_map_len <= max_num_peers_to_take {
-        peer_map.values()
-            .map(peer_conversion_function)
+    if peer_map_len <= max_num_peers_to_take + 1 {
+        peer_map.iter()
+            .filter_map(|(k, v)|{
+                if *k == sender_peer_map_key {
+                    None
+                } else {
+                    Some(peer_conversion_function(v))
+                }
+            })
             .collect()
     } else {
         let half_num_to_take = max_num_peers_to_take / 2;
@@ -64,17 +71,19 @@ pub fn extract_response_peers<K, V, R, F>(
         let mut peers: Vec<R> = Vec::with_capacity(max_num_peers_to_take);
 
         for i in offset_first_half..end_first_half {
-            if let Some((_, peer)) = peer_map.get_index(i){
-                peers.push(peer_conversion_function(peer))
+            if let Some((k, peer)) = peer_map.get_index(i){
+                if *k != sender_peer_map_key {
+                    peers.push(peer_conversion_function(peer))
+                }
             }
         }
         for i in offset_second_half..end_second_half {
-            if let Some((_, peer)) = peer_map.get_index(i){
-                peers.push(peer_conversion_function(peer))
+            if let Some((k, peer)) = peer_map.get_index(i){
+                if *k != sender_peer_map_key {
+                    peers.push(peer_conversion_function(peer))
+                }
             }
         }
-        
-        debug_assert_eq!(peers.len(), max_num_peers_to_take);
 
         peers
     }

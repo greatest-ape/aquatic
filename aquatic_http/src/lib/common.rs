@@ -21,7 +21,7 @@ pub const LISTENER_TOKEN: Token = Token(0);
 pub const CHANNEL_TOKEN: Token = Token(1);
 
 
-pub trait Ip: Copy + Eq + ::std::hash::Hash {}
+pub trait Ip: ::std::fmt::Debug + Copy + Eq + ::std::hash::Hash {}
 
 impl Ip for Ipv4Addr {}
 impl Ip for Ipv6Addr {}
@@ -73,7 +73,7 @@ impl PeerStatus {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Peer<I: Ip> {
     pub connection_meta: PeerConnectionMeta<I>,
     pub port: u16,

@@ -291,6 +291,7 @@ fn handle_announce_request<I: Ip>(
         rng,
         &torrent_data.peers,
         max_num_peers_to_take,
+        peer_key,
         Peer::to_response_peer
     );
 
@@ -419,8 +420,16 @@ mod tests {
 
             let mut peer_map: PeerMap<Ipv4Addr> = IndexMap::new();
 
+            let mut opt_sender_key = None;
+            let mut opt_sender_peer = None;
+
             for i in 0..gen_num_peers {
                 let (key, value) = gen_peer_map_key_and_value(i);
+
+                if i == 0 {
+                    opt_sender_key = Some(key);
+                    opt_sender_peer = Some(value.to_response_peer());
+                }
 
                 peer_map.insert(key, value);
             }
@@ -431,6 +440,7 @@ mod tests {
                 &mut rng,
                 &peer_map,
                 req_num_peers,
+                opt_sender_key.unwrap_or_else(|| gen_peer_map_key_and_value(1).0),
                 Peer::to_response_peer
             );
 
@@ -439,15 +449,17 @@ mod tests {
             let mut success = peers.len() <= req_num_peers;
 
             if req_num_peers >= gen_num_peers as usize {
-                success &= peers.len() == gen_num_peers as usize;
+                success &= peers.len() == gen_num_peers as usize ||
+                    peers.len() + 1 == gen_num_peers as usize;
             }
 
-            // Check that returned peers are unique (no overlap)
+            // Check that returned peers are unique (no overlap) and that sender
+            // isn't returned
 
             let mut ip_addresses = HashSet::new();
 
             for peer in peers {
-                if ip_addresses.contains(&peer.ip_address){
+                if peer == opt_sender_peer.clone().unwrap() || ip_addresses.contains(&peer.ip_address){
                     success = false;
 
                     break;

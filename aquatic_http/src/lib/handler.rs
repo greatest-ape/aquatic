@@ -194,56 +194,63 @@ fn upsert_peer_and_get_response_peers<I: Ip>(
     valid_until: ValidUntil,
 ) -> (usize, usize, Vec<ResponsePeer<I>>) {
     // Insert/update/remove peer who sent this request
-    {
-        let peer_status = PeerStatus::from_event_and_bytes_left(
-            request.event,
-            Some(request.bytes_left)
+
+    let peer_status = PeerStatus::from_event_and_bytes_left(
+        request.event,
+        Some(request.bytes_left)
+    );
+
+    let peer = Peer {
+        connection_meta: request_sender_meta,
+        port: request.port,
+        status: peer_status,
+        valid_until,
+    };
+
+    ::log::debug!("peer: {:?}", peer);
+
+    let ip_or_key = request.key
+        .map(Either::Right)
+        .unwrap_or_else(||
+            Either::Left(request_sender_meta.peer_ip_address)
         );
 
-        let peer = Peer {
-            connection_meta: request_sender_meta,
-            port: request.port,
-            status: peer_status,
-            valid_until,
-        };
+    let peer_map_key = PeerMapKey {
+        peer_id: request.peer_id,
+        ip_or_key,
+    };
 
-        let ip_or_key = request.key
-            .map(Either::Right)
-            .unwrap_or_else(||
-                Either::Left(request_sender_meta.peer_ip_address)
-            );
+    ::log::debug!("peer map key: {:?}", peer_map_key);
 
-        let peer_map_key = PeerMapKey {
-            peer_id: request.peer_id,
-            ip_or_key,
-        };
+    let opt_removed_peer = match peer_status {
+        PeerStatus::Leeching => {
+            torrent_data.num_leechers += 1;
 
-        let opt_removed_peer = match peer_status {
-            PeerStatus::Leeching => {
-                torrent_data.num_leechers += 1;
+            torrent_data.peers.insert(peer_map_key.clone(), peer)
+        },
+        PeerStatus::Seeding => {
+            torrent_data.num_seeders += 1;
 
-                torrent_data.peers.insert(peer_map_key, peer)
-            },
-            PeerStatus::Seeding => {
-                torrent_data.num_seeders += 1;
-
-                torrent_data.peers.insert(peer_map_key, peer)
-            },
-            PeerStatus::Stopped => {
-                torrent_data.peers.remove(&peer_map_key)
-            }
-        };
-
-        match opt_removed_peer.map(|peer| peer.status){
-            Some(PeerStatus::Leeching) => {
-                torrent_data.num_leechers -= 1;
-            },
-            Some(PeerStatus::Seeding) => {
-                torrent_data.num_seeders -= 1;
-            },
-            _ => {}
+            torrent_data.peers.insert(peer_map_key.clone(), peer)
+        },
+        PeerStatus::Stopped => {
+            torrent_data.peers.remove(&peer_map_key)
         }
+    };
+
+    ::log::debug!("opt_removed_peer: {:?}", opt_removed_peer);
+
+    match opt_removed_peer.map(|peer| peer.status){
+        Some(PeerStatus::Leeching) => {
+            torrent_data.num_leechers -= 1;
+        },
+        Some(PeerStatus::Seeding) => {
+            torrent_data.num_seeders -= 1;
+        },
+        _ => {}
     }
+
+    ::log::debug!("peer request numwant: {:?}", request.numwant);
 
     let max_num_peers_to_take = match request.numwant {
         Some(0) | None => config.protocol.max_peers,
@@ -254,6 +261,7 @@ fn upsert_peer_and_get_response_peers<I: Ip>(
         rng,
         &torrent_data.peers,
         max_num_peers_to_take,
+        peer_map_key,
         Peer::to_response_peer
     );
 
