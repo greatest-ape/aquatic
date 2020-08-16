@@ -20,8 +20,25 @@ fn clean_torrent_map<I: Ip>(
     let now = Instant::now();
 
     torrent_map.retain(|_, torrent_data| {
+        let num_seeders = &mut torrent_data.num_seeders;
+        let num_leechers = &mut torrent_data.num_leechers;
+
         torrent_data.peers.retain(|_, peer| {
-            peer.valid_until.0 >= now
+            let keep = peer.valid_until.0 >= now;
+
+            if !keep {
+                match peer.status {
+                    PeerStatus::Seeding => {
+                        *num_seeders -= 1;
+                    },
+                    PeerStatus::Leeching => {
+                        *num_leechers -= 1;
+                    },
+                    _ => (),
+                };
+            }
+
+            keep
         });
 
         !torrent_data.peers.is_empty()
