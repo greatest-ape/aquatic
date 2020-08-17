@@ -111,6 +111,32 @@ Server responses per second, best result in bold:
 See `documents/aquatic-load-test-2020-04-19.pdf` for details on benchmark, and
 end of README for more information about load testing.
 
+### aquatic_http: HTTP BitTorrent tracker
+
+Aims for compatibility with the HTTP BitTorrent protocol, as described
+[here](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol),
+including TLS and scrape request support. There are some exceptions:
+
+  * Doesn't track of the number of torrent downloads (0 is always sent). 
+  * Doesn't allow full scrapes, i.e. of all registered info hashes
+
+`aquatic_http` has not been tested as much as `aquatic_udp` but likely works
+fine.
+
+#### TLS
+
+To run over TLS, a pkcs12 file (`.pkx`) is needed. It can be generated from
+Let's Encrypt certificates as follows, assuming you are in the directory where
+they are stored:
+
+```sh
+openssl pkcs12 -export -out identity.pfx -inkey privkey.pem -in cert.pem -certfile fullchain.pem
+```
+
+Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
+and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
+the password in the field `tls_pkcs12_password` and set `use_tls` to true.
+
 ### aquatic_ws: WebTorrent tracker
 
 Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
@@ -124,34 +150,8 @@ exceptions:
 successfully used as the tracker for a file transfer between two webtorrent
 peers.
 
-#### TLS
-
-To run over TLS (wss protocol), a pkcs12 file (`.pkx`) is needed. It can be
-generated from Let's Encrypt certificates as follows, assuming you are in the
-directory where they are stored:
-
-```sh
-openssl pkcs12 -export -out identity.pfx -inkey privkey.pem -in cert.pem -certfile fullchain.pem
-```
-
-Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
-and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
-the password in the field `tls_pkcs12_password` and set `use_tls` to true.
-
-### aquatic_http: HTTP BitTorrent tracker
-
-Aims for compatibility with the HTTP BitTorrent protocol, as described
-[here](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol),
-including TLS and scrape request support. There are some exceptions:
-
-  * Doesn't track of the number of torrent downloads (0 is always sent). 
-  * Doesn't allow full scrapes, i.e. of all registered info hashes
-
-`aquatic_http` is a work in progress and hasn't been tested very much yet. It
-has however successfully been used as the (non-TLS) tracker for a BitTorrent
-file transfer.
-
-Please refer to the `aquatic_ws` section for information about setting up TLS.
+For information about running over TLS (wss protocol), please refer to
+the corresponding `aquatic_http` section above.
 
 ## Load testing
 
