@@ -5,9 +5,6 @@
   of sender if present in selection? maybe make criterion benchmark,
   optimize. consider rerunning udp benchmark, last change (filtering out
   sender) might have had an adverse impact on performance.
-* automatic tests running real clients in container?
-  * https://docs.github.com/en/actions/creating-actions/creating-a-docker-container-action
-  * https://hub.docker.com/_/rust
 
 ## aquatic_http_load_test
 * how handle large number of peers for "popular" torrents in keepalive mode?
@@ -40,10 +37,19 @@
   scrape requests I suppose.
 
 ## aquatic_ws
+* websocket_max_frame_size should be at least something like 64 * 1024,
+  maybe put it and message size at 128k just to be sure
 * test transfer again with changes made:
   * crossbeam-channel
   * ipv6/ipv4 mapping
   * tungstenite 0.11
+  * notes on testing: official tracker does not successfully handle file
+    transfer on localhost between two instances of the official client
+    (webtorrent-hybrid), probably due to sdp negotiation issues. so I
+    shouldn't t pull my hair out trying to figure out why the official
+    clients won't work with aquatic_ws in this scenario. I should probably
+    just test manually with clients on multiple machines and skip
+    automated docker tests
 * is 'key' sent in announce request? if so, maybe handle it like in
   aquatic_http (including ip uniqueness part of peer map key)
 
