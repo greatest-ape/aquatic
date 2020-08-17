@@ -1,8 +1,10 @@
-name: 'test-transfer-udp-http'
-description: 'test aquatic udp and http file transfer'
+name: 'test-transfer-http-udp'
+description: 'test aquatic http and udp file transfer'
 outputs:
   http_ipv4:
     description: 'HTTP IPv4 status'
+  http_tls_ipv4:
+    description: 'HTTP IPv4 over TLS status'
   udp_ipv4:
     description: 'UDP IPv4 status'
 runs:

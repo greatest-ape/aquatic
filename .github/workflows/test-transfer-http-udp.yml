@@ -1,4 +1,4 @@
-name: "Test UDP and HTTP file transfer"
+name: "Test HTTP and UDP file transfer"
 
 on:
   push:
@@ -9,10 +9,10 @@ on:
 jobs:
   test-transfer-http:
     runs-on: ubuntu-latest
-    name: Test BitTorrent file transfer over UDP and HTTP
+    name: "Test BitTorrent file transfer over HTTP (with and without TLS) and UDP"
     steps:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Test file transfers
-        uses: ./.github/actions/test-transfer-udp-http
+        uses: ./.github/actions/test-transfer-http-udp
         id: test_transfer_udp_http
