@@ -14,5 +14,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Test file transfers
-        uses: ./.github/actions/test-transfer-udp-http/action@v1
+        uses: ./.github/actions/test-transfer-udp-http
         id: test_transfer_udp_http
