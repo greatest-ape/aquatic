@@ -185,7 +185,7 @@ impl <'a>TlsHandshakeMachine {
                     Stream::TlsStream(stream)
                 );
 
-                ::log::debug!("established tcp connection");
+                ::log::debug!("established tls connection");
 
                 Ok(established)
             },
