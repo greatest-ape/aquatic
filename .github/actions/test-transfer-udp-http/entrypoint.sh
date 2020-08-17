@@ -114,6 +114,9 @@ echo "Waited for $i seconds"
 echo "::set-output name=http_ipv4::$HTTP_IPv4"
 echo "::set-output name=udp_ipv4::$UDP_IPv4"
 
+echo "UDP IPv4: $UDP_IPv4"
+echo "HTTP IPv4: $HTTP_IPv4"
+
 if [ "$HTTP_IPv4" != "Ok" ] || [ "$UDP_IPv4" != "Ok" ]; then
     exit 1
 fi
