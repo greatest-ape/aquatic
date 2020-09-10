@@ -20,7 +20,7 @@ aquatic_common = { path = "../aquatic_common" }
 aquatic_http_protocol = { path = "../aquatic_http_protocol" }
 crossbeam-channel = "0.4"
 either = "1"
-hashbrown = "0.8"
+hashbrown = "0.9"
 histogram = "0.6"
 indexmap = "1"
 itoa = "0.4"

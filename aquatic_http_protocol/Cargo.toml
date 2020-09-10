@@ -25,7 +25,7 @@ harness = false
 
 [dependencies]
 anyhow = "1"
-hashbrown = "0.8"
+hashbrown = "0.9"
 hex = { version = "0.4", default-features = false }
 httparse = "1"
 itoa = "0.4"
