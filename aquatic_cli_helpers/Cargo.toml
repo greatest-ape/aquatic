@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
+description = "aquatic BitTorrent tracker CLI helpers"
+repository = "https://github.com/greatest-ape/aquatic"
 
 [dependencies]
 anyhow = "1"

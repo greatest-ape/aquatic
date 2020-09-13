@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
+description = "Blazingly fast, multi-threaded UDP BitTorrent tracker"
+repository = "https://github.com/greatest-ape/aquatic"
 
 [lib]
 name = "aquatic_udp"
@@ -14,9 +16,9 @@ name = "aquatic_udp"
 
 [dependencies]
 anyhow = "1"
-aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
-aquatic_common = { path = "../aquatic_common" }
-aquatic_udp_protocol = { path = "../aquatic_udp_protocol" }
+aquatic_cli_helpers = "0.1.0"
+aquatic_common = "0.1.0"
+aquatic_udp_protocol = "0.1.0"
 crossbeam-channel = "0.4"
 hashbrown = "0.9"
 histogram = "0.6"

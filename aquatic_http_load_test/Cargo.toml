@@ -4,14 +4,16 @@ version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
+description = "HTTP BitTorrent tracker protocol"
+repository = "https://github.com/greatest-ape/aquatic"
 
 [[bin]]
 name = "aquatic_http_load_test"
 
 [dependencies]
 anyhow = "1"
-aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
-aquatic_http_protocol = { path = "../aquatic_http_protocol" }
+aquatic_cli_helpers = "0.1.0"
+aquatic_http_protocol = "0.1.0"
 hashbrown = "0.9"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }

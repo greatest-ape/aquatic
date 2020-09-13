@@ -4,14 +4,15 @@ version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
+repository = "https://github.com/greatest-ape/aquatic"
 
 [[bin]]
 name = "aquatic_udp_bench"
 
 [dependencies]
 anyhow = "1"
-aquatic_cli_helpers = { path = "../aquatic_cli_helpers" }
-aquatic_udp = { path = "../aquatic_udp" }
+aquatic_cli_helpers = "0.1.0"
+aquatic_udp = "0.1.0"
 crossbeam-channel = "0.4"
 indicatif = "0.15"
 mimalloc = { version = "0.1", default-features = false }
