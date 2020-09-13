@@ -6,6 +6,7 @@ edition = "2018"
 license = "Apache-2.0"
 description = "WebTorrent tracker protocol"
 repository = "https://github.com/greatest-ape/aquatic"
+exclude = ["target"]
 
 [lib]
 name = "aquatic_ws_protocol"
