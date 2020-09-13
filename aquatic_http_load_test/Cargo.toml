@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0"
-description = "HTTP BitTorrent tracker protocol"
 repository = "https://github.com/greatest-ape/aquatic"
 
 [[bin]]
