@@ -13,7 +13,7 @@ name = "aquatic_udp_load_test"
 anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
-crossbeam-channel = "0.4"
+crossbeam-channel = "0.5"
 hashbrown = "0.9"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }

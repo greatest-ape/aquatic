@@ -20,7 +20,7 @@ anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
-crossbeam-channel = "0.4"
+crossbeam-channel = "0.5"
 either = "1"
 hashbrown = { version = "0.9", features = ["serde"] }
 histogram = "0.6"
