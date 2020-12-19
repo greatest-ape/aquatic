@@ -33,7 +33,7 @@ mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
 native-tls = "0.2"
 parking_lot = "0.11"
 privdrop = "0.5"
-rand = { version = "0.7", features = ["small_rng"] }
+rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 smartstring = "0.2"
 socket2 = { version = "0.3", features = ["reuseport"] }

@@ -12,4 +12,4 @@ name = "aquatic_common"
 
 [dependencies]
 indexmap = "1"
-rand = { version = "0.7", features = ["small_rng"] }
+rand = { version = "0.8", features = ["small_rng"] }
