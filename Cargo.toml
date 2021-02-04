@@ -35,6 +35,9 @@ aquatic_ws_protocol = { path = "aquatic_ws_protocol" }
 debug = true
 lto = true
 
+[profile.test]
+opt-level = 3
+
 [profile.bench]
 debug = true
 opt-level = 3

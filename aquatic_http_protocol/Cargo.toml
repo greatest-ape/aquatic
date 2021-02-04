@@ -43,5 +43,5 @@ urlencoding = "1"
 [dev-dependencies]
 bendy = { version = "0.3", features = ["std", "serde"] }
 criterion = "0.3"
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"

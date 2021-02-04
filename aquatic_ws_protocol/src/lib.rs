@@ -320,7 +320,7 @@ mod tests {
 
     use super::*;
 
-    fn arbitrary_20_bytes<G: quickcheck::Gen>(g: &mut G) -> [u8; 20] {
+    fn arbitrary_20_bytes(g: &mut quickcheck::Gen) -> [u8; 20] {
         let mut bytes = [0u8; 20];
 
         for byte in bytes.iter_mut() {
@@ -335,25 +335,25 @@ mod tests {
     }
 
     impl Arbitrary for InfoHash {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self(arbitrary_20_bytes(g))
         }
     }
 
     impl Arbitrary for PeerId {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self(arbitrary_20_bytes(g))
         }
     }
 
     impl Arbitrary for OfferId {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self(arbitrary_20_bytes(g))
         }
     }
 
     impl Arbitrary for AnnounceEvent {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             match (bool::arbitrary(g), bool::arbitrary(g)){
                 (false, false) => Self::Started,
                 (true, false) => Self::Started,
@@ -364,7 +364,7 @@ mod tests {
     }
 
     impl Arbitrary for MiddlemanOfferToPeer {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 action: AnnounceAction,
                 peer_id: Arbitrary::arbitrary(g),
@@ -376,7 +376,7 @@ mod tests {
     }
 
     impl Arbitrary for MiddlemanAnswerToPeer {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 action: AnnounceAction,
                 peer_id: Arbitrary::arbitrary(g),
@@ -388,7 +388,7 @@ mod tests {
     }
 
     impl Arbitrary for AnnounceRequestOffer {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 offer_id: Arbitrary::arbitrary(g),
                 offer: sdp_json_value()
@@ -397,7 +397,7 @@ mod tests {
     }
 
     impl Arbitrary for AnnounceRequest {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let has_offers_or_answer_or_neither: Option<bool> = Arbitrary::arbitrary(g);
 
             let mut offers: Option<Vec<AnnounceRequestOffer>> = None;
@@ -436,7 +436,7 @@ mod tests {
     }
 
     impl Arbitrary for AnnounceResponse {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 action: AnnounceAction,
                 info_hash: Arbitrary::arbitrary(g),
@@ -448,7 +448,7 @@ mod tests {
     }
 
     impl Arbitrary for ScrapeRequest {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 action: ScrapeAction,
                 info_hashes: Arbitrary::arbitrary(g),
@@ -458,7 +458,7 @@ mod tests {
 
 
     impl Arbitrary for ScrapeRequestInfoHashes {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             if Arbitrary::arbitrary(g) {
                 ScrapeRequestInfoHashes::Multiple(Arbitrary::arbitrary(g))
             } else {
@@ -468,7 +468,7 @@ mod tests {
     }
 
     impl Arbitrary for ScrapeStatistics {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 complete: Arbitrary::arbitrary(g),
                 incomplete: Arbitrary::arbitrary(g),
@@ -478,7 +478,7 @@ mod tests {
     }
 
     impl Arbitrary for ScrapeResponse {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let files: Vec<(InfoHash, ScrapeStatistics)> = Arbitrary::arbitrary(g);
 
             Self {
@@ -489,7 +489,7 @@ mod tests {
     }
 
     impl Arbitrary for InMessage {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             if Arbitrary::arbitrary(g){
                 Self::AnnounceRequest(Arbitrary::arbitrary(g))
             } else {
@@ -499,7 +499,7 @@ mod tests {
     }
 
     impl Arbitrary for OutMessage {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             match (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)){
                 (false, false) => Self::AnnounceResponse(Arbitrary::arbitrary(g)),
                 (true, false) => Self::ScrapeResponse(Arbitrary::arbitrary(g)),

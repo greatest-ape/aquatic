@@ -33,5 +33,5 @@ serde = { version = "1", features = ["derive"] }
 socket2 = { version = "0.3", features = ["reuseport"] }
 
 [dev-dependencies]
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"

@@ -52,7 +52,7 @@ pub struct ResponsePeer {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for IpVersion {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         if bool::arbitrary(g) {
             IpVersion::IPv4
         } else {
@@ -64,7 +64,7 @@ impl quickcheck::Arbitrary for IpVersion {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for InfoHash {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let mut bytes = [0u8; 20];
 
         for byte in bytes.iter_mut() {
@@ -78,7 +78,7 @@ impl quickcheck::Arbitrary for InfoHash {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for PeerId {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let mut bytes = [0u8; 20];
 
         for byte in bytes.iter_mut() {
@@ -92,7 +92,7 @@ impl quickcheck::Arbitrary for PeerId {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeer {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             ip_address: ::std::net::IpAddr::arbitrary(g),
             port: Port(u16::arbitrary(g)),
