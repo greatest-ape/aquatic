@@ -21,7 +21,7 @@ rand_distr = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 slab = "0.4"
-tungstenite = "0.11"
+tungstenite = "0.12"
 
 [dev-dependencies]
 quickcheck = "1.0"
