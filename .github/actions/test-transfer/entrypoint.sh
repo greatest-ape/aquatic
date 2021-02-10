@@ -259,26 +259,34 @@ while [ $i -lt 300 ]
 do
     if test -f "leech/http-test-ipv4"; then
         if grep -q "http-test-ipv4" "leech/http-test-ipv4"; then
-            HTTP_IPv4="Ok"
-            echo "HTTP_IPv4 is Ok"
+            if [ "$HTTP_IPv4" != "Ok" ]; then
+                HTTP_IPv4="Ok"
+                echo "HTTP_IPv4 is Ok"
+            fi
         fi
     fi
     if test -f "leech/tls-test-ipv4"; then
         if grep -q "tls-test-ipv4" "leech/tls-test-ipv4"; then
-            TLS_IPv4="Ok"
-            echo "TLS_IPv4 is Ok"
+            if [ "$TLS_IPv4" != "Ok" ]; then
+                TLS_IPv4="Ok"
+                echo "TLS_IPv4 is Ok"
+            fi
         fi
     fi
     if test -f "leech/udp-test-ipv4"; then
         if grep -q "udp-test-ipv4" "leech/udp-test-ipv4"; then
-            UDP_IPv4="Ok"
-            echo "UDP_IPv4 is Ok"
+            if [ "$UDP_IPv4" != "Ok" ]; then
+                UDP_IPv4="Ok"
+                echo "UDP_IPv4 is Ok"
+            fi
         fi
     fi
     if test -f "leech/wss-test-ipv4"; then
         if grep -q "wss-test-ipv4" "leech/wss-test-ipv4"; then
-            WSS_IPv4="Ok"
-            echo "WSS_IPv4 is Ok"
+            if [ "$WSS_IPv4" != "Ok" ]; then
+                WSS_IPv4="Ok"
+                echo "WSS_IPv4 is Ok"
+            fi
         fi
     fi
 
