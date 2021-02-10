@@ -1,5 +1,5 @@
-name: 'test-transfer-http-udp'
-description: 'test aquatic http and udp file transfer'
+name: 'test-transfer'
+description: 'test aquatic file transfer'
 outputs:
   http_ipv4:
     description: 'HTTP IPv4 status'
@@ -7,6 +7,8 @@ outputs:
     description: 'HTTP IPv4 over TLS status'
   udp_ipv4:
     description: 'UDP IPv4 status'
+  wss_ipv4:
+    description: 'WSS IPv4 status'
 runs:
   using: 'docker'
   image: 'Dockerfile'
