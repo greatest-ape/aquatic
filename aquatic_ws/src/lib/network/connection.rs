@@ -153,6 +153,11 @@ impl HandshakeMachine {
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
         match result {
             Ok(stream) => {
+                ::log::trace!(
+                    "established tls handshake with peer with addr: {:?}",
+                    stream.get_ref().peer_addr()
+                );
+
                 (Some(Either::Right(Self::TlsStream(stream))), false)
             },
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
@@ -173,6 +178,11 @@ impl HandshakeMachine {
         match result {
             Ok(mut ws) => {
                 let peer_addr = ws.get_mut().get_peer_addr();
+
+                ::log::trace!(
+                    "established ws handshake with peer with addr: {:?}",
+                    peer_addr
+                );
 
                 let established_ws = EstablishedWs {
                     ws,
