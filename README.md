@@ -10,7 +10,7 @@ Consists of three sub-implementations for different protocols:
 
 ## Copyright and license
 
-Copyright (c) 2020 Joakim Frostegård
+Copyright (c) 2020-2021 Joakim Frostegård
 
 Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
