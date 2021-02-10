@@ -5,12 +5,12 @@ Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
 Consists of three sub-implementations for different protocols:
   * `aquatic_udp`: BitTorrent over UDP. Implementation achieves double the throughput
     of opentracker (see benchmarks below)
-  * `aquatic_http`: BitTorrent over HTTP/TLS (experimental)
+  * `aquatic_http`: BitTorrent over HTTP/TLS (slightly experimental)
   * `aquatic_ws`: WebTorrent (experimental)
 
 ## Copyright and license
 
-Copyright (c) 2020 Joakim Frostegård
+Copyright (c) 2020-2021 Joakim Frostegård
 
 Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
@@ -146,12 +146,14 @@ exceptions:
   * Doesn't track of the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
-`aquatic_ws` is not as well tested as `aquatic_udp`, but has been
-successfully used as the tracker for a file transfer between two webtorrent
-peers.
+For information about running over TLS, please refer to the TLS subsection
+of the `aquatic_http` section above.
 
-For information about running over TLS (wss protocol), please refer to
-the corresponding `aquatic_http` section above.
+`aquatic_ws` is experimental software. Connections are established
+successfully when using `aquatic_ws_load_test`, but so far, I haven't been able
+to implement CI for testing if aquatic_ws works as the tracker for a full
+file transfer session between two real-world clients. One reason for this
+is the general lack of high-quality WebTorrent clients.
 
 ## Load testing
 

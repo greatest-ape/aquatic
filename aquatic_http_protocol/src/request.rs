@@ -322,7 +322,7 @@ mod tests {
     }
 
     impl Arbitrary for AnnounceRequest {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut Gen) -> Self {
             let key: Option<String> = Arbitrary::arbitrary(g);
 
             AnnounceRequest {
@@ -339,7 +339,7 @@ mod tests {
     }
 
     impl Arbitrary for ScrapeRequest {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut Gen) -> Self {
             ScrapeRequest {
                 info_hashes: Arbitrary::arbitrary(g),
             }
@@ -347,7 +347,7 @@ mod tests {
     }
 
     impl Arbitrary for Request {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut Gen) -> Self {
             if Arbitrary::arbitrary(g){
                 Self::Announce(Arbitrary::arbitrary(g))
             } else {

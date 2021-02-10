@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rand_distr::{Standard, Pareto};
+use rand_distr::Pareto;
 use rand::prelude::*;
 
 use aquatic_udp_protocol::*;
@@ -15,7 +15,9 @@ pub fn create_torrent_peer(
     info_hashes: &Arc<Vec<InfoHash>>,
     connection_id: ConnectionId
 ) -> TorrentPeer {
-    let num_scape_hashes = rng.gen_range(1, config.handler.scrape_max_torrents);
+    let num_scape_hashes = rng.gen_range(
+        1..config.handler.scrape_max_torrents
+    );
 
     let mut scrape_hash_indeces = Vec::new();
     
@@ -82,13 +84,7 @@ pub fn create_connect_request(transaction_id: TransactionId) -> Request {
 fn random_20_bytes() -> [u8; 20] {
     let mut bytes = [0; 20];
 
-    for (i, b) in rand::thread_rng()
-        .sample_iter(&Standard)
-        .enumerate()
-        .take(20) {
-
-        bytes[i] = b
-    }
+    thread_rng().fill_bytes(&mut bytes[..]);
 
     bytes
 }

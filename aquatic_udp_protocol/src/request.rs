@@ -292,7 +292,7 @@ mod tests {
     use super::*;
 
     impl quickcheck::Arbitrary for AnnounceEvent {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             match (bool::arbitrary(g), bool::arbitrary(g)){
                 (false, false) => Self::Started,
                 (true, false) => Self::Started,
@@ -303,7 +303,7 @@ mod tests {
     }
 
     impl quickcheck::Arbitrary for ConnectRequest {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 transaction_id: TransactionId(i32::arbitrary(g)),
             }
@@ -311,7 +311,7 @@ mod tests {
     }
 
     impl quickcheck::Arbitrary for AnnounceRequest {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 connection_id: ConnectionId(i64::arbitrary(g)),
                 transaction_id: TransactionId(i32::arbitrary(g)),
@@ -330,7 +330,7 @@ mod tests {
     }
 
     impl quickcheck::Arbitrary for ScrapeRequest {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let info_hashes = (0..u8::arbitrary(g)).map(|_| {
                 InfoHash::arbitrary(g)
             }).collect();

@@ -10,5 +10,5 @@ repository = "https://github.com/greatest-ape/aquatic"
 [dependencies]
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
-simplelog = "0.8"
+simplelog = "0.9"
 toml = "0.5"

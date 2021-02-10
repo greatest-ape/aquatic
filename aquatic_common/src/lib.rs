@@ -57,12 +57,10 @@ pub fn extract_response_peers<K, V, R, F>(
         let half_peer_map_len = peer_map_len / 2;
 
         let offset_first_half = rng.gen_range(
-            0,
-            (half_peer_map_len + (peer_map_len % 2)) - half_num_to_take
+            0..(half_peer_map_len + (peer_map_len % 2)) - half_num_to_take
         );
         let offset_second_half = rng.gen_range(
-            half_peer_map_len,
-            peer_map_len - half_num_to_take
+            half_peer_map_len..peer_map_len - half_num_to_take
         );
 
         let end_first_half = offset_first_half + half_num_to_take;

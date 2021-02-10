@@ -70,6 +70,7 @@ pub fn run_poll_loop(
         max_message_size: Some(config.network.websocket_max_message_size),
         max_frame_size: Some(config.network.websocket_max_frame_size),
         max_send_queue: None,
+        ..Default::default()
     };
 
     let mut listener = TcpListener::from_std(listener);

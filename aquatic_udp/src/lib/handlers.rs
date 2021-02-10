@@ -414,17 +414,19 @@ mod tests {
 
     #[test]
     fn test_extract_response_peers(){
-        fn prop(data: (u32, u16)) -> TestResult {
-            let gen_num_peers = data.0;
+        fn prop(data: (u16, u16)) -> TestResult {
+            let gen_num_peers = data.0 as u32;
             let req_num_peers = data.1 as usize;
 
-            let mut peer_map: PeerMap<Ipv4Addr> = IndexMap::new();
+            let mut peer_map: PeerMap<Ipv4Addr> = IndexMap::with_capacity(
+                gen_num_peers as usize
+            );
 
             let mut opt_sender_key = None;
             let mut opt_sender_peer = None;
 
             for i in 0..gen_num_peers {
-                let (key, value) = gen_peer_map_key_and_value(i);
+                let (key, value) = gen_peer_map_key_and_value((i << 16) + i);
 
                 if i == 0 {
                     opt_sender_key = Some(key);
@@ -456,7 +458,7 @@ mod tests {
             // Check that returned peers are unique (no overlap) and that sender
             // isn't returned
 
-            let mut ip_addresses = HashSet::new();
+            let mut ip_addresses = HashSet::with_capacity(peers.len());
 
             for peer in peers {
                 if peer == opt_sender_peer.clone().unwrap() || ip_addresses.contains(&peer.ip_address){
@@ -471,6 +473,6 @@ mod tests {
             TestResult::from_bool(success)
         }   
 
-        quickcheck(prop as fn((u32, u16)) -> TestResult);
+        quickcheck(prop as fn((u16, u16)) -> TestResult);
     }
 }

@@ -34,7 +34,7 @@ httparse = "1"
 itoa = "0.4"
 log = "0.4"
 memchr = "2"
-rand = { version = "0.7", features = ["small_rng"] }
+rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 serde_bencode = "0.2"
 smartstring = "0.2"
@@ -43,5 +43,5 @@ urlencoding = "1"
 [dev-dependencies]
 bendy = { version = "0.3", features = ["std", "serde"] }
 criterion = "0.3"
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"

@@ -20,7 +20,7 @@ anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
-crossbeam-channel = "0.4"
+crossbeam-channel = "0.5"
 either = "1"
 hashbrown = { version = "0.9", features = ["serde"] }
 histogram = "0.6"
@@ -30,12 +30,12 @@ mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
 native-tls = "0.2"
 parking_lot = "0.11"
-privdrop = "0.3"
-rand = { version = "0.7", features = ["small_rng"] }
+privdrop = "0.5"
+rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 socket2 = { version = "0.3", features = ["reuseport"] }
-tungstenite = "0.11"
+tungstenite = "0.13"
 
 [dev-dependencies]
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"

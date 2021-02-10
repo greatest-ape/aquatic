@@ -11,5 +11,5 @@ repository = "https://github.com/greatest-ape/aquatic"
 byteorder = "1"
 
 [dev-dependencies]
-quickcheck = "0.9"
-quickcheck_macros = "0.9"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"

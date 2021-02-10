@@ -192,7 +192,7 @@ impl Response {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeer<Ipv4Addr> {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             ip_address: Ipv4Addr::arbitrary(g),
             port: u16::arbitrary(g)
@@ -203,7 +203,7 @@ impl quickcheck::Arbitrary for ResponsePeer<Ipv4Addr> {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeer<Ipv6Addr> {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             ip_address: Ipv6Addr::arbitrary(g),
             port: u16::arbitrary(g)
@@ -214,7 +214,7 @@ impl quickcheck::Arbitrary for ResponsePeer<Ipv6Addr> {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeerListV4 {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self(Vec::arbitrary(g))
     }
 }
@@ -222,7 +222,7 @@ impl quickcheck::Arbitrary for ResponsePeerListV4 {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeerListV6 {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self(Vec::arbitrary(g))
     }
 }
@@ -230,7 +230,7 @@ impl quickcheck::Arbitrary for ResponsePeerListV6 {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ScrapeStatistics {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             complete: usize::arbitrary(g),
             incomplete: usize::arbitrary(g),
@@ -242,7 +242,7 @@ impl quickcheck::Arbitrary for ScrapeStatistics {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for AnnounceResponse {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             announce_interval: usize::arbitrary(g),
             complete: usize::arbitrary(g),
@@ -256,7 +256,7 @@ impl quickcheck::Arbitrary for AnnounceResponse {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ScrapeResponse {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             files: BTreeMap::arbitrary(g),
         }
@@ -266,7 +266,7 @@ impl quickcheck::Arbitrary for ScrapeResponse {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for FailureResponse {
-    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             failure_reason: String::arbitrary(g),
         }
