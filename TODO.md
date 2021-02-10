@@ -1,5 +1,8 @@
 # TODO
 
+* Consider turning on safety and override flags in mimalloc (mostly for
+  simd-json)
+
 ## General
 * extract response peers: extract "one extra" to compensate for removal,
   of sender if present in selection? maybe make criterion benchmark,
