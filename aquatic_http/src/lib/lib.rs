@@ -1,6 +1,8 @@
+use std::io::BufReader;
 use std::time::Duration;
 use std::sync::Arc;
 use std::thread::Builder;
+use std::fs::File;
 
 use anyhow::Context;
 use mio::{Poll, Waker};
@@ -35,7 +37,30 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
 pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
     let opt_tls_config = if config.network.tls.use_tls {
-        Some(Arc::new(rustls::ServerConfig::new(NoClientAuth::new())))
+        let certs = {
+            let f = File::open(config.network.tls.tls_certificate_path.clone())?;
+            let mut f = BufReader::new(f);
+
+            rustls_pemfile::certs(&mut f)?
+                .into_iter()
+                .map(|bytes| rustls::Certificate(bytes))
+                .collect()
+        };
+        let private_key = {
+            let f = File::open(config.network.tls.tls_private_key_path.clone())?;
+            let mut f = BufReader::new(f);
+
+            rustls_pemfile::pkcs8_private_keys(&mut f)?
+                .first()
+                .map(|bytes| rustls::PrivateKey(bytes.clone()))
+                .ok_or(anyhow::anyhow!("No private keys in file"))?
+        };
+
+        let mut server_config = rustls::ServerConfig::new(NoClientAuth::new());
+
+        server_config.set_single_cert(certs, private_key)?;
+
+        Some(Arc::new(server_config))
     }  else {
         None
     };

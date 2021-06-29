@@ -36,8 +36,8 @@ impl aquatic_cli_helpers::Config for Config {
 #[serde(default)]
 pub struct TlsConfig {
     pub use_tls: bool,
-    pub tls_pkcs12_path: String,
-    pub tls_pkcs12_password: String,
+    pub tls_certificate_path: String,
+    pub tls_private_key_path: String,
 }
 
 
@@ -196,8 +196,8 @@ impl Default for TlsConfig {
     fn default() -> Self {
         Self {
             use_tls: false,
-            tls_pkcs12_path: "".into(),
-            tls_pkcs12_password: "".into(),
+            tls_certificate_path: "".into(),
+            tls_private_key_path: "".into(),
         }
     }
 }

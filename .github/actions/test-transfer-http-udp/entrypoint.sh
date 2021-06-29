@@ -61,8 +61,8 @@ echo "log_level = 'debug'
 [network]
 address = '127.0.0.1:3001'
 use_tls = true
-tls_pkcs12_path = './identity.pfx'
-tls_pkcs12_password = 'p'
+tls_certificate_path = './cert.crt'
+tls_private_key_path = './key.pem'
 " > tls.toml
 ./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
 
