@@ -168,21 +168,24 @@ fn accept_new_streams(
 
                 // Remove connection if it exists (which is unlikely)
                 remove_connection(poll, connections, poll_token_counter);
+                
+                match stream.peer_addr() {
+                    Ok(peer_addr) => {
+                        poll.registry()
+                            .register(&mut stream, token, Interest::READABLE)
+                            .unwrap();
 
-                poll.registry()
-                    .register(&mut stream, token, Interest::READABLE)
-                    .unwrap();
+                        let tls_session = opt_tls_config.as_ref()
+                            .map(|config| rustls::ServerSession::new(&config));
 
-                let tls_session = opt_tls_config.as_ref()
-                    .map(|config| rustls::ServerSession::new(&config));
+                        let connection = Connection::new(stream, peer_addr, valid_until, tls_session);
 
-                let connection = Connection::new(
-                    stream,
-                    valid_until,
-                    tls_session,
-                );
-
-                connections.insert(token, connection);
+                        connections.insert(token, connection);
+                    },
+                    Err(err) => {
+                        ::log::info!("Couln't get stream peer_addr: {}", err);
+                    }
+                }
             },
             Err(err) => {
                 if err.kind() == ErrorKind::WouldBlock {

@@ -41,11 +41,10 @@ impl Connection {
     #[inline]
     pub fn new(
         stream: TcpStream,
+        peer_addr: SocketAddr,
         valid_until: ValidUntil,
         tls_session: Option<ServerSession>,
     ) -> Self {
-        let peer_addr = stream.peer_addr().unwrap(); // FIXME
-
         Self {
             valid_until,
             peer_addr,
