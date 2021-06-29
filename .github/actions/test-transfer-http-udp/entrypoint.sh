@@ -44,7 +44,8 @@ openssl req -x509 -sha256 -nodes -days 365 -key key.pem -in csr.csr -out cert.cr
 $SUDO cp cert.crt /usr/local/share/ca-certificates/snakeoil.crt
 $SUDO update-ca-certificates
 
-openssl pkcs12 -export -passout "pass:p" -out identity.pfx -inkey key.pem -in cert.crt
+openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8 # For rustls
+openssl pkcs12 -export -passout "pass:p" -out identity.pfx -inkey key.pem -in cert.crt # For native-tls
 
 # Build and start tracker
 
@@ -61,8 +62,8 @@ echo "log_level = 'debug'
 [network]
 address = '127.0.0.1:3001'
 use_tls = true
-tls_pkcs12_path = './identity.pfx'
-tls_pkcs12_password = 'p'
+tls_certificate_path = './cert.crt'
+tls_private_key_path = './key.pk8'
 " > tls.toml
 ./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
 
@@ -119,7 +120,7 @@ i="0"
 
 echo "Watching for finished files.."
 
-while [ $i -lt 300 ]
+while [ $i -lt 30 ]
 do
     if test -f "leech/http-test-ipv4"; then
         if grep -q "http-test-ipv4" "leech/http-test-ipv4"; then
