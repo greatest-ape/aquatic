@@ -120,7 +120,7 @@ i="0"
 
 echo "Watching for finished files.."
 
-while [ $i -lt 300 ]
+while [ $i -lt 30 ]
 do
     if test -f "leech/http-test-ipv4"; then
         if grep -q "http-test-ipv4" "leech/http-test-ipv4"; then

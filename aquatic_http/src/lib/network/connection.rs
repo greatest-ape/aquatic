@@ -163,50 +163,65 @@ impl Connection {
     }
 
     fn read_request(&mut self) -> Result<Request, RequestReadError> {
+        // FIXME: dubious method
+        if (self.buf.len() - self.bytes_read < 512) & (self.buf.len() <= 3072){
+            self.buf.extend_from_slice(&[0; 1024]);
+        }
+
         if let Some(tls_session) = self.tls_session.as_mut() {
             match tls_session.process_new_packets() {
-                Ok(()) => Self::read_request_inner(&mut self.buf, &mut self.bytes_read, tls_session),
-                Err(err) => Err(RequestReadError::Tls(err)),
+                Err(err) => {
+                    return Err(RequestReadError::Tls(err))
+                },
+                Ok(()) => {
+
+                    match tls_session.read(&mut self.buf[self.bytes_read..]){
+                        Ok(0) => {
+                            // FIXME: what if all data was read?
+                            return Err(RequestReadError::NeedMoreData);
+                        }
+                        Ok(bytes) => {
+                            self.bytes_read += bytes;
+
+                            ::log::debug!("read_request read {} bytes", bytes);
+                        },
+                        Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                            return Err(RequestReadError::NeedMoreData);
+                        },
+                        Err(err) => {
+                            Self::clear_buffer(&mut self.buf, &mut self.bytes_read);
+
+                            return Err(RequestReadError::Io(err));
+                        }
+                    } 
+                },
             }
         } else {
-            Self::read_request_inner(&mut self.buf, &mut self.bytes_read, &mut self.stream)
-        }
-    }
+            match self.stream.read(&mut self.buf[self.bytes_read..]){
+                Ok(0) => {
+                    Self::clear_buffer(&mut self.buf, &mut self.bytes_read);
 
-    fn read_request_inner(
-        buf: &mut Vec<u8>,
-        bytes_read: &mut usize,
-        stream: &mut impl Read,
-    ) -> Result<Request, RequestReadError> {
-        // FIXME: dubious method
-        if (buf.len() - *bytes_read < 512) & (buf.len() <= 3072){
-            buf.extend_from_slice(&[0; 1024]);
-        }
+                    return Err(RequestReadError::StreamEnded);
+                }
+                Ok(bytes) => {
+                    self.bytes_read += bytes;
 
-        match stream.read(&mut buf[*bytes_read..]){
-            Ok(0) => {
-                Self::clear_buffer(buf, bytes_read);
+                    ::log::debug!("read_request read {} bytes", bytes);
+                },
+                Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                    return Err(RequestReadError::NeedMoreData);
+                },
+                Err(err) => {
+                    Self::clear_buffer(&mut self.buf, &mut self.bytes_read);
 
-                return Err(RequestReadError::StreamEnded);
-            }
-            Ok(bytes) => {
-                *bytes_read += bytes;
-
-                ::log::debug!("read_request read {} bytes", bytes);
-            },
-            Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                return Err(RequestReadError::NeedMoreData);
-            },
-            Err(err) => {
-                Self::clear_buffer(buf, bytes_read);
-
-                return Err(RequestReadError::Io(err));
+                    return Err(RequestReadError::Io(err));
+                }
             }
         }
 
-        match Request::from_bytes(&buf[..*bytes_read]){
+        match Request::from_bytes(&self.buf[..self.bytes_read]){
             Ok(request) => {
-                Self::clear_buffer(buf, bytes_read);
+                Self::clear_buffer(&mut self.buf, &mut self.bytes_read);
 
                 Ok(request)
             },
@@ -214,7 +229,7 @@ impl Connection {
                 Err(RequestReadError::NeedMoreData)
             },
             Err(RequestParseError::Invalid(err)) => {
-                Self::clear_buffer(buf, bytes_read);
+                Self::clear_buffer(&mut self.buf, &mut self.bytes_read);
 
                 Err(RequestReadError::Parse(err))
             },
