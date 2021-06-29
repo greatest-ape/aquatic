@@ -50,7 +50,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
             let f = File::open(config.network.tls.tls_private_key_path.clone())?;
             let mut f = BufReader::new(f);
 
-            rustls_pemfile::rsa_private_keys(&mut f)?
+            rustls_pemfile::pkcs8_private_keys(&mut f)?
                 .first()
                 .map(|bytes| rustls::PrivateKey(bytes.clone()))
                 .ok_or(anyhow::anyhow!("No private keys in file"))?
