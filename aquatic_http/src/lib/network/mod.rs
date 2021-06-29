@@ -4,8 +4,7 @@ use std::sync::Arc;
 use std::vec::Drain;
 
 use hashbrown::HashMap;
-use log::{info, debug, error};
-use native_tls::TlsAcceptor;
+use log::{info, debug};
 use mio::{Events, Poll, Interest, Token};
 use mio::net::TcpListener;
 
@@ -15,7 +14,6 @@ use crate::common::*;
 use crate::config::Config;
 
 pub mod connection;
-pub mod stream;
 pub mod utils;
 
 use connection::*;
@@ -31,7 +29,7 @@ pub fn run_socket_worker(
     socket_worker_statuses: SocketWorkerStatuses,
     request_channel_sender: RequestChannelSender,
     response_channel_receiver: ResponseChannelReceiver,
-    opt_tls_acceptor: Option<TlsAcceptor>,
+    opt_tls_config: &Option<Arc<rustls::ServerConfig>>,
     poll: Poll,
 ){
     match create_listener(config.network.address, config.network.ipv6_only){
@@ -44,7 +42,7 @@ pub fn run_socket_worker(
                 request_channel_sender,
                 response_channel_receiver,
                 listener,
-                opt_tls_acceptor,
+                opt_tls_config,
                 poll,
             );
         },
@@ -63,7 +61,7 @@ pub fn run_poll_loop(
     request_channel_sender: RequestChannelSender,
     response_channel_receiver: ResponseChannelReceiver,
     listener: ::std::net::TcpListener,
-    opt_tls_acceptor: Option<TlsAcceptor>,
+    opt_tls_config: &Option<Arc<rustls::ServerConfig>>,
     mut poll: Poll,
 ){
     let poll_timeout = Duration::from_micros(
@@ -78,7 +76,6 @@ pub fn run_poll_loop(
         .unwrap();
 
     let mut connections: ConnectionMap = HashMap::new();
-    let opt_tls_acceptor = opt_tls_acceptor.map(Arc::new);
 
     let mut poll_token_counter = Token(0usize);
     let mut iter_counter = 0usize;
@@ -101,18 +98,27 @@ pub fn run_poll_loop(
                     &mut poll,
                     &mut connections,
                     &mut poll_token_counter,
-                    &opt_tls_acceptor,
+                    &opt_tls_config,
                 );
             } else if token != CHANNEL_TOKEN {
-                handle_connection_read_event(
-                    &config,
-                    socket_worker_index,
-                    &mut poll,
-                    &request_channel_sender,
-                    &mut local_responses,
-                    &mut connections,
-                    token,
-                );
+                let opt_connection = connections.get_mut(&token);
+
+                if let Some(connection) = opt_connection {
+                    let status = connection.handle_read_event(
+                        socket_worker_index,
+                        &request_channel_sender,
+                        &mut local_responses,
+                        token
+                    );
+
+                    if let ConnectionPollStatus::Remove = status {
+                        ::std::mem::drop(connection);
+
+                        remove_connection(&mut poll, &mut connections, &token);
+                    } else {
+                        connection.valid_until = ValidUntil::new(config.cleaning.max_connection_age);
+                    }
+                }
             }
 
             // Send responses for each event. Channel token is not interesting
@@ -144,7 +150,7 @@ fn accept_new_streams(
     poll: &mut Poll,
     connections: &mut ConnectionMap,
     poll_token_counter: &mut Token,
-    opt_tls_acceptor: &Option<Arc<TlsAcceptor>>,
+    opt_tls_config: &Option<Arc<rustls::ServerConfig>>,
 ){
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
@@ -167,10 +173,13 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
+                let tls_session = opt_tls_config.as_ref()
+                    .map(|config| rustls::ServerSession::new(&config));
+
                 let connection = Connection::new(
-                    opt_tls_acceptor,
+                    stream,
                     valid_until,
-                    stream
+                    tls_session,
                 );
 
                 connections.insert(token, connection);
@@ -186,130 +195,6 @@ fn accept_new_streams(
     }
 }
 
-
-/// On the stream given by poll_token, get TLS up and running if requested,
-/// then read requests and pass on through channel.
-pub fn handle_connection_read_event(
-    config: &Config,
-    socket_worker_index: usize,
-    poll: &mut Poll,
-    request_channel_sender: &RequestChannelSender,
-    local_responses: &mut Vec<(ConnectionMeta, Response)>,
-    connections: &mut ConnectionMap,
-    poll_token: Token,
-){
-    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
-
-    loop {
-        // Get connection, updating valid_until
-        let connection = if let Some(c) = connections.get_mut(&poll_token){
-            c
-        } else {
-            // If there is no connection, there is no stream, so there
-            // shouldn't be any (relevant) poll events. In other words, it's
-            // safe to return here
-            return
-        };
-
-        connection.valid_until = valid_until;
-
-        if let Some(established) = connection.get_established(){
-            match established.read_request(){
-                Ok(request) => {
-                    let meta = ConnectionMeta {
-                        worker_index: socket_worker_index,
-                        poll_token,
-                        peer_addr: established.peer_addr
-                    };
-
-                    debug!("read request, sending to handler");
-
-                    if let Err(err) = request_channel_sender
-                        .send((meta, request))
-                    {
-                        error!(
-                            "RequestChannelSender: couldn't send message: {:?}",
-                            err
-                        );
-                    }
-
-                    break
-                },
-                Err(RequestReadError::NeedMoreData) => {
-                    info!("need more data");
-
-                    // Stop reading data (defer to later events)
-                    break;
-                },
-                Err(RequestReadError::Parse(err)) => {
-                    info!("error reading request (invalid): {:#?}", err);
-
-                    let meta = ConnectionMeta {
-                        worker_index: socket_worker_index,
-                        poll_token,
-                        peer_addr: established.peer_addr
-                    };
-
-                    let response = FailureResponse {
-                        failure_reason: "invalid request".to_string()
-                    };
-
-                    local_responses.push(
-                        (meta, Response::Failure(response))
-                    );
-
-                    break;
-                },
-                Err(RequestReadError::StreamEnded) => {
-                    ::log::debug!("stream ended");
-            
-                    remove_connection(poll, connections, &poll_token);
-
-                    break
-                },
-                Err(RequestReadError::Io(err)) => {
-                    ::log::info!("error reading request (io): {}", err);
-            
-                    remove_connection(poll, connections, &poll_token);
-    
-                    break; 
-                },
-            }
-        } else if let Some(handshake_machine) = connections.remove(&poll_token)
-            .and_then(Connection::get_in_progress)
-        {
-            match handshake_machine.establish_tls(){
-                Ok(established) => {
-                    let connection = Connection::from_established(
-                        valid_until,
-                        established
-                    );
-
-                    connections.insert(poll_token, connection);
-                },
-                Err(TlsHandshakeMachineError::WouldBlock(machine)) => {
-                    let connection = Connection::from_in_progress(
-                        valid_until,
-                        machine
-                    );
-
-                    connections.insert(poll_token, connection);
-
-                    // Break and wait for more data
-                    break
-                },
-                Err(TlsHandshakeMachineError::Failure(err)) => {
-                    info!("tls handshake error: {}", err);
-
-                    // TLS negotiation failed
-                    break
-                }
-            }
-        }
-    }
-}
-
-
 /// Read responses from channel, send to peers
 pub fn send_responses(
     config: &Config,
@@ -324,10 +209,8 @@ pub fn send_responses(
         .take(channel_responses_len);
 
     for (meta, response) in local_responses.chain(channel_responses_drain){
-        if let Some(established) = connections.get_mut(&meta.poll_token)
-            .and_then(Connection::get_established)
-        {
-            if established.peer_addr != meta.peer_addr {
+        if let Some(connection) = connections.get_mut(&meta.poll_token) {
+            if connection.peer_addr != meta.peer_addr {
                 info!("socket worker error: peer socket addrs didn't match");
 
                 continue;
@@ -337,7 +220,7 @@ pub fn send_responses(
 
             let bytes_written = response.write(buffer).unwrap();
 
-            match established.send_response(&buffer.get_mut()[..bytes_written]){
+            match connection.send_response(&buffer.get_mut()[..bytes_written]){
                 Ok(()) => {
                     ::log::debug!(
                         "sent response: {:?} with response string {}",

@@ -15,8 +15,7 @@ pub mod tasks;
 
 use common::*;
 use config::Config;
-use network::utils::create_tls_acceptor;
-
+use rustls::NoClientAuth;
 
 pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
 
@@ -35,7 +34,11 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
 
 pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
-    let opt_tls_acceptor = create_tls_acceptor(&config.network.tls)?;
+    let opt_tls_config = if config.network.tls.use_tls {
+        Some(Arc::new(rustls::ServerConfig::new(NoClientAuth::new())))
+    }  else {
+        None
+    };
 
     let (request_channel_sender, request_channel_receiver) = ::crossbeam_channel::unbounded();
 
@@ -56,7 +59,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         let config = config.clone();
         let socket_worker_statuses = socket_worker_statuses.clone();
         let request_channel_sender = request_channel_sender.clone();
-        let opt_tls_acceptor = opt_tls_acceptor.clone();
+        let opt_tls_config = opt_tls_config.clone();
         let poll = Poll::new().expect("create poll");
         let waker = Arc::new(Waker::new(poll.registry(), CHANNEL_TOKEN).expect("create waker"));
 
@@ -72,7 +75,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
                 socket_worker_statuses,
                 request_channel_sender,
                 response_channel_receiver,
-                opt_tls_acceptor,
+                &opt_tls_config,
                 poll
             );
         })?;

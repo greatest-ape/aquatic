@@ -1,19 +1,22 @@
 use std::net::{SocketAddr};
 use std::io::ErrorKind;
 use std::io::{Read, Write};
-use std::sync::Arc;
 
+use aquatic_http_protocol::response::{FailureResponse, Response};
 use hashbrown::HashMap;
 use mio::{Token, Poll};
 use mio::net::TcpStream;
-use native_tls::{TlsAcceptor, MidHandshakeTlsStream};
+use log::*;
 
 use aquatic_http_protocol::request::{Request, RequestParseError};
+use rustls::{ServerSession, Session, TLSError};
 
 use crate::common::*;
 
-use super::stream::Stream;
-
+pub enum ConnectionPollStatus {
+    Keep,
+    Remove,
+}
 
 #[derive(Debug)]
 pub enum RequestReadError {
@@ -21,59 +24,190 @@ pub enum RequestReadError {
     StreamEnded,
     Parse(anyhow::Error),
     Io(::std::io::Error),
+    Tls(TLSError),
 }
 
-
-pub struct EstablishedConnection {
-    stream: Stream,
+pub struct Connection {
+    pub valid_until: ValidUntil,
     pub peer_addr: SocketAddr,
+    stream: TcpStream,
     buf: Vec<u8>,
     bytes_read: usize,
+    tls_session: Option<rustls::ServerSession>,
 }
 
 
-impl EstablishedConnection {
+impl Connection {
     #[inline]
-    fn new(stream: Stream) -> Self {
-        let peer_addr = stream.get_peer_addr();
+    pub fn new(
+        stream: TcpStream,
+        valid_until: ValidUntil,
+        tls_session: Option<ServerSession>,
+    ) -> Self {
+        let peer_addr = stream.peer_addr().unwrap(); // FIXME
 
         Self {
-            stream,
+            valid_until,
             peer_addr,
+            stream,
             buf: Vec::new(),
             bytes_read: 0,
+            tls_session,
         }
     }
 
-    pub fn read_request(&mut self) -> Result<Request, RequestReadError> {
-        if (self.buf.len() - self.bytes_read < 512) & (self.buf.len() <= 3072){
-            self.buf.extend_from_slice(&[0; 1024]);
+    pub fn handle_read_event(
+        &mut self,
+        socket_worker_index: usize,
+        request_channel_sender: &RequestChannelSender,
+        local_responses: &mut Vec<(ConnectionMeta, Response)>,
+        poll_token: Token,
+    ) -> ConnectionPollStatus {
+        loop {
+            if let ConnectionPollStatus::Remove = self.read_tls(){
+                return ConnectionPollStatus::Remove;
+            }
+            match self.read_request(){
+                Ok(request) => {
+                    let meta = ConnectionMeta {
+                        worker_index: socket_worker_index,
+                        poll_token,
+                        peer_addr: self.peer_addr
+                    };
+
+                    debug!("read request, sending to handler");
+
+                    if let Err(err) = request_channel_sender
+                        .send((meta, request))
+                    {
+                        error!(
+                            "RequestChannelSender: couldn't send message: {:?}",
+                            err
+                        );
+                    }
+
+                    return ConnectionPollStatus::Keep;
+                },
+                Err(RequestReadError::NeedMoreData) => {
+                    info!("need more data");
+
+                    // Stop reading data (defer to later events)
+                    return ConnectionPollStatus::Keep;
+                },
+                Err(RequestReadError::Parse(err)) => {
+                    info!("error reading request (invalid): {:#?}", err);
+
+                    let meta = ConnectionMeta {
+                        worker_index: socket_worker_index,
+                        poll_token,
+                        peer_addr: self.peer_addr
+                    };
+
+                    let response = FailureResponse {
+                        failure_reason: "invalid request".to_string()
+                    };
+
+                    local_responses.push(
+                        (meta, Response::Failure(response))
+                    );
+
+                    return ConnectionPollStatus::Keep;
+                },
+                Err(RequestReadError::StreamEnded) => {
+                    ::log::debug!("stream ended");
+
+                    return ConnectionPollStatus::Remove;
+                },
+                Err(RequestReadError::Io(err)) => {
+                    ::log::info!("error reading request (io): {}", err);
+            
+                    return ConnectionPollStatus::Remove;
+                },
+                Err(RequestReadError::Tls(err)) => {
+                    ::log::info!("error reading request (tls): {}", err);
+            
+                    return ConnectionPollStatus::Remove;
+                },
+            }
+        }
+    }
+
+    fn read_tls(&mut self) -> ConnectionPollStatus {
+        if let Some(tls_session) = self.tls_session.as_mut() {
+            match tls_session.read_tls(&mut self.stream) {
+                Err(err) => {
+                    if let ErrorKind::WouldBlock = err.kind() {
+                        return ConnectionPollStatus::Keep;
+                    }
+
+                    error!("tls read error {:?}", err);
+
+                    return ConnectionPollStatus::Remove;
+                }
+                Ok(0) => {
+                    return ConnectionPollStatus::Remove;
+                }
+                Ok(_) => { }
+            };
+
+            if let Err(err) = tls_session.process_new_packets() {
+                error!("cannot process tls packet: {:?}", err);
+
+                // last gasp write to send any alerts
+                // self.do_tls_write_and_handle_error(); // FIXME
+
+                return ConnectionPollStatus::Remove
+            }
         }
 
-        match self.stream.read(&mut self.buf[self.bytes_read..]){
+        ConnectionPollStatus::Keep
+    }
+
+    fn read_request(&mut self) -> Result<Request, RequestReadError> {
+        if let Some(tls_session) = self.tls_session.as_mut() {
+            match tls_session.process_new_packets() {
+                Ok(()) => Self::read_request_inner(&mut self.buf, &mut self.bytes_read, tls_session),
+                Err(err) => Err(RequestReadError::Tls(err)),
+            }
+        } else {
+            Self::read_request_inner(&mut self.buf, &mut self.bytes_read, &mut self.stream)
+        }
+    }
+
+    fn read_request_inner(
+        buf: &mut Vec<u8>,
+        bytes_read: &mut usize,
+        stream: &mut impl Read,
+    ) -> Result<Request, RequestReadError> {
+        // FIXME: dubious method
+        if (buf.len() - *bytes_read < 512) & (buf.len() <= 3072){
+            buf.extend_from_slice(&[0; 1024]);
+        }
+
+        match stream.read(&mut buf[*bytes_read..]){
             Ok(0) => {
-                self.clear_buffer();
+                Self::clear_buffer(buf, bytes_read);
 
                 return Err(RequestReadError::StreamEnded);
             }
-            Ok(bytes_read) => {
-                self.bytes_read += bytes_read;
+            Ok(bytes) => {
+                *bytes_read += bytes;
 
-                ::log::debug!("read_request read {} bytes", bytes_read);
+                ::log::debug!("read_request read {} bytes", bytes);
             },
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
                 return Err(RequestReadError::NeedMoreData);
             },
             Err(err) => {
-                self.clear_buffer();
+                Self::clear_buffer(buf, bytes_read);
 
                 return Err(RequestReadError::Io(err));
             }
         }
 
-        match Request::from_bytes(&self.buf[..self.bytes_read]){
+        match Request::from_bytes(&buf[..*bytes_read]){
             Ok(request) => {
-                self.clear_buffer();
+                Self::clear_buffer(buf, bytes_read);
 
                 Ok(request)
             },
@@ -81,7 +215,7 @@ impl EstablishedConnection {
                 Err(RequestReadError::NeedMoreData)
             },
             Err(RequestParseError::Invalid(err)) => {
-                self.clear_buffer();
+                Self::clear_buffer(buf, bytes_read);
 
                 Err(RequestReadError::Parse(err))
             },
@@ -89,6 +223,14 @@ impl EstablishedConnection {
     }
 
     pub fn send_response(&mut self, body: &[u8]) -> ::std::io::Result<()> {
+        if let Some(tls_session) = self.tls_session.as_mut() {
+            Self::send_response_inner(tls_session, body)
+        } else {
+            Self::send_response_inner(&mut self.stream, body)
+        }
+    }
+
+    fn send_response_inner(stream: &mut impl Write, body: &[u8]) -> ::std::io::Result<()> {
         let content_len = body.len() + 2; // 2 is for newlines at end
         let content_len_num_digits = Self::num_digits_in_usize(content_len);
 
@@ -102,7 +244,7 @@ impl EstablishedConnection {
         response.extend_from_slice(body);
         response.extend_from_slice(b"\r\n");
 
-        let bytes_written = self.stream.write(&response)?;
+        let bytes_written = stream.write(&response)?;
 
         if bytes_written != response.len() {
             ::log::error!(
@@ -112,7 +254,7 @@ impl EstablishedConnection {
             );
         }
 
-        self.stream.flush()?;
+        stream.flush()?;
 
         Ok(())
     }
@@ -130,187 +272,13 @@ impl EstablishedConnection {
     }
 
     #[inline]
-    pub fn clear_buffer(&mut self){
-        self.bytes_read = 0;
-        self.buf = Vec::new();
-    }
-}
-
-
-pub enum TlsHandshakeMachineError {
-    WouldBlock(TlsHandshakeMachine),
-    Failure(native_tls::Error)
-}
-
-
-enum TlsHandshakeMachineInner {
-    TcpStream(TcpStream),
-    TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
-}
-
-
-pub struct TlsHandshakeMachine {
-    tls_acceptor: Arc<TlsAcceptor>,
-    inner: TlsHandshakeMachineInner,
-}
-
-
-impl <'a>TlsHandshakeMachine {
-    #[inline]
-    fn new(
-        tls_acceptor: Arc<TlsAcceptor>,
-        tcp_stream: TcpStream
-    ) -> Self {
-        Self {
-            tls_acceptor,
-            inner: TlsHandshakeMachineInner::TcpStream(tcp_stream)
-        }
-    }
-
-    /// Attempt to establish a TLS connection. On a WouldBlock error, return
-    /// the machine wrapped in an error for later attempts.
-    pub fn establish_tls(self) -> Result<EstablishedConnection, TlsHandshakeMachineError> {
-        let handshake_result = match self.inner {
-            TlsHandshakeMachineInner::TcpStream(stream) => {
-                self.tls_acceptor.accept(stream)
-            },
-            TlsHandshakeMachineInner::TlsMidHandshake(handshake) => {
-                handshake.handshake()
-            },
-        };
-
-        match handshake_result {
-            Ok(stream) => {
-                let established = EstablishedConnection::new(
-                    Stream::TlsStream(stream)
-                );
-
-                ::log::debug!("established tls connection");
-
-                Ok(established)
-            },
-            Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
-                let inner = TlsHandshakeMachineInner::TlsMidHandshake(
-                    handshake
-                );
-                
-                let machine = Self {
-                    tls_acceptor: self.tls_acceptor,
-                    inner,
-                };
-
-                Err(TlsHandshakeMachineError::WouldBlock(machine))
-            },
-            Err(native_tls::HandshakeError::Failure(err)) => {
-                Err(TlsHandshakeMachineError::Failure(err))
-            }
-        }
-    }
-}
-
-
-enum ConnectionInner {
-    Established(EstablishedConnection),
-    InProgress(TlsHandshakeMachine),
-}
-
-
-pub struct Connection {
-    pub valid_until: ValidUntil,
-    inner: ConnectionInner,
-}
-
-
-impl Connection {
-    #[inline]
-    pub fn new(
-        opt_tls_acceptor: &Option<Arc<TlsAcceptor>>,
-        valid_until: ValidUntil,
-        tcp_stream: TcpStream,
-    ) -> Self {
-        // Setup handshake machine if TLS is requested
-        let inner = if let Some(tls_acceptor) = opt_tls_acceptor {
-            ConnectionInner::InProgress(
-                TlsHandshakeMachine::new(tls_acceptor.clone(), tcp_stream)
-            )
-        } else {
-            ::log::debug!("established tcp connection");
-
-            ConnectionInner::Established(
-                EstablishedConnection::new(Stream::TcpStream(tcp_stream))
-            )
-        };
-
-        Self {
-            valid_until,
-            inner,
-        }
-    }
-
-    #[inline]
-    pub fn from_established(
-        valid_until: ValidUntil,
-        established: EstablishedConnection,
-    ) -> Self {
-        Self {
-            valid_until,
-            inner: ConnectionInner::Established(established)
-        }
-    }
-
-    #[inline]
-    pub fn from_in_progress(
-        valid_until: ValidUntil,
-        machine: TlsHandshakeMachine,
-    ) -> Self {
-        Self {
-            valid_until,
-            inner: ConnectionInner::InProgress(machine)
-        }
-    }
-
-    #[inline]
-    pub fn get_established(&mut self) -> Option<&mut EstablishedConnection> {
-        if let ConnectionInner::Established(ref mut established) = self.inner {
-            Some(established)
-        } else {
-            None
-        }
-    }
-
-    /// Takes ownership since TlsStream needs ownership of TcpStream
-    #[inline]
-    pub fn get_in_progress(self) -> Option<TlsHandshakeMachine> {
-        if let ConnectionInner::InProgress(machine) = self.inner {
-            Some(machine)
-        } else {
-            None
-        }
+    pub fn clear_buffer(buf: &mut Vec<u8>, bytes_read: &mut usize){
+        *bytes_read = 0;
+        *buf = Vec::new();
     }
 
     pub fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
-        match &mut self.inner {
-            ConnectionInner::Established(established) => {
-                match &mut established.stream {
-                    Stream::TcpStream(ref mut stream) => {
-                        poll.registry().deregister(stream)
-                    },
-                    Stream::TlsStream(ref mut stream) => {
-                        poll.registry().deregister(stream.get_mut())
-                    },
-                }
-            },
-            ConnectionInner::InProgress(TlsHandshakeMachine { inner, ..}) => {
-                match inner {
-                    TlsHandshakeMachineInner::TcpStream(ref mut stream) => {
-                        poll.registry().deregister(stream)
-                    },
-                    TlsHandshakeMachineInner::TlsMidHandshake(ref mut mid_handshake) => {
-                        poll.registry().deregister(mid_handshake.get_mut())
-                    },
-                }
-            },
-        }
+        poll.registry().deregister(&mut self.stream)
     }
 }
 
@@ -324,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_num_digits_in_usize(){
-        let f = EstablishedConnection::num_digits_in_usize;
+        let f = Connection::num_digits_in_usize;
 
         assert_eq!(f(0), 1);
         assert_eq!(f(1), 1);
