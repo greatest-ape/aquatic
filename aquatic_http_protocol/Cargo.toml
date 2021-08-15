@@ -33,7 +33,7 @@ rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 serde_bencode = "0.2"
 smartstring = "0.2"
-urlencoding = "1"
+urlencoding = "2.1.0"
 
 [dev-dependencies]
 bendy = { version = "0.3", features = ["std", "serde"] }
