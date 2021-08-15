@@ -36,7 +36,7 @@ privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 smartstring = "0.2"
-socket2 = { version = "0.3", features = ["reuseport"] }
+socket2 = { version = "0.4.1", features = ["all"] }
 
 [dev-dependencies]
 quickcheck = "1.0"

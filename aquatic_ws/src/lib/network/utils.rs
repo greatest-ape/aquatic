@@ -10,9 +10,9 @@ use super::connection::*;
 
 pub fn create_listener(config: &Config) -> ::anyhow::Result<::std::net::TcpListener> {
     let builder = if config.network.address.is_ipv4() {
-        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp()))
+        Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))
     } else {
-        Socket::new(Domain::ipv6(), Type::stream(), Some(Protocol::tcp()))
+        Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))
     }
     .context("Couldn't create socket2::Socket")?;
 
@@ -35,7 +35,7 @@ pub fn create_listener(config: &Config) -> ::anyhow::Result<::std::net::TcpListe
         .listen(128)
         .context("Couldn't listen for connections on socket")?;
 
-    Ok(builder.into_tcp_listener())
+    Ok(builder.into())
 }
 
 pub fn remove_connection_if_exists(poll: &mut Poll, connections: &mut ConnectionMap, token: Token) {

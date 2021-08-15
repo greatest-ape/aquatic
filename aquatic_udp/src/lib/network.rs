@@ -88,9 +88,9 @@ pub fn run_socket_worker(
 
 fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     let socket = if config.network.address.is_ipv4() {
-        Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
     } else {
-        Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp()))
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
     }
     .expect("create socket");
 
@@ -116,7 +116,7 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
         }
     }
 
-    socket.into_udp_socket()
+    socket.into()
 }
 
 #[inline]

@@ -15,9 +15,9 @@ const MAX_PACKET_SIZE: usize = 4096;
 
 pub fn create_socket(config: &Config, addr: SocketAddr) -> ::std::net::UdpSocket {
     let socket = if addr.is_ipv4() {
-        Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
     } else {
-        Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp()))
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
     }
     .expect("create socket");
 
@@ -42,7 +42,7 @@ pub fn create_socket(config: &Config, addr: SocketAddr) -> ::std::net::UdpSocket
         .connect(&config.server_address.into())
         .expect("socket: connect to server");
 
-    socket.into_udp_socket()
+    socket.into()
 }
 
 pub fn run_socket_thread(

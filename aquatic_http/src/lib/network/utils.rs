@@ -34,9 +34,9 @@ pub fn create_listener(
     ipv6_only: bool,
 ) -> ::anyhow::Result<::std::net::TcpListener> {
     let builder = if address.is_ipv4() {
-        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp()))
+        Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))
     } else {
-        Socket::new(Domain::ipv6(), Type::stream(), Some(Protocol::tcp()))
+        Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))
     }
     .context("Couldn't create socket2::Socket")?;
 
@@ -59,5 +59,5 @@ pub fn create_listener(
         .listen(128)
         .context("Couldn't listen for connections on socket")?;
 
-    Ok(builder.into_tcp_listener())
+    Ok(builder.into())
 }
