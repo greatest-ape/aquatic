@@ -22,7 +22,7 @@ aquatic_common = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
 crossbeam-channel = "0.5"
 either = "1"
-hashbrown = { version = "0.9", features = ["serde"] }
+hashbrown = { version = "0.11.2", features = ["serde"] }
 histogram = "0.6"
 indexmap = "1"
 log = "0.4"
