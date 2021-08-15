@@ -1,6 +1,6 @@
-use std::net::{SocketAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::sync::{atomic::Ordering, Arc};
 use std::thread;
-use std::sync::{Arc, atomic::Ordering};
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::unbounded;
@@ -15,16 +15,14 @@ mod network;
 mod utils;
 
 use common::*;
-use utils::*;
-use network::*;
 use handler::run_handler_thread;
-
+use network::*;
+use utils::*;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-
-pub fn main(){
+pub fn main() {
     aquatic_cli_helpers::run_app_with_cli_and_config::<Config>(
         "aquatic_udp_load_test: BitTorrent load tester",
         run,
@@ -32,17 +30,17 @@ pub fn main(){
     )
 }
 
-
 impl aquatic_cli_helpers::Config for Config {}
 
-
 fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape == 0 {
+    if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape
+        == 0
+    {
         panic!("Error: at least one weight must be larger than zero.");
     }
 
     println!("Starting client with config: {:#?}", config);
-    
+
     let mut info_hashes = Vec::with_capacity(config.handler.number_of_torrents);
 
     for _ in 0..config.handler.number_of_torrents {
@@ -55,10 +53,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         statistics: Arc::new(Statistics::default()),
     };
 
-    let pareto = Pareto::new(
-        1.0,
-        config.handler.torrent_selection_pareto_shape
-    ).unwrap();
+    let pareto = Pareto::new(1.0, config.handler.torrent_selection_pareto_shape).unwrap();
 
     // Start socket workers
 
@@ -72,7 +67,8 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let port = config.network.first_port + (i as u16);
 
         let addr = if config.network.multiple_client_ips {
-            let ip = if config.network.ipv6_client { // FIXME: test ipv6
+            let ip = if config.network.ipv6_client {
+                // FIXME: test ipv6
                 Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1 + i as u16).into()
             } else {
                 Ipv4Addr::new(127, 0, 0, 1 + i).into()
@@ -95,54 +91,37 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let response_sender = response_sender.clone();
         let state = state.clone();
 
-        thread::spawn(move || run_socket_thread(
-            state,
-            response_sender,
-            receiver,
-            &config,
-            addr,
-            thread_id
-        ));
+        thread::spawn(move || {
+            run_socket_thread(state, response_sender, receiver, &config, addr, thread_id)
+        });
     }
 
     for _ in 0..config.num_request_workers {
         let config = config.clone();
-        let state= state.clone();
+        let state = state.clone();
         let request_senders = request_senders.clone();
         let response_receiver = response_receiver.clone();
 
-        thread::spawn(move || run_handler_thread(
-            &config,
-            state,
-            pareto,
-            request_senders,
-            response_receiver,
-        ));
+        thread::spawn(move || {
+            run_handler_thread(&config, state, pareto, request_senders, response_receiver)
+        });
     }
 
     // Bootstrap request cycle by adding a request to each request channel
-    for sender in request_senders.iter(){
-        let request = create_connect_request(
-            generate_transaction_id(&mut thread_rng())
-        );
+    for sender in request_senders.iter() {
+        let request = create_connect_request(generate_transaction_id(&mut thread_rng()));
 
-        sender.send(request)
+        sender
+            .send(request)
             .expect("bootstrap: add initial request to request queue");
     }
 
-    monitor_statistics(
-        state,
-        &config
-    );
+    monitor_statistics(state, &config);
 
     Ok(())
 }
 
-
-fn monitor_statistics(
-    state: LoadTestState,
-    config: &Config,
-){
+fn monitor_statistics(state: LoadTestState, config: &Config) {
     let start_time = Instant::now();
     let mut report_avg_response_vec: Vec<f64> = Vec::new();
 
@@ -154,39 +133,46 @@ fn monitor_statistics(
 
         let statistics = state.statistics.as_ref();
 
-        let responses_announce = statistics.responses_announce
-            .fetch_and(0, Ordering::SeqCst) as f64;
-        let response_peers = statistics.response_peers
-            .fetch_and(0, Ordering::SeqCst) as f64;
+        let responses_announce =
+            statistics.responses_announce.fetch_and(0, Ordering::SeqCst) as f64;
+        let response_peers = statistics.response_peers.fetch_and(0, Ordering::SeqCst) as f64;
 
-        let requests_per_second = statistics.requests
-            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
-        let responses_connect_per_second = statistics.responses_connect
-            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
-        let responses_scrape_per_second = statistics.responses_scrape
-            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
-        let responses_error_per_second = statistics.responses_error
-            .fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let requests_per_second =
+            statistics.requests.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let responses_connect_per_second =
+            statistics.responses_connect.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let responses_scrape_per_second =
+            statistics.responses_scrape.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let responses_error_per_second =
+            statistics.responses_error.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
 
-        let responses_announce_per_second =  responses_announce / interval_f64;
+        let responses_announce_per_second = responses_announce / interval_f64;
 
-        let responses_per_second = 
-            responses_connect_per_second +
-            responses_announce_per_second +
-            responses_scrape_per_second +
-            responses_error_per_second;
+        let responses_per_second = responses_connect_per_second
+            + responses_announce_per_second
+            + responses_scrape_per_second
+            + responses_error_per_second;
 
         report_avg_response_vec.push(responses_per_second);
 
         println!();
         println!("Requests out: {:.2}/second", requests_per_second);
         println!("Responses in: {:.2}/second", responses_per_second);
-        println!("  - Connect responses:  {:.2}", responses_connect_per_second);
-        println!("  - Announce responses: {:.2}", responses_announce_per_second);
+        println!(
+            "  - Connect responses:  {:.2}",
+            responses_connect_per_second
+        );
+        println!(
+            "  - Announce responses: {:.2}",
+            responses_announce_per_second
+        );
         println!("  - Scrape responses:   {:.2}", responses_scrape_per_second);
         println!("  - Error responses:    {:.2}", responses_error_per_second);
-        println!("Peers per announce response: {:.2}", response_peers / responses_announce);
-        
+        println!(
+            "Peers per announce response: {:.2}",
+            response_peers / responses_announce
+        );
+
         let time_elapsed = start_time.elapsed();
         let duration = Duration::from_secs(config.duration as u64);
 
@@ -206,7 +192,7 @@ fn monitor_statistics(
                 config
             );
 
-            break
+            break;
         }
     }
 }

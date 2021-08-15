@@ -4,11 +4,8 @@ use histogram::Histogram;
 
 use crate::common::*;
 
-
-pub fn clean_torrents(state: &State){
-    fn clean_torrent_map(
-        torrent_map: &mut TorrentMap,
-    ){
+pub fn clean_torrents(state: &State) {
+    fn clean_torrent_map(torrent_map: &mut TorrentMap) {
         let now = Instant::now();
 
         torrent_map.retain(|_, torrent_data| {
@@ -22,10 +19,10 @@ pub fn clean_torrents(state: &State){
                     match peer.status {
                         PeerStatus::Seeding => {
                             *num_seeders -= 1;
-                        },
+                        }
                         PeerStatus::Leeching => {
                             *num_leechers -= 1;
-                        },
+                        }
                         _ => (),
                     };
                 }
@@ -45,24 +42,23 @@ pub fn clean_torrents(state: &State){
     clean_torrent_map(&mut torrent_maps.ipv6);
 }
 
-
-pub fn print_statistics(state: &State){
+pub fn print_statistics(state: &State) {
     let mut peers_per_torrent = Histogram::new();
 
     {
         let torrents = &mut state.torrent_maps.lock();
 
-        for torrent in torrents.ipv4.values(){
+        for torrent in torrents.ipv4.values() {
             let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
-            if let Err(err) = peers_per_torrent.increment(num_peers){
+            if let Err(err) = peers_per_torrent.increment(num_peers) {
                 eprintln!("error incrementing peers_per_torrent histogram: {}", err)
             }
         }
-        for torrent in torrents.ipv6.values(){
+        for torrent in torrents.ipv6.values() {
             let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
-            if let Err(err) = peers_per_torrent.increment(num_peers){
+            if let Err(err) = peers_per_torrent.increment(num_peers) {
                 eprintln!("error incrementing peers_per_torrent histogram: {}", err)
             }
         }

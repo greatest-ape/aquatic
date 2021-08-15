@@ -1,10 +1,8 @@
-use serde::{Serializer, Deserializer, de::Visitor};
+use serde::{de::Visitor, Deserializer, Serializer};
 
 use super::{AnnounceAction, ScrapeAction};
 
-
 pub struct AnnounceActionVisitor;
-
 
 impl<'de> Visitor<'de> for AnnounceActionVisitor {
     type Value = AnnounceAction;
@@ -12,9 +10,11 @@ impl<'de> Visitor<'de> for AnnounceActionVisitor {
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("string with value 'announce'")
     }
-    
+
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where E: ::serde::de::Error, {
+    where
+        E: ::serde::de::Error,
+    {
         if v == "announce" {
             Ok(AnnounceAction)
         } else {
@@ -23,9 +23,7 @@ impl<'de> Visitor<'de> for AnnounceActionVisitor {
     }
 }
 
-
 pub struct ScrapeActionVisitor;
-
 
 impl<'de> Visitor<'de> for ScrapeActionVisitor {
     type Value = ScrapeAction;
@@ -33,9 +31,11 @@ impl<'de> Visitor<'de> for ScrapeActionVisitor {
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("string with value 'scrape'")
     }
-    
+
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where E: ::serde::de::Error, {
+    where
+        E: ::serde::de::Error,
+    {
         if v == "scrape" {
             Ok(ScrapeAction)
         } else {
@@ -44,16 +44,14 @@ impl<'de> Visitor<'de> for ScrapeActionVisitor {
     }
 }
 
-
-pub fn serialize_20_bytes<S>(
-    data: &[u8; 20],
-    serializer: S
-) -> Result<S::Ok, S::Error> where S: Serializer {
+pub fn serialize_20_bytes<S>(data: &[u8; 20], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
     let text: String = data.iter().map(|byte| char::from(*byte)).collect();
 
     serializer.serialize_str(&text)
 }
-
 
 struct TwentyByteVisitor;
 
@@ -66,7 +64,8 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
 
     #[inline]
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where E: ::serde::de::Error,
+    where
+        E: ::serde::de::Error,
     {
         // Value is encoded in nodejs reference client something as follows:
         // ```
@@ -83,8 +82,8 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
         let mut arr = [0u8; 20];
         let mut char_iter = value.chars();
 
-        for a in arr.iter_mut(){
-            if let Some(c) = char_iter.next(){
+        for a in arr.iter_mut() {
+            if let Some(c) = char_iter.next() {
                 if c as u32 > 255 {
                     return Err(E::custom(format!(
                         "character not in single byte range: {:#?}",
@@ -102,16 +101,13 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
     }
 }
 
-
 #[inline]
-pub fn deserialize_20_bytes<'de, D>(
-    deserializer: D
-) -> Result<[u8; 20], D::Error>
-    where D: Deserializer<'de>
+pub fn deserialize_20_bytes<'de, D>(deserializer: D) -> Result<[u8; 20], D::Error>
+where
+    D: Deserializer<'de>,
 {
     deserializer.deserialize_any(TwentyByteVisitor)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -130,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_20_bytes(){
+    fn test_deserialize_20_bytes() {
         let mut input = r#""aaaabbbbccccddddeeee""#.to_string();
 
         let expected = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
@@ -150,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn test_serde_20_bytes(){
+    fn test_serde_20_bytes() {
         let info_hash = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
 
         let mut out = ::simd_json::serde::to_string(&info_hash).unwrap();
@@ -166,5 +162,4 @@ mod tests {
 
         info_hash == info_hash_2
     }
-
 }

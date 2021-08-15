@@ -1,16 +1,14 @@
 use std::net::SocketAddr;
-use std::sync::{Arc, atomic::AtomicUsize};
+use std::sync::{atomic::AtomicUsize, Arc};
 
 use hashbrown::HashMap;
 use parking_lot::Mutex;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use aquatic_udp_protocol::*;
 
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct ThreadId(pub u8);
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -18,7 +16,7 @@ pub struct Config {
     /// Server address
     pub server_address: SocketAddr,
     /// Number of sockets and socket worker threads
-    /// 
+    ///
     /// Sockets will bind to one port each, and with
     /// multiple_client_ips = true, additionally to one IP each.
     pub num_socket_workers: u8,
@@ -31,14 +29,13 @@ pub struct Config {
     pub handler: HandlerConfig,
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// True means bind to one localhost IP per socket. On macOS, this by
     /// default causes all server responses to go to one socket worker.
     /// Default option ("true") can cause issues on macOS.
-    /// 
+    ///
     /// The point of multiple IPs is to possibly cause a better distribution
     /// of requests to servers with SO_REUSEPORT option.
     pub multiple_client_ips: bool,
@@ -51,7 +48,7 @@ pub struct NetworkConfig {
     /// Socket worker polling event number
     pub poll_event_capacity: usize,
     /// Size of socket recv buffer. Use 0 for OS default.
-    /// 
+    ///
     /// This setting can have a big impact on dropped packages. It might
     /// require changing system defaults. Some examples of commands to set
     /// recommended values for different operating systems:
@@ -66,7 +63,6 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub recv_buffer: usize,
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -89,7 +85,7 @@ pub struct HandlerConfig {
     /// Handler: max microseconds to wait for single response from channel
     pub channel_timeout: u64,
     /// Pareto shape
-    /// 
+    ///
     /// Fake peers choose torrents according to Pareto distribution.
     pub torrent_selection_pareto_shape: f64,
     /// Probability that a generated peer is a seeder
@@ -99,7 +95,6 @@ pub struct HandlerConfig {
     /// means more.
     pub additional_request_factor: f64,
 }
-
 
 impl Default for Config {
     fn default() -> Self {
@@ -127,7 +122,6 @@ impl Default for NetworkConfig {
     }
 }
 
-
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
@@ -145,7 +139,6 @@ impl Default for HandlerConfig {
     }
 }
 
-
 #[derive(PartialEq, Eq, Clone)]
 pub struct TorrentPeer {
     pub info_hash: InfoHash,
@@ -155,9 +148,7 @@ pub struct TorrentPeer {
     pub port: Port,
 }
 
-
 pub type TorrentPeerMap = HashMap<TransactionId, TorrentPeer>;
-
 
 #[derive(Default)]
 pub struct Statistics {
@@ -169,7 +160,6 @@ pub struct Statistics {
     pub responses_error: AtomicUsize,
 }
 
-
 #[derive(Clone)]
 pub struct LoadTestState {
     pub torrent_peers: Arc<Mutex<TorrentPeerMap>>,
@@ -177,14 +167,12 @@ pub struct LoadTestState {
     pub statistics: Arc<Statistics>,
 }
 
-
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RequestType {
     Announce,
     Connect,
-    Scrape
+    Scrape,
 }
-
 
 #[derive(Default)]
 pub struct SocketWorkerLocalStatistics {

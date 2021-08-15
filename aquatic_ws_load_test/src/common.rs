@@ -1,9 +1,8 @@
-use std::sync::{Arc, atomic::AtomicUsize};
+use std::sync::{atomic::AtomicUsize, Arc};
 
 use rand_distr::Pareto;
 
 pub use aquatic_ws_protocol::*;
-
 
 #[derive(Default)]
 pub struct Statistics {
@@ -15,7 +14,6 @@ pub struct Statistics {
     pub responses_scrape: AtomicUsize,
 }
 
-
 #[derive(Clone)]
 pub struct LoadTestState {
     pub info_hashes: Arc<Vec<InfoHash>>,
@@ -23,9 +21,8 @@ pub struct LoadTestState {
     pub pareto: Arc<Pareto<f64>>,
 }
 
-
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RequestType {
     Announce,
-    Scrape
+    Scrape,
 }

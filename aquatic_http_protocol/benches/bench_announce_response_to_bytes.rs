@@ -5,14 +5,13 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use aquatic_http_protocol::response::*;
 
-
 pub fn bench(c: &mut Criterion) {
     let mut peers = Vec::new();
 
     for i in 0..100 {
         peers.push(ResponsePeer {
             ip_address: Ipv4Addr::new(127, 0, 0, i),
-            port: i as u16
+            port: i as u16,
         })
     }
 
@@ -29,14 +28,16 @@ pub fn bench(c: &mut Criterion) {
     let mut buffer = [0u8; 4096];
     let mut buffer = ::std::io::Cursor::new(&mut buffer[..]);
 
-    c.bench_function("announce-response-to-bytes", |b| b.iter(|| {
-        buffer.set_position(0);
+    c.bench_function("announce-response-to-bytes", |b| {
+        b.iter(|| {
+            buffer.set_position(0);
 
-        Response::write(black_box(&response), black_box(&mut buffer)).unwrap();
-    }));
+            Response::write(black_box(&response), black_box(&mut buffer)).unwrap();
+        })
+    });
 }
 
-criterion_group!{
+criterion_group! {
     name = benches;
     config = Criterion::default()
         .sample_size(1000)

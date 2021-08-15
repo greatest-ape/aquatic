@@ -1,8 +1,8 @@
-use std::time::Duration;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
 use std::thread::Builder;
+use std::time::Duration;
 
 use anyhow::Context;
 use mio::{Poll, Waker};
@@ -19,9 +19,7 @@ pub mod tasks;
 use common::*;
 use config::Config;
 
-
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
-
 
 pub fn run(config: Config) -> anyhow::Result<()> {
     let state = State::default();
@@ -34,7 +32,6 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         tasks::clean_torrents(&state);
     }
 }
-
 
 pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
     let opt_tls_acceptor = create_tls_acceptor(&config)?;
@@ -67,17 +64,19 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         out_message_senders.push(out_message_sender);
         wakers.push(waker);
 
-        Builder::new().name(format!("socket-{:02}", i + 1)).spawn(move || {
-            network::run_socket_worker(
-                config,
-                i,
-                socket_worker_statuses,
-                poll,
-                in_message_sender,
-                out_message_receiver,
-                opt_tls_acceptor
-            );
-        })?;
+        Builder::new()
+            .name(format!("socket-{:02}", i + 1))
+            .spawn(move || {
+                network::run_socket_worker(
+                    config,
+                    i,
+                    socket_worker_statuses,
+                    poll,
+                    in_message_sender,
+                    out_message_receiver,
+                    opt_tls_acceptor,
+                );
+            })?;
     }
 
     // Wait for socket worker statuses. On error from any, quit program.
@@ -86,14 +85,14 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
     loop {
         ::std::thread::sleep(::std::time::Duration::from_millis(10));
 
-        if let Some(statuses) = socket_worker_statuses.try_lock(){
-            for opt_status in statuses.iter(){
+        if let Some(statuses) = socket_worker_statuses.try_lock() {
+            for opt_status in statuses.iter() {
                 if let Some(Err(err)) = opt_status {
                     return Err(::anyhow::anyhow!(err.to_owned()));
                 }
             }
 
-            if statuses.iter().all(Option::is_some){
+            if statuses.iter().all(Option::is_some) {
                 if config.privileges.drop_privileges {
                     PrivDrop::default()
                         .chroot(config.privileges.chroot_path.clone())
@@ -102,7 +101,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
                         .context("Couldn't drop root privileges")?;
                 }
 
-                break
+                break;
             }
         }
     }
@@ -116,39 +115,37 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         let out_message_sender = out_message_sender.clone();
         let wakers = wakers.clone();
 
-        Builder::new().name(format!("request-{:02}", i + 1)).spawn(move || {
-            handler::run_request_worker(
-                config,
-                state,
-                in_message_receiver,
-                out_message_sender,
-                wakers,
-            );
-        })?;
+        Builder::new()
+            .name(format!("request-{:02}", i + 1))
+            .spawn(move || {
+                handler::run_request_worker(
+                    config,
+                    state,
+                    in_message_receiver,
+                    out_message_sender,
+                    wakers,
+                );
+            })?;
     }
 
     if config.statistics.interval != 0 {
         let state = state.clone();
         let config = config.clone();
 
-        Builder::new().name("statistics".to_string()).spawn(move ||
-            loop {
-                ::std::thread::sleep(Duration::from_secs(
-                    config.statistics.interval
-                ));
+        Builder::new()
+            .name("statistics".to_string())
+            .spawn(move || loop {
+                ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
 
                 tasks::print_statistics(&state);
-            }
-        ).expect("spawn statistics thread");
+            })
+            .expect("spawn statistics thread");
     }
 
     Ok(())
 }
 
-
-pub fn create_tls_acceptor(
-    config: &Config,
-) -> anyhow::Result<Option<TlsAcceptor>> {
+pub fn create_tls_acceptor(config: &Config) -> anyhow::Result<Option<TlsAcceptor>> {
     if config.network.use_tls {
         let mut identity_bytes = Vec::new();
         let mut file = File::open(&config.network.tls_pkcs12_path)
@@ -157,10 +154,8 @@ pub fn create_tls_acceptor(
         file.read_to_end(&mut identity_bytes)
             .context("Couldn't read pkcs12 identity file")?;
 
-        let identity = Identity::from_pkcs12(
-            &identity_bytes,
-            &config.network.tls_pkcs12_password
-        ).context("Couldn't parse pkcs12 identity file")?;
+        let identity = Identity::from_pkcs12(&identity_bytes, &config.network.tls_pkcs12_password)
+            .context("Couldn't parse pkcs12 identity file")?;
 
         let acceptor = TlsAcceptor::new(identity)
             .context("Couldn't create TlsAcceptor from pkcs12 identity")?;

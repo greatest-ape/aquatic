@@ -12,11 +12,6 @@ exclude = ["target"]
 name = "aquatic_http_protocol"
 
 [[bench]]
-name = "bench_request_from_path"
-path = "benches/bench_request_from_path.rs"
-harness = false
-
-[[bench]]
 name = "bench_request_from_bytes"
 path = "benches/bench_request_from_bytes.rs"
 harness = false

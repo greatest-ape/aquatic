@@ -13,21 +13,18 @@ use aquatic_udp_protocol::*;
 use crate::common::*;
 use crate::utils::*;
 
-
 pub fn run_handler_thread(
     config: &Config,
     state: LoadTestState,
     pareto: Pareto<f64>,
     request_senders: Vec<Sender<Request>>,
     response_receiver: Receiver<(ThreadId, Response)>,
-){
+) {
     let state = &state;
 
-    let mut rng1 = SmallRng::from_rng(thread_rng())
-        .expect("create SmallRng from thread_rng()");
-    let mut rng2 = SmallRng::from_rng(thread_rng())
-        .expect("create SmallRng from thread_rng()");
-    
+    let mut rng1 = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
+    let mut rng2 = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
+
     let timeout = Duration::from_micros(config.handler.channel_timeout);
 
     let mut responses = Vec::new();
@@ -40,30 +37,30 @@ pub fn run_handler_thread(
         // only if ConnectionMap mutex isn't locked.
         for i in 0..config.handler.max_responses_per_iter {
             let response = if i == 0 {
-                match response_receiver.recv(){
+                match response_receiver.recv() {
                     Ok(r) => r,
                     Err(_) => break, // Really shouldn't happen
                 }
             } else {
-                match response_receiver.recv_timeout(timeout){
+                match response_receiver.recv_timeout(timeout) {
                     Ok(r) => r,
                     Err(_) => {
-                        if let Some(guard) = state.torrent_peers.try_lock(){
+                        if let Some(guard) = state.torrent_peers.try_lock() {
                             opt_torrent_peers = Some(guard);
 
-                            break
+                            break;
                         } else {
-                            continue
+                            continue;
                         }
-                    },
+                    }
                 }
             };
 
             responses.push(response);
         }
 
-        let mut torrent_peers: MutexGuard<TorrentPeerMap> = opt_torrent_peers
-            .unwrap_or_else(|| state.torrent_peers.lock());
+        let mut torrent_peers: MutexGuard<TorrentPeerMap> =
+            opt_torrent_peers.unwrap_or_else(|| state.torrent_peers.lock());
 
         let requests = process_responses(
             &mut rng1,
@@ -71,43 +68,42 @@ pub fn run_handler_thread(
             &state.info_hashes,
             config,
             &mut torrent_peers,
-            responses.drain(..)
+            responses.drain(..),
         );
 
         // Somewhat dubious heuristic for deciding how fast to create
         // and send additional requests (requests not having anything
         // to do with previously sent requests)
         let num_additional_to_send = {
-            let num_additional_requests = requests.iter()
-                .map(|v| v.len())
-                .sum::<usize>() as f64;
-            
-            let num_new_requests_per_socket = num_additional_requests /
-                config.num_socket_workers as f64;
+            let num_additional_requests = requests.iter().map(|v| v.len()).sum::<usize>() as f64;
 
-            ((num_new_requests_per_socket / 1.2) * config.handler.additional_request_factor) as usize + 10
+            let num_new_requests_per_socket =
+                num_additional_requests / config.num_socket_workers as f64;
+
+            ((num_new_requests_per_socket / 1.2) * config.handler.additional_request_factor)
+                as usize
+                + 10
         };
 
-        for (channel_index, new_requests) in requests.into_iter().enumerate(){
+        for (channel_index, new_requests) in requests.into_iter().enumerate() {
             let channel = &request_senders[channel_index];
 
             for _ in 0..num_additional_to_send {
-                let request = create_connect_request(
-                    generate_transaction_id(&mut rng2)
-                );
+                let request = create_connect_request(generate_transaction_id(&mut rng2));
 
-                channel.send(request)
+                channel
+                    .send(request)
                     .expect("send request to channel in handler worker");
             }
-            
-            for request in new_requests.into_iter(){
-                channel.send(request)
+
+            for request in new_requests.into_iter() {
+                channel
+                    .send(request)
                     .expect("send request to channel in handler worker");
             }
         }
     }
 }
-
 
 fn process_responses(
     rng: &mut impl Rng,
@@ -115,25 +111,17 @@ fn process_responses(
     info_hashes: &Arc<Vec<InfoHash>>,
     config: &Config,
     torrent_peers: &mut TorrentPeerMap,
-    responses: Drain<(ThreadId, Response)>
+    responses: Drain<(ThreadId, Response)>,
 ) -> Vec<Vec<Request>> {
-    let mut new_requests = Vec::with_capacity(
-        config.num_socket_workers as usize
-    );
+    let mut new_requests = Vec::with_capacity(config.num_socket_workers as usize);
 
     for _ in 0..config.num_socket_workers {
         new_requests.push(Vec::new());
     }
 
     for (socket_thread_id, response) in responses.into_iter() {
-        let opt_request = process_response(
-            rng,
-            pareto,
-            info_hashes,
-            &config,
-            torrent_peers,
-            response
-        );
+        let opt_request =
+            process_response(rng, pareto, info_hashes, &config, torrent_peers, response);
 
         if let Some(new_request) = opt_request {
             new_requests[socket_thread_id.0 as usize].push(new_request);
@@ -143,77 +131,63 @@ fn process_responses(
     new_requests
 }
 
-
 fn process_response(
     rng: &mut impl Rng,
     pareto: Pareto<f64>,
     info_hashes: &Arc<Vec<InfoHash>>,
     config: &Config,
     torrent_peers: &mut TorrentPeerMap,
-    response: Response
+    response: Response,
 ) -> Option<Request> {
-
     match response {
         Response::Connect(r) => {
             // Fetch the torrent peer or create it if is doesn't exists. Update
             // the connection id if fetched. Create a request and move the
             // torrent peer appropriately.
 
-            let torrent_peer = torrent_peers.remove(&r.transaction_id)
+            let torrent_peer = torrent_peers
+                .remove(&r.transaction_id)
                 .map(|mut torrent_peer| {
                     torrent_peer.connection_id = r.connection_id;
 
                     torrent_peer
                 })
                 .unwrap_or_else(|| {
-                    create_torrent_peer(
-                        config,
-                        rng,
-                        pareto,
-                        info_hashes,
-                        r.connection_id
-                    )
+                    create_torrent_peer(config, rng, pareto, info_hashes, r.connection_id)
                 });
 
             let new_transaction_id = generate_transaction_id(rng);
 
-            let request = create_random_request(
-                config,
-                rng,
-                info_hashes,
-                new_transaction_id,
-                &torrent_peer
-            );
+            let request =
+                create_random_request(config, rng, info_hashes, new_transaction_id, &torrent_peer);
 
             torrent_peers.insert(new_transaction_id, torrent_peer);
 
             Some(request)
-
-        },
-        Response::Announce(r) => {
-            if_torrent_peer_move_and_create_random_request(
-                config,
-                rng,
-                info_hashes,
-                torrent_peers,
-                r.transaction_id
-            )
-        },
-        Response::Scrape(r) => {
-            if_torrent_peer_move_and_create_random_request(
-                config,
-                rng,
-                info_hashes,
-                torrent_peers,
-                r.transaction_id
-            )
-        },
+        }
+        Response::Announce(r) => if_torrent_peer_move_and_create_random_request(
+            config,
+            rng,
+            info_hashes,
+            torrent_peers,
+            r.transaction_id,
+        ),
+        Response::Scrape(r) => if_torrent_peer_move_and_create_random_request(
+            config,
+            rng,
+            info_hashes,
+            torrent_peers,
+            r.transaction_id,
+        ),
         Response::Error(r) => {
-            if !r.message.to_lowercase().contains("connection"){
-                eprintln!("Received error response which didn't contain the word 'connection': {}", r.message);
+            if !r.message.to_lowercase().contains("connection") {
+                eprintln!(
+                    "Received error response which didn't contain the word 'connection': {}",
+                    r.message
+                );
             }
 
-            if let Some(torrent_peer) = torrent_peers.remove(&r.transaction_id){
+            if let Some(torrent_peer) = torrent_peers.remove(&r.transaction_id) {
                 let new_transaction_id = generate_transaction_id(rng);
 
                 torrent_peers.insert(new_transaction_id, torrent_peer);
@@ -226,7 +200,6 @@ fn process_response(
     }
 }
 
-
 fn if_torrent_peer_move_and_create_random_request(
     config: &Config,
     rng: &mut impl Rng,
@@ -234,16 +207,11 @@ fn if_torrent_peer_move_and_create_random_request(
     torrent_peers: &mut TorrentPeerMap,
     transaction_id: TransactionId,
 ) -> Option<Request> {
-    if let Some(torrent_peer) = torrent_peers.remove(&transaction_id){
+    if let Some(torrent_peer) = torrent_peers.remove(&transaction_id) {
         let new_transaction_id = generate_transaction_id(rng);
 
-        let request = create_random_request(
-            config,
-            rng,
-            info_hashes,
-            new_transaction_id,
-            &torrent_peer
-        );
+        let request =
+            create_random_request(config, rng, info_hashes, new_transaction_id, &torrent_peer);
 
         torrent_peers.insert(new_transaction_id, torrent_peer);
 
@@ -253,18 +221,17 @@ fn if_torrent_peer_move_and_create_random_request(
     }
 }
 
-
 fn create_random_request(
     config: &Config,
     rng: &mut impl Rng,
     info_hashes: &Arc<Vec<InfoHash>>,
     transaction_id: TransactionId,
-    torrent_peer: &TorrentPeer
+    torrent_peer: &TorrentPeer,
 ) -> Request {
     let weights = vec![
         config.handler.weight_announce as u32,
-        config.handler.weight_connect as u32, 
-        config.handler.weight_scrape as u32, 
+        config.handler.weight_connect as u32,
+        config.handler.weight_scrape as u32,
     ];
 
     let items = vec![
@@ -273,25 +240,14 @@ fn create_random_request(
         RequestType::Scrape,
     ];
 
-    let dist = WeightedIndex::new(&weights)
-        .expect("random request weighted index");
+    let dist = WeightedIndex::new(&weights).expect("random request weighted index");
 
     match items[dist.sample(rng)] {
-        RequestType::Announce => create_announce_request(
-            config,
-            rng,
-            torrent_peer,
-            transaction_id
-        ),
+        RequestType::Announce => create_announce_request(config, rng, torrent_peer, transaction_id),
         RequestType::Connect => create_connect_request(transaction_id),
-        RequestType::Scrape => create_scrape_request(
-            &info_hashes,
-            torrent_peer,
-            transaction_id
-        )
+        RequestType::Scrape => create_scrape_request(&info_hashes, torrent_peer, transaction_id),
     }
 }
-
 
 fn create_announce_request(
     config: &Config,
@@ -319,10 +275,10 @@ fn create_announce_request(
         ip_address: None,
         key: PeerKey(12345),
         peers_wanted: NumberOfPeers(100),
-        port: torrent_peer.port
-    }).into()
+        port: torrent_peer.port,
+    })
+    .into()
 }
-
 
 fn create_scrape_request(
     info_hashes: &Arc<Vec<InfoHash>>,
@@ -341,5 +297,6 @@ fn create_scrape_request(
         connection_id: torrent_peer.connection_id,
         transaction_id,
         info_hashes: scape_hashes,
-    }).into()
+    })
+    .into()
 }
