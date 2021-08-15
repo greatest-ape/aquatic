@@ -13,7 +13,7 @@ name = "aquatic_ws_load_test"
 anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
-hashbrown = { version = "0.9", features = ["serde"] }
+hashbrown = { version = "0.11.2", features = ["serde"] }
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 rand = { version = "0.8", features = ["small_rng"] }

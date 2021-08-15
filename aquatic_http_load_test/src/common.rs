@@ -1,11 +1,10 @@
-use std::sync::{Arc, atomic::AtomicUsize};
+use std::sync::{atomic::AtomicUsize, Arc};
 
 use rand_distr::Pareto;
 
 pub use aquatic_http_protocol::common::*;
-pub use aquatic_http_protocol::response::*;
 pub use aquatic_http_protocol::request::*;
-
+pub use aquatic_http_protocol::response::*;
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct TorrentPeer {
@@ -14,7 +13,6 @@ pub struct TorrentPeer {
     pub peer_id: PeerId,
     pub port: u16,
 }
-
 
 #[derive(Default)]
 pub struct Statistics {
@@ -27,7 +25,6 @@ pub struct Statistics {
     pub bytes_received: AtomicUsize,
 }
 
-
 #[derive(Clone)]
 pub struct LoadTestState {
     pub info_hashes: Arc<Vec<InfoHash>>,
@@ -35,9 +32,8 @@ pub struct LoadTestState {
     pub pareto: Arc<Pareto<f64>>,
 }
 
-
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RequestType {
     Announce,
-    Scrape
+    Scrape,
 }

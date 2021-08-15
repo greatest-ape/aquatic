@@ -1,5 +1,4 @@
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BenchConfig {
@@ -10,7 +9,6 @@ pub struct BenchConfig {
     pub num_scrape_requests: usize,
     pub num_hashes_per_scrape_request: usize,
 }
-
 
 impl Default for BenchConfig {
     fn default() -> Self {
@@ -24,6 +22,5 @@ impl Default for BenchConfig {
         }
     }
 }
-
 
 impl aquatic_cli_helpers::Config for BenchConfig {}

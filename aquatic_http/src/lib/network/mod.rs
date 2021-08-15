@@ -1,13 +1,13 @@
-use std::time::{Duration, Instant};
-use std::io::{ErrorKind, Cursor};
+use std::io::{Cursor, ErrorKind};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use std::vec::Drain;
 
 use hashbrown::HashMap;
-use log::{info, debug, error};
-use native_tls::TlsAcceptor;
-use mio::{Events, Poll, Interest, Token};
+use log::{debug, error, info};
 use mio::net::TcpListener;
+use mio::{Events, Interest, Poll, Token};
+use native_tls::TlsAcceptor;
 
 use aquatic_http_protocol::response::*;
 
@@ -21,9 +21,7 @@ pub mod utils;
 use connection::*;
 use utils::*;
 
-
 const CONNECTION_CLEAN_INTERVAL: usize = 2 ^ 22;
-
 
 pub fn run_socket_worker(
     config: Config,
@@ -33,8 +31,8 @@ pub fn run_socket_worker(
     response_channel_receiver: ResponseChannelReceiver,
     opt_tls_acceptor: Option<TlsAcceptor>,
     poll: Poll,
-){
-    match create_listener(config.network.address, config.network.ipv6_only){
+) {
+    match create_listener(config.network.address, config.network.ipv6_only) {
         Ok(listener) => {
             socket_worker_statuses.lock()[socket_worker_index] = Some(Ok(()));
 
@@ -47,15 +45,13 @@ pub fn run_socket_worker(
                 opt_tls_acceptor,
                 poll,
             );
-        },
+        }
         Err(err) => {
-            socket_worker_statuses.lock()[socket_worker_index] = Some(
-                Err(format!("Couldn't open socket: {:#}", err))
-            );
+            socket_worker_statuses.lock()[socket_worker_index] =
+                Some(Err(format!("Couldn't open socket: {:#}", err)));
         }
     }
 }
-
 
 pub fn run_poll_loop(
     config: Config,
@@ -65,10 +61,8 @@ pub fn run_poll_loop(
     listener: ::std::net::TcpListener,
     opt_tls_acceptor: Option<TlsAcceptor>,
     mut poll: Poll,
-){
-    let poll_timeout = Duration::from_micros(
-        config.network.poll_timeout_microseconds
-    );
+) {
+    let poll_timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
 
     let mut listener = TcpListener::from_std(listener);
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
@@ -91,7 +85,7 @@ pub fn run_poll_loop(
         poll.poll(&mut events, Some(poll_timeout))
             .expect("failed polling");
 
-        for event in events.iter(){
+        for event in events.iter() {
             let token = event.token();
 
             if token == LISTENER_TOKEN {
@@ -124,7 +118,7 @@ pub fn run_poll_loop(
                 &mut response_buffer,
                 local_responses.drain(..),
                 &response_channel_receiver,
-                &mut connections
+                &mut connections,
             );
         }
 
@@ -137,7 +131,6 @@ pub fn run_poll_loop(
     }
 }
 
-
 fn accept_new_streams(
     config: &Config,
     listener: &mut TcpListener,
@@ -145,11 +138,11 @@ fn accept_new_streams(
     connections: &mut ConnectionMap,
     poll_token_counter: &mut Token,
     opt_tls_acceptor: &Option<Arc<TlsAcceptor>>,
-){
+) {
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
     loop {
-        match listener.accept(){
+        match listener.accept() {
             Ok((mut stream, _)) => {
                 poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
 
@@ -167,17 +160,13 @@ fn accept_new_streams(
                     .register(&mut stream, token, Interest::READABLE)
                     .unwrap();
 
-                let connection = Connection::new(
-                    opt_tls_acceptor,
-                    valid_until,
-                    stream
-                );
+                let connection = Connection::new(opt_tls_acceptor, valid_until, stream);
 
                 connections.insert(token, connection);
-            },
+            }
             Err(err) => {
                 if err.kind() == ErrorKind::WouldBlock {
-                    break
+                    break;
                 }
 
                 info!("error while accepting streams: {}", err);
@@ -185,7 +174,6 @@ fn accept_new_streams(
         }
     }
 }
-
 
 /// On the stream given by poll_token, get TLS up and running if requested,
 /// then read requests and pass on through channel.
@@ -197,118 +185,105 @@ pub fn handle_connection_read_event(
     local_responses: &mut Vec<(ConnectionMeta, Response)>,
     connections: &mut ConnectionMap,
     poll_token: Token,
-){
+) {
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
     loop {
         // Get connection, updating valid_until
-        let connection = if let Some(c) = connections.get_mut(&poll_token){
+        let connection = if let Some(c) = connections.get_mut(&poll_token) {
             c
         } else {
             // If there is no connection, there is no stream, so there
             // shouldn't be any (relevant) poll events. In other words, it's
             // safe to return here
-            return
+            return;
         };
 
         connection.valid_until = valid_until;
 
-        if let Some(established) = connection.get_established(){
-            match established.read_request(){
+        if let Some(established) = connection.get_established() {
+            match established.read_request() {
                 Ok(request) => {
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
                         poll_token,
-                        peer_addr: established.peer_addr
+                        peer_addr: established.peer_addr,
                     };
 
                     debug!("read request, sending to handler");
 
-                    if let Err(err) = request_channel_sender
-                        .send((meta, request))
-                    {
-                        error!(
-                            "RequestChannelSender: couldn't send message: {:?}",
-                            err
-                        );
+                    if let Err(err) = request_channel_sender.send((meta, request)) {
+                        error!("RequestChannelSender: couldn't send message: {:?}", err);
                     }
 
-                    break
-                },
+                    break;
+                }
                 Err(RequestReadError::NeedMoreData) => {
                     info!("need more data");
 
                     // Stop reading data (defer to later events)
                     break;
-                },
+                }
                 Err(RequestReadError::Parse(err)) => {
                     info!("error reading request (invalid): {:#?}", err);
 
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
                         poll_token,
-                        peer_addr: established.peer_addr
+                        peer_addr: established.peer_addr,
                     };
 
                     let response = FailureResponse {
-                        failure_reason: "invalid request".to_string()
+                        failure_reason: "invalid request".to_string(),
                     };
 
-                    local_responses.push(
-                        (meta, Response::Failure(response))
-                    );
+                    local_responses.push((meta, Response::Failure(response)));
 
                     break;
-                },
+                }
                 Err(RequestReadError::StreamEnded) => {
                     ::log::debug!("stream ended");
-            
+
                     remove_connection(poll, connections, &poll_token);
 
-                    break
-                },
+                    break;
+                }
                 Err(RequestReadError::Io(err)) => {
                     ::log::info!("error reading request (io): {}", err);
-            
+
                     remove_connection(poll, connections, &poll_token);
-    
-                    break; 
-                },
+
+                    break;
+                }
             }
-        } else if let Some(handshake_machine) = connections.remove(&poll_token)
+        } else if let Some(handshake_machine) = connections
+            .remove(&poll_token)
             .and_then(Connection::get_in_progress)
         {
-            match handshake_machine.establish_tls(){
+            match handshake_machine.establish_tls() {
                 Ok(established) => {
-                    let connection = Connection::from_established(
-                        valid_until,
-                        established
-                    );
+                    let connection = Connection::from_established(valid_until, established);
 
                     connections.insert(poll_token, connection);
-                },
+                }
                 Err(TlsHandshakeMachineError::WouldBlock(machine)) => {
-                    let connection = Connection::from_in_progress(
-                        valid_until,
-                        machine
-                    );
+                    let connection = Connection::from_in_progress(valid_until, machine);
 
                     connections.insert(poll_token, connection);
 
                     // Break and wait for more data
-                    break
-                },
+                    break;
+                }
                 Err(TlsHandshakeMachineError::Failure(err)) => {
                     info!("tls handshake error: {}", err);
 
                     // TLS negotiation failed
-                    break
+                    break;
                 }
             }
         }
     }
 }
-
 
 /// Read responses from channel, send to peers
 pub fn send_responses(
@@ -318,13 +293,13 @@ pub fn send_responses(
     local_responses: Drain<(ConnectionMeta, Response)>,
     channel_responses: &ResponseChannelReceiver,
     connections: &mut ConnectionMap,
-){
+) {
     let channel_responses_len = channel_responses.len();
-    let channel_responses_drain = channel_responses.try_iter()
-        .take(channel_responses_len);
+    let channel_responses_drain = channel_responses.try_iter().take(channel_responses_len);
 
-    for (meta, response) in local_responses.chain(channel_responses_drain){
-        if let Some(established) = connections.get_mut(&meta.poll_token)
+    for (meta, response) in local_responses.chain(channel_responses_drain) {
+        if let Some(established) = connections
+            .get_mut(&meta.poll_token)
             .and_then(Connection::get_established)
         {
             if established.peer_addr != meta.peer_addr {
@@ -337,7 +312,7 @@ pub fn send_responses(
 
             let bytes_written = response.write(buffer).unwrap();
 
-            match established.send_response(&buffer.get_mut()[..bytes_written]){
+            match established.send_response(&buffer.get_mut()[..bytes_written]) {
                 Ok(()) => {
                     ::log::debug!(
                         "sent response: {:?} with response string {}",
@@ -348,33 +323,29 @@ pub fn send_responses(
                     if !config.network.keep_alive {
                         remove_connection(poll, connections, &meta.poll_token);
                     }
-                },
+                }
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
                     debug!("send response: would block");
-                },
+                }
                 Err(err) => {
                     info!("error sending response: {}", err);
 
                     remove_connection(poll, connections, &meta.poll_token);
-                },
+                }
             }
         }
     }
 }
 
-
 // Close and remove inactive connections
-pub fn remove_inactive_connections(
-    poll: &mut Poll,
-    connections: &mut ConnectionMap,
-){
+pub fn remove_inactive_connections(poll: &mut Poll, connections: &mut ConnectionMap) {
     let now = Instant::now();
 
     connections.retain(|_, connection| {
         let keep = connection.valid_until.0 >= now;
 
         if !keep {
-            if let Err(err) = connection.deregister(poll){
+            if let Err(err) = connection.deregister(poll) {
                 ::log::error!("deregister connection error: {}", err);
             }
         }
@@ -385,14 +356,9 @@ pub fn remove_inactive_connections(
     connections.shrink_to_fit();
 }
 
-
-fn remove_connection(
-    poll: &mut Poll,
-    connections: &mut ConnectionMap,
-    connection_token: &Token,
-){
-    if let Some(mut connection) = connections.remove(connection_token){
-        if let Err(err) = connection.deregister(poll){
+fn remove_connection(poll: &mut Poll, connections: &mut ConnectionMap, connection_token: &Token) {
+    if let Some(mut connection) = connections.remove(connection_token) {
+        if let Err(err) = connection.deregister(poll) {
             ::log::error!("deregister connection error: {}", err);
         }
     }

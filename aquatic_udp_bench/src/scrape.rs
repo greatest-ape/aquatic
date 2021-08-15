@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Sender, Receiver};
+use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressIterator;
 use rand::Rng;
 use rand_distr::Pareto;
@@ -11,7 +11,6 @@ use aquatic_udp::config::Config;
 
 use crate::common::*;
 use crate::config::BenchConfig;
-
 
 pub fn bench_scrape_handler(
     state: &State,
@@ -41,8 +40,8 @@ pub fn bench_scrape_handler(
 
     let before = Instant::now();
 
-    for round in (0..bench_config.num_rounds).progress_with(pb){
-        for request_chunk in requests.chunks(p){
+    for round in (0..bench_config.num_rounds).progress_with(pb) {
+        for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
                 request_sender.send((request.clone().into(), *src)).unwrap();
             }
@@ -50,7 +49,7 @@ pub fn bench_scrape_handler(
             while let Ok((Response::Scrape(r), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
-                if let Some(stat) = r.torrent_stats.last(){
+                if let Some(stat) = r.torrent_stats.last() {
                     dummy ^= stat.leechers.0;
                 }
             }
@@ -59,10 +58,10 @@ pub fn bench_scrape_handler(
         let total = bench_config.num_scrape_requests * (round + 1);
 
         while num_responses < total {
-            if let Ok((Response::Scrape(r), _)) = response_receiver.recv(){
+            if let Ok((Response::Scrape(r), _)) = response_receiver.recv() {
                 num_responses += 1;
 
-                if let Some(stat) = r.torrent_stats.last(){
+                if let Some(stat) = r.torrent_stats.last() {
                     dummy ^= stat.leechers.0;
                 }
             }
@@ -78,8 +77,6 @@ pub fn bench_scrape_handler(
     (num_responses, elapsed)
 }
 
-
-
 pub fn create_requests(
     state: &State,
     rng: &mut impl Rng,
@@ -93,14 +90,11 @@ pub fn create_requests(
 
     let connections = state.connections.lock();
 
-    let connection_keys: Vec<ConnectionKey> = connections.keys()
-        .take(number)
-        .cloned()
-        .collect();
+    let connection_keys: Vec<ConnectionKey> = connections.keys().take(number).cloned().collect();
 
     let mut requests = Vec::new();
 
-    for connection_key in connection_keys.into_iter(){
+    for connection_key in connection_keys.into_iter() {
         let mut request_info_hashes = Vec::new();
 
         for _ in 0..hashes_per_request {

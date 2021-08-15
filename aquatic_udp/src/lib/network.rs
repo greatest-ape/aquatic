@@ -1,19 +1,21 @@
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::io::{Cursor, ErrorKind};
-use std::net::{SocketAddr, IpAddr};
+use std::net::{IpAddr, SocketAddr};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use std::time::Duration;
 use std::vec::Drain;
 
-use crossbeam_channel::{Sender, Receiver};
-use mio::{Events, Poll, Interest, Token};
+use crossbeam_channel::{Receiver, Sender};
 use mio::net::UdpSocket;
-use socket2::{Socket, Domain, Type, Protocol};
+use mio::{Events, Interest, Poll, Token};
+use socket2::{Domain, Protocol, Socket, Type};
 
-use aquatic_udp_protocol::{Request, Response, IpVersion};
+use aquatic_udp_protocol::{IpVersion, Request, Response};
 
 use crate::common::*;
 use crate::config::Config;
-
 
 pub fn run_socket_worker(
     state: State,
@@ -22,7 +24,7 @@ pub fn run_socket_worker(
     request_sender: Sender<(Request, SocketAddr)>,
     response_receiver: Receiver<(Response, SocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
-){
+) {
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
     let mut socket = UdpSocket::from_std(create_socket(&config));
@@ -33,7 +35,7 @@ pub fn run_socket_worker(
     poll.registry()
         .register(&mut socket, Token(token_num), interests)
         .unwrap();
-    
+
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
@@ -47,10 +49,10 @@ pub fn run_socket_worker(
         poll.poll(&mut events, Some(timeout))
             .expect("failed polling");
 
-        for event in events.iter(){
+        for event in events.iter() {
             let token = event.token();
 
-            if (token.0 == token_num) & event.is_readable(){
+            if (token.0 == token_num) & event.is_readable() {
                 read_requests(
                     &state,
                     &config,
@@ -60,13 +62,16 @@ pub fn run_socket_worker(
                     &mut local_responses,
                 );
 
-                for r in requests.drain(..){
-                    if let Err(err) = request_sender.send(r){
+                for r in requests.drain(..) {
+                    if let Err(err) = request_sender.send(r) {
                         ::log::error!("error sending to request_sender: {}", err);
                     }
                 }
 
-                state.statistics.readable_events.fetch_add(1, Ordering::SeqCst);
+                state
+                    .statistics
+                    .readable_events
+                    .fetch_add(1, Ordering::SeqCst);
             }
         }
 
@@ -76,33 +81,33 @@ pub fn run_socket_worker(
             &mut socket,
             &mut buffer,
             &response_receiver,
-            local_responses.drain(..)
+            local_responses.drain(..),
         );
     }
 }
 
-
 fn create_socket(config: &Config) -> ::std::net::UdpSocket {
-    let socket = if config.network.address.is_ipv4(){
-        Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))
+    let socket = if config.network.address.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
     } else {
-        Socket::new(Domain::ipv6(), Type::dgram(), Some(Protocol::udp()))
-    }.expect("create socket");
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
+    }
+    .expect("create socket");
 
-    socket.set_reuse_port(true)
-        .expect("socket: set reuse port");
+    socket.set_reuse_port(true).expect("socket: set reuse port");
 
-    socket.set_nonblocking(true)
+    socket
+        .set_nonblocking(true)
         .expect("socket: set nonblocking");
 
-    socket.bind(&config.network.address.into()).unwrap_or_else(|err|
-        panic!("socket: bind to {}: {:?}", config.network.address, err)
-    );
-    
+    socket
+        .bind(&config.network.address.into())
+        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", config.network.address, err));
+
     let recv_buffer_size = config.network.socket_recv_buffer_size;
-    
+
     if recv_buffer_size != 0 {
-        if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size){
+        if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size) {
             ::log::error!(
                 "socket: failed setting recv buffer to {}: {:?}",
                 recv_buffer_size,
@@ -111,9 +116,8 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
         }
     }
 
-    socket.into_udp_socket()
+    socket.into()
 }
-
 
 #[inline]
 fn read_requests(
@@ -123,28 +127,26 @@ fn read_requests(
     buffer: &mut [u8],
     requests: &mut Vec<(Request, SocketAddr)>,
     local_responses: &mut Vec<(Response, SocketAddr)>,
-){
+) {
     let mut requests_received: usize = 0;
     let mut bytes_received: usize = 0;
 
     loop {
         match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
-                let request = Request::from_bytes(
-                    &buffer[..amt],
-                    config.protocol.max_scrape_torrents
-                );
+                let request =
+                    Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
 
                 bytes_received += amt;
 
-                if request.is_ok(){
+                if request.is_ok() {
                     requests_received += 1;
                 }
 
                 match request {
                     Ok(request) => {
                         requests.push((request, src));
-                    },
+                    }
                     Err(err) => {
                         ::log::debug!("request_from_bytes error: {:?}", err);
 
@@ -166,9 +168,9 @@ fn read_requests(
                                 local_responses.push((response.into(), src));
                             }
                         }
-                    },
+                    }
                 }
-            },
+            }
             Err(err) => {
                 if err.kind() == ErrorKind::WouldBlock {
                     break;
@@ -180,13 +182,16 @@ fn read_requests(
     }
 
     if config.statistics.interval != 0 {
-        state.statistics.requests_received
+        state
+            .statistics
+            .requests_received
             .fetch_add(requests_received, Ordering::SeqCst);
-        state.statistics.bytes_received
+        state
+            .statistics
+            .bytes_received
             .fetch_add(bytes_received, Ordering::SeqCst);
     }
 }
-
 
 #[inline]
 fn send_responses(
@@ -196,15 +201,15 @@ fn send_responses(
     buffer: &mut [u8],
     response_receiver: &Receiver<(Response, SocketAddr)>,
     local_responses: Drain<(Response, SocketAddr)>,
-){
+) {
     let mut responses_sent: usize = 0;
     let mut bytes_sent: usize = 0;
 
     let mut cursor = Cursor::new(buffer);
 
-    let response_iterator = local_responses.into_iter().chain(
-        response_receiver.try_iter()
-    );
+    let response_iterator = local_responses
+        .into_iter()
+        .chain(response_receiver.try_iter());
 
     for (response, src) in response_iterator {
         cursor.set_position(0);
@@ -215,11 +220,11 @@ fn send_responses(
 
         let amt = cursor.position() as usize;
 
-        match socket.send_to(&cursor.get_ref()[..amt], src){
+        match socket.send_to(&cursor.get_ref()[..amt], src) {
             Ok(amt) => {
                 responses_sent += 1;
                 bytes_sent += amt;
-            },
+            }
             Err(err) => {
                 if err.kind() == ErrorKind::WouldBlock {
                     break;
@@ -231,19 +236,22 @@ fn send_responses(
     }
 
     if config.statistics.interval != 0 {
-        state.statistics.responses_sent
+        state
+            .statistics
+            .responses_sent
             .fetch_add(responses_sent, Ordering::SeqCst);
-        state.statistics.bytes_sent
+        state
+            .statistics
+            .bytes_sent
             .fetch_add(bytes_sent, Ordering::SeqCst);
     }
 }
-
 
 fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
     match ip {
         IpAddr::V4(_) => IpVersion::IPv4,
         IpAddr::V6(ip) => {
-            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments(){
+            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments() {
                 IpVersion::IPv4
             } else {
                 IpVersion::IPv6

@@ -1,41 +1,37 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
 use std::io::Write;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use serde::{Serialize, Deserialize};
 
 use super::common::*;
 use super::utils::*;
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResponsePeer<I: Eq>{
+pub struct ResponsePeer<I: Eq> {
     pub ip_address: I,
-    pub port: u16
+    pub port: u16,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct ResponsePeerListV4(
     #[serde(
         serialize_with = "serialize_response_peers_ipv4",
-        deserialize_with = "deserialize_response_peers_ipv4",
+        deserialize_with = "deserialize_response_peers_ipv4"
     )]
-    pub Vec<ResponsePeer<Ipv4Addr>>
+    pub Vec<ResponsePeer<Ipv4Addr>>,
 );
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct ResponsePeerListV6(
     #[serde(
         serialize_with = "serialize_response_peers_ipv6",
-        deserialize_with = "deserialize_response_peers_ipv6",
+        deserialize_with = "deserialize_response_peers_ipv6"
     )]
-    pub Vec<ResponsePeer<Ipv6Addr>>
+    pub Vec<ResponsePeer<Ipv6Addr>>,
 );
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeStatistics {
@@ -43,7 +39,6 @@ pub struct ScrapeStatistics {
     pub incomplete: usize,
     pub downloaded: usize,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnnounceResponse {
@@ -57,47 +52,44 @@ pub struct AnnounceResponse {
     pub peers6: ResponsePeerListV6,
 }
 
-
 impl AnnounceResponse {
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d8:completei")?;
-        bytes_written += output.write(
-            itoa::Buffer::new().format(self.complete).as_bytes()
-        )?;
+        bytes_written += output.write(itoa::Buffer::new().format(self.complete).as_bytes())?;
 
         bytes_written += output.write(b"e10:incompletei")?;
-        bytes_written += output.write(
-            itoa::Buffer::new().format(self.incomplete).as_bytes()
-        )?;
+        bytes_written += output.write(itoa::Buffer::new().format(self.incomplete).as_bytes())?;
 
         bytes_written += output.write(b"e8:intervali")?;
         bytes_written += output.write(
-            itoa::Buffer::new().format(self.announce_interval).as_bytes()
+            itoa::Buffer::new()
+                .format(self.announce_interval)
+                .as_bytes(),
         )?;
 
         bytes_written += output.write(b"e5:peers")?;
         bytes_written += output.write(
-            itoa::Buffer::new().format(self.peers.0.len() * 6).as_bytes()
+            itoa::Buffer::new()
+                .format(self.peers.0.len() * 6)
+                .as_bytes(),
         )?;
         bytes_written += output.write(b":")?;
         for peer in self.peers.0.iter() {
-            bytes_written += output.write(
-                &u32::from(peer.ip_address).to_be_bytes()
-            )?;
+            bytes_written += output.write(&u32::from(peer.ip_address).to_be_bytes())?;
             bytes_written += output.write(&peer.port.to_be_bytes())?;
         }
 
         bytes_written += output.write(b"6:peers6")?;
         bytes_written += output.write(
-            itoa::Buffer::new().format(self.peers6.0.len() * 18).as_bytes()
+            itoa::Buffer::new()
+                .format(self.peers6.0.len() * 18)
+                .as_bytes(),
         )?;
         bytes_written += output.write(b":")?;
         for peer in self.peers6.0.iter() {
-            bytes_written += output.write(
-                &u128::from(peer.ip_address).to_be_bytes()
-            )?;
+            bytes_written += output.write(&u128::from(peer.ip_address).to_be_bytes())?;
             bytes_written += output.write(&peer.port.to_be_bytes())?;
         }
         bytes_written += output.write(b"e")?;
@@ -106,31 +98,27 @@ impl AnnounceResponse {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeResponse {
     /// BTreeMap instead of HashMap since keys need to be serialized in order
     pub files: BTreeMap<InfoHash, ScrapeStatistics>,
 }
 
-
 impl ScrapeResponse {
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d5:filesd")?;
-        
-        for (info_hash, statistics) in self.files.iter(){
+
+        for (info_hash, statistics) in self.files.iter() {
             bytes_written += output.write(b"20:")?;
             bytes_written += output.write(&info_hash.0)?;
             bytes_written += output.write(b"d8:completei")?;
-            bytes_written += output.write(
-                itoa::Buffer::new().format(statistics.complete).as_bytes()
-            )?;
+            bytes_written +=
+                output.write(itoa::Buffer::new().format(statistics.complete).as_bytes())?;
             bytes_written += output.write(b"e10:downloadedi0e10:incompletei")?;
-            bytes_written += output.write(
-                itoa::Buffer::new().format(statistics.incomplete).as_bytes()
-            )?;
+            bytes_written +=
+                output.write(itoa::Buffer::new().format(statistics.incomplete).as_bytes())?;
             bytes_written += output.write(b"ee")?;
         }
 
@@ -140,13 +128,11 @@ impl ScrapeResponse {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FailureResponse {
     #[serde(rename = "failure reason")]
     pub failure_reason: String,
 }
-
 
 impl FailureResponse {
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
@@ -155,9 +141,7 @@ impl FailureResponse {
         let reason_bytes = self.failure_reason.as_bytes();
 
         bytes_written += output.write(b"d14:failure reason")?;
-        bytes_written += output.write(
-            itoa::Buffer::new().format(reason_bytes.len()).as_bytes()
-        )?;
+        bytes_written += output.write(itoa::Buffer::new().format(reason_bytes.len()).as_bytes())?;
         bytes_written += output.write(b":")?;
         bytes_written += output.write(reason_bytes)?;
         bytes_written += output.write(b"e")?;
@@ -166,7 +150,6 @@ impl FailureResponse {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Response {
@@ -174,7 +157,6 @@ pub enum Response {
     Scrape(ScrapeResponse),
     Failure(FailureResponse),
 }
-
 
 impl Response {
     pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
@@ -189,28 +171,25 @@ impl Response {
     }
 }
 
-
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeer<Ipv4Addr> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             ip_address: Ipv4Addr::arbitrary(g),
-            port: u16::arbitrary(g)
+            port: u16::arbitrary(g),
         }
     }
 }
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeer<Ipv6Addr> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             ip_address: Ipv6Addr::arbitrary(g),
-            port: u16::arbitrary(g)
+            port: u16::arbitrary(g),
         }
     }
 }
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeerListV4 {
@@ -219,14 +198,12 @@ impl quickcheck::Arbitrary for ResponsePeerListV4 {
     }
 }
 
-
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeerListV6 {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self(Vec::arbitrary(g))
     }
 }
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ScrapeStatistics {
@@ -238,7 +215,6 @@ impl quickcheck::Arbitrary for ScrapeStatistics {
         }
     }
 }
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for AnnounceResponse {
@@ -253,7 +229,6 @@ impl quickcheck::Arbitrary for AnnounceResponse {
     }
 }
 
-
 #[cfg(test)]
 impl quickcheck::Arbitrary for ScrapeResponse {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
@@ -262,7 +237,6 @@ impl quickcheck::Arbitrary for ScrapeResponse {
         }
     }
 }
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for FailureResponse {
@@ -273,7 +247,6 @@ impl quickcheck::Arbitrary for FailureResponse {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use quickcheck_macros::*;
@@ -282,9 +255,7 @@ mod tests {
 
     #[quickcheck]
     fn test_announce_response_to_bytes(response: AnnounceResponse) -> bool {
-        let reference = bendy::serde::to_bytes(
-            &Response::Announce(response.clone())
-        ).unwrap();
+        let reference = bendy::serde::to_bytes(&Response::Announce(response.clone())).unwrap();
 
         let mut output = Vec::new();
 
@@ -295,9 +266,7 @@ mod tests {
 
     #[quickcheck]
     fn test_scrape_response_to_bytes(response: ScrapeResponse) -> bool {
-        let reference = bendy::serde::to_bytes(
-            &Response::Scrape(response.clone())
-        ).unwrap();
+        let reference = bendy::serde::to_bytes(&Response::Scrape(response.clone())).unwrap();
 
         let mut hand_written = Vec::new();
 
@@ -315,9 +284,7 @@ mod tests {
 
     #[quickcheck]
     fn test_failure_response_to_bytes(response: FailureResponse) -> bool {
-        let reference = bendy::serde::to_bytes(
-            &Response::Failure(response.clone())
-        ).unwrap();
+        let reference = bendy::serde::to_bytes(&Response::Failure(response.clone())).unwrap();
 
         let mut hand_written = Vec::new();
 

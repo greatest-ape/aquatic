@@ -1,9 +1,8 @@
 use std::net::SocketAddr;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -24,13 +23,11 @@ pub struct Config {
     pub privileges: PrivilegeConfig,
 }
 
-
 impl aquatic_cli_helpers::Config for Config {
-    fn get_log_level(&self) -> Option<LogLevel>{
+    fn get_log_level(&self) -> Option<LogLevel> {
         Some(self.log_level)
     }
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -39,7 +36,6 @@ pub struct TlsConfig {
     pub tls_pkcs12_path: String,
     pub tls_pkcs12_password: String,
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -54,7 +50,6 @@ pub struct NetworkConfig {
     pub poll_timeout_microseconds: u64,
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
@@ -66,7 +61,6 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: usize,
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
@@ -75,7 +69,6 @@ pub struct HandlerConfig {
     pub max_requests_per_iter: usize,
     pub channel_recv_timeout_microseconds: u64,
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -88,14 +81,12 @@ pub struct CleaningConfig {
     pub max_connection_age: u64,
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
     /// Print statistics this often (seconds). Don't print when set to zero.
     pub interval: u64,
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -107,7 +98,6 @@ pub struct PrivilegeConfig {
     /// User to switch to after chrooting
     pub user: String,
 }
-
 
 impl Default for Config {
     fn default() -> Self {
@@ -125,7 +115,6 @@ impl Default for Config {
     }
 }
 
-
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
@@ -139,7 +128,6 @@ impl Default for NetworkConfig {
     }
 }
 
-
 impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
@@ -150,7 +138,6 @@ impl Default for ProtocolConfig {
     }
 }
 
-
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
@@ -159,7 +146,6 @@ impl Default for HandlerConfig {
         }
     }
 }
-
 
 impl Default for CleaningConfig {
     fn default() -> Self {
@@ -171,15 +157,11 @@ impl Default for CleaningConfig {
     }
 }
 
-
 impl Default for StatisticsConfig {
     fn default() -> Self {
-        Self {
-            interval: 0,
-        }
+        Self { interval: 0 }
     }
 }
-
 
 impl Default for PrivilegeConfig {
     fn default() -> Self {
@@ -190,7 +172,6 @@ impl Default for PrivilegeConfig {
         }
     }
 }
-
 
 impl Default for TlsConfig {
     fn default() -> Self {

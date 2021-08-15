@@ -6,8 +6,7 @@ use histogram::Histogram;
 use crate::common::*;
 use crate::config::Config;
 
-
-pub fn clean_connections_and_torrents(state: &State){
+pub fn clean_connections_and_torrents(state: &State) {
     let now = Instant::now();
 
     {
@@ -18,17 +17,13 @@ pub fn clean_connections_and_torrents(state: &State){
     }
 
     let mut torrents = state.torrents.lock();
-    
+
     clean_torrent_map(&mut torrents.ipv4, now);
     clean_torrent_map(&mut torrents.ipv6, now);
 }
 
-
 #[inline]
-fn clean_torrent_map<I: Ip>(
-    torrents: &mut TorrentMap<I>,
-    now: Instant,
-){
+fn clean_torrent_map<I: Ip>(torrents: &mut TorrentMap<I>, now: Instant) {
     torrents.retain(|_, torrent| {
         let num_seeders = &mut torrent.num_seeders;
         let num_leechers = &mut torrent.num_leechers;
@@ -40,10 +35,10 @@ fn clean_torrent_map<I: Ip>(
                 match peer.status {
                     PeerStatus::Seeding => {
                         *num_seeders -= 1;
-                    },
+                    }
                     PeerStatus::Leeching => {
                         *num_leechers -= 1;
-                    },
+                    }
                     _ => (),
                 };
             }
@@ -57,28 +52,31 @@ fn clean_torrent_map<I: Ip>(
     torrents.shrink_to_fit();
 }
 
-
-pub fn gather_and_print_statistics(
-    state: &State,
-    config: &Config,
-){
+pub fn gather_and_print_statistics(state: &State, config: &Config) {
     let interval = config.statistics.interval;
 
-    let requests_received: f64 = state.statistics.requests_received
+    let requests_received: f64 = state
+        .statistics
+        .requests_received
         .fetch_and(0, Ordering::SeqCst) as f64;
-    let responses_sent: f64 = state.statistics.responses_sent
+    let responses_sent: f64 = state
+        .statistics
+        .responses_sent
         .fetch_and(0, Ordering::SeqCst) as f64;
-    let bytes_received: f64 = state.statistics.bytes_received
+    let bytes_received: f64 = state
+        .statistics
+        .bytes_received
         .fetch_and(0, Ordering::SeqCst) as f64;
-    let bytes_sent: f64 = state.statistics.bytes_sent
-        .fetch_and(0, Ordering::SeqCst) as f64;
+    let bytes_sent: f64 = state.statistics.bytes_sent.fetch_and(0, Ordering::SeqCst) as f64;
 
     let requests_per_second = requests_received / interval as f64;
     let responses_per_second: f64 = responses_sent / interval as f64;
     let bytes_received_per_second: f64 = bytes_received / interval as f64;
     let bytes_sent_per_second: f64 = bytes_sent / interval as f64;
 
-    let readable_events: f64 = state.statistics.readable_events
+    let readable_events: f64 = state
+        .statistics
+        .readable_events
         .fetch_and(0, Ordering::SeqCst) as f64;
     let requests_per_readable_event = if readable_events == 0.0 {
         0.0
@@ -88,9 +86,7 @@ pub fn gather_and_print_statistics(
 
     println!(
         "stats: {:.2} requests/second, {:.2} responses/second, {:.2} requests/readable event",
-        requests_per_second,
-        responses_per_second,
-        requests_per_readable_event
+        requests_per_second, responses_per_second, requests_per_readable_event
     );
 
     println!(
@@ -104,17 +100,17 @@ pub fn gather_and_print_statistics(
     {
         let torrents = &mut state.torrents.lock();
 
-        for torrent in torrents.ipv4.values(){
+        for torrent in torrents.ipv4.values() {
             let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
-            if let Err(err) = peers_per_torrent.increment(num_peers){
+            if let Err(err) = peers_per_torrent.increment(num_peers) {
                 ::log::error!("error incrementing peers_per_torrent histogram: {}", err)
             }
         }
-        for torrent in torrents.ipv6.values(){
+        for torrent in torrents.ipv6.values() {
             let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
 
-            if let Err(err) = peers_per_torrent.increment(num_peers){
+            if let Err(err) = peers_per_torrent.increment(num_peers) {
                 ::log::error!("error incrementing peers_per_torrent histogram: {}", err)
             }
         }
