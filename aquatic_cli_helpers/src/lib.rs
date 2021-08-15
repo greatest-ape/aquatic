@@ -3,7 +3,7 @@ use std::io::Read;
 
 use anyhow::Context;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use simplelog::{ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
+use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -190,8 +190,13 @@ fn start_logger(log_level: LogLevel) -> ::anyhow::Result<()> {
         .set_location_level(LevelFilter::Off)
         .build();
 
-    TermLogger::init(level_filter, simplelog_config, TerminalMode::Stderr)
-        .context("Couldn't initialize logger")?;
+    TermLogger::init(
+        level_filter,
+        simplelog_config,
+        TerminalMode::Stderr,
+        ColorChoice::Auto,
+    )
+    .context("Couldn't initialize logger")?;
 
     Ok(())
 }
