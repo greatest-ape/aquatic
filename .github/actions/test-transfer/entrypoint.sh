@@ -246,7 +246,7 @@ screen -dmS rtorrent-leech rtorrent
 
 git clone https://github.com/anacrolix/torrent.git leech
 cd leech
-GOPPROF=http go run -v ./cmd/torrent download ./torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
+GOPPROF=http go run -v ./cmd/torrent download ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
 cd ..
 
 # Check for completion
