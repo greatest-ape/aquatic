@@ -257,7 +257,7 @@ screen -dmS rtorrent-leech rtorrent
 # ./node_modules/webtorrent-hybrid/bin/cmd.js download ./torrents/wss-ipv4.torrent -o leech > "$HOME/wss-leech.log" 2>&1 &
 
 cd leech
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
+GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --addr ":43000" ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
 cd ..
 
 # Check for completion
