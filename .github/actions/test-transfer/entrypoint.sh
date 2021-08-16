@@ -26,6 +26,7 @@ $SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-
 
 git clone https://github.com/anacrolix/torrent.git gotorrent
 cd gotorrent
+git checkout 16176b762e4a840fc5dfe3b1dfd2d6fa853b68d7
 go build -o $HOME/gotorrent ./cmd/torrent
 cd ..
 file $HOME/gotorrent
