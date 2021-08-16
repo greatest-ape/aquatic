@@ -2,22 +2,19 @@ use std::convert::TryInto;
 use std::io::{self, Cursor, Read, Write};
 use std::net::Ipv4Addr;
 
-use byteorder::{ReadBytesExt, WriteBytesExt, NetworkEndian};
+use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
 use super::common::*;
 
-
 const PROTOCOL_IDENTIFIER: i64 = 4_497_486_125_440;
-
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum AnnounceEvent {
     Started,
     Stopped,
     Completed,
-    None
+    None,
 }
-
 
 impl AnnounceEvent {
     #[inline]
@@ -26,7 +23,7 @@ impl AnnounceEvent {
             1 => Self::Completed,
             2 => Self::Started,
             3 => Self::Stopped,
-            _ => Self::None
+            _ => Self::None,
         }
     }
 
@@ -36,17 +33,15 @@ impl AnnounceEvent {
             AnnounceEvent::None => 0,
             AnnounceEvent::Completed => 1,
             AnnounceEvent::Started => 2,
-            AnnounceEvent::Stopped => 3
+            AnnounceEvent::Stopped => 3,
         }
     }
 }
 
-
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ConnectRequest {
-    pub transaction_id: TransactionId
+    pub transaction_id: TransactionId,
 }
-
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct AnnounceRequest {
@@ -58,20 +53,18 @@ pub struct AnnounceRequest {
     pub bytes_uploaded: NumberOfBytes,
     pub bytes_left: NumberOfBytes,
     pub event: AnnounceEvent,
-    pub ip_address: Option<Ipv4Addr>, 
+    pub ip_address: Option<Ipv4Addr>,
     pub key: PeerKey,
     pub peers_wanted: NumberOfPeers,
-    pub port: Port
+    pub port: Port,
 }
-
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ScrapeRequest {
     pub connection_id: ConnectionId,
     pub transaction_id: TransactionId,
-    pub info_hashes: Vec<InfoHash>
+    pub info_hashes: Vec<InfoHash>,
 }
-
 
 #[derive(Debug)]
 pub struct RequestParseError {
@@ -80,20 +73,19 @@ pub struct RequestParseError {
     pub error: Option<io::Error>,
 }
 
-
 impl RequestParseError {
     pub fn new(err: io::Error, transaction_id: i32) -> Self {
         Self {
             transaction_id: Some(TransactionId(transaction_id)),
             message: None,
-            error: Some(err)
+            error: Some(err),
         }
     }
     pub fn io(err: io::Error) -> Self {
         Self {
             transaction_id: None,
             message: None,
-            error: Some(err)
+            error: Some(err),
         }
     }
     pub fn text(transaction_id: i32, message: &str) -> Self {
@@ -105,7 +97,6 @@ impl RequestParseError {
     }
 }
 
-
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Request {
     Connect(ConnectRequest),
@@ -113,13 +104,11 @@ pub enum Request {
     Scrape(ScrapeRequest),
 }
 
-
 impl From<ConnectRequest> for Request {
     fn from(r: ConnectRequest) -> Self {
         Self::Connect(r)
     }
 }
-
 
 impl From<AnnounceRequest> for Request {
     fn from(r: AnnounceRequest) -> Self {
@@ -127,13 +116,11 @@ impl From<AnnounceRequest> for Request {
     }
 }
 
-
 impl From<ScrapeRequest> for Request {
     fn from(r: ScrapeRequest) -> Self {
         Self::Scrape(r)
     }
 }
-
 
 impl Request {
     pub fn write(self, bytes: &mut impl Write) -> Result<(), io::Error> {
@@ -142,7 +129,7 @@ impl Request {
                 bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER)?;
                 bytes.write_i32::<NetworkEndian>(0)?;
                 bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
-            },
+            }
 
             Request::Announce(r) => {
                 bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
@@ -158,15 +145,12 @@ impl Request {
 
                 bytes.write_i32::<NetworkEndian>(r.event.to_i32())?;
 
-                bytes.write_all(&r.ip_address.map_or(
-                    [0; 4],
-                    |ip| ip.octets()
-                ))?;
+                bytes.write_all(&r.ip_address.map_or([0; 4], |ip| ip.octets()))?;
 
                 bytes.write_u32::<NetworkEndian>(r.key.0)?;
                 bytes.write_i32::<NetworkEndian>(r.peers_wanted.0)?;
                 bytes.write_u16::<NetworkEndian>(r.port.0)?;
-            },
+            }
 
             Request::Scrape(r) => {
                 bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
@@ -182,17 +166,17 @@ impl Request {
         Ok(())
     }
 
-    pub fn from_bytes(
-        bytes: &[u8],
-        max_scrape_torrents: u8,
-    ) -> Result<Self, RequestParseError> {
+    pub fn from_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
         let mut cursor = Cursor::new(bytes);
 
-        let connection_id = cursor.read_i64::<NetworkEndian>()
+        let connection_id = cursor
+            .read_i64::<NetworkEndian>()
             .map_err(RequestParseError::io)?;
-        let action = cursor.read_i32::<NetworkEndian>()
+        let action = cursor
+            .read_i32::<NetworkEndian>()
             .map_err(RequestParseError::io)?;
-        let transaction_id = cursor.read_i32::<NetworkEndian>()
+        let transaction_id = cursor
+            .read_i32::<NetworkEndian>()
             .map_err(RequestParseError::io)?;
 
         match action {
@@ -200,15 +184,16 @@ impl Request {
             0 => {
                 if connection_id == PROTOCOL_IDENTIFIER {
                     Ok((ConnectRequest {
-                        transaction_id: TransactionId(transaction_id)
-                    }).into())
+                        transaction_id: TransactionId(transaction_id),
+                    })
+                    .into())
                 } else {
                     Err(RequestParseError::text(
                         transaction_id,
-                        "Protocol identifier missing"
+                        "Protocol identifier missing",
                     ))
                 }
-            },
+            }
 
             // Announce
             1 => {
@@ -216,28 +201,38 @@ impl Request {
                 let mut peer_id = [0; 20];
                 let mut ip = [0; 4];
 
-                cursor.read_exact(&mut info_hash)
+                cursor
+                    .read_exact(&mut info_hash)
                     .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                cursor.read_exact(&mut peer_id)
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-
-                let bytes_downloaded = cursor.read_i64::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let bytes_left = cursor.read_i64::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let bytes_uploaded = cursor.read_i64::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let event = cursor.read_i32::<NetworkEndian>()
+                cursor
+                    .read_exact(&mut peer_id)
                     .map_err(|err| RequestParseError::new(err, transaction_id))?;
 
-                cursor.read_exact(&mut ip)
+                let bytes_downloaded = cursor
+                    .read_i64::<NetworkEndian>()
+                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                let bytes_left = cursor
+                    .read_i64::<NetworkEndian>()
+                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                let bytes_uploaded = cursor
+                    .read_i64::<NetworkEndian>()
+                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                let event = cursor
+                    .read_i32::<NetworkEndian>()
                     .map_err(|err| RequestParseError::new(err, transaction_id))?;
 
-                let key = cursor.read_u32::<NetworkEndian>()
+                cursor
+                    .read_exact(&mut ip)
                     .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let peers_wanted = cursor.read_i32::<NetworkEndian>()
+
+                let key = cursor
+                    .read_u32::<NetworkEndian>()
                     .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let port = cursor.read_u16::<NetworkEndian>()
+                let peers_wanted = cursor
+                    .read_i32::<NetworkEndian>()
+                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                let port = cursor
+                    .read_u16::<NetworkEndian>()
                     .map_err(|err| RequestParseError::new(err, transaction_id))?;
 
                 let opt_ip = if ip == [0; 4] {
@@ -258,16 +253,18 @@ impl Request {
                     ip_address: opt_ip,
                     key: PeerKey(key),
                     peers_wanted: NumberOfPeers(peers_wanted),
-                    port: Port(port)
-                }).into())
-            },
+                    port: Port(port),
+                })
+                .into())
+            }
 
             // Scrape
             2 => {
                 let position = cursor.position() as usize;
                 let inner = cursor.into_inner();
 
-                let info_hashes = (&inner[position..]).chunks_exact(20)
+                let info_hashes = (&inner[position..])
+                    .chunks_exact(20)
                     .take(max_scrape_torrents as usize)
                     .map(|chunk| InfoHash(chunk.try_into().unwrap()))
                     .collect();
@@ -275,15 +272,15 @@ impl Request {
                 Ok((ScrapeRequest {
                     connection_id: ConnectionId(connection_id),
                     transaction_id: TransactionId(transaction_id),
-                    info_hashes
-                }).into())
+                    info_hashes,
+                })
+                .into())
             }
 
-            _ => Err(RequestParseError::text(transaction_id, "Invalid action"))
+            _ => Err(RequestParseError::text(transaction_id, "Invalid action")),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -293,7 +290,7 @@ mod tests {
 
     impl quickcheck::Arbitrary for AnnounceEvent {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            match (bool::arbitrary(g), bool::arbitrary(g)){
+            match (bool::arbitrary(g), bool::arbitrary(g)) {
                 (false, false) => Self::Started,
                 (true, false) => Self::Started,
                 (false, true) => Self::Completed,
@@ -321,19 +318,19 @@ mod tests {
                 bytes_uploaded: NumberOfBytes(i64::arbitrary(g)),
                 bytes_left: NumberOfBytes(i64::arbitrary(g)),
                 event: AnnounceEvent::arbitrary(g),
-                ip_address: None, 
+                ip_address: None,
                 key: PeerKey(u32::arbitrary(g)),
                 peers_wanted: NumberOfPeers(i32::arbitrary(g)),
-                port: Port(u16::arbitrary(g))
+                port: Port(u16::arbitrary(g)),
             }
         }
     }
 
     impl quickcheck::Arbitrary for ScrapeRequest {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            let info_hashes = (0..u8::arbitrary(g)).map(|_| {
-                InfoHash::arbitrary(g)
-            }).collect();
+            let info_hashes = (0..u8::arbitrary(g))
+                .map(|_| InfoHash::arbitrary(g))
+                .collect();
 
             Self {
                 connection_id: ConnectionId(i64::arbitrary(g)),
@@ -359,23 +356,17 @@ mod tests {
     }
 
     #[quickcheck]
-    fn test_connect_request_convert_identity(
-        request: ConnectRequest
-    ) -> bool {
+    fn test_connect_request_convert_identity(request: ConnectRequest) -> bool {
         same_after_conversion(request.into())
-    }   
+    }
 
     #[quickcheck]
-    fn test_announce_request_convert_identity(
-        request: AnnounceRequest
-    ) -> bool {
+    fn test_announce_request_convert_identity(request: AnnounceRequest) -> bool {
         same_after_conversion(request.into())
-    }   
+    }
 
     #[quickcheck]
-    fn test_scrape_request_convert_identity(
-        request: ScrapeRequest
-    ) -> bool {
+    fn test_scrape_request_convert_identity(request: ScrapeRequest) -> bool {
         same_after_conversion(request.into())
-    }   
+    }
 }

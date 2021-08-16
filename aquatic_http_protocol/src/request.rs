@@ -1,11 +1,10 @@
 use std::io::Write;
 
 use anyhow::Context;
-use smartstring::{SmartString, LazyCompact};
+use smartstring::{LazyCompact, SmartString};
 
 use super::common::*;
 use super::utils::*;
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnounceRequest {
@@ -19,7 +18,6 @@ pub struct AnnounceRequest {
     pub numwant: Option<usize>,
     pub key: Option<SmartString<LazyCompact>>,
 }
-
 
 impl AnnounceRequest {
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
@@ -61,12 +59,10 @@ impl AnnounceRequest {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScrapeRequest {
     pub info_hashes: Vec<InfoHash>,
 }
-
 
 impl ScrapeRequest {
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
@@ -91,13 +87,11 @@ impl ScrapeRequest {
     }
 }
 
-
 #[derive(Debug)]
 pub enum RequestParseError {
     NeedMoreData,
     Invalid(anyhow::Error),
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
@@ -105,35 +99,28 @@ pub enum Request {
     Scrape(ScrapeRequest),
 }
 
-
 impl Request {
     /// Parse Request from HTTP request bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, RequestParseError> {
         let mut headers = [httparse::EMPTY_HEADER; 16];
         let mut http_request = httparse::Request::new(&mut headers);
 
-        let path = match http_request.parse(bytes){
+        let path = match http_request.parse(bytes) {
             Ok(httparse::Status::Complete(_)) => {
                 if let Some(path) = http_request.path {
                     path
                 } else {
-                    return Err(RequestParseError::Invalid(
-                        anyhow::anyhow!("no http path")
-                    ))
+                    return Err(RequestParseError::Invalid(anyhow::anyhow!("no http path")));
                 }
-            },
+            }
             Ok(httparse::Status::Partial) => {
                 if let Some(path) = http_request.path {
                     path
                 } else {
-                    return Err(RequestParseError::NeedMoreData)
+                    return Err(RequestParseError::NeedMoreData);
                 }
             }
-            Err(err) => {
-                return Err(RequestParseError::Invalid(
-                    anyhow::Error::from(err)
-                ))
-            },
+            Err(err) => return Err(RequestParseError::Invalid(anyhow::Error::from(err))),
         };
 
         Self::from_http_get_path(path).map_err(RequestParseError::Invalid)
@@ -155,12 +142,10 @@ impl Request {
     pub fn from_http_get_path(path: &str) -> anyhow::Result<Self> {
         ::log::debug!("request GET path: {}", path);
 
-        let mut split_parts= path.splitn(2, '?');
+        let mut split_parts = path.splitn(2, '?');
 
-        let location = split_parts.next()
-            .with_context(|| "no location")?;
-        let query_string = split_parts.next()
-            .with_context(|| "no query string")?;
+        let location = split_parts.next().with_context(|| "no location")?;
+        let query_string = split_parts.next().with_context(|| "no query string")?;
 
         // -- Parse key-value pairs
 
@@ -171,64 +156,67 @@ impl Request {
         let mut event = AnnounceEvent::default();
         let mut opt_numwant = None;
         let mut opt_key = None;
- 
+
         let query_string_bytes = query_string.as_bytes();
 
         let mut ampersand_iter = ::memchr::memchr_iter(b'&', query_string_bytes);
         let mut position = 0usize;
 
-        for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes){
-            let segment_end = ampersand_iter.next()
-                .unwrap_or_else(|| query_string.len());
+        for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes) {
+            let segment_end = ampersand_iter.next().unwrap_or_else(|| query_string.len());
 
-            let key = query_string.get(position..equal_sign_index)
+            let key = query_string
+                .get(position..equal_sign_index)
                 .with_context(|| format!("no key at {}..{}", position, equal_sign_index))?;
-            let value = query_string.get(equal_sign_index + 1..segment_end)
-                .with_context(|| format!("no value at {}..{}", equal_sign_index + 1, segment_end))?;
-            
+            let value = query_string
+                .get(equal_sign_index + 1..segment_end)
+                .with_context(|| {
+                    format!("no value at {}..{}", equal_sign_index + 1, segment_end)
+                })?;
+
             match key {
                 "info_hash" => {
                     let value = urldecode_20_bytes(value)?;
 
                     info_hashes.push(InfoHash(value));
-                },
+                }
                 "peer_id" => {
                     let value = urldecode_20_bytes(value)?;
 
                     opt_peer_id = Some(PeerId(value));
-                },
+                }
                 "port" => {
                     opt_port = Some(value.parse::<u16>().with_context(|| "parse port")?);
-                },
-                "left"  => {
+                }
+                "left" => {
                     opt_bytes_left = Some(value.parse::<usize>().with_context(|| "parse left")?);
-                },
-                "event"  => {
-                    event = value.parse::<AnnounceEvent>().map_err(|err|
-                        anyhow::anyhow!("invalid event: {}", err)
-                    )?;
-                },
-                "compact"  => {
+                }
+                "event" => {
+                    event = value
+                        .parse::<AnnounceEvent>()
+                        .map_err(|err| anyhow::anyhow!("invalid event: {}", err))?;
+                }
+                "compact" => {
                     if value != "1" {
                         return Err(anyhow::anyhow!("compact set, but not to 1"));
                     }
-                },
-                "numwant"  => {
+                }
+                "numwant" => {
                     opt_numwant = Some(value.parse::<usize>().with_context(|| "parse numwant")?);
-                },
+                }
                 "key" => {
                     if value.len() > 100 {
-                        return Err(anyhow::anyhow!("'key' is too long"))
+                        return Err(anyhow::anyhow!("'key' is too long"));
                     }
                     opt_key = Some(::urlencoding::decode(value)?.into());
-                },
+                }
                 k => {
                     ::log::debug!("ignored unrecognized key: {}", k)
                 }
             }
 
-            if segment_end == query_string.len(){
-                break
+            if segment_end == query_string.len() {
+                break;
             } else {
                 position = segment_end + 1;
             }
@@ -250,9 +238,7 @@ impl Request {
 
             Ok(Request::Announce(request))
         } else {
-            let request = ScrapeRequest {
-                info_hashes,
-            };
+            let request = ScrapeRequest { info_hashes };
 
             Ok(Request::Scrape(request))
         }
@@ -266,17 +252,23 @@ impl Request {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use quickcheck::{Arbitrary, Gen, TestResult, quickcheck};
+    use quickcheck::{quickcheck, Arbitrary, Gen, TestResult};
 
     use super::*;
 
     static ANNOUNCE_REQUEST_PATH: &str = "/announce?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%c3%c9.%40%24%00%b9&peer_id=-ABC940-5ert69muw5t8&port=12345&uploaded=0&downloaded=0&left=1&numwant=0&key=4ab4b877&compact=1&supportcrypto=1&event=started";
-    static SCRAPE_REQUEST_PATH: &str = "/scrape?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%c3%c9.%40%24%00%b9";
-    static REFERENCE_INFO_HASH: [u8; 20] = [0x04, 0x0b, b'k', b'V', 0x3f, 0x5c, b'r', 0x14, 0xa6, 0xb7, 0x98, 0xad, b'C', 0xc3, 0xc9, b'.', 0x40, 0x24, 0x00, 0xb9];
-    static REFERENCE_PEER_ID: [u8; 20] = [b'-', b'A', b'B', b'C', b'9', b'4', b'0', b'-', b'5', b'e', b'r', b't', b'6', b'9', b'm', b'u', b'w', b'5', b't', b'8'];
+    static SCRAPE_REQUEST_PATH: &str =
+        "/scrape?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%c3%c9.%40%24%00%b9";
+    static REFERENCE_INFO_HASH: [u8; 20] = [
+        0x04, 0x0b, b'k', b'V', 0x3f, 0x5c, b'r', 0x14, 0xa6, 0xb7, 0x98, 0xad, b'C', 0xc3, 0xc9,
+        b'.', 0x40, 0x24, 0x00, 0xb9,
+    ];
+    static REFERENCE_PEER_ID: [u8; 20] = [
+        b'-', b'A', b'B', b'C', b'9', b'4', b'0', b'-', b'5', b'e', b'r', b't', b'6', b'9', b'm',
+        b'u', b'w', b'5', b't', b'8',
+    ];
 
     fn get_reference_announce_request() -> Request {
         Request::Announce(AnnounceRequest {
@@ -287,12 +279,12 @@ mod tests {
             event: AnnounceEvent::Started,
             compact: true,
             numwant: Some(0),
-            key: Some("4ab4b877".into())
+            key: Some("4ab4b877".into()),
         })
     }
 
     #[test]
-    fn test_announce_request_from_bytes(){
+    fn test_announce_request_from_bytes() {
         let mut bytes = Vec::new();
 
         bytes.extend_from_slice(b"GET ");
@@ -306,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scrape_request_from_bytes(){
+    fn test_scrape_request_from_bytes() {
         let mut bytes = Vec::new();
 
         bytes.extend_from_slice(b"GET ");
@@ -348,7 +340,7 @@ mod tests {
 
     impl Arbitrary for Request {
         fn arbitrary(g: &mut Gen) -> Self {
-            if Arbitrary::arbitrary(g){
+            if Arbitrary::arbitrary(g) {
                 Self::Announce(Arbitrary::arbitrary(g))
             } else {
                 Self::Scrape(Arbitrary::arbitrary(g))
@@ -357,9 +349,12 @@ mod tests {
     }
 
     #[test]
-    fn quickcheck_serde_identity_request(){
+    fn quickcheck_serde_identity_request() {
         fn prop(request: Request) -> TestResult {
-            if let Request::Announce(AnnounceRequest { key: Some(ref key), ..}) = request {
+            if let Request::Announce(AnnounceRequest {
+                key: Some(ref key), ..
+            }) = request
+            {
                 if key.len() > 30 {
                     return TestResult::discard();
                 }

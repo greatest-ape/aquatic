@@ -1,15 +1,13 @@
-use std::net::{SocketAddr};
 use std::io::{Read, Write};
+use std::net::SocketAddr;
 
 use mio::net::TcpStream;
 use native_tls::TlsStream;
-
 
 pub enum Stream {
     TcpStream(TcpStream),
     TlsStream(TlsStream<TcpStream>),
 }
-
 
 impl Stream {
     #[inline]
@@ -20,7 +18,6 @@ impl Stream {
         }
     }
 }
-
 
 impl Read for Stream {
     #[inline]
@@ -35,7 +32,7 @@ impl Read for Stream {
     #[inline]
     fn read_vectored(
         &mut self,
-        bufs: &mut [::std::io::IoSliceMut<'_>]
+        bufs: &mut [::std::io::IoSliceMut<'_>],
     ) -> ::std::io::Result<usize> {
         match self {
             Self::TcpStream(stream) => stream.read_vectored(bufs),
@@ -43,7 +40,6 @@ impl Read for Stream {
         }
     }
 }
-
 
 impl Write for Stream {
     #[inline]
@@ -56,10 +52,7 @@ impl Write for Stream {
 
     /// Not used but provided for completeness
     #[inline]
-    fn write_vectored(
-        &mut self,
-        bufs: &[::std::io::IoSlice<'_>]
-    ) -> ::std::io::Result<usize> {
+    fn write_vectored(&mut self, bufs: &[::std::io::IoSlice<'_>]) -> ::std::io::Result<usize> {
         match self {
             Self::TcpStream(stream) => stream.write_vectored(bufs),
             Self::TlsStream(stream) => stream.write_vectored(bufs),

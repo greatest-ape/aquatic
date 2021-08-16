@@ -1,54 +1,46 @@
 use std::net::IpAddr;
 
-
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum IpVersion {
     IPv4,
-    IPv6
+    IPv6,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct AnnounceInterval (pub i32);
-
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct InfoHash (pub [u8; 20]);
-
+pub struct AnnounceInterval(pub i32);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct ConnectionId (pub i64);
+pub struct InfoHash(pub [u8; 20]);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct TransactionId (pub i32);
-
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct NumberOfBytes (pub i64);
+pub struct ConnectionId(pub i64);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct NumberOfPeers (pub i32);
+pub struct TransactionId(pub i32);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct NumberOfDownloads (pub i32);
-
+pub struct NumberOfBytes(pub i64);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct Port (pub u16);
+pub struct NumberOfPeers(pub i32);
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct NumberOfDownloads(pub i32);
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct Port(pub u16);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, PartialOrd, Ord)]
-pub struct PeerId (pub [u8; 20]);
+pub struct PeerId(pub [u8; 20]);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct PeerKey (pub u32);
-
+pub struct PeerKey(pub u32);
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ResponsePeer {
     pub ip_address: IpAddr,
     pub port: Port,
 }
-
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for IpVersion {
@@ -60,7 +52,6 @@ impl quickcheck::Arbitrary for IpVersion {
         }
     }
 }
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for InfoHash {
@@ -75,7 +66,6 @@ impl quickcheck::Arbitrary for InfoHash {
     }
 }
 
-
 #[cfg(test)]
 impl quickcheck::Arbitrary for PeerId {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
@@ -88,7 +78,6 @@ impl quickcheck::Arbitrary for PeerId {
         Self(bytes)
     }
 }
-
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for ResponsePeer {

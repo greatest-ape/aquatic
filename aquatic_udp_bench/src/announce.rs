@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Sender, Receiver};
+use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressIterator;
 use rand::Rng;
 use rand_distr::Pareto;
@@ -12,7 +12,6 @@ use aquatic_udp::config::Config;
 use crate::common::*;
 use crate::config::BenchConfig;
 
-
 pub fn bench_announce_handler(
     state: &State,
     bench_config: &BenchConfig,
@@ -22,12 +21,7 @@ pub fn bench_announce_handler(
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
-    let requests = create_requests(
-        state,
-        rng,
-        info_hashes,
-        bench_config.num_announce_requests
-    );
+    let requests = create_requests(state, rng, info_hashes, bench_config.num_announce_requests);
 
     let p = aquatic_config.handlers.max_requests_per_iter * bench_config.num_threads;
     let mut num_responses = 0usize;
@@ -40,8 +34,8 @@ pub fn bench_announce_handler(
 
     let before = Instant::now();
 
-    for round in (0..bench_config.num_rounds).progress_with(pb){
-        for request_chunk in requests.chunks(p){
+    for round in (0..bench_config.num_rounds).progress_with(pb) {
+        for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
                 request_sender.send((request.clone().into(), *src)).unwrap();
             }
@@ -49,7 +43,7 @@ pub fn bench_announce_handler(
             while let Ok((Response::Announce(r), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
-                if let Some(last_peer) = r.peers.last(){
+                if let Some(last_peer) = r.peers.last() {
                     dummy ^= last_peer.port.0;
                 }
             }
@@ -61,7 +55,7 @@ pub fn bench_announce_handler(
             if let Ok((Response::Announce(r), _)) = response_receiver.recv() {
                 num_responses += 1;
 
-                if let Some(last_peer) = r.peers.last(){
+                if let Some(last_peer) = r.peers.last() {
                     dummy ^= last_peer.port.0;
                 }
             }
@@ -77,7 +71,6 @@ pub fn bench_announce_handler(
     (num_responses, elapsed)
 }
 
-
 pub fn create_requests(
     state: &State,
     rng: &mut impl Rng,
@@ -92,12 +85,9 @@ pub fn create_requests(
 
     let connections = state.connections.lock();
 
-    let connection_keys: Vec<ConnectionKey> = connections.keys()
-        .take(number)
-        .cloned()
-        .collect();
+    let connection_keys: Vec<ConnectionKey> = connections.keys().take(number).cloned().collect();
 
-    for connection_key in connection_keys.into_iter(){
+    for connection_key in connection_keys.into_iter() {
         let info_hash_index = pareto_usize(rng, pareto, max_index);
 
         let request = AnnounceRequest {
@@ -109,10 +99,10 @@ pub fn create_requests(
             bytes_uploaded: NumberOfBytes(rng.gen()),
             bytes_left: NumberOfBytes(rng.gen()),
             event: AnnounceEvent::Started,
-            ip_address: None, 
+            ip_address: None,
             key: PeerKey(rng.gen()),
             peers_wanted: NumberOfPeers(rng.gen()),
-            port: Port(rng.gen())
+            port: Port(rng.gen()),
         };
 
         requests.push((request, connection_key.socket_addr));

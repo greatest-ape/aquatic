@@ -1,15 +1,14 @@
+use std::io::{Cursor, ErrorKind, Read, Write};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
-use std::io::{Read, Write, ErrorKind, Cursor};
 
 use hashbrown::HashMap;
-use mio::{net::TcpStream, Events, Poll, Interest, Token};
-use rand::{rngs::SmallRng, prelude::*};
+use mio::{net::TcpStream, Events, Interest, Poll, Token};
+use rand::{prelude::*, rngs::SmallRng};
 
 use crate::common::*;
 use crate::config::*;
 use crate::utils::create_random_request;
-
 
 pub struct Connection {
     stream: TcpStream,
@@ -17,7 +16,6 @@ pub struct Connection {
     bytes_read: usize,
     can_send: bool,
 }
-
 
 impl Connection {
     pub fn create_and_register(
@@ -31,29 +29,27 @@ impl Connection {
         poll.registry()
             .register(&mut stream, Token(*token_counter), Interest::READABLE)
             .unwrap();
-        
-        let connection  = Connection {
+
+        let connection = Connection {
             stream,
             read_buffer: [0; 4096],
             bytes_read: 0,
             can_send: true,
         };
-    
+
         connections.insert(*token_counter, connection);
 
         *token_counter = token_counter.wrapping_add(1);
-    
+
         Ok(())
     }
 
-    pub fn read_response(
-        &mut self,
-        state: &LoadTestState,
-    ) -> bool { // bool = remove connection
+    pub fn read_response(&mut self, state: &LoadTestState) -> bool {
+        // bool = remove connection
         loop {
-            match self.stream.read(&mut self.read_buffer[self.bytes_read..]){
+            match self.stream.read(&mut self.read_buffer[self.bytes_read..]) {
                 Ok(0) => {
-                    if self.bytes_read == self.read_buffer.len(){
+                    if self.bytes_read == self.read_buffer.len() {
                         eprintln!("read buffer is full");
                     }
 
@@ -66,7 +62,7 @@ impl Connection {
 
                     let mut opt_body_start_index = None;
 
-                    for (i, chunk) in interesting_bytes.windows(4).enumerate(){
+                    for (i, chunk) in interesting_bytes.windows(4).enumerate() {
                         if chunk == b"\r\n\r\n" {
                             opt_body_start_index = Some(i + 4);
 
@@ -77,30 +73,41 @@ impl Connection {
                     if let Some(body_start_index) = opt_body_start_index {
                         let interesting_bytes = &interesting_bytes[body_start_index..];
 
-                        match Response::from_bytes(interesting_bytes){
+                        match Response::from_bytes(interesting_bytes) {
                             Ok(response) => {
-                                state.statistics.bytes_received
+                                state
+                                    .statistics
+                                    .bytes_received
                                     .fetch_add(self.bytes_read, Ordering::SeqCst);
 
                                 match response {
                                     Response::Announce(_) => {
-                                        state.statistics.responses_announce
+                                        state
+                                            .statistics
+                                            .responses_announce
                                             .fetch_add(1, Ordering::SeqCst);
-                                    },
+                                    }
                                     Response::Scrape(_) => {
-                                        state.statistics.responses_scrape
+                                        state
+                                            .statistics
+                                            .responses_scrape
                                             .fetch_add(1, Ordering::SeqCst);
-                                    },
+                                    }
                                     Response::Failure(response) => {
-                                        state.statistics.responses_failure
+                                        state
+                                            .statistics
+                                            .responses_failure
                                             .fetch_add(1, Ordering::SeqCst);
-                                        println!("failure response: reason: {}", response.failure_reason);
-                                    },
+                                        println!(
+                                            "failure response: reason: {}",
+                                            response.failure_reason
+                                        );
+                                    }
                                 }
 
                                 self.bytes_read = 0;
                                 self.can_send = true;
-                            },
+                            }
                             Err(err) => {
                                 eprintln!(
                                     "deserialize response error with {} bytes read: {:?}, text: {}",
@@ -111,10 +118,10 @@ impl Connection {
                             }
                         }
                     }
-                },
+                }
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
                     break false;
-                },
+                }
                 Err(_) => {
                     self.bytes_read = 0;
 
@@ -130,43 +137,40 @@ impl Connection {
         state: &LoadTestState,
         rng: &mut impl Rng,
         request_buffer: &mut Cursor<&mut [u8]>,
-    ) -> bool { // bool = remove connection
+    ) -> bool {
+        // bool = remove connection
         if !self.can_send {
             return false;
         }
 
-        let request = create_random_request(
-            &config,
-            &state,
-            rng
-        );
+        let request = create_random_request(&config, &state, rng);
 
         request_buffer.set_position(0);
         request.write(request_buffer).unwrap();
         let position = request_buffer.position() as usize;
 
-        match self.send_request_inner(state, &request_buffer.get_mut()[..position]){
+        match self.send_request_inner(state, &request_buffer.get_mut()[..position]) {
             Ok(()) => {
                 state.statistics.requests.fetch_add(1, Ordering::SeqCst);
 
                 self.can_send = false;
 
                 false
-            },
-            Err(_) => {
-                true
             }
+            Err(_) => true,
         }
     }
 
     fn send_request_inner(
         &mut self,
         state: &LoadTestState,
-        request: &[u8]
+        request: &[u8],
     ) -> ::std::io::Result<()> {
         let bytes_sent = self.stream.write(request)?;
 
-        state.statistics.bytes_sent
+        state
+            .statistics
+            .bytes_sent
             .fetch_add(bytes_sent, Ordering::SeqCst);
 
         self.stream.flush()?;
@@ -179,15 +183,9 @@ impl Connection {
     }
 }
 
-
 pub type ConnectionMap = HashMap<usize, Connection>;
 
-
-pub fn run_socket_thread(
-    config: &Config,
-    state: LoadTestState,
-    num_initial_requests: usize,
-) {
+pub fn run_socket_thread(config: &Config, state: LoadTestState, num_initial_requests: usize) {
     let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
     let create_conn_interval = 2 ^ config.network.connection_creation_interval;
 
@@ -201,12 +199,8 @@ pub fn run_socket_thread(
     let mut token_counter = 0usize;
 
     for _ in 0..num_initial_requests {
-        Connection::create_and_register(
-            config,
-            &mut connections,
-            &mut poll,
-            &mut token_counter,
-        ).unwrap();
+        Connection::create_and_register(config, &mut connections, &mut poll, &mut token_counter)
+            .unwrap();
     }
 
     let mut iter_counter = 0usize;
@@ -218,14 +212,14 @@ pub fn run_socket_thread(
         poll.poll(&mut events, Some(timeout))
             .expect("failed polling");
 
-        for event in events.iter(){
-            if event.is_readable(){
+        for event in events.iter() {
+            if event.is_readable() {
                 let token = event.token();
 
-                if let Some(connection) = connections.get_mut(&token.0){
+                if let Some(connection) = connections.get_mut(&token.0) {
                     // Note that this does not indicate successfully reading
                     // response
-                    if connection.read_response(&state){
+                    if connection.read_response(&state) {
                         remove_connection(&mut poll, &mut connections, token.0);
 
                         num_to_create += 1;
@@ -236,13 +230,9 @@ pub fn run_socket_thread(
             }
         }
 
-        for (k, connection) in connections.iter_mut(){
-            let remove_connection = connection.send_request(
-                config,
-                &state,
-                &mut rng,
-                &mut request_buffer
-            );
+        for (k, connection) in connections.iter_mut() {
+            let remove_connection =
+                connection.send_request(config, &state, &mut rng, &mut request_buffer);
 
             if remove_connection {
                 drop_connections.push(*k);
@@ -269,7 +259,8 @@ pub fn run_socket_thread(
                 &mut connections,
                 &mut poll,
                 &mut token_counter,
-            ).is_ok();
+            )
+            .is_ok();
 
             if ok {
                 num_to_create -= 1;
@@ -280,14 +271,9 @@ pub fn run_socket_thread(
     }
 }
 
-
-fn remove_connection(
-    poll: &mut Poll,
-    connections: &mut ConnectionMap,
-    connection_id: usize,
-){
-    if let Some(mut connection) = connections.remove(&connection_id){
-        if let Err(err) = connection.deregister(poll){
+fn remove_connection(poll: &mut Poll, connections: &mut ConnectionMap, connection_id: usize) {
+    if let Some(mut connection) = connections.remove(&connection_id) {
+        if let Err(err) = connection.deregister(poll) {
             eprintln!("couldn't deregister connection: {}", err);
         }
     }

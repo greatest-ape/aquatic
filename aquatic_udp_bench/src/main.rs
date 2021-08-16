@@ -1,5 +1,5 @@
 //! Benchmark announce and scrape handlers
-//! 
+//!
 //! Example outputs:
 //! ```
 //! # Results over 20 rounds with 1 threads
@@ -15,14 +15,14 @@
 //! ```
 
 use crossbeam_channel::unbounded;
-use std::time::Duration;
 use num_format::{Locale, ToFormattedString};
-use rand::{Rng, thread_rng, rngs::SmallRng, SeedableRng};
+use rand::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
+use std::time::Duration;
 
+use aquatic_cli_helpers::run_app_with_cli_and_config;
 use aquatic_udp::common::*;
 use aquatic_udp::config::Config;
 use aquatic_udp::handlers;
-use aquatic_cli_helpers::run_app_with_cli_and_config;
 
 use config::BenchConfig;
 
@@ -32,19 +32,16 @@ mod config;
 mod connect;
 mod scrape;
 
-
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-
-fn main(){
+fn main() {
     run_app_with_cli_and_config::<BenchConfig>(
         "aquatic_udp_bench: Run aquatic_udp benchmarks",
         run,
-        None
+        None,
     )
 }
-
 
 pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     // Setup common state, spawn request handlers
@@ -62,12 +59,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
         let response_sender = response_sender.clone();
 
         ::std::thread::spawn(move || {
-            handlers::run_request_worker(
-                state,
-                config,
-                request_receiver,
-                response_sender
-            )
+            handlers::run_request_worker(state, config, request_receiver, response_sender)
         });
     }
 
@@ -90,7 +82,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
         &request_sender,
         &response_receiver,
         &mut rng,
-        &info_hashes
+        &info_hashes,
     );
 
     let s = scrape::bench_scrape_handler(
@@ -100,13 +92,12 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
         &request_sender,
         &response_receiver,
         &mut rng,
-        &info_hashes
+        &info_hashes,
     );
 
     println!(
         "\n# Results over {} rounds with {} threads",
-        bench_config.num_rounds,
-        bench_config.num_threads,
+        bench_config.num_rounds, bench_config.num_threads,
     );
 
     print_results("Connect: ", c.0, c.1);
@@ -116,27 +107,17 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     Ok(())
 }
 
-
-
-pub fn print_results(
-    request_type: &str,
-    num_responses: usize,
-    duration: Duration,
-) {
-    let per_second = (
-        (num_responses as f64 / (duration.as_micros() as f64 / 1000000.0)
-    ) as usize).to_formatted_string(&Locale::se);
+pub fn print_results(request_type: &str, num_responses: usize, duration: Duration) {
+    let per_second = ((num_responses as f64 / (duration.as_micros() as f64 / 1000000.0)) as usize)
+        .to_formatted_string(&Locale::se);
 
     let time_per_request = duration.as_nanos() as f64 / (num_responses as f64);
 
     println!(
         "{} {:>10} requests/second, {:>8.2} ns/request",
-        request_type,
-        per_second,
-        time_per_request,
+        request_type, per_second, time_per_request,
     );
 }
-
 
 fn create_info_hashes(rng: &mut impl Rng) -> Vec<InfoHash> {
     let mut info_hashes = Vec::new();

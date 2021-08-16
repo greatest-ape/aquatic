@@ -1,25 +1,23 @@
-use std::net::{SocketAddr};
 use std::io::{Read, Write};
+use std::net::SocketAddr;
 
 use either::Either;
 use hashbrown::HashMap;
 use log::info;
-use mio::{Poll, Token};
 use mio::net::TcpStream;
-use native_tls::{TlsAcceptor, TlsStream, MidHandshakeTlsStream};
-use tungstenite::WebSocket;
-use tungstenite::handshake::{MidHandshake, HandshakeError, server::NoCallback};
-use tungstenite::server::{ServerHandshake};
+use mio::{Poll, Token};
+use native_tls::{MidHandshakeTlsStream, TlsAcceptor, TlsStream};
+use tungstenite::handshake::{server::NoCallback, HandshakeError, MidHandshake};
 use tungstenite::protocol::WebSocketConfig;
+use tungstenite::server::ServerHandshake;
+use tungstenite::WebSocket;
 
 use crate::common::*;
-
 
 pub enum Stream {
     TcpStream(TcpStream),
     TlsStream(TlsStream<TcpStream>),
 }
-
 
 impl Stream {
     #[inline]
@@ -33,14 +31,11 @@ impl Stream {
     #[inline]
     pub fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
         match self {
-            Self::TcpStream(stream) =>
-                poll.registry().deregister(stream),
-            Self::TlsStream(stream) =>
-                poll.registry().deregister(stream.get_mut()),
+            Self::TcpStream(stream) => poll.registry().deregister(stream),
+            Self::TlsStream(stream) => poll.registry().deregister(stream.get_mut()),
         }
     }
 }
-
 
 impl Read for Stream {
     #[inline]
@@ -55,7 +50,7 @@ impl Read for Stream {
     #[inline]
     fn read_vectored(
         &mut self,
-        bufs: &mut [::std::io::IoSliceMut<'_>]
+        bufs: &mut [::std::io::IoSliceMut<'_>],
     ) -> ::std::io::Result<usize> {
         match self {
             Self::TcpStream(stream) => stream.read_vectored(bufs),
@@ -63,7 +58,6 @@ impl Read for Stream {
         }
     }
 }
-
 
 impl Write for Stream {
     #[inline]
@@ -76,10 +70,7 @@ impl Write for Stream {
 
     /// Not used but provided for completeness
     #[inline]
-    fn write_vectored(
-        &mut self,
-        bufs: &[::std::io::IoSlice<'_>]
-    ) -> ::std::io::Result<usize> {
+    fn write_vectored(&mut self, bufs: &[::std::io::IoSlice<'_>]) -> ::std::io::Result<usize> {
         match self {
             Self::TcpStream(stream) => stream.write_vectored(bufs),
             Self::TlsStream(stream) => stream.write_vectored(bufs),
@@ -95,14 +86,12 @@ impl Write for Stream {
     }
 }
 
-
 enum HandshakeMachine {
     TcpStream(TcpStream),
     TlsStream(TlsStream<TcpStream>),
     TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
     WsMidHandshake(MidHandshake<ServerHandshake<Stream, NoCallback>>),
 }
-
 
 impl HandshakeMachine {
     #[inline]
@@ -115,35 +104,32 @@ impl HandshakeMachine {
         self,
         ws_config: WebSocketConfig,
         opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
-    ) -> (Option<Either<EstablishedWs, Self>>, bool) { // bool = stop looping
+    ) -> (Option<Either<EstablishedWs, Self>>, bool) {
+        // bool = stop looping
         match self {
             HandshakeMachine::TcpStream(stream) => {
                 if let Some(tls_acceptor) = opt_tls_acceptor {
-                    Self::handle_tls_handshake_result(
-                        tls_acceptor.accept(stream)
-                    )
+                    Self::handle_tls_handshake_result(tls_acceptor.accept(stream))
                 } else {
                     let handshake_result = ::tungstenite::server::accept_with_config(
                         Stream::TcpStream(stream),
-                        Some(ws_config)
+                        Some(ws_config),
                     );
 
                     Self::handle_ws_handshake_result(handshake_result)
                 }
-            },
+            }
             HandshakeMachine::TlsStream(stream) => {
-                let handshake_result = ::tungstenite::server::accept(
-                    Stream::TlsStream(stream),
-                );
+                let handshake_result = ::tungstenite::server::accept(Stream::TlsStream(stream));
 
                 Self::handle_ws_handshake_result(handshake_result)
-            },
+            }
             HandshakeMachine::TlsMidHandshake(handshake) => {
                 Self::handle_tls_handshake_result(handshake.handshake())
-            },
+            }
             HandshakeMachine::WsMidHandshake(handshake) => {
                 Self::handle_ws_handshake_result(handshake.handshake())
-            },
+            }
         }
     }
 
@@ -162,7 +148,7 @@ impl HandshakeMachine {
             },
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
                 (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
-            },
+            }
             Err(native_tls::HandshakeError::Failure(err)) => {
                 info!("tls handshake error: {}", err);
 
@@ -173,7 +159,7 @@ impl HandshakeMachine {
 
     #[inline]
     fn handle_ws_handshake_result(
-        result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, NoCallback>>> ,
+        result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, NoCallback>>>,
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
         match result {
             Ok(mut ws) => {
@@ -190,10 +176,11 @@ impl HandshakeMachine {
                 };
 
                 (Some(Either::Left(established_ws)), false)
-            },
-            Err(HandshakeError::Interrupted(handshake)) => {
-                (Some(Either::Right(HandshakeMachine::WsMidHandshake(handshake))), true)
-            },
+            }
+            Err(HandshakeError::Interrupted(handshake)) => (
+                Some(Either::Right(HandshakeMachine::WsMidHandshake(handshake))),
+                true,
+            ),
             Err(HandshakeError::Failure(err)) => {
                 info!("ws handshake error: {}", err);
 
@@ -203,19 +190,16 @@ impl HandshakeMachine {
     }
 }
 
-
 pub struct EstablishedWs {
     pub ws: WebSocket<Stream>,
     pub peer_addr: SocketAddr,
 }
-
 
 pub struct Connection {
     ws_config: WebSocketConfig,
     pub valid_until: ValidUntil,
     inner: Either<EstablishedWs, HandshakeMachine>,
 }
-
 
 /// Create from TcpStream. Run `advance_handshakes` until `get_established_ws`
 /// returns Some(EstablishedWs).
@@ -229,15 +213,11 @@ pub struct Connection {
 /// single method for advancing handshakes and maybe returning a websocket.
 impl Connection {
     #[inline]
-    pub fn new(
-        ws_config: WebSocketConfig,
-        valid_until: ValidUntil,
-        tcp_stream: TcpStream,
-    ) -> Self {
+    pub fn new(ws_config: WebSocketConfig, valid_until: ValidUntil, tcp_stream: TcpStream) -> Self {
         Self {
             ws_config,
             valid_until,
-            inner: Either::Right(HandshakeMachine::new(tcp_stream))
+            inner: Either::Right(HandshakeMachine::new(tcp_stream)),
         }
     }
 
@@ -260,15 +240,12 @@ impl Connection {
             Either::Right(machine) => {
                 let ws_config = self.ws_config;
 
-                let (opt_inner, stop_loop) = machine.advance(
-                    ws_config,
-                    opt_tls_acceptor
-                );
+                let (opt_inner, stop_loop) = machine.advance(ws_config, opt_tls_acceptor);
 
                 let opt_new_self = opt_inner.map(|inner| Self {
                     ws_config,
                     valid_until,
-                    inner
+                    inner,
                 });
 
                 (opt_new_self, stop_loop)
@@ -277,19 +254,16 @@ impl Connection {
     }
 
     #[inline]
-    pub fn close(&mut self){
+    pub fn close(&mut self) {
         if let Either::Left(ref mut ews) = self.inner {
-            if ews.ws.can_read(){
-                if let Err(err) = ews.ws.close(None){
+            if ews.ws.can_read() {
+                if let Err(err) = ews.ws.close(None) {
                     ::log::info!("error closing ws: {}", err);
                 }
 
                 // Required after ws.close()
-                if let Err(err) = ews.ws.write_pending(){
-                    ::log::info!(
-                        "error writing pending messages after closing ws: {}",
-                        err
-                    )
+                if let Err(err) = ews.ws.write_pending() {
+                    ::log::info!("error writing pending messages after closing ws: {}", err)
                 }
             }
         }
@@ -299,24 +273,21 @@ impl Connection {
         use Either::{Left, Right};
 
         match self.inner {
-            Left(EstablishedWs { ref mut ws, .. }) => {
-                ws.get_mut().deregister(poll)
-            },
+            Left(EstablishedWs { ref mut ws, .. }) => ws.get_mut().deregister(poll),
             Right(HandshakeMachine::TcpStream(ref mut stream)) => {
                 poll.registry().deregister(stream)
-            },
+            }
             Right(HandshakeMachine::TlsMidHandshake(ref mut handshake)) => {
                 poll.registry().deregister(handshake.get_mut())
-            },
+            }
             Right(HandshakeMachine::TlsStream(ref mut stream)) => {
                 poll.registry().deregister(stream.get_mut())
-            },
+            }
             Right(HandshakeMachine::WsMidHandshake(ref mut handshake)) => {
                 handshake.get_mut().get_mut().deregister(poll)
-            },
+            }
         }
     }
 }
-
 
 pub type ConnectionMap = HashMap<Token, Connection>;

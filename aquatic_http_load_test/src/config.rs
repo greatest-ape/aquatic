@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -14,9 +13,7 @@ pub struct Config {
     pub torrents: TorrentConfig,
 }
 
-
 impl aquatic_cli_helpers::Config for Config {}
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -26,13 +23,12 @@ pub struct NetworkConfig {
     pub poll_event_capacity: usize,
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TorrentConfig {
     pub number_of_torrents: usize,
     /// Pareto shape
-    /// 
+    ///
     /// Fake peers choose torrents according to Pareto distribution.
     pub torrent_selection_pareto_shape: f64,
     /// Probability that a generated peer is a seeder
@@ -44,7 +40,6 @@ pub struct TorrentConfig {
     /// of sum of the various weight arguments.
     pub weight_scrape: usize,
 }
-
 
 impl Default for Config {
     fn default() -> Self {
@@ -68,7 +63,6 @@ impl Default for NetworkConfig {
         }
     }
 }
-
 
 impl Default for TorrentConfig {
     fn default() -> Self {
