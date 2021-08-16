@@ -30,11 +30,6 @@ go build -o $HOME/gotorrent ./cmd/torrent
 cd ..
 file $HOME/gotorrent
 
-$SUDO curl -sL https://deb.nodesource.com/setup_16.x | bash -
-$SUDO apt-get install nodejs -y
-
-rtorrent -h
-
 # Clone repository if necessary, go to repository directory
 
 if [[ -z "${GITHUB_WORKSPACE}" ]]; then
@@ -112,107 +107,17 @@ echo "wss-test-ipv4" > seed/wss-test-ipv4
 mktorrent -p -o "torrents/http-ipv4.torrent" -a "http://127.0.0.1:3000/announce" "seed/http-test-ipv4"
 mktorrent -p -o "torrents/tls-ipv4.torrent" -a "https://example.com:3001/announce" "seed/tls-test-ipv4"
 mktorrent -p -o "torrents/udp-ipv4.torrent" -a "udp://127.0.0.1:3000" "seed/udp-test-ipv4"
+mktorrent -p -o "torrents/wss-ipv4.torrent" -a "wss://example.com:3002" "seed/wss-test-ipv4"
 
 cp -r torrents torrents-seed
 cp -r torrents torrents-leech
 
 # Setup wss seeding client
 
-# Seems to fix webtorrent-hybrid install error.
-# Will likely be fixed in later versions of webtorrent-hybrid.
-npm install @mapbox/node-pre-gyp 
-
-npm install webtorrent-hybrid@4.0.3
-
-echo "
-// Start webtorrent seeder from data file, create torrent, write it to file,
-// output info
-
-var WebTorrent = require('webtorrent-hybrid')
-var fs = require('fs')
-
-// WebTorrent seems to use same peer id for different
-// clients in some cases (I don't know how)
-peerId = 'ae61b6f4a5be4ada48333891512db5e90347d736'
-announceUrl = 'wss://example.com:3002'
-dataFile = './seed/wss-test-ipv4'
-torrentFile = './torrents/wss-ipv4.torrent'
-trackerFile = './wss-trackers.txt'
-
-function createSeeder(){
-    console.log('creating seeder..')
-
-    var seeder = new WebTorrent({ dht: false, webSeeds: false, peerId: peerId })
-    seeder.on('error', function(err) {
-        console.log('seeder error: ' + err)
-    })
-
-    var addOpts = {
-        announceList: [[announceUrl]],
-        announce: [announceUrl],
-        private: true
-    }
-
-    seeder.seed(dataFile, addOpts, function(torrent){
-        console.log('seeding')
-        console.log(torrent.announce)
-
-        torrent.announce.forEach(function(item, index){
-            if (item != announceUrl) {
-                fs.appendFile(trackerFile, '127.0.0.1 '.concat(item.replace(/(^\w+:|^)\/\//, ''), '\n'), function(err){
-                    if (err){
-                        console.log(err)
-                    }
-                })
-            }
-        });
-
-        fs.writeFile(torrentFile, torrent.torrentFile, function(err){
-            if (err){
-                console.log(err)
-            }
-        })
-
-        torrent.on('warning', function(err){
-            console.log(err)
-        });
-
-        torrent.on('error', function(err){
-            console.log(err)
-        });
-
-        torrent.on('download', function(bytes){
-            console.log('downloaded bytes: ' + bytes)
-        });
-
-        torrent.on('upload', function(bytes){
-            console.log('uploaded bytes: ' + bytes)
-        });
-
-        torrent.on('wire', function(wire, addr){
-            console.log('connected to peer with addr: ' + addr)
-        });
-
-        torrent.on('noPeers', function(announceType){
-            console.log('no peers received with announce type: ' + announceType)
-        })
-
-        torrent.on('done', function(){
-            console.log('done')
-        });
-
-    })
-}
-
-createSeeder()
-" > wss-seeder.js
-
-cat wss-seeder.js
-
-# Start seeding ws client, create torrent
-
-echo "Starting seeding ws client"
-node wss-seeder.js > "$HOME/wss-seed.log" 2>&1 &
+echo "Starting seeding wss client"
+cd seed
+GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/wss-ipv4.torrent > "$HOME/wss-seed.log" 2>&1 &
+cd ..
 
 # Start seeding rtorrent client
 
@@ -222,29 +127,10 @@ schedule2 = watch_directory,5,5,load.start=$HOME/torrents-seed/*.torrent" > ~/.r
 echo "Starting seeding rtorrent client"
 screen -dmS rtorrent-seed rtorrent
 
-# Give seeding clients time to write trackers to file, load config files etc
+# Give seeding clients time to load config files etc
 
 echo "Waiting for a while"
 sleep 30
-
-# Forbid access to other trackers used by webtorrent-hybrid
-
-if test -f "wss-trackers.txt"; then
-    $SUDO cat wss-trackers.txt >> /etc/hosts
-    echo "Added the following lines to /etc/hosts:"
-    cat wss-trackers.txt
-    echo ""
-else
-    echo "ERROR: WSS TRACKER FILE NOT FOUND. Seeding client log:"
-    cat "$HOME/wss-seed.log"
-    exit 1
-fi
-
-# Start seeding ws client 2, which is the one that actually does uploading
-
-cd seed
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/wss-ipv4.torrent > "$HOME/wss-seed2.log" 2>&1 &
-cd ..
 
 # Start leeching clients
 
@@ -254,8 +140,7 @@ schedule2 = watch_directory,5,5,load.start=$HOME/torrents-leech/*.torrent" > ~/.
 echo "Starting leeching client.."
 screen -dmS rtorrent-leech rtorrent
 
-# ./node_modules/webtorrent-hybrid/bin/cmd.js download ./torrents/wss-ipv4.torrent -o leech > "$HOME/wss-leech.log" 2>&1 &
-
+echo "Starting leeching wss client"
 cd leech
 GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --addr ":43000" ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
 cd ..
@@ -349,12 +234,6 @@ sleep 1
 echo ""
 echo "# --- WSS seed log --- #"
 cat "wss-seed.log"
-
-sleep 1
-
-echo ""
-echo "# --- WSS seed log 2 --- #"
-cat "wss-seed2.log"
 
 sleep 1
 
