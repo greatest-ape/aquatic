@@ -24,6 +24,11 @@ fi
 $SUDO apt-get update
 $SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-certificates curl golang
 
+git clone https://github.com/anacrolix/torrent.git gotorrent
+cd gotorrent
+go build -o ../gotorrent ./cmd/torrent
+cd ..
+
 $SUDO curl -sL https://deb.nodesource.com/setup_15.x | bash -
 $SUDO apt-get install nodejs -y
 
@@ -234,6 +239,12 @@ else
     exit 1
 fi
 
+# Start seeding ws client 2
+
+cd seed
+GOPPROF=http GODEBUG=x509ignoreCN=0 ../gotorrent download --seed ../torrents/wss-ipv4.torrent > "$HOME/wss-seed2.log" 2>&1 &
+cd ..
+
 # Start leeching clients
 
 echo "directory.default.set = $HOME/leech
@@ -244,9 +255,8 @@ screen -dmS rtorrent-leech rtorrent
 
 # ./node_modules/webtorrent-hybrid/bin/cmd.js download ./torrents/wss-ipv4.torrent -o leech > "$HOME/wss-leech.log" 2>&1 &
 
-git clone https://github.com/anacrolix/torrent.git leech
 cd leech
-GOPPROF=http GODEBUG=x509ignoreCN=0 go run -v ./cmd/torrent download ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
+GOPPROF=http GODEBUG=x509ignoreCN=0 ../gotorrent download ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
 cd ..
 
 # Check for completion
@@ -338,6 +348,12 @@ sleep 1
 echo ""
 echo "# --- WSS seed log --- #"
 cat "wss-seed.log"
+
+sleep 1
+
+echo ""
+echo "# --- WSS seed log 2 --- #"
+cat "wss-seed2.log"
 
 sleep 1
 
