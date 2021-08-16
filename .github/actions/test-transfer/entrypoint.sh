@@ -22,7 +22,9 @@ else
 fi
 
 $SUDO apt-get update
-$SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-certificates curl
+$SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-certificates curl golang
+
+$SUDO go get github.com/anacrolix/torrent/cmd/torrent
 
 $SUDO curl -sL https://deb.nodesource.com/setup_15.x | bash -
 $SUDO apt-get install nodejs -y
@@ -242,7 +244,11 @@ schedule2 = watch_directory,5,5,load.start=$HOME/torrents-leech/*.torrent" > ~/.
 echo "Starting leeching client.."
 screen -dmS rtorrent-leech rtorrent
 
-./node_modules/webtorrent-hybrid/bin/cmd.js download ./torrents/wss-ipv4.torrent -o leech > "$HOME/wss-leech.log" 2>&1 &
+# ./node_modules/webtorrent-hybrid/bin/cmd.js download ./torrents/wss-ipv4.torrent -o leech > "$HOME/wss-leech.log" 2>&1 &
+
+cd leech
+GOPPROF=http torrent download ./torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
+cd ..
 
 # Check for completion
 
