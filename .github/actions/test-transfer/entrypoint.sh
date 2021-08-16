@@ -240,10 +240,10 @@ else
     exit 1
 fi
 
-# Start seeding ws client 2
+# Start seeding ws client 2, which is the one that actually does uploading
 
 cd seed
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --seed ../torrents/wss-ipv4.torrent > "$HOME/wss-seed2.log" 2>&1 &
+GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/wss-ipv4.torrent > "$HOME/wss-seed2.log" 2>&1 &
 cd ..
 
 # Start leeching clients
@@ -257,7 +257,7 @@ screen -dmS rtorrent-leech rtorrent
 # ./node_modules/webtorrent-hybrid/bin/cmd.js download ./torrents/wss-ipv4.torrent -o leech > "$HOME/wss-leech.log" 2>&1 &
 
 cd leech
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --addr ":43000" ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
+GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --addr ":43000" ../torrents/wss-ipv4.torrent > "$HOME/wss-leech.log" 2>&1 &
 cd ..
 
 # Check for completion
