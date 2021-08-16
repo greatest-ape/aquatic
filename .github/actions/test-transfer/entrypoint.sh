@@ -118,7 +118,11 @@ cp -r torrents torrents-leech
 
 # Setup wss seeding client
 
-npm install webtorrent-hybrid
+# Seems to fix webtorrent-hybrid install error.
+# Will likely be fixed in later versions of webtorrent-hybrid.
+npm install @mapbox/node-pre-gyp 
+
+npm install webtorrent-hybrid@4.0.3
 
 echo "
 // Start webtorrent seeder from data file, create torrent, write it to file,
