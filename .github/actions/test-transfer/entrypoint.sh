@@ -30,7 +30,7 @@ go build -o $HOME/gotorrent ./cmd/torrent
 cd ..
 file $HOME/gotorrent
 
-$SUDO curl -sL https://deb.nodesource.com/setup_15.x | bash -
+$SUDO curl -sL https://deb.nodesource.com/setup_16.x | bash -
 $SUDO apt-get install nodejs -y
 
 rtorrent -h
@@ -118,11 +118,7 @@ cp -r torrents torrents-leech
 
 # Setup wss seeding client
 
-# Seems to fix webtorrent-hybrid install error.
-# Will likely be fixed in later versions of webtorrent-hybrid.
-npm install @mapbox/node-pre-gyp 
-
-npm install webtorrent-hybrid@4.0.3
+npm install webtorrent-hybrid
 
 echo "
 // Start webtorrent seeder from data file, create torrent, write it to file,
