@@ -149,11 +149,7 @@ exceptions:
 For information about running over TLS, please refer to the TLS subsection
 of the `aquatic_http` section above.
 
-`aquatic_ws` is experimental software. Connections are established
-successfully when using `aquatic_ws_load_test`, but so far, I haven't been able
-to implement CI for testing if aquatic_ws works as the tracker for a full
-file transfer session between two real-world clients. One reason for this
-is the general lack of high-quality WebTorrent clients.
+`aquatic_ws` is experimental software.
 
 ## Load testing
 
