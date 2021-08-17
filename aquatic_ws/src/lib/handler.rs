@@ -118,6 +118,8 @@ pub fn handle_announce_requests(
             }
         }
 
+        ::log::trace!("received request from {:?}", request_sender_meta);
+
         // Insert/update/remove peer who sent this request
         {
             let peer_status = PeerStatus::from_event_and_bytes_left(
@@ -187,6 +189,10 @@ pub fn handle_announce_requests(
                     offer_receiver.connection_meta,
                     OutMessage::Offer(middleman_offer),
                 );
+                ::log::trace!(
+                    "sent middleman offer to {:?}",
+                    offer_receiver.connection_meta
+                );
                 wake_socket_workers[offer_receiver.connection_meta.worker_index] = true;
             }
         }
@@ -207,6 +213,10 @@ pub fn handle_announce_requests(
                 out_message_sender.send(
                     answer_receiver.connection_meta,
                     OutMessage::Answer(middleman_answer),
+                );
+                ::log::trace!(
+                    "sent middleman answer to {:?}",
+                    answer_receiver.connection_meta
                 );
                 wake_socket_workers[answer_receiver.connection_meta.worker_index] = true;
             }

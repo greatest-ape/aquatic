@@ -9,7 +9,7 @@ use mio::{Poll, Token};
 use native_tls::{MidHandshakeTlsStream, TlsAcceptor, TlsStream};
 use tungstenite::handshake::{server::NoCallback, HandshakeError, MidHandshake};
 use tungstenite::protocol::WebSocketConfig;
-use tungstenite::server::ServerHandshake;
+use tungstenite::ServerHandshake;
 use tungstenite::WebSocket;
 
 use crate::common::*;
@@ -111,7 +111,7 @@ impl HandshakeMachine {
                 if let Some(tls_acceptor) = opt_tls_acceptor {
                     Self::handle_tls_handshake_result(tls_acceptor.accept(stream))
                 } else {
-                    let handshake_result = ::tungstenite::server::accept_with_config(
+                    let handshake_result = ::tungstenite::accept_with_config(
                         Stream::TcpStream(stream),
                         Some(ws_config),
                     );
@@ -120,7 +120,7 @@ impl HandshakeMachine {
                 }
             }
             HandshakeMachine::TlsStream(stream) => {
-                let handshake_result = ::tungstenite::server::accept(Stream::TlsStream(stream));
+                let handshake_result = ::tungstenite::accept(Stream::TlsStream(stream));
 
                 Self::handle_ws_handshake_result(handshake_result)
             }
@@ -138,7 +138,14 @@ impl HandshakeMachine {
         result: Result<TlsStream<TcpStream>, ::native_tls::HandshakeError<TcpStream>>,
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
         match result {
-            Ok(stream) => (Some(Either::Right(Self::TlsStream(stream))), false),
+            Ok(stream) => {
+                ::log::trace!(
+                    "established tls handshake with peer with addr: {:?}",
+                    stream.get_ref().peer_addr()
+                );
+
+                (Some(Either::Right(Self::TlsStream(stream))), false)
+            },
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
                 (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
             }
@@ -158,7 +165,15 @@ impl HandshakeMachine {
             Ok(mut ws) => {
                 let peer_addr = ws.get_mut().get_peer_addr();
 
-                let established_ws = EstablishedWs { ws, peer_addr };
+                ::log::trace!(
+                    "established ws handshake with peer with addr: {:?}",
+                    peer_addr
+                );
+
+                let established_ws = EstablishedWs {
+                    ws,
+                    peer_addr,
+                };
 
                 (Some(Either::Left(established_ws)), false)
             }

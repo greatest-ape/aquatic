@@ -17,10 +17,12 @@ Distributed under Apache 2.0 license (details in `LICENSE` file.)
 ## Technical overview of tracker design
 
 One or more socket workers open sockets, read and parse requests from peers and
-send them through channels to request workers. They in turn go through the
-requests, update internal state as appropriate and generate responses, which
-are sent back to the socket workers, which serialize them and send them to
-peers. This design means little waiting for locks on internal state occurs,
+send them through channels to request workers. The request workers go through
+the requests, update shared internal tracker state as appropriate and generate
+responses that are sent back to the socket workers. The responses are then
+serialized and sent back to the peers.
+
+This design means little waiting for locks on internal state occurs,
 while network work can be efficiently distributed over multiple threads,
 making use of SO_REUSEPORT setting.
 
@@ -149,11 +151,7 @@ exceptions:
 For information about running over TLS, please refer to the TLS subsection
 of the `aquatic_http` section above.
 
-`aquatic_ws` is experimental software. Connections are established
-successfully when using `aquatic_ws_load_test`, but so far, I haven't been able
-to implement CI for testing if aquatic_ws works as the tracker for a full
-file transfer session between two real-world clients. One reason for this
-is the general lack of high-quality WebTorrent clients.
+`aquatic_ws` is experimental software.
 
 ## Load testing
 
