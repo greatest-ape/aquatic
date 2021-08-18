@@ -159,11 +159,11 @@ Performance was compared to
 [wt-tracker](https://github.com/Novage/wt-tracker) and [bittorrent-tracker](https://github.com/webtorrent/bittorrent-tracker) using
 `aquatic_ws_load_test` with one worker, 16 connections and 2 offers per request.
 
-| tracker            | responses per second |
-| ------------------ | -------------------- |
-| aquatic            |  __126k__            |
-| wt-tracker         |  54k                 |
-| bittorrent-tracker |  28k                 |
+| tracker                | responses per second |
+|------------------------|----------------------|
+| __aquatic__            | 126k                 |
+| __wt-tracker__         | 54k                  |
+| __bittorrent-tracker__ | 28k                  |
 
 Both reference trackers reached 100% single-core utilization.
 
