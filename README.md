@@ -153,7 +153,17 @@ exceptions:
 For information about running over TLS, please refer to the TLS subsection
 of the `aquatic_http` section above.
 
-`aquatic_ws` is experimental software.
+#### Benchmarks
+
+Performance was compared to
+[wt-tracker](https://github.com/Novage/wt-tracker) and [bittorrent-tracker](https://github.com/webtorrent/bittorrent-tracker), using
+`aquatic_ws_load_test` with one worker, 16 connections and 2 offers per request. Both comparison trackers reached 100% single core utilization.
+
+Server responses per second, best result in bold:
+
+|   aquatic   |  wt-tracker  | bittorrent-tracker |
+| ----------- | ------------ | ------------------ |
+|  __126k__   |     54k      |        28k         |
 
 ## Load testing
 
