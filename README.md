@@ -157,13 +157,15 @@ of the `aquatic_http` section above.
 
 Performance was compared to
 [wt-tracker](https://github.com/Novage/wt-tracker) and [bittorrent-tracker](https://github.com/webtorrent/bittorrent-tracker), using
-`aquatic_ws_load_test` with one worker, 16 connections and 2 offers per request. Both comparison trackers reached 100% single core utilization.
+`aquatic_ws_load_test` with one worker, 16 connections and 2 offers per request. Both comparison trackers reached 100% single-core utilization.
 
 Server responses per second, best result in bold:
 
 |   aquatic   |  wt-tracker  | bittorrent-tracker |
 | ----------- | ------------ | ------------------ |
 |  __126k__   |     54k      |        28k         |
+
+This benchmark is not very realistic, as it simulates a tiny number of clients each sending a large number of requests, but I still think that it gives a useful indication of relative performance.
 
 ## Load testing
 
