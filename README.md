@@ -16,18 +16,6 @@ Copyright (c) 2020-2021 Joakim Frostegård
 
 Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
-## Technical overview of tracker design
-
-One or more socket workers open sockets, read and parse requests from peers and
-send them through channels to request workers. The request workers go through
-the requests, update shared internal tracker state as appropriate and generate
-responses that are sent back to the socket workers. The responses are then
-serialized and sent back to the peers.
-
-This design means little waiting for locks on internal state occurs,
-while network work can be efficiently distributed over multiple threads,
-making use of SO_REUSEPORT setting.
-
 ## Installation prerequisites
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
@@ -192,6 +180,18 @@ corresponding load test binary:
 
 To fairly compare HTTP performance to opentracker, set keepalive to false in
 `aquatic_http` settings.
+
+## Architectural overview
+
+One or more socket workers open sockets, read and parse requests from peers and
+send them through channels to request workers. The request workers go through
+the requests, update shared internal tracker state as appropriate and generate
+responses that are sent back to the socket workers. The responses are then
+serialized and sent back to the peers.
+
+This design means little waiting for locks on internal state occurs,
+while network work can be efficiently distributed over multiple threads,
+making use of SO_REUSEPORT setting.
 
 ## Trivia
 
