@@ -97,22 +97,20 @@ however.)
 
 #### Benchmarks
 
-Performance was compared to
-[opentracker](http://erdgeist.org/arts/software/opentracker/) using
-`aquatic_udp_load_test`.
+[opentracker]: http://erdgeist.org/arts/software/opentracker/
 
 Server responses per second, best result in bold:
 
-| workers |   aquatic   | opentracker |
-| ------- | ----------- | ----------- |
-|    1    |     n/a     |   __177k__  |
-|    2    |  __168k__   |      98k    |
-|    3    |  __187k__   |     118k    |
-|    4    |  __216k__   |     127k    |
-|    6    |  __309k__   |     109k    |
-|    8    |  __408k__   |      96k    |
+| workers |   aquatic   | [opentracker] |
+| ------- | ----------- | ------------- |
+|    1    |     n/a     |   __177k__    |
+|    2    |  __168k__   |      98k      |
+|    3    |  __187k__   |     118k      |
+|    4    |  __216k__   |     127k      |
+|    6    |  __309k__   |     109k      |
+|    8    |  __408k__   |      96k      |
 
-See `documents/aquatic-load-test-2020-04-19.pdf` for details on benchmark, and
+Please refer to `documents/aquatic-udp-load-test-2020-04-19.pdf` for more details, and
 end of README for more information about load testing.
 
 ### aquatic_http: HTTP BitTorrent tracker
@@ -158,6 +156,8 @@ of the `aquatic_http` section above.
 [wt-tracker]: https://github.com/Novage/wt-tracker
 [bittorrent-tracker]: https://github.com/webtorrent/bittorrent-tracker
 
+The following benchmark is not very realistic, as it simulates a small number of clients, each sending a large number of requests. Nonetheless, I think that it gives a useful indication of relative performance.
+
 Server responses per second, best result in bold:
 
 | workers | aquatic    | [wt-tracker] | [bittorrent-tracker] |
@@ -174,7 +174,7 @@ Server responses per second, best result in bold:
 
 \* Using a VPS with 32 vCPUs. The other measurements were made using a 16 vCPU VPS.
 
-This benchmark is not very realistic, as it simulates a small number of clients, each sending a large number of requests. Nonetheless, I think that it gives a useful indication of relative performance.
+Please refer to `documents/aquatic-ws-load-test-2021-08-18.pdf` for more details.
 
 ## Load testing
 
