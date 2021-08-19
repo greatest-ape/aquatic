@@ -89,17 +89,18 @@ however.)
 
 Server responses per second, best result in bold:
 
-| workers |   aquatic   | [opentracker] |
-| ------- | ----------- | ------------- |
-|    1    |     n/a     |   __177k__    |
-|    2    |  __168k__   |      98k      |
-|    3    |  __187k__   |     118k      |
-|    4    |  __216k__   |     127k      |
-|    6    |  __309k__   |     109k      |
-|    8    |  __408k__   |      96k      |
+| workers | aquatic   | [opentracker] |
+|---------|-----------|---------------|
+| 1       | n/a       | __232k__      |
+| 2       | __309k__  | 293k          |
+| 3       | __597k__  | 397k          |
+| 4       | __603k__  | 481k          |
+| 6       | __757k__  | 587k          |
+| 8       | __850k__  | 431k          |
+| 10      | __826k__  | 165k          |
+| 16      | __785k__  | 139k          |
 
-Please refer to `documents/aquatic-udp-load-test-2020-04-19.pdf` for more details, and
-end of README for more information about load testing.
+Please refer to `documents/aquatic-udp-load-test-2021-08-19.pdf` for more details.
 
 ### aquatic_http: HTTP BitTorrent tracker
 
