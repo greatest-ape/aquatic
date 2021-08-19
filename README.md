@@ -155,19 +155,26 @@ of the `aquatic_http` section above.
 
 #### Benchmarks
 
-Performance was compared to
-[wt-tracker](https://github.com/Novage/wt-tracker) and [bittorrent-tracker](https://github.com/webtorrent/bittorrent-tracker) using
-`aquatic_ws_load_test` with one worker, 16 connections and 2 offers per request.
+[wt-tracker]: https://github.com/Novage/wt-tracker
+[bittorrent-tracker]: https://github.com/webtorrent/bittorrent-tracker
 
-| tracker                | responses per second |
-|------------------------|----------------------|
-| __aquatic__            | 126k                 |
-| __wt-tracker__         | 54k                  |
-| __bittorrent-tracker__ | 28k                  |
+Server responses per second, best result in bold:
 
-Both reference trackers reached 100% single-core utilization.
+| workers | aquatic    | [wt-tracker] | [bittorrent-tracker] |
+|---------|------------|--------------|----------------------|
+| 1       | n/a        | __117k__     | 45k                  |
+| 2       | __225k__   | n/a          | n/a                  |
+| 4       | __627k__   | n/a          | n/a                  |
+| 6       | __831k__*  | n/a          | n/a                  |
+| 8       | __1209k__* | n/a          | n/a                  |
+| 10      | __1455k__* | n/a          | n/a                  |
+| 12      | __1650k__* | n/a          | n/a                  |
+| 14      | __1804k__* | n/a          | n/a                  |
+| 16      | __1789k__* | n/a          | n/a                  |
 
-This benchmark is not very realistic, as it simulates a tiny number of clients, each sending a large number of requests. Nontheless, I think that it gives a useful indication of relative performance.
+\* Using a VPS with 32 vCPUs. The other measurements were made using a 16 vCPU VPS.
+
+This benchmark is not very realistic, as it simulates a small number of clients, each sending a large number of requests. Nonetheless, I think that it gives a useful indication of relative performance.
 
 ## Load testing
 
