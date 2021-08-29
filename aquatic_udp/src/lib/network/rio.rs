@@ -1,5 +1,5 @@
 use std::io::{Cursor, ErrorKind};
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -8,14 +8,14 @@ use std::time::Duration;
 use std::vec::Drain;
 
 use crossbeam_channel::{Receiver, Sender};
-use mio::net::UdpSocket;
-use mio::{Events, Interest, Poll, Token};
-use socket2::{Domain, Protocol, Socket, Type};
+use async_executor::LocalExecutor;
+use futures_lite::future;
 
-use aquatic_udp_protocol::{IpVersion, Request, Response};
+use aquatic_udp_protocol::{Request, Response};
 
 use crate::common::*;
 use crate::config::Config;
+use super::{create_socket, ip_version_from_ip};
 
 pub fn run_socket_worker(
     state: State,
@@ -84,39 +84,6 @@ pub fn run_socket_worker(
             local_responses.drain(..),
         );
     }
-}
-
-fn create_socket(config: &Config) -> ::std::net::UdpSocket {
-    let socket = if config.network.address.is_ipv4() {
-        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
-    } else {
-        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
-    }
-    .expect("create socket");
-
-    socket.set_reuse_port(true).expect("socket: set reuse port");
-
-    socket
-        .set_nonblocking(true)
-        .expect("socket: set nonblocking");
-
-    socket
-        .bind(&config.network.address.into())
-        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", config.network.address, err));
-
-    let recv_buffer_size = config.network.socket_recv_buffer_size;
-
-    if recv_buffer_size != 0 {
-        if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size) {
-            ::log::error!(
-                "socket: failed setting recv buffer to {}: {:?}",
-                recv_buffer_size,
-                err
-            );
-        }
-    }
-
-    socket.into()
 }
 
 #[inline]
@@ -244,18 +211,5 @@ fn send_responses(
             .statistics
             .bytes_sent
             .fetch_add(bytes_sent, Ordering::SeqCst);
-    }
-}
-
-fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
-    match ip {
-        IpAddr::V4(_) => IpVersion::IPv4,
-        IpAddr::V6(ip) => {
-            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments() {
-                IpVersion::IPv4
-            } else {
-                IpVersion::IPv6
-            }
-        }
     }
 }
