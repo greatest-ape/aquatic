@@ -21,10 +21,10 @@ pub enum Stream {
 
 impl Stream {
     #[inline]
-    pub fn get_peer_addr(&self) -> SocketAddr {
+    pub fn get_peer_addr(&self) -> ::std::io::Result<SocketAddr> {
         match self {
-            Self::TcpStream(stream) => stream.peer_addr().unwrap(),
-            Self::TlsStream(stream) => stream.get_ref().peer_addr().unwrap(),
+            Self::TcpStream(stream) => stream.peer_addr(),
+            Self::TlsStream(stream) => stream.get_ref().peer_addr(),
         }
     }
 
@@ -162,18 +162,26 @@ impl HandshakeMachine {
         result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, NoCallback>>>,
     ) -> (Option<Either<EstablishedWs, Self>>, bool) {
         match result {
-            Ok(mut ws) => {
-                let peer_addr = ws.get_mut().get_peer_addr();
+            Ok(mut ws) => match ws.get_mut().get_peer_addr() {
+                Ok(peer_addr) => {
+                    ::log::trace!(
+                        "established ws handshake with peer with addr: {:?}",
+                        peer_addr
+                    );
 
-                ::log::trace!(
-                    "established ws handshake with peer with addr: {:?}",
-                    peer_addr
-                );
+                    let established_ws = EstablishedWs { ws, peer_addr };
 
-                let established_ws = EstablishedWs { ws, peer_addr };
+                    (Some(Either::Left(established_ws)), false)
+                }
+                Err(err) => {
+                    ::log::info!(
+                        "get_peer_addr failed during handshake, removing connection: {:?}",
+                        err
+                    );
 
-                (Some(Either::Left(established_ws)), false)
-            }
+                    (None, false)
+                }
+            },
             Err(HandshakeError::Interrupted(handshake)) => (
                 Some(Either::Right(HandshakeMachine::WsMidHandshake(handshake))),
                 true,
