@@ -40,7 +40,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_torrents(&state);
+        tasks::clean_torrents(&config, &state);
     }
 }
 

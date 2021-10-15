@@ -137,7 +137,7 @@ pub struct FailureResponse {
 impl FailureResponse {
     pub fn new(reason: &str) -> Self {
         Self {
-            failure_reason: reason.into()
+            failure_reason: reason.into(),
         }
     }
 
