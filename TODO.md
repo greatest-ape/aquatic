@@ -1,7 +1,6 @@
 # TODO
 
 * access lists:
-  * disallow any activity until access list is loaded / load it at startup
   * test functionality
   * rename Allow to Require?
   * serde-rename AccessListTypes to lowercase
