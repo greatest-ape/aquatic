@@ -1,7 +1,9 @@
 use std::hash::Hash;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{atomic::AtomicUsize, Arc};
+use std::time::Instant;
 
+use aquatic_common::AccessListType;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
@@ -106,6 +108,66 @@ pub type TorrentMap<I> = HashMap<InfoHash, TorrentData<I>>;
 pub struct TorrentMaps {
     pub ipv4: TorrentMap<Ipv4Addr>,
     pub ipv6: TorrentMap<Ipv6Addr>,
+}
+
+impl TorrentMaps {
+    /// Remove inactive torrents
+    pub fn clean(&mut self, now: Instant) {
+        self.ipv4
+            .retain(|_, torrent| Self::clean_torrent_and_peers(now, torrent));
+        self.ipv4.shrink_to_fit();
+
+        self.ipv6
+            .retain(|_, torrent| Self::clean_torrent_and_peers(now, torrent));
+        self.ipv6.shrink_to_fit();
+    }
+
+    /// Remove disallowed and inactive torrents
+    pub fn clean_with_access_list(
+        &mut self,
+        access_list_type: AccessListType,
+        access_list: &AccessList,
+        now: Instant,
+    ) {
+        self.ipv4.retain(|info_hash, torrent| {
+            access_list.allows(access_list_type, &info_hash.0)
+                && Self::clean_torrent_and_peers(now, torrent)
+        });
+        self.ipv4.shrink_to_fit();
+
+        self.ipv6.retain(|info_hash, torrent| {
+            access_list.allows(access_list_type, &info_hash.0)
+                && Self::clean_torrent_and_peers(now, torrent)
+        });
+        self.ipv6.shrink_to_fit();
+    }
+
+    /// Returns true if torrent is to be kept
+    #[inline]
+    fn clean_torrent_and_peers<I: Ip>(now: Instant, torrent: &mut TorrentData<I>) -> bool {
+        let num_seeders = &mut torrent.num_seeders;
+        let num_leechers = &mut torrent.num_leechers;
+
+        torrent.peers.retain(|_, peer| {
+            let keep = peer.valid_until.0 > now;
+
+            if !keep {
+                match peer.status {
+                    PeerStatus::Seeding => {
+                        *num_seeders -= 1;
+                    }
+                    PeerStatus::Leeching => {
+                        *num_leechers -= 1;
+                    }
+                    _ => (),
+                };
+            }
+
+            keep
+        });
+
+        !torrent.peers.is_empty()
+    }
 }
 
 #[derive(Default)]

@@ -19,68 +19,23 @@ pub fn clean_connections_and_torrents(config: &Config, state: &State) {
     }
 
     match config.access_list.list_type {
-        access_list_type @ (AccessListType::Allow | AccessListType::Deny) => {
+        AccessListType::Allow | AccessListType::Deny => {
             let mut access_list = state.access_list.lock();
 
             if let Err(err) = access_list.update_from_path(&config.access_list.path) {
                 ::log::error!("Update access list from path: {:?}", err);
             }
 
-            let mut torrents = state.torrents.lock();
-
-            torrents.ipv4.retain(|info_hash, torrent| {
-                access_list.allows(access_list_type, &info_hash.0)
-                    && clean_torrent_and_peers(now, torrent)
-            });
-            torrents.ipv4.shrink_to_fit();
-
-            torrents.ipv6.retain(|info_hash, torrent| {
-                access_list.allows(access_list_type, &info_hash.0)
-                    && clean_torrent_and_peers(now, torrent)
-            });
-            torrents.ipv6.shrink_to_fit();
+            state.torrents.lock().clean_with_access_list(
+                config.access_list.list_type,
+                &access_list,
+                now,
+            );
         }
         AccessListType::Ignore => {
-            let mut torrents = state.torrents.lock();
-
-            torrents
-                .ipv4
-                .retain(|_, torrent| clean_torrent_and_peers(now, torrent));
-            torrents.ipv4.shrink_to_fit();
-
-            torrents
-                .ipv6
-                .retain(|_, torrent| clean_torrent_and_peers(now, torrent));
-            torrents.ipv6.shrink_to_fit();
+            state.torrents.lock().clean(now);
         }
     }
-}
-
-/// Returns true if torrent is to be kept
-#[inline]
-fn clean_torrent_and_peers<I: Ip>(now: Instant, torrent: &mut TorrentData<I>) -> bool {
-    let num_seeders = &mut torrent.num_seeders;
-    let num_leechers = &mut torrent.num_leechers;
-
-    torrent.peers.retain(|_, peer| {
-        let keep = peer.valid_until.0 > now;
-
-        if !keep {
-            match peer.status {
-                PeerStatus::Seeding => {
-                    *num_seeders -= 1;
-                }
-                PeerStatus::Leeching => {
-                    *num_leechers -= 1;
-                }
-                _ => (),
-            };
-        }
-
-        keep
-    });
-
-    !torrent.peers.is_empty()
 }
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {
