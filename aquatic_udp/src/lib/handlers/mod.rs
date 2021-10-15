@@ -88,43 +88,31 @@ pub fn run_request_worker(
         // Check announce and scrape requests for valid connections
 
         announce_requests.retain(|(request, src)| {
-            let connection_key = ConnectionKey {
-                connection_id: request.connection_id,
-                socket_addr: *src,
-            };
+            let connection_valid =
+                connections.contains_key(&ConnectionKey::new(request.connection_id, *src));
 
-            if connections.contains_key(&connection_key) {
-                true
-            } else {
-                let response = ErrorResponse {
-                    transaction_id: request.transaction_id,
-                    message: "Connection invalid or expired".to_string(),
-                };
-
-                responses.push((response.into(), *src));
-
-                return false;
+            if !connection_valid {
+                responses.push((
+                    create_invalid_connection_response(request.transaction_id),
+                    *src,
+                ));
             }
+
+            connection_valid
         });
 
         scrape_requests.retain(|(request, src)| {
-            let connection_key = ConnectionKey {
-                connection_id: request.connection_id,
-                socket_addr: *src,
-            };
+            let connection_valid =
+                connections.contains_key(&ConnectionKey::new(request.connection_id, *src));
 
-            if connections.contains_key(&connection_key) {
-                true
-            } else {
-                let response = ErrorResponse {
-                    transaction_id: request.transaction_id,
-                    message: "Connection invalid or expired".to_string(),
-                };
-
-                responses.push((response.into(), *src));
-
-                false
+            if !connection_valid {
+                responses.push((
+                    create_invalid_connection_response(request.transaction_id),
+                    *src,
+                ));
             }
+
+            connection_valid
         });
 
         ::std::mem::drop(connections);
@@ -150,4 +138,11 @@ pub fn run_request_worker(
             }
         }
     }
+}
+
+fn create_invalid_connection_response(transaction_id: TransactionId) -> Response {
+    Response::Error(ErrorResponse {
+        transaction_id,
+        message: "Connection invalid or expired".to_string(),
+    })
 }

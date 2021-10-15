@@ -36,6 +36,15 @@ pub struct ConnectionKey {
     pub socket_addr: SocketAddr,
 }
 
+impl ConnectionKey {
+    pub fn new(connection_id: ConnectionId, socket_addr: SocketAddr) -> Self {
+        Self {
+            connection_id,
+            socket_addr,
+        }
+    }
+}
+
 pub type ConnectionMap = HashMap<ConnectionKey, ValidUntil>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
