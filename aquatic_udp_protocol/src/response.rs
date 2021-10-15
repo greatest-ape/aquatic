@@ -225,7 +225,9 @@ impl Response {
 
                 Ok((ErrorResponse {
                     transaction_id: TransactionId(transaction_id),
-                    message: String::from_utf8_lossy(&inner[position..]).into_owned().into(),
+                    message: String::from_utf8_lossy(&inner[position..])
+                        .into_owned()
+                        .into(),
                 })
                 .into())
             }
