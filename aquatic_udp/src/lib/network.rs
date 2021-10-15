@@ -152,9 +152,9 @@ fn read_requests(
 
                         if let Some(transaction_id) = err.transaction_id {
                             let opt_message = if err.error.is_some() {
-                                Some("Parse error".to_string())
+                                Some("Parse error".into())
                             } else if let Some(message) = err.message {
-                                Some(message)
+                                Some(message.into())
                             } else {
                                 None
                             };

@@ -52,7 +52,7 @@ pub fn handle_announce_requests(
         } else {
             Response::Error(ErrorResponse {
                 transaction_id: request.transaction_id,
-                message: "Info hash not allowed".to_string(),
+                message: "Info hash not allowed".into(),
             })
         };
 

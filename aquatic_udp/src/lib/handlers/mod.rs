@@ -143,6 +143,6 @@ pub fn run_request_worker(
 fn create_invalid_connection_response(transaction_id: TransactionId) -> Response {
     Response::Error(ErrorResponse {
         transaction_id,
-        message: "Connection invalid or expired".to_string(),
+        message: "Connection invalid or expired".into(),
     })
 }
