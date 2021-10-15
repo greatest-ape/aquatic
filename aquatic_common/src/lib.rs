@@ -60,11 +60,13 @@ impl AccessList {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
-        self.0.clear();
+        let mut new_list = HashSet::new();
 
         for line in reader.lines() {
-            self.0.insert(Self::parse_line_to_info_hash(line?)?);
+            new_list.insert(Self::parse_line_to_info_hash(line?)?);
         }
+
+        self.0 = new_list;
 
         Ok(())
     }
