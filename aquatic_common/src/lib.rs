@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub enum AccessListType {
     Allow,
     Deny,
-    Ignore
+    Ignore,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -47,7 +47,11 @@ impl AccessList {
         if count == 20 {
             Ok(bytes)
         } else {
-            Err(anyhow::anyhow!("Info hash length only {} bytes: {}", count, line))
+            Err(anyhow::anyhow!(
+                "Info hash length only {} bytes: {}",
+                count,
+                line
+            ))
         }
     }
 
@@ -61,21 +65,14 @@ impl AccessList {
             self.0.insert(Self::parse_line_to_info_hash(line?)?);
         }
 
-
         Ok(())
     }
 
     pub fn allows(&self, list_type: AccessListType, info_hash_bytes: &[u8; 20]) -> bool {
         match list_type {
-            AccessListType::Allow => {
-                self.0.contains(info_hash_bytes)
-            }
-            AccessListType::Deny => {
-                !self.0.contains(info_hash_bytes)
-            }
-            AccessListType::Ignore => {
-                true
-            }
+            AccessListType::Allow => self.0.contains(info_hash_bytes),
+            AccessListType::Deny => !self.0.contains(info_hash_bytes),
+            AccessListType::Ignore => true,
         }
     }
 }

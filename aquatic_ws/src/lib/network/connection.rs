@@ -145,7 +145,7 @@ impl HandshakeMachine {
                 );
 
                 (Some(Either::Right(Self::TlsStream(stream))), false)
-            },
+            }
             Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
                 (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
             }
@@ -170,10 +170,7 @@ impl HandshakeMachine {
                     peer_addr
                 );
 
-                let established_ws = EstablishedWs {
-                    ws,
-                    peer_addr,
-                };
+                let established_ws = EstablishedWs { ws, peer_addr };
 
                 (Some(Either::Left(established_ws)), false)
             }

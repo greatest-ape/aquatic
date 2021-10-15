@@ -19,30 +19,38 @@ pub fn clean_connections_and_torrents(config: &Config, state: &State) {
     }
 
     match config.access_list.list_type {
-        access_list_type@(AccessListType::Allow | AccessListType::Deny) => {
+        access_list_type @ (AccessListType::Allow | AccessListType::Deny) => {
             let mut access_list = state.access_list.lock();
 
-            access_list.update_from_path(&config.access_list.path);
+            if let Err(err) = access_list.update_from_path(&config.access_list.path) {
+                ::log::error!("Update access list from path: {:?}", err);
+            }
 
             let mut torrents = state.torrents.lock();
 
             torrents.ipv4.retain(|info_hash, torrent| {
-                access_list.allows(access_list_type, &info_hash.0) && clean_torrent_and_peers(now, torrent)
+                access_list.allows(access_list_type, &info_hash.0)
+                    && clean_torrent_and_peers(now, torrent)
             });
             torrents.ipv4.shrink_to_fit();
 
             torrents.ipv6.retain(|info_hash, torrent| {
-                access_list.allows(access_list_type, &info_hash.0) && clean_torrent_and_peers(now, torrent)
+                access_list.allows(access_list_type, &info_hash.0)
+                    && clean_torrent_and_peers(now, torrent)
             });
             torrents.ipv6.shrink_to_fit();
-        },
+        }
         AccessListType::Ignore => {
             let mut torrents = state.torrents.lock();
 
-            torrents.ipv4.retain(|_, torrent| clean_torrent_and_peers(now, torrent));
+            torrents
+                .ipv4
+                .retain(|_, torrent| clean_torrent_and_peers(now, torrent));
             torrents.ipv4.shrink_to_fit();
 
-            torrents.ipv6.retain(|_, torrent| clean_torrent_and_peers(now, torrent));
+            torrents
+                .ipv6
+                .retain(|_, torrent| clean_torrent_and_peers(now, torrent));
             torrents.ipv6.shrink_to_fit();
         }
     }
