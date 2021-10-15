@@ -3,13 +3,14 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Instant;
 
-use aquatic_common::access_list::AccessListMode;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 
 pub use aquatic_common::{access_list::AccessList, ValidUntil};
 pub use aquatic_udp_protocol::*;
+
+use crate::config::Config;
 
 pub const MAX_PACKET_SIZE: usize = 4096;
 
@@ -108,35 +109,25 @@ pub type TorrentMap<I> = HashMap<InfoHash, TorrentData<I>>;
 pub struct TorrentMaps {
     pub ipv4: TorrentMap<Ipv4Addr>,
     pub ipv6: TorrentMap<Ipv6Addr>,
+    pub access_list: AccessList,
 }
 
 impl TorrentMaps {
-    /// Remove inactive torrents
-    pub fn clean(&mut self, now: Instant) {
-        self.ipv4
-            .retain(|_, torrent| Self::clean_torrent_and_peers(now, torrent));
-        self.ipv4.shrink_to_fit();
-
-        self.ipv6
-            .retain(|_, torrent| Self::clean_torrent_and_peers(now, torrent));
-        self.ipv6.shrink_to_fit();
-    }
-
     /// Remove disallowed and inactive torrents
-    pub fn clean_with_access_list(
-        &mut self,
-        access_list_type: AccessListMode,
-        access_list: &AccessList,
-        now: Instant,
-    ) {
+    pub fn clean(&mut self, config: &Config) {
+        let now = Instant::now();
+
+        let access_list = &self.access_list;
+        let access_list_mode = config.access_list.mode;
+
         self.ipv4.retain(|info_hash, torrent| {
-            access_list.allows(access_list_type, &info_hash.0)
+            access_list.allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv4.shrink_to_fit();
 
         self.ipv6.retain(|info_hash, torrent| {
-            access_list.allows(access_list_type, &info_hash.0)
+            access_list.allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv6.shrink_to_fit();
@@ -183,7 +174,6 @@ pub struct Statistics {
 pub struct State {
     pub connections: Arc<Mutex<ConnectionMap>>,
     pub torrents: Arc<Mutex<TorrentMaps>>,
-    pub access_list: Arc<Mutex<AccessList>>,
     pub statistics: Arc<Statistics>,
 }
 
@@ -192,7 +182,6 @@ impl Default for State {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
             torrents: Arc::new(Mutex::new(TorrentMaps::default())),
-            access_list: Arc::new(Mutex::new(AccessList::default())),
             statistics: Arc::new(Statistics::default()),
         }
     }

@@ -9,9 +9,7 @@ use rand::{
     Rng, SeedableRng,
 };
 
-use aquatic_common::{
-    access_list::AccessListMode, convert_ipv4_mapped_ipv6, extract_response_peers,
-};
+use aquatic_common::{convert_ipv4_mapped_ipv6, extract_response_peers};
 use aquatic_udp_protocol::*;
 
 use crate::common::*;
@@ -81,7 +79,7 @@ pub fn run_request_worker(
             &mut responses,
         );
 
-        // Check announce and scrape requests for valid connection
+        // Check announce and scrape requests for valid connections
 
         announce_requests.retain(|(request, src)| {
             let connection_key = ConnectionKey {
@@ -125,31 +123,7 @@ pub fn run_request_worker(
 
         ::std::mem::drop(connections);
 
-        // Check announce requests for allowed info hashes
-
-        match config.access_list.mode {
-            access_list_type @ (AccessListMode::Require | AccessListMode::Forbid) => {
-                let access_list: MutexGuard<AccessList> = state.access_list.lock();
-
-                announce_requests.retain(|(request, src)| {
-                    if !access_list.allows(access_list_type, &request.info_hash.0) {
-                        let response = ErrorResponse {
-                            transaction_id: request.transaction_id,
-                            message: "Info hash not allowed".to_string(),
-                        };
-
-                        responses.push((response.into(), *src));
-
-                        return false;
-                    }
-
-                    true
-                });
-            }
-            AccessListMode::Ignore => {}
-        };
-
-        // Handle announce and scrape requests
+        // Generate responses for announce and scrape requests
 
         if !(announce_requests.is_empty() && scrape_requests.is_empty()) {
             let mut torrents = state.torrents.lock();
@@ -210,30 +184,42 @@ pub fn handle_announce_requests(
     responses: &mut Vec<(Response, SocketAddr)>,
 ) {
     let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+    let access_list_mode = config.access_list.mode;
 
     responses.extend(requests.map(|(request, src)| {
-        let peer_ip = convert_ipv4_mapped_ipv6(src.ip());
+        let info_hash_allowed = torrents.access_list.allows(access_list_mode, &request.info_hash.0);
 
-        let response = match peer_ip {
-            IpAddr::V4(ip) => handle_announce_request(
-                config,
-                rng,
-                &mut torrents.ipv4,
-                request,
-                ip,
-                peer_valid_until,
-            ),
-            IpAddr::V6(ip) => handle_announce_request(
-                config,
-                rng,
-                &mut torrents.ipv6,
-                request,
-                ip,
-                peer_valid_until,
-            ),
+        let response = if info_hash_allowed {
+            let peer_ip = convert_ipv4_mapped_ipv6(src.ip());
+
+            let response = match peer_ip {
+                IpAddr::V4(ip) => handle_announce_request(
+                    config,
+                    rng,
+                    &mut torrents.ipv4,
+                    request,
+                    ip,
+                    peer_valid_until,
+                ),
+                IpAddr::V6(ip) => handle_announce_request(
+                    config,
+                    rng,
+                    &mut torrents.ipv6,
+                    request,
+                    ip,
+                    peer_valid_until,
+                ),
+            };
+
+            Response::Announce(response)
+        } else {
+            Response::Error(ErrorResponse {
+                transaction_id: request.transaction_id,
+                message: "Info hash not allowed".to_string(),
+            })
         };
 
-        (response.into(), src)
+        (response, src)
     }));
 }
 
