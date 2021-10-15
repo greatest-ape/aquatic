@@ -1,3 +1,15 @@
+//! WebTorrent protocol implementation
+//!
+//! Typical announce workflow:
+//! - Peer A sends announce request with info hash and offers
+//! - Tracker sends on offers to other peers announcing with that info hash and
+//!   sends back announce response to peer A
+//! - Tracker receives answers to those offers from other peers and send them
+//!   on to peer A
+//!
+//! Typical scrape workflow
+//! - Peer sends scrape request and receives scrape response
+
 pub mod common;
 pub mod request;
 pub mod response;

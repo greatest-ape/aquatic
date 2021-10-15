@@ -7,6 +7,7 @@ pub mod scrape;
 pub use announce::*;
 pub use scrape::*;
 
+/// Message received by tracker
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum InMessage {

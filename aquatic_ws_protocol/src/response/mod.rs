@@ -12,14 +12,15 @@ pub use error::*;
 pub use offer::*;
 pub use scrape::*;
 
+/// Message sent by tracker
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OutMessage {
-    Offer(offer::MiddlemanOfferToPeer),
-    Answer(answer::MiddlemanAnswerToPeer),
-    AnnounceResponse(announce::AnnounceResponse),
-    ScrapeResponse(scrape::ScrapeResponse),
-    ErrorResponse(error::ErrorResponse),
+    Offer(MiddlemanOfferToPeer),
+    Answer(MiddlemanAnswerToPeer),
+    AnnounceResponse(AnnounceResponse),
+    ScrapeResponse(ScrapeResponse),
+    ErrorResponse(ErrorResponse),
 }
 
 impl OutMessage {
