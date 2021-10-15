@@ -4,10 +4,8 @@
   * test functionality
   * implement for aquatic_ws
 
-* Don't unwrap peer_address
 * Consider turning on safety and override flags in mimalloc (mostly for
   simd-json)
-* Use Cow for error response messages?
 
 ## General
 * extract response peers: extract "one extra" to compensate for removal,
@@ -44,12 +42,6 @@
   scrape requests I suppose.
 
 ## aquatic_ws
-* panic when unwrapping peer_address after peer closes connection:
-
-```
-thread 'socket-01' panicked at 'called `Result::unwrap()` on an `Err` value: Os { code: 22, kind: InvalidInput, message: "Invalid argument" }', aquatic_ws/src/lib/network/connection.rs:28:59
-```
-
 * websocket_max_frame_size should be at least something like 64 * 1024,
   maybe put it and message size at 128k just to be sure
 * test transfer, specifically ipv6/ipv4 mapping
