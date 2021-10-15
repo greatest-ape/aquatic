@@ -26,9 +26,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     match config.access_list.mode {
         AccessListMode::Require | AccessListMode::Forbid => {
-            state.access_list.lock().update_from_path(&config.access_list.path)?;
-        },
-        AccessListMode::Ignore => {},
+            state
+                .access_list
+                .lock()
+                .update_from_path(&config.access_list.path)?;
+        }
+        AccessListMode::Ignore => {}
     }
 
     let num_bound_sockets = start_workers(config.clone(), state.clone())?;
