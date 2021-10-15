@@ -233,9 +233,7 @@ pub fn handle_connection_read_event(
                         peer_addr: established.peer_addr,
                     };
 
-                    let response = FailureResponse {
-                        failure_reason: "invalid request".to_string(),
-                    };
+                    let response = FailureResponse::new("Invalid request");
 
                     local_responses.push((meta, Response::Failure(response)));
 
