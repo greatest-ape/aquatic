@@ -36,22 +36,9 @@ pub struct AccessList(HashSet<[u8; 20]>);
 
 impl AccessList {
     fn parse_info_hash(line: String) -> anyhow::Result<[u8; 20]> {
-        if line.len() != 20 {
-            return Err(anyhow::anyhow!("Info hash is not 20 bytes long: {}", line));
-        }
-
         let mut bytes = [0u8; 20];
 
-        for (byte, c) in bytes.iter_mut().zip(line.chars()) {
-            if c as u32 > 255 {
-                return Err(anyhow::anyhow!(
-                    "Info hash character is not ASCII: {:#?}",
-                    c
-                ));
-            }
-
-            *byte = c as u8;
-        }
+        hex::decode_to_slice(line, &mut bytes)?;
 
         Ok(bytes)
     }
@@ -168,5 +155,18 @@ pub fn convert_ipv4_mapped_ipv6(ip_address: IpAddr) -> IpAddr {
         }
     } else {
         ip_address
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_access_list_parse_info_hash(){
+        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee".to_owned()).is_ok());
+        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".to_owned()).is_err());
+        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".to_owned()).is_err());
+        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".to_owned()).is_err());
     }
 }

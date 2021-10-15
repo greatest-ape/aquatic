@@ -6,7 +6,6 @@
   * rename Allow to Require?
   * serde-rename AccessListTypes to lowercase
   * serde-rename list_type to type?
-  * add tests for info hash parsing
   * implement for aquatic_http and aquatic_ws
 
 * Don't unwrap peer_address

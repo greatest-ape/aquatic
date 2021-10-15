@@ -76,6 +76,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "hashbrown 0.11.2",
+ "hex",
  "indexmap",
  "rand",
  "serde",
