@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AccessListMode {
-    Allow,
-    Deny,
+    Require,
+    Forbid,
     Ignore,
 }
 
@@ -57,8 +57,8 @@ impl AccessList {
 
     pub fn allows(&self, list_type: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
         match list_type {
-            AccessListMode::Allow => self.0.contains(info_hash_bytes),
-            AccessListMode::Deny => !self.0.contains(info_hash_bytes),
+            AccessListMode::Require => self.0.contains(info_hash_bytes),
+            AccessListMode::Forbid => !self.0.contains(info_hash_bytes),
             AccessListMode::Ignore => true,
         }
     }

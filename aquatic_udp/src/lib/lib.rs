@@ -25,7 +25,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::default();
 
     match config.access_list.mode {
-        AccessListMode::Allow | AccessListMode::Deny => {
+        AccessListMode::Require | AccessListMode::Forbid => {
             state.access_list.lock().update_from_path(&config.access_list.path)?;
         },
         AccessListMode::Ignore => {},

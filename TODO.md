@@ -2,7 +2,6 @@
 
 * access lists:
   * test functionality
-  * rename Allow to Require?
   * implement for aquatic_http and aquatic_ws
 
 * Don't unwrap peer_address

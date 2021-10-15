@@ -19,7 +19,7 @@ pub fn clean_connections_and_torrents(config: &Config, state: &State) {
     }
 
     match config.access_list.mode {
-        AccessListMode::Allow | AccessListMode::Deny => {
+        AccessListMode::Require | AccessListMode::Forbid => {
             let mut access_list = state.access_list.lock();
 
             if let Err(err) = access_list.update_from_path(&config.access_list.path) {

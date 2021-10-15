@@ -126,7 +126,7 @@ pub fn run_request_worker(
         // Check announce requests for allowed info hashes
 
         match config.access_list.mode {
-            access_list_type @ (AccessListMode::Allow | AccessListMode::Deny) => {
+            access_list_type @ (AccessListMode::Require | AccessListMode::Forbid) => {
                 let access_list: MutexGuard<AccessList> = state.access_list.lock();
 
                 announce_requests.retain(|(request, src)| {
