@@ -2,7 +2,9 @@
 
 * access lists:
   * test functionality
-  * implement for aquatic_ws
+    * aquatic_udp
+    * aquatic_http
+    * aquatic_ws, including sending back new error responses
 
 * Consider turning on safety and override flags in mimalloc (mostly for
   simd-json)
