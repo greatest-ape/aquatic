@@ -31,8 +31,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
             if sockets == config.socket_workers {
                 PrivDrop::default()
-                    .chroot(config.privileges.chroot_path)
-                    .user(config.privileges.user)
+                    .chroot(config.privileges.chroot_path.clone())
+                    .user(config.privileges.user.clone())
                     .apply()?;
 
                 break;
@@ -45,7 +45,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_connections_and_torrents(&state);
+        tasks::clean_connections_and_torrents(&config, &state);
     }
 }
 

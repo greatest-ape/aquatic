@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 
-pub use aquatic_common::ValidUntil;
+pub use aquatic_common::{AccessList, ValidUntil};
 pub use aquatic_udp_protocol::*;
 
 pub const MAX_PACKET_SIZE: usize = 4096;
@@ -121,6 +121,7 @@ pub struct Statistics {
 pub struct State {
     pub connections: Arc<Mutex<ConnectionMap>>,
     pub torrents: Arc<Mutex<TorrentMaps>>,
+    pub access_list: Arc<Mutex<AccessList>>,
     pub statistics: Arc<Statistics>,
 }
 
@@ -129,6 +130,7 @@ impl Default for State {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
             torrents: Arc::new(Mutex::new(TorrentMaps::default())),
+            access_list: Arc::new(Mutex::new(AccessList::default())),
             statistics: Arc::new(Statistics::default()),
         }
     }

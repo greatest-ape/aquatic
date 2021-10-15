@@ -11,5 +11,8 @@ repository = "https://github.com/greatest-ape/aquatic"
 name = "aquatic_common"
 
 [dependencies]
+anyhow = "1"
+hashbrown = "0.11.2"
 indexmap = "1"
 rand = { version = "0.8", features = ["small_rng"] }
+serde = { version = "1", features = ["derive"] }

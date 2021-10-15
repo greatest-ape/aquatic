@@ -1,8 +1,74 @@
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use hashbrown::HashSet;
 use indexmap::IndexMap;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum AccessListType {
+    Allow,
+    Deny,
+    Ignore
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AccessListConfig {
+    pub path: PathBuf,
+    pub list_type: AccessListType,
+}
+
+impl Default for AccessListConfig {
+    fn default() -> Self {
+        Self {
+            path: "".into(),
+            list_type: AccessListType::Ignore,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct AccessList(HashSet<[u8; 20]>);
+
+impl AccessList {
+    fn parse_line_to_info_hash(line: String) -> anyhow::Result<[u8; 20]> {
+        let mut count = 0usize;
+        let mut bytes = [0u8; 20];
+
+        for (byte, c) in bytes.iter_mut().zip(line.chars()) {
+            *byte = c as u8;
+            count += 1;
+        }
+
+        if count == 20 {
+            Ok(bytes)
+        } else {
+            Err(anyhow::anyhow!("Info hash length only {} bytes: {}", count, line))
+        }
+    }
+
+    pub fn update_from_path(&mut self, path: &PathBuf) -> anyhow::Result<()> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+
+        self.0.clear();
+
+        for line in reader.lines() {
+            self.0.insert(Self::parse_line_to_info_hash(line?)?);
+        }
+
+
+        Ok(())
+    }
+
+    pub fn contains(&self, info_hash_bytes: &[u8; 20]) -> bool {
+        self.0.contains(info_hash_bytes)
+    }
+}
 
 /// Peer or connection valid until this instant
 ///

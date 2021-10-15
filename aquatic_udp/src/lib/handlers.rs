@@ -79,6 +79,8 @@ pub fn run_request_worker(
             &mut responses,
         );
 
+        // Check announce and scrape requests for valid connection
+
         announce_requests.retain(|(request, src)| {
             let connection_key = ConnectionKey {
                 connection_id: request.connection_id,
@@ -95,7 +97,7 @@ pub fn run_request_worker(
 
                 responses.push((response.into(), *src));
 
-                false
+                return false;
             }
         });
 
@@ -120,6 +122,46 @@ pub fn run_request_worker(
         });
 
         ::std::mem::drop(connections);
+
+        // Check announce requests for allowed info hash
+
+        let access_list: MutexGuard<AccessList> = state.access_list.lock();
+
+        announce_requests.retain(|(request, src)| {
+            match config.access_list.list_type {
+                aquatic_common::AccessListType::Allow => {
+                    if !access_list.contains(&request.info_hash.0) {
+                        let response = ErrorResponse {
+                            transaction_id: request.transaction_id,
+                            message: "Forbidden info hash".to_string(),
+                        };
+
+                        responses.push((response.into(), *src));
+
+                        return false;
+                    }
+                },
+                aquatic_common::AccessListType::Deny => {
+                    if access_list.contains(&request.info_hash.0) {
+                        let response = ErrorResponse {
+                            transaction_id: request.transaction_id,
+                            message: "Forbidden info hash".to_string(),
+                        };
+
+                        responses.push((response.into(), *src));
+
+                        return false;
+                    }
+                },
+                aquatic_common::AccessListType::Ignore => {},
+            }
+
+            true
+        });
+
+        ::std::mem::drop(access_list);
+
+        // Handle announce and scrape requests
 
         if !(announce_requests.is_empty() && scrape_requests.is_empty()) {
             let mut torrents = state.torrents.lock();

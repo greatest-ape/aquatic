@@ -3,10 +3,12 @@ use std::time::Instant;
 
 use histogram::Histogram;
 
+use aquatic_common::AccessListType;
+
 use crate::common::*;
 use crate::config::Config;
 
-pub fn clean_connections_and_torrents(state: &State) {
+pub fn clean_connections_and_torrents(config: &Config, state: &State) {
     let now = Instant::now();
 
     {
@@ -16,14 +18,47 @@ pub fn clean_connections_and_torrents(state: &State) {
         connections.shrink_to_fit();
     }
 
-    let mut torrents = state.torrents.lock();
+    match config.access_list.list_type {
+        AccessListType::Allow => {
+            let mut access_list = state.access_list.lock();
 
-    clean_torrent_map(&mut torrents.ipv4, now);
-    clean_torrent_map(&mut torrents.ipv6, now);
+            access_list.update_from_path(&config.access_list.path);
+
+            let mut torrents = state.torrents.lock();
+
+            torrents.ipv4.retain(|info_hash, _| access_list.contains(&info_hash.0));
+            clean_torrent_map(&mut torrents.ipv4, now);
+
+            torrents.ipv6.retain(|info_hash, _| access_list.contains(&info_hash.0));
+            clean_torrent_map(&mut torrents.ipv6, now);
+        },
+        AccessListType::Deny => {
+            let mut access_list = state.access_list.lock();
+
+            access_list.update_from_path(&config.access_list.path);
+
+            let mut torrents = state.torrents.lock();
+
+            torrents.ipv4.retain(|info_hash, _| !access_list.contains(&info_hash.0));
+            clean_torrent_map(&mut torrents.ipv4, now);
+
+            torrents.ipv6.retain(|info_hash, _| !access_list.contains(&info_hash.0));
+            clean_torrent_map(&mut torrents.ipv6, now);
+        },
+        AccessListType::Ignore => {
+            let mut torrents = state.torrents.lock();
+
+            clean_torrent_map(&mut torrents.ipv4, now);
+            clean_torrent_map(&mut torrents.ipv6, now);
+        }
+    }
 }
 
 #[inline]
-fn clean_torrent_map<I: Ip>(torrents: &mut TorrentMap<I>, now: Instant) {
+fn clean_torrent_map<I: Ip>(
+    torrents: &mut TorrentMap<I>,
+    now: Instant
+) {
     torrents.retain(|_, torrent| {
         let num_seeders = &mut torrent.num_seeders;
         let num_leechers = &mut torrent.num_leechers;
