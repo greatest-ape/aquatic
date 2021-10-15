@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use aquatic_common::access_list::AccessListMode;
 use histogram::Histogram;
 
