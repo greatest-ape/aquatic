@@ -12,6 +12,7 @@ pub struct Statistics {
     pub responses_offer: AtomicUsize,
     pub responses_answer: AtomicUsize,
     pub responses_scrape: AtomicUsize,
+    pub responses_error: AtomicUsize,
 }
 
 #[derive(Clone)]

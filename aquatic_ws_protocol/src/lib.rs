@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use anyhow::Context;
 use hashbrown::HashMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -222,6 +224,23 @@ pub struct ScrapeResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ErrorResponseAction {
+    Announce,
+    Scrape,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ErrorResponse {
+    pub failure_reason: Cow<'static, str>,
+    /// Action of original request
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<ErrorResponseAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub info_hash: Option<InfoHash>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum InMessage {
     AnnounceRequest(AnnounceRequest),
@@ -255,6 +274,7 @@ pub enum OutMessage {
     Answer(MiddlemanAnswerToPeer),
     AnnounceResponse(AnnounceResponse),
     ScrapeResponse(ScrapeResponse),
+    ErrorResponse(ErrorResponse),
 }
 
 impl OutMessage {
