@@ -19,72 +19,60 @@ pub fn clean_connections_and_torrents(config: &Config, state: &State) {
     }
 
     match config.access_list.list_type {
-        AccessListType::Allow => {
+        access_list_type@(AccessListType::Allow | AccessListType::Deny) => {
             let mut access_list = state.access_list.lock();
 
             access_list.update_from_path(&config.access_list.path);
 
             let mut torrents = state.torrents.lock();
 
-            torrents.ipv4.retain(|info_hash, _| access_list.contains(&info_hash.0));
-            clean_torrent_map(&mut torrents.ipv4, now);
+            torrents.ipv4.retain(|info_hash, torrent| {
+                access_list.allows(access_list_type, &info_hash.0) && clean_torrent_and_peers(now, torrent)
+            });
+            torrents.ipv4.shrink_to_fit();
 
-            torrents.ipv6.retain(|info_hash, _| access_list.contains(&info_hash.0));
-            clean_torrent_map(&mut torrents.ipv6, now);
-        },
-        AccessListType::Deny => {
-            let mut access_list = state.access_list.lock();
-
-            access_list.update_from_path(&config.access_list.path);
-
-            let mut torrents = state.torrents.lock();
-
-            torrents.ipv4.retain(|info_hash, _| !access_list.contains(&info_hash.0));
-            clean_torrent_map(&mut torrents.ipv4, now);
-
-            torrents.ipv6.retain(|info_hash, _| !access_list.contains(&info_hash.0));
-            clean_torrent_map(&mut torrents.ipv6, now);
+            torrents.ipv6.retain(|info_hash, torrent| {
+                access_list.allows(access_list_type, &info_hash.0) && clean_torrent_and_peers(now, torrent)
+            });
+            torrents.ipv6.shrink_to_fit();
         },
         AccessListType::Ignore => {
             let mut torrents = state.torrents.lock();
 
-            clean_torrent_map(&mut torrents.ipv4, now);
-            clean_torrent_map(&mut torrents.ipv6, now);
+            torrents.ipv4.retain(|_, torrent| clean_torrent_and_peers(now, torrent));
+            torrents.ipv4.shrink_to_fit();
+
+            torrents.ipv6.retain(|_, torrent| clean_torrent_and_peers(now, torrent));
+            torrents.ipv6.shrink_to_fit();
         }
     }
 }
 
+/// Returns true if torrent is to be kept
 #[inline]
-fn clean_torrent_map<I: Ip>(
-    torrents: &mut TorrentMap<I>,
-    now: Instant
-) {
-    torrents.retain(|_, torrent| {
-        let num_seeders = &mut torrent.num_seeders;
-        let num_leechers = &mut torrent.num_leechers;
+fn clean_torrent_and_peers<I: Ip>(now: Instant, torrent: &mut TorrentData<I>) -> bool {
+    let num_seeders = &mut torrent.num_seeders;
+    let num_leechers = &mut torrent.num_leechers;
 
-        torrent.peers.retain(|_, peer| {
-            let keep = peer.valid_until.0 > now;
+    torrent.peers.retain(|_, peer| {
+        let keep = peer.valid_until.0 > now;
 
-            if !keep {
-                match peer.status {
-                    PeerStatus::Seeding => {
-                        *num_seeders -= 1;
-                    }
-                    PeerStatus::Leeching => {
-                        *num_leechers -= 1;
-                    }
-                    _ => (),
-                };
-            }
+        if !keep {
+            match peer.status {
+                PeerStatus::Seeding => {
+                    *num_seeders -= 1;
+                }
+                PeerStatus::Leeching => {
+                    *num_leechers -= 1;
+                }
+                _ => (),
+            };
+        }
 
-            keep
-        });
-
-        !torrent.peers.is_empty()
+        keep
     });
 
-    torrents.shrink_to_fit();
+    !torrent.peers.is_empty()
 }
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {

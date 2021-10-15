@@ -9,7 +9,7 @@ use rand::{
     Rng, SeedableRng,
 };
 
-use aquatic_common::{convert_ipv4_mapped_ipv6, extract_response_peers};
+use aquatic_common::{AccessListType, convert_ipv4_mapped_ipv6, extract_response_peers};
 use aquatic_udp_protocol::*;
 
 use crate::common::*;
@@ -123,43 +123,29 @@ pub fn run_request_worker(
 
         ::std::mem::drop(connections);
 
-        // Check announce requests for allowed info hash
+        // Check announce requests for allowed info hashes
 
-        let access_list: MutexGuard<AccessList> = state.access_list.lock();
+        match config.access_list.list_type {
+            access_list_type@(AccessListType::Allow | AccessListType::Deny) => {
+                let access_list: MutexGuard<AccessList> = state.access_list.lock();
 
-        announce_requests.retain(|(request, src)| {
-            match config.access_list.list_type {
-                aquatic_common::AccessListType::Allow => {
-                    if !access_list.contains(&request.info_hash.0) {
+                announce_requests.retain(|(request, src)| {
+                    if !access_list.allows(access_list_type, &request.info_hash.0) {
                         let response = ErrorResponse {
                             transaction_id: request.transaction_id,
-                            message: "Forbidden info hash".to_string(),
+                            message: "Info hash not allowed".to_string(),
                         };
 
                         responses.push((response.into(), *src));
 
                         return false;
                     }
-                },
-                aquatic_common::AccessListType::Deny => {
-                    if access_list.contains(&request.info_hash.0) {
-                        let response = ErrorResponse {
-                            transaction_id: request.transaction_id,
-                            message: "Forbidden info hash".to_string(),
-                        };
 
-                        responses.push((response.into(), *src));
-
-                        return false;
-                    }
-                },
-                aquatic_common::AccessListType::Ignore => {},
-            }
-
-            true
-        });
-
-        ::std::mem::drop(access_list);
+                    true
+                });
+            },
+            AccessListType::Ignore => {},
+        };
 
         // Handle announce and scrape requests
 

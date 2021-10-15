@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum AccessListType {
     Allow,
     Deny,
@@ -65,8 +65,18 @@ impl AccessList {
         Ok(())
     }
 
-    pub fn contains(&self, info_hash_bytes: &[u8; 20]) -> bool {
-        self.0.contains(info_hash_bytes)
+    pub fn allows(&self, list_type: AccessListType, info_hash_bytes: &[u8; 20]) -> bool {
+        match list_type {
+            AccessListType::Allow => {
+                self.0.contains(info_hash_bytes)
+            }
+            AccessListType::Deny => {
+                !self.0.contains(info_hash_bytes)
+            }
+            AccessListType::Ignore => {
+                true
+            }
+        }
     }
 }
 
