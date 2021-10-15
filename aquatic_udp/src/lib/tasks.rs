@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use histogram::Histogram;
 
-use aquatic_common::AccessListType;
+use aquatic_common::access_list::AccessListType;
 
 use crate::common::*;
 use crate::config::Config;

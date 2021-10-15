@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use aquatic_common::AccessListConfig;
+use aquatic_common::access_list::AccessListConfig;
 use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;

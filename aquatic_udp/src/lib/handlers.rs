@@ -9,7 +9,7 @@ use rand::{
     Rng, SeedableRng,
 };
 
-use aquatic_common::{convert_ipv4_mapped_ipv6, extract_response_peers, AccessListType};
+use aquatic_common::{convert_ipv4_mapped_ipv6, extract_response_peers, access_list::AccessListType};
 use aquatic_udp_protocol::*;
 
 use crate::common::*;

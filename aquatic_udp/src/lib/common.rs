@@ -3,12 +3,12 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Instant;
 
-use aquatic_common::AccessListType;
+use aquatic_common::access_list::AccessListType;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 
-pub use aquatic_common::{AccessList, ValidUntil};
+pub use aquatic_common::{access_list::AccessList, ValidUntil};
 pub use aquatic_udp_protocol::*;
 
 pub const MAX_PACKET_SIZE: usize = 4096;

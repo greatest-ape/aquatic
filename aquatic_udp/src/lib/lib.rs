@@ -6,7 +6,7 @@ use std::thread::Builder;
 use std::time::Duration;
 
 use anyhow::Context;
-use aquatic_common::AccessListType;
+use aquatic_common::access_list::AccessListType;
 use crossbeam_channel::unbounded;
 use privdrop::PrivDrop;
 
