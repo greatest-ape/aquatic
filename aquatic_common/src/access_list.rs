@@ -8,14 +8,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AccessListMode {
+    /// Only serve torrents with info hash present in file
     Require,
+    /// Do not serve torrents if info hash present in file
     Forbid,
+    /// Turn off access list functionality
     Ignore,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AccessListConfig {
     pub mode: AccessListMode,
+    /// Path to access list file consisting of newline-separated hex-encoded info hashes.
+    ///
+    /// If using chroot mode, path must be relative to new root.
     pub path: PathBuf,
 }
 
@@ -69,10 +75,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_info_hash(){
-        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee".to_owned()).is_ok());
-        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".to_owned()).is_err());
-        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".to_owned()).is_err());
-        assert!(AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".to_owned()).is_err());
+    fn test_parse_info_hash() {
+        assert!(
+            AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee".to_owned())
+                .is_ok()
+        );
+        assert!(AccessList::parse_info_hash(
+            "aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".to_owned()
+        )
+        .is_err());
+        assert!(
+            AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".to_owned())
+                .is_err()
+        );
+        assert!(
+            AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".to_owned())
+                .is_err()
+        );
     }
 }
