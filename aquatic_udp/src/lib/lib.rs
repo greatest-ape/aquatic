@@ -26,6 +26,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let num_bound_sockets = start_workers(config.clone(), state.clone())?;
 
     if config.privileges.drop_privileges {
+        let mut counter = 0usize;
+
         loop {
             let sockets = num_bound_sockets.load(Ordering::SeqCst);
 
@@ -39,6 +41,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             }
 
             ::std::thread::sleep(Duration::from_millis(10));
+
+            counter += 1;
+
+            if counter == 500 {
+                panic!("Sockets didn't bind in time for privilege drop.");
+            }
         }
     }
 
