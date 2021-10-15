@@ -76,21 +76,11 @@ mod tests {
 
     #[test]
     fn test_parse_info_hash() {
-        assert!(
-            AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee".to_owned())
-                .is_ok()
-        );
-        assert!(AccessList::parse_info_hash(
-            "aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".to_owned()
-        )
-        .is_err());
-        assert!(
-            AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".to_owned())
-                .is_err()
-        );
-        assert!(
-            AccessList::parse_info_hash("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".to_owned())
-                .is_err()
-        );
+        let f = AccessList::parse_info_hash;
+
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee".into()).is_ok());
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".into()).is_err());
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".into()).is_err());
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".into()).is_err());
     }
 }
