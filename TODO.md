@@ -2,11 +2,12 @@
 
 * access lists:
   * test functionality
-  * implement for aquatic_http and aquatic_ws
+  * implement for aquatic_ws
 
 * Don't unwrap peer_address
 * Consider turning on safety and override flags in mimalloc (mostly for
   simd-json)
+* Use Cow for error response messages?
 
 ## General
 * extract response peers: extract "one extra" to compensate for removal,
