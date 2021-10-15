@@ -1,6 +1,7 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 
+use aquatic_common::access_list::AccessList;
 use crossbeam_channel::{Receiver, Sender};
 use either::Either;
 use hashbrown::HashMap;
@@ -116,12 +117,14 @@ pub struct TorrentMaps {
 #[derive(Clone)]
 pub struct State {
     pub torrent_maps: Arc<Mutex<TorrentMaps>>,
+    pub access_list: Arc<Mutex<AccessList>>,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
             torrent_maps: Arc::new(Mutex::new(TorrentMaps::default())),
+            access_list: Arc::new(Mutex::new(AccessList::default())),
         }
     }
 }
