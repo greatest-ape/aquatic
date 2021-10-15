@@ -7,8 +7,6 @@ use mio::{Poll, Waker};
 use parking_lot::Mutex;
 use privdrop::PrivDrop;
 
-use aquatic_common::access_list::AccessListMode;
-
 pub mod common;
 pub mod config;
 pub mod handler;
@@ -24,23 +22,18 @@ pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
 pub fn run(config: Config) -> anyhow::Result<()> {
     let state = State::default();
 
-    match config.access_list.mode {
-        AccessListMode::Require | AccessListMode::Forbid => {
-            state
-                .torrent_maps
-                .lock()
-                .access_list
-                .update_from_path(&config.access_list.path)?;
-        }
-        AccessListMode::Ignore => {}
-    }
+    tasks::update_access_list(&config, &mut state.torrent_maps.lock());
 
     start_workers(config.clone(), state.clone())?;
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_torrents(&config, &state);
+        let mut torrent_maps = state.torrent_maps.lock();
+
+        tasks::update_access_list(&config, &mut torrent_maps);
+
+        torrent_maps.clean(&config);
     }
 }
 
