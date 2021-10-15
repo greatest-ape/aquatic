@@ -6,6 +6,7 @@ use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum AccessListMode {
     Allow,
     Deny,
