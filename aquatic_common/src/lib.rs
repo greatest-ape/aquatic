@@ -35,7 +35,7 @@ impl Default for AccessListConfig {
 pub struct AccessList(HashSet<[u8; 20]>);
 
 impl AccessList {
-    fn parse_line_to_info_hash(line: String) -> anyhow::Result<[u8; 20]> {
+    fn parse_info_hash(line: String) -> anyhow::Result<[u8; 20]> {
         if line.len() != 20 {
             return Err(anyhow::anyhow!("Info hash is not 20 bytes long: {}", line));
         }
@@ -63,7 +63,7 @@ impl AccessList {
         let mut new_list = HashSet::new();
 
         for line in reader.lines() {
-            new_list.insert(Self::parse_line_to_info_hash(line?)?);
+            new_list.insert(Self::parse_info_hash(line?)?);
         }
 
         self.0 = new_list;
