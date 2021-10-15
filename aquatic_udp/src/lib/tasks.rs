@@ -8,14 +8,17 @@ use aquatic_common::access_list::AccessListMode;
 use crate::common::*;
 use crate::config::Config;
 
-pub fn update_access_list(config: &Config, torrent_maps: &mut TorrentMaps){
+pub fn update_access_list(config: &Config, torrent_maps: &mut TorrentMaps) {
     match config.access_list.mode {
         AccessListMode::Require | AccessListMode::Forbid => {
-            if let Err(err) = torrent_maps.access_list.update_from_path(&config.access_list.path) {
+            if let Err(err) = torrent_maps
+                .access_list
+                .update_from_path(&config.access_list.path)
+            {
                 ::log::error!("Update access list from path: {:?}", err);
             }
         }
-        AccessListMode::Ignore => { }
+        AccessListMode::Ignore => {}
     }
 }
 
@@ -27,7 +30,6 @@ pub fn clean_connections(state: &State) {
     connections.retain(|_, v| v.0 > now);
     connections.shrink_to_fit();
 }
-
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {
     let interval = config.statistics.interval;

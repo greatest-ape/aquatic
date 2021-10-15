@@ -54,7 +54,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
-        
+
         tasks::clean_connections(&state);
 
         let mut torrent_maps = state.torrents.lock();
