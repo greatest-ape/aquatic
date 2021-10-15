@@ -6,7 +6,7 @@ use std::thread::Builder;
 use std::time::Duration;
 
 use anyhow::Context;
-use aquatic_common::access_list::AccessListType;
+use aquatic_common::access_list::AccessListMode;
 use crossbeam_channel::unbounded;
 use privdrop::PrivDrop;
 
@@ -24,11 +24,11 @@ pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::default();
 
-    match config.access_list.list_type {
-        AccessListType::Allow | AccessListType::Deny => {
+    match config.access_list.mode {
+        AccessListMode::Allow | AccessListMode::Deny => {
             state.access_list.lock().update_from_path(&config.access_list.path)?;
         },
-        AccessListType::Ignore => {},
+        AccessListMode::Ignore => {},
     }
 
     let num_bound_sockets = start_workers(config.clone(), state.clone())?;

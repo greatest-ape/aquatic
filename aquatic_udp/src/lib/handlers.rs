@@ -9,7 +9,7 @@ use rand::{
     Rng, SeedableRng,
 };
 
-use aquatic_common::{convert_ipv4_mapped_ipv6, extract_response_peers, access_list::AccessListType};
+use aquatic_common::{convert_ipv4_mapped_ipv6, extract_response_peers, access_list::AccessListMode};
 use aquatic_udp_protocol::*;
 
 use crate::common::*;
@@ -125,8 +125,8 @@ pub fn run_request_worker(
 
         // Check announce requests for allowed info hashes
 
-        match config.access_list.list_type {
-            access_list_type @ (AccessListType::Allow | AccessListType::Deny) => {
+        match config.access_list.mode {
+            access_list_type @ (AccessListMode::Allow | AccessListMode::Deny) => {
                 let access_list: MutexGuard<AccessList> = state.access_list.lock();
 
                 announce_requests.retain(|(request, src)| {
@@ -144,7 +144,7 @@ pub fn run_request_worker(
                     true
                 });
             }
-            AccessListType::Ignore => {}
+            AccessListMode::Ignore => {}
         };
 
         // Handle announce and scrape requests

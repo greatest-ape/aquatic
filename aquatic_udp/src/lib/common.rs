@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Instant;
 
-use aquatic_common::access_list::AccessListType;
+use aquatic_common::access_list::AccessListMode;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
@@ -125,7 +125,7 @@ impl TorrentMaps {
     /// Remove disallowed and inactive torrents
     pub fn clean_with_access_list(
         &mut self,
-        access_list_type: AccessListType,
+        access_list_type: AccessListMode,
         access_list: &AccessList,
         now: Instant,
     ) {

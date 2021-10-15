@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use histogram::Histogram;
 
-use aquatic_common::access_list::AccessListType;
+use aquatic_common::access_list::AccessListMode;
 
 use crate::common::*;
 use crate::config::Config;
@@ -18,8 +18,8 @@ pub fn clean_connections_and_torrents(config: &Config, state: &State) {
         connections.shrink_to_fit();
     }
 
-    match config.access_list.list_type {
-        AccessListType::Allow | AccessListType::Deny => {
+    match config.access_list.mode {
+        AccessListMode::Allow | AccessListMode::Deny => {
             let mut access_list = state.access_list.lock();
 
             if let Err(err) = access_list.update_from_path(&config.access_list.path) {
@@ -27,12 +27,12 @@ pub fn clean_connections_and_torrents(config: &Config, state: &State) {
             }
 
             state.torrents.lock().clean_with_access_list(
-                config.access_list.list_type,
+                config.access_list.mode,
                 &access_list,
                 now,
             );
         }
-        AccessListType::Ignore => {
+        AccessListMode::Ignore => {
             state.torrents.lock().clean(now);
         }
     }

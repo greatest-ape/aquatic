@@ -6,7 +6,7 @@ use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum AccessListType {
+pub enum AccessListMode {
     Allow,
     Deny,
     Ignore,
@@ -15,14 +15,14 @@ pub enum AccessListType {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AccessListConfig {
     pub path: PathBuf,
-    pub list_type: AccessListType,
+    pub mode: AccessListMode,
 }
 
 impl Default for AccessListConfig {
     fn default() -> Self {
         Self {
             path: "".into(),
-            list_type: AccessListType::Ignore,
+            mode: AccessListMode::Ignore,
         }
     }
 }
@@ -54,11 +54,11 @@ impl AccessList {
         Ok(())
     }
 
-    pub fn allows(&self, list_type: AccessListType, info_hash_bytes: &[u8; 20]) -> bool {
+    pub fn allows(&self, list_type: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
         match list_type {
-            AccessListType::Allow => self.0.contains(info_hash_bytes),
-            AccessListType::Deny => !self.0.contains(info_hash_bytes),
-            AccessListType::Ignore => true,
+            AccessListMode::Allow => self.0.contains(info_hash_bytes),
+            AccessListMode::Deny => !self.0.contains(info_hash_bytes),
+            AccessListMode::Ignore => true,
         }
     }
 }
