@@ -1,6 +1,8 @@
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
+use std::time::Instant;
 
+use aquatic_common::access_list::AccessList;
 use crossbeam_channel::{Receiver, Sender};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -11,6 +13,8 @@ use parking_lot::Mutex;
 pub use aquatic_common::ValidUntil;
 
 use aquatic_ws_protocol::*;
+
+use crate::config::Config;
 
 pub const LISTENER_TOKEN: Token = Token(0);
 pub const CHANNEL_TOKEN: Token = Token(1);
@@ -82,6 +86,54 @@ pub type TorrentMap = HashMap<InfoHash, TorrentData>;
 pub struct TorrentMaps {
     pub ipv4: TorrentMap,
     pub ipv6: TorrentMap,
+    pub access_list: AccessList,
+}
+
+impl TorrentMaps {
+    pub fn clean(&mut self, config: &Config) {
+        Self::clean_torrent_map(config, &self.access_list, &mut self.ipv4);
+        Self::clean_torrent_map(config, &self.access_list, &mut self.ipv6);
+    }
+
+    fn clean_torrent_map(
+        config: &Config,
+        access_list: &AccessList,
+        torrent_map: &mut TorrentMap
+    ) {
+        let now = Instant::now();
+
+        torrent_map.retain(|info_hash, torrent_data| {
+            if !access_list.allows(config.access_list.mode, &info_hash.0) {
+                return false;
+            }
+
+            let num_seeders = &mut torrent_data.num_seeders;
+            let num_leechers = &mut torrent_data.num_leechers;
+
+            torrent_data.peers.retain(|_, peer| {
+                let keep = peer.valid_until.0 >= now;
+
+                if !keep {
+                    match peer.status {
+                        PeerStatus::Seeding => {
+                            *num_seeders -= 1;
+                        }
+                        PeerStatus::Leeching => {
+                            *num_leechers -= 1;
+                        }
+                        _ => (),
+                    };
+                }
+
+                keep
+            });
+
+            !torrent_data.peers.is_empty()
+        });
+
+        torrent_map.shrink_to_fit();
+    }
+
 }
 
 #[derive(Clone)]

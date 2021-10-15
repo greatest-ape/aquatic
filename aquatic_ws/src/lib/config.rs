@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use aquatic_common::access_list::AccessListConfig;
 use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;
@@ -21,6 +22,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub statistics: StatisticsConfig,
     pub privileges: PrivilegeConfig,
+    pub access_list: AccessListConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -105,6 +107,7 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             statistics: StatisticsConfig::default(),
             privileges: PrivilegeConfig::default(),
+            access_list: AccessListConfig::default(),
         }
     }
 }

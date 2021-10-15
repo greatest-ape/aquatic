@@ -24,12 +24,18 @@ pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 pub fn run(config: Config) -> anyhow::Result<()> {
     let state = State::default();
 
+    tasks::update_access_list(&config, &mut state.torrent_maps.lock());
+
     start_workers(config.clone(), state.clone())?;
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_torrents(&state);
+        let mut torrent_maps = state.torrent_maps.lock();
+
+        tasks::update_access_list(&config, &mut torrent_maps);
+
+        torrent_maps.clean(&config);
     }
 }
 
