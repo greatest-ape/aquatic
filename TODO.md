@@ -1,6 +1,7 @@
 # TODO
 
 * access lists:
+  * disallow any activity until access list is loaded / load it at startup
   * test functionality
   * rename Allow to Require?
   * serde-rename AccessListTypes to lowercase
@@ -15,8 +16,7 @@
 ## General
 * extract response peers: extract "one extra" to compensate for removal,
   of sender if present in selection? maybe make criterion benchmark,
-  optimize. consider rerunning udp benchmark, last change (filtering out
-  sender) might have had an adverse impact on performance.
+  optimize
 
 ## aquatic_http_load_test
 * how handle large number of peers for "popular" torrents in keepalive mode?
@@ -33,7 +33,6 @@
 
 ## aquatic_http
 * test torrent transfer with real clients
-  * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
   * 'left' optional in magnet requests? Probably not. Transmission sends huge
     positive number.
