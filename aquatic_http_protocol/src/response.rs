@@ -135,6 +135,12 @@ pub struct FailureResponse {
 }
 
 impl FailureResponse {
+    pub fn new(reason: &str) -> Self {
+        Self {
+            failure_reason: reason.into()
+        }
+    }
+
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 

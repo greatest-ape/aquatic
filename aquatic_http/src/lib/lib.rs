@@ -27,8 +27,9 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     match config.access_list.mode {
         AccessListMode::Require | AccessListMode::Forbid => {
             state
-                .access_list
+                .torrent_maps
                 .lock()
+                .access_list
                 .update_from_path(&config.access_list.path)?;
         }
         AccessListMode::Ignore => {}
