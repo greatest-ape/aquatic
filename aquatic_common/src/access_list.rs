@@ -15,8 +15,8 @@ pub enum AccessListMode {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AccessListConfig {
-    pub path: PathBuf,
     pub mode: AccessListMode,
+    pub path: PathBuf,
 }
 
 impl Default for AccessListConfig {
