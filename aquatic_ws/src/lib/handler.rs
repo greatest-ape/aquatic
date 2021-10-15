@@ -102,14 +102,14 @@ pub fn handle_announce_requests(
         let info_hash_allowed = torrent_maps
             .access_list
             .allows(config.access_list.mode, &request.info_hash.0);
-        
+
         if !info_hash_allowed {
             let response = OutMessage::ErrorResponse(ErrorResponse {
                 failure_reason: "Info hash not allowed".into(),
                 action: Some(ErrorResponseAction::Announce),
                 info_hash: Some(request.info_hash),
             });
-    
+
             out_message_sender.send(request_sender_meta, response);
             wake_socket_workers[request_sender_meta.worker_index] = true;
 
