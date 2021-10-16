@@ -146,17 +146,21 @@ fn read_requests(
                 }
 
                 match request {
-                    Ok(Request::Announce(AnnounceRequest { info_hash, transaction_id, ..})) if !state.access_list.allows(access_list_mode, &info_hash.0) => {
+                    Ok(Request::Announce(AnnounceRequest {
+                        info_hash,
+                        transaction_id,
+                        ..
+                    })) if !state.access_list.allows(access_list_mode, &info_hash.0) => {
                         let response = Response::Error(ErrorResponse {
                             transaction_id,
-                            message: "Info hash not allowed".into()
+                            message: "Info hash not allowed".into(),
                         });
 
                         local_responses.push((response, src))
-                    },
+                    }
                     Ok(request) => {
                         requests.push((request, src));
-                    },
+                    }
                     Err(err) => {
                         ::log::debug!("request_from_bytes error: {:?}", err);
 

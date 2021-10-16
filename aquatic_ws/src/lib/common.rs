@@ -94,7 +94,11 @@ impl TorrentMaps {
         Self::clean_torrent_map(config, access_list, &mut self.ipv6);
     }
 
-    fn clean_torrent_map(config: &Config, access_list: &Arc<AccessList>, torrent_map: &mut TorrentMap) {
+    fn clean_torrent_map(
+        config: &Config,
+        access_list: &Arc<AccessList>,
+        torrent_map: &mut TorrentMap,
+    ) {
         let now = Instant::now();
 
         torrent_map.retain(|info_hash, torrent_data| {

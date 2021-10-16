@@ -122,7 +122,7 @@ pub fn run_poll_loop(
                 &mut poll,
                 local_responses.drain(..),
                 &out_message_receiver,
-                &mut connections
+                &mut connections,
             );
         }
 
@@ -219,7 +219,11 @@ pub fn run_handshakes_and_read_messages(
                     debug!("read message");
 
                     match InMessage::from_ws_message(ws_message) {
-                        Ok(InMessage::AnnounceRequest(ref request)) if !state.access_list.allows(access_list_mode, &request.info_hash.0) => {
+                        Ok(InMessage::AnnounceRequest(ref request))
+                            if !state
+                                .access_list
+                                .allows(access_list_mode, &request.info_hash.0) =>
+                        {
                             let out_message = OutMessage::ErrorResponse(ErrorResponse {
                                 failure_reason: "Info hash not allowed".into(),
                                 action: Some(ErrorResponseAction::Announce),
@@ -227,7 +231,7 @@ pub fn run_handshakes_and_read_messages(
                             });
 
                             local_responses.push((meta, out_message));
-                        },
+                        }
                         Ok(in_message) => {
                             if let Err(err) = in_message_sender.send((meta, in_message)) {
                                 error!("InMessageSender: couldn't send message: {:?}", err);

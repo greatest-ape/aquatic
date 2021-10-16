@@ -11,10 +11,7 @@ use crate::config::Config;
 pub fn update_access_list(config: &Config, state: &State) {
     match config.access_list.mode {
         AccessListMode::Require | AccessListMode::Forbid => {
-            if let Err(err) = state
-                .access_list
-                .update_from_path(&config.access_list.path)
-            {
+            if let Err(err) = state.access_list.update_from_path(&config.access_list.path) {
                 ::log::error!("Update access list from path: {:?}", err);
             }
         }

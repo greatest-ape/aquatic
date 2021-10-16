@@ -210,7 +210,9 @@ pub fn handle_connection_read_event(
 
         if let Some(established) = connection.get_established() {
             match established.read_request() {
-                Ok(Request::Announce(ref r)) if !state.access_list.allows(access_list_mode, &r.info_hash.0) => {
+                Ok(Request::Announce(ref r))
+                    if !state.access_list.allows(access_list_mode, &r.info_hash.0) =>
+                {
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
                         poll_token,
@@ -223,7 +225,7 @@ pub fn handle_connection_read_event(
                     local_responses.push((meta, Response::Failure(response)));
 
                     break;
-                },
+                }
                 Ok(request) => {
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
