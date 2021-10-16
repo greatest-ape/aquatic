@@ -19,44 +19,30 @@ pub fn handle_announce_requests(
     responses: &mut Vec<(Response, SocketAddr)>,
 ) {
     let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
-    let access_list_mode = config.access_list.mode;
 
     responses.extend(requests.map(|(request, src)| {
-        let info_hash_allowed = torrents
-            .access_list
-            .allows(access_list_mode, &request.info_hash.0);
+        let peer_ip = convert_ipv4_mapped_ipv6(src.ip());
 
-        let response = if info_hash_allowed {
-            let peer_ip = convert_ipv4_mapped_ipv6(src.ip());
-
-            let response = match peer_ip {
-                IpAddr::V4(ip) => handle_announce_request(
-                    config,
-                    rng,
-                    &mut torrents.ipv4,
-                    request,
-                    ip,
-                    peer_valid_until,
-                ),
-                IpAddr::V6(ip) => handle_announce_request(
-                    config,
-                    rng,
-                    &mut torrents.ipv6,
-                    request,
-                    ip,
-                    peer_valid_until,
-                ),
-            };
-
-            Response::Announce(response)
-        } else {
-            Response::Error(ErrorResponse {
-                transaction_id: request.transaction_id,
-                message: "Info hash not allowed".into(),
-            })
+        let response = match peer_ip {
+            IpAddr::V4(ip) => handle_announce_request(
+                config,
+                rng,
+                &mut torrents.ipv4,
+                request,
+                ip,
+                peer_valid_until,
+            ),
+            IpAddr::V6(ip) => handle_announce_request(
+                config,
+                rng,
+                &mut torrents.ipv6,
+                request,
+                ip,
+                peer_valid_until,
+            ),
         };
 
-        (response, src)
+        (Response::Announce(response), src)
     }));
 }
 

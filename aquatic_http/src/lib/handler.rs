@@ -105,77 +105,69 @@ pub fn handle_announce_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     for (meta, request) in requests {
-        let info_hash_allowed = torrent_maps
-            .access_list
-            .allows(config.access_list.mode, &request.info_hash.0);
+        let peer_ip = convert_ipv4_mapped_ipv6(meta.peer_addr.ip());
 
-        let response = if info_hash_allowed {
-            let peer_ip = convert_ipv4_mapped_ipv6(meta.peer_addr.ip());
+        ::log::debug!("peer ip: {:?}", peer_ip);
 
-            ::log::debug!("peer ip: {:?}", peer_ip);
+        let response = match peer_ip {
+            IpAddr::V4(peer_ip_address) => {
+                let torrent_data: &mut TorrentData<Ipv4Addr> =
+                    torrent_maps.ipv4.entry(request.info_hash).or_default();
 
-            match peer_ip {
-                IpAddr::V4(peer_ip_address) => {
-                    let torrent_data: &mut TorrentData<Ipv4Addr> =
-                        torrent_maps.ipv4.entry(request.info_hash).or_default();
+                let peer_connection_meta = PeerConnectionMeta {
+                    worker_index: meta.worker_index,
+                    poll_token: meta.poll_token,
+                    peer_ip_address,
+                };
 
-                    let peer_connection_meta = PeerConnectionMeta {
-                        worker_index: meta.worker_index,
-                        poll_token: meta.poll_token,
-                        peer_ip_address,
-                    };
+                let (seeders, leechers, response_peers) = upsert_peer_and_get_response_peers(
+                    config,
+                    rng,
+                    peer_connection_meta,
+                    torrent_data,
+                    request,
+                    valid_until,
+                );
 
-                    let (seeders, leechers, response_peers) = upsert_peer_and_get_response_peers(
-                        config,
-                        rng,
-                        peer_connection_meta,
-                        torrent_data,
-                        request,
-                        valid_until,
-                    );
+                let response = AnnounceResponse {
+                    complete: seeders,
+                    incomplete: leechers,
+                    announce_interval: config.protocol.peer_announce_interval,
+                    peers: ResponsePeerListV4(response_peers),
+                    peers6: ResponsePeerListV6(vec![]),
+                };
 
-                    let response = AnnounceResponse {
-                        complete: seeders,
-                        incomplete: leechers,
-                        announce_interval: config.protocol.peer_announce_interval,
-                        peers: ResponsePeerListV4(response_peers),
-                        peers6: ResponsePeerListV6(vec![]),
-                    };
-
-                    Response::Announce(response)
-                }
-                IpAddr::V6(peer_ip_address) => {
-                    let torrent_data: &mut TorrentData<Ipv6Addr> =
-                        torrent_maps.ipv6.entry(request.info_hash).or_default();
-
-                    let peer_connection_meta = PeerConnectionMeta {
-                        worker_index: meta.worker_index,
-                        poll_token: meta.poll_token,
-                        peer_ip_address,
-                    };
-
-                    let (seeders, leechers, response_peers) = upsert_peer_and_get_response_peers(
-                        config,
-                        rng,
-                        peer_connection_meta,
-                        torrent_data,
-                        request,
-                        valid_until,
-                    );
-
-                    let response = AnnounceResponse {
-                        complete: seeders,
-                        incomplete: leechers,
-                        announce_interval: config.protocol.peer_announce_interval,
-                        peers: ResponsePeerListV4(vec![]),
-                        peers6: ResponsePeerListV6(response_peers),
-                    };
-
-                    Response::Announce(response)
-                }
+                Response::Announce(response)
             }
-        } else {
-            Response::Failure(FailureResponse::new("Info hash not allowed"))
+            IpAddr::V6(peer_ip_address) => {
+                let torrent_data: &mut TorrentData<Ipv6Addr> =
+                    torrent_maps.ipv6.entry(request.info_hash).or_default();
+
+                let peer_connection_meta = PeerConnectionMeta {
+                    worker_index: meta.worker_index,
+                    poll_token: meta.poll_token,
+                    peer_ip_address,
+                };
+
+                let (seeders, leechers, response_peers) = upsert_peer_and_get_response_peers(
+                    config,
+                    rng,
+                    peer_connection_meta,
+                    torrent_data,
+                    request,
+                    valid_until,
+                );
+
+                let response = AnnounceResponse {
+                    complete: seeders,
+                    incomplete: leechers,
+                    announce_interval: config.protocol.peer_announce_interval,
+                    peers: ResponsePeerListV4(vec![]),
+                    peers6: ResponsePeerListV6(response_peers),
+                };
+
+                Response::Announce(response)
+            }
         };
 
         response_channel_sender.send(meta, response);

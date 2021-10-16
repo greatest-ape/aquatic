@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
+use aquatic_http_protocol::request::Request;
 use hashbrown::HashMap;
 use log::{debug, error, info};
 use mio::net::TcpListener;
@@ -25,6 +26,7 @@ const CONNECTION_CLEAN_INTERVAL: usize = 2 ^ 22;
 
 pub fn run_socket_worker(
     config: Config,
+    state: State,
     socket_worker_index: usize,
     socket_worker_statuses: SocketWorkerStatuses,
     request_channel_sender: RequestChannelSender,
@@ -38,6 +40,7 @@ pub fn run_socket_worker(
 
             run_poll_loop(
                 config,
+                &state,
                 socket_worker_index,
                 request_channel_sender,
                 response_channel_receiver,
@@ -55,6 +58,7 @@ pub fn run_socket_worker(
 
 pub fn run_poll_loop(
     config: Config,
+    state: &State,
     socket_worker_index: usize,
     request_channel_sender: RequestChannelSender,
     response_channel_receiver: ResponseChannelReceiver,
@@ -100,6 +104,7 @@ pub fn run_poll_loop(
             } else if token != CHANNEL_TOKEN {
                 handle_connection_read_event(
                     &config,
+                    &state,
                     socket_worker_index,
                     &mut poll,
                     &request_channel_sender,
@@ -179,6 +184,7 @@ fn accept_new_streams(
 /// then read requests and pass on through channel.
 pub fn handle_connection_read_event(
     config: &Config,
+    state: &State,
     socket_worker_index: usize,
     poll: &mut Poll,
     request_channel_sender: &RequestChannelSender,
@@ -187,6 +193,7 @@ pub fn handle_connection_read_event(
     poll_token: Token,
 ) {
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
+    let access_list_mode = config.access_list.mode;
 
     loop {
         // Get connection, updating valid_until
@@ -210,10 +217,26 @@ pub fn handle_connection_read_event(
                         peer_addr: established.peer_addr,
                     };
 
-                    debug!("read request, sending to handler");
+                    let opt_allowed_request = if let Request::Announce(ref r) = request {
+                        if state.access_list.allows(access_list_mode, &r.info_hash.0){
+                            Some(request)
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(request)
+                    };
 
-                    if let Err(err) = request_channel_sender.send((meta, request)) {
-                        error!("RequestChannelSender: couldn't send message: {:?}", err);
+                    if let Some(request) = opt_allowed_request {
+                        debug!("read allowed request, sending on to channel");
+
+                        if let Err(err) = request_channel_sender.send((meta, request)) {
+                            error!("RequestChannelSender: couldn't send message: {:?}", err);
+                        }
+                    } else {
+                        let response = FailureResponse::new("Info hash not allowed");
+
+                        local_responses.push((meta, Response::Failure(response)))
                     }
 
                     break;

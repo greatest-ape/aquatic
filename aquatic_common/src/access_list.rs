@@ -1,7 +1,9 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
@@ -34,8 +36,13 @@ impl Default for AccessListConfig {
     }
 }
 
-#[derive(Default)]
-pub struct AccessList(HashSet<[u8; 20]>);
+pub struct AccessList(ArcSwap<HashSet<[u8; 20]>>);
+
+impl Default for AccessList {
+    fn default() -> Self {
+        Self(ArcSwap::from(Arc::new(HashSet::default())))
+    }
+}
 
 impl AccessList {
     fn parse_info_hash(line: String) -> anyhow::Result<[u8; 20]> {
@@ -46,7 +53,7 @@ impl AccessList {
         Ok(bytes)
     }
 
-    pub fn update_from_path(&mut self, path: &PathBuf) -> anyhow::Result<()> {
+    pub fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
@@ -56,15 +63,15 @@ impl AccessList {
             new_list.insert(Self::parse_info_hash(line?)?);
         }
 
-        self.0 = new_list;
+        self.0.store(Arc::new(new_list));
 
         Ok(())
     }
 
     pub fn allows(&self, list_type: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
         match list_type {
-            AccessListMode::Require => self.0.contains(info_hash_bytes),
-            AccessListMode::Forbid => !self.0.contains(info_hash_bytes),
+            AccessListMode::Require => self.0.load().contains(info_hash_bytes),
+            AccessListMode::Forbid => !self.0.load().contains(info_hash_bytes),
             AccessListMode::Ignore => true,
         }
     }

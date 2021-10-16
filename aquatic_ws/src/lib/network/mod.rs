@@ -1,7 +1,9 @@
 use std::io::ErrorKind;
 use std::time::Duration;
+use std::vec::Drain;
 
 use crossbeam_channel::Receiver;
+use either::Either;
 use hashbrown::HashMap;
 use log::{debug, error, info};
 use mio::net::TcpListener;
@@ -23,6 +25,7 @@ use utils::*;
 
 pub fn run_socket_worker(
     config: Config,
+    state: State,
     socket_worker_index: usize,
     socket_worker_statuses: SocketWorkerStatuses,
     poll: Poll,
@@ -36,6 +39,7 @@ pub fn run_socket_worker(
 
             run_poll_loop(
                 config,
+                &state,
                 socket_worker_index,
                 poll,
                 in_message_sender,
@@ -53,6 +57,7 @@ pub fn run_socket_worker(
 
 pub fn run_poll_loop(
     config: Config,
+    state: &State,
     socket_worker_index: usize,
     mut poll: Poll,
     in_message_sender: InMessageSender,
@@ -76,6 +81,7 @@ pub fn run_poll_loop(
         .unwrap();
 
     let mut connections: ConnectionMap = HashMap::new();
+    let mut local_responses = Vec::new();
 
     let mut poll_token_counter = Token(0usize);
     let mut iter_counter = 0usize;
@@ -100,7 +106,10 @@ pub fn run_poll_loop(
                 );
             } else if token != CHANNEL_TOKEN {
                 run_handshakes_and_read_messages(
+                    &config,
+                    state,
                     socket_worker_index,
+                    &mut local_responses,
                     &in_message_sender,
                     &opt_tls_acceptor,
                     &mut poll,
@@ -110,7 +119,12 @@ pub fn run_poll_loop(
                 );
             }
 
-            send_out_messages(&mut poll, &out_message_receiver, &mut connections);
+            send_out_messages(
+                &mut poll,
+                local_responses.drain(..),
+                &out_message_receiver,
+                &mut connections
+            );
         }
 
         // Remove inactive connections, but not every iteration
@@ -165,7 +179,10 @@ fn accept_new_streams(
 /// On the stream given by poll_token, get TLS (if requested) and tungstenite
 /// up and running, then read messages and pass on through channel.
 pub fn run_handshakes_and_read_messages(
+    config: &Config,
+    state: &State,
     socket_worker_index: usize,
+    local_responses: &mut Vec<(ConnectionMeta, OutMessage)>,
     in_message_sender: &InMessageSender,
     opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
     poll: &mut Poll,
@@ -173,6 +190,8 @@ pub fn run_handshakes_and_read_messages(
     poll_token: Token,
     valid_until: ValidUntil,
 ) {
+    let access_list_mode = config.access_list.mode;
+
     loop {
         if let Some(established_ws) = connections
             .get_mut(&poll_token)
@@ -201,8 +220,31 @@ pub fn run_handshakes_and_read_messages(
 
                         debug!("read message");
 
-                        if let Err(err) = in_message_sender.send((meta, in_message)) {
-                            error!("InMessageSender: couldn't send message: {:?}", err);
+                        let message = if let InMessage::AnnounceRequest(ref request) = in_message {
+                            if state.access_list.allows(access_list_mode, &request.info_hash.0){
+                                Either::Left(in_message)
+                            } else {
+                                let out_message = OutMessage::ErrorResponse(ErrorResponse {
+                                    failure_reason: "Info hash not allowed".into(),
+                                    action: Some(ErrorResponseAction::Announce),
+                                    info_hash: Some(request.info_hash),
+                                });
+
+                                Either::Right(out_message)
+                            }
+                        } else {
+                            Either::Left(in_message)
+                        };
+
+                        match message {
+                            Either::Left(in_message) => {
+                                if let Err(err) = in_message_sender.send((meta, in_message)) {
+                                    error!("InMessageSender: couldn't send message: {:?}", err);
+                                }
+                            },
+                            Either::Right(out_message) => {
+                                local_responses.push((meta, out_message));
+                            }
                         }
                     }
                 }
@@ -242,12 +284,13 @@ pub fn run_handshakes_and_read_messages(
 /// Read messages from channel, send to peers
 pub fn send_out_messages(
     poll: &mut Poll,
+    local_responses: Drain<(ConnectionMeta, OutMessage)>,
     out_message_receiver: &Receiver<(ConnectionMeta, OutMessage)>,
     connections: &mut ConnectionMap,
 ) {
     let len = out_message_receiver.len();
 
-    for (meta, out_message) in out_message_receiver.try_iter().take(len) {
+    for (meta, out_message) in local_responses.chain(out_message_receiver.try_iter().take(len)) {
         let opt_established_ws = connections
             .get_mut(&meta.poll_token)
             .and_then(Connection::get_established_ws);

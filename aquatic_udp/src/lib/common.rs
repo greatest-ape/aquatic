@@ -118,15 +118,13 @@ pub type TorrentMap<I> = HashMap<InfoHash, TorrentData<I>>;
 pub struct TorrentMaps {
     pub ipv4: TorrentMap<Ipv4Addr>,
     pub ipv6: TorrentMap<Ipv6Addr>,
-    pub access_list: AccessList,
 }
 
 impl TorrentMaps {
     /// Remove disallowed and inactive torrents
-    pub fn clean(&mut self, config: &Config) {
+    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessList>) {
         let now = Instant::now();
 
-        let access_list = &self.access_list;
         let access_list_mode = config.access_list.mode;
 
         self.ipv4.retain(|info_hash, torrent| {
@@ -181,6 +179,7 @@ pub struct Statistics {
 
 #[derive(Clone)]
 pub struct State {
+    pub access_list: Arc<AccessList>,
     pub connections: Arc<Mutex<ConnectionMap>>,
     pub torrents: Arc<Mutex<TorrentMaps>>,
     pub statistics: Arc<Statistics>,
@@ -189,6 +188,7 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            access_list: Arc::new(AccessList::default()),
             connections: Arc::new(Mutex::new(HashMap::new())),
             torrents: Arc::new(Mutex::new(TorrentMaps::default())),
             statistics: Arc::new(Statistics::default()),

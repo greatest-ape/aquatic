@@ -8,10 +8,10 @@ use aquatic_common::access_list::AccessListMode;
 use crate::common::*;
 use crate::config::Config;
 
-pub fn update_access_list(config: &Config, torrent_maps: &mut TorrentMaps) {
+pub fn update_access_list(config: &Config, state: &State) {
     match config.access_list.mode {
         AccessListMode::Require | AccessListMode::Forbid => {
-            if let Err(err) = torrent_maps
+            if let Err(err) = state
                 .access_list
                 .update_from_path(&config.access_list.path)
             {
