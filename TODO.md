@@ -6,8 +6,9 @@
     * aquatic_http
     * aquatic_ws, including sending back new error responses
 
-* Consider turning on safety and override flags in mimalloc (mostly for
-  simd-json)
+* Consider turning on safety and override flags in mimalloc, mostly for
+  simd-json. It might be faster to just stop using simd-json if I consider
+  it insecure, which it maybe isn't.
 
 ## General
 * extract response peers: extract "one extra" to compensate for removal,
