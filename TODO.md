@@ -1,6 +1,7 @@
 # TODO
 
 * access lists:
+  * use arc-swap Cache
   * test functionality
     * aquatic_udp
     * aquatic_http
