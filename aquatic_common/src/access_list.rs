@@ -68,8 +68,8 @@ impl AccessList {
         Ok(())
     }
 
-    pub fn allows(&self, list_type: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
-        match list_type {
+    pub fn allows(&self, list_mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
+        match list_mode {
             AccessListMode::Require => self.0.load().contains(info_hash_bytes),
             AccessListMode::Forbid => !self.0.load().contains(info_hash_bytes),
             AccessListMode::Ignore => true,
