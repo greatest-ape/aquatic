@@ -210,6 +210,20 @@ pub fn handle_connection_read_event(
 
         if let Some(established) = connection.get_established() {
             match established.read_request() {
+                Ok(Request::Announce(ref r)) if !state.access_list.allows(access_list_mode, &r.info_hash.0) => {
+                    let meta = ConnectionMeta {
+                        worker_index: socket_worker_index,
+                        poll_token,
+                        peer_addr: established.peer_addr,
+                    };
+                    let response = FailureResponse::new("Info hash not allowed");
+
+                    debug!("read disallowed request, sending back error response");
+
+                    local_responses.push((meta, Response::Failure(response)));
+
+                    break;
+                },
                 Ok(request) => {
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
@@ -217,26 +231,10 @@ pub fn handle_connection_read_event(
                         peer_addr: established.peer_addr,
                     };
 
-                    let opt_allowed_request = if let Request::Announce(ref r) = request {
-                        if state.access_list.allows(access_list_mode, &r.info_hash.0){
-                            Some(request)
-                        } else {
-                            None
-                        }
-                    } else {
-                        Some(request)
-                    };
+                    debug!("read allowed request, sending on to channel");
 
-                    if let Some(request) = opt_allowed_request {
-                        debug!("read allowed request, sending on to channel");
-
-                        if let Err(err) = request_channel_sender.send((meta, request)) {
-                            error!("RequestChannelSender: couldn't send message: {:?}", err);
-                        }
-                    } else {
-                        let response = FailureResponse::new("Info hash not allowed");
-
-                        local_responses.push((meta, Response::Failure(response)))
+                    if let Err(err) = request_channel_sender.send((meta, request)) {
+                        error!("RequestChannelSender: couldn't send message: {:?}", err);
                     }
 
                     break;
