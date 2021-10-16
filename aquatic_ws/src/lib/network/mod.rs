@@ -3,7 +3,6 @@ use std::time::Duration;
 use std::vec::Drain;
 
 use crossbeam_channel::Receiver;
-use either::Either;
 use hashbrown::HashMap;
 use log::{debug, error, info};
 use mio::net::TcpListener;
@@ -220,32 +219,22 @@ pub fn run_handshakes_and_read_messages(
 
                         debug!("read message");
 
-                        let message = if let InMessage::AnnounceRequest(ref request) = in_message {
-                            if state.access_list.allows(access_list_mode, &request.info_hash.0){
-                                Either::Left(in_message)
-                            } else {
+                        match in_message {
+                            InMessage::AnnounceRequest(ref request) if !state.access_list.allows(access_list_mode, &request.info_hash.0) => {
                                 let out_message = OutMessage::ErrorResponse(ErrorResponse {
                                     failure_reason: "Info hash not allowed".into(),
                                     action: Some(ErrorResponseAction::Announce),
                                     info_hash: Some(request.info_hash),
                                 });
 
-                                Either::Right(out_message)
-                            }
-                        } else {
-                            Either::Left(in_message)
-                        };
-
-                        match message {
-                            Either::Left(in_message) => {
+                                local_responses.push((meta, out_message));
+                            },
+                            _ => {
                                 if let Err(err) = in_message_sender.send((meta, in_message)) {
                                     error!("InMessageSender: couldn't send message: {:?}", err);
                                 }
-                            },
-                            Either::Right(out_message) => {
-                                local_responses.push((meta, out_message));
                             }
-                        }
+                        };
                     }
                 }
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
