@@ -237,7 +237,9 @@ pub fn run_handshakes_and_read_messages(
                                 error!("InMessageSender: couldn't send message: {:?}", err);
                             }
                         }
-                        Err(err) => {
+                        Err(_) => {
+                            // FIXME: maybe this condition just occurs when enough data hasn't been recevied?
+                            /*
                             info!("error parsing message: {:?}", err);
 
                             let out_message = OutMessage::ErrorResponse(ErrorResponse {
@@ -247,6 +249,7 @@ pub fn run_handshakes_and_read_messages(
                             });
 
                             local_responses.push((meta, out_message));
+                            */
                         }
                     }
                 }

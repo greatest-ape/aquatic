@@ -6,6 +6,9 @@
     * aquatic_http
     * aquatic_ws, including sending back new error responses
 
+* aquatic_ws: should it send back error on message parse error, or does that
+  just indicate that not enough data has been received yet?
+
 * Consider turning on safety and override flags in mimalloc, mostly for
   simd-json. It might be faster to just stop using simd-json if I consider
   it insecure, which it maybe isn't.
