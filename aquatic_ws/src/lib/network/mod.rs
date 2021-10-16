@@ -206,35 +206,44 @@ pub fn run_handshakes_and_read_messages(
 
             match established_ws.ws.read_message() {
                 Ok(ws_message) => {
-                    if let Ok(in_message) = InMessage::from_ws_message(ws_message) {
-                        let naive_peer_addr = established_ws.peer_addr;
-                        let converted_peer_ip = convert_ipv4_mapped_ipv6(naive_peer_addr.ip());
+                    let naive_peer_addr = established_ws.peer_addr;
+                    let converted_peer_ip = convert_ipv4_mapped_ipv6(naive_peer_addr.ip());
 
-                        let meta = ConnectionMeta {
-                            worker_index: socket_worker_index,
-                            poll_token,
-                            naive_peer_addr,
-                            converted_peer_ip,
-                        };
+                    let meta = ConnectionMeta {
+                        worker_index: socket_worker_index,
+                        poll_token,
+                        naive_peer_addr,
+                        converted_peer_ip,
+                    };
 
-                        debug!("read message");
+                    debug!("read message");
 
-                        match in_message {
-                            InMessage::AnnounceRequest(ref request) if !state.access_list.allows(access_list_mode, &request.info_hash.0) => {
-                                let out_message = OutMessage::ErrorResponse(ErrorResponse {
-                                    failure_reason: "Info hash not allowed".into(),
-                                    action: Some(ErrorResponseAction::Announce),
-                                    info_hash: Some(request.info_hash),
-                                });
+                    match InMessage::from_ws_message(ws_message) {
+                        Ok(InMessage::AnnounceRequest(ref request)) if !state.access_list.allows(access_list_mode, &request.info_hash.0) => {
+                            let out_message = OutMessage::ErrorResponse(ErrorResponse {
+                                failure_reason: "Info hash not allowed".into(),
+                                action: Some(ErrorResponseAction::Announce),
+                                info_hash: Some(request.info_hash),
+                            });
 
-                                local_responses.push((meta, out_message));
-                            },
-                            _ => {
-                                if let Err(err) = in_message_sender.send((meta, in_message)) {
-                                    error!("InMessageSender: couldn't send message: {:?}", err);
-                                }
+                            local_responses.push((meta, out_message));
+                        },
+                        Ok(in_message) => {
+                            if let Err(err) = in_message_sender.send((meta, in_message)) {
+                                error!("InMessageSender: couldn't send message: {:?}", err);
                             }
-                        };
+                        }
+                        Err(err) => {
+                            info!("error parsing message: {:?}", err);
+
+                            let out_message = OutMessage::ErrorResponse(ErrorResponse {
+                                failure_reason: "Error parsing message".into(),
+                                action: None,
+                                info_hash: None,
+                            });
+
+                            local_responses.push((meta, out_message));
+                        }
                     }
                 }
                 Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
