@@ -1,11 +1,10 @@
 # TODO
 
+* aquatic_udp: clean ConnectionMap less often
+
 * access lists:
   * use arc-swap Cache
-  * test functionality
-    * aquatic_udp
-    * aquatic_http
-    * aquatic_ws, including sending back new error responses
+  * add CI tests
 
 * aquatic_ws: should it send back error on message parse error, or does that
   just indicate that not enough data has been received yet?
