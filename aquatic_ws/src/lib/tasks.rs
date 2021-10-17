@@ -6,12 +6,12 @@ use crate::config::Config;
 
 pub fn update_access_list(config: &Config, state: &State) {
     match config.access_list.mode {
-        AccessListMode::Require | AccessListMode::Forbid => {
+        AccessListMode::White | AccessListMode::Black => {
             if let Err(err) = state.access_list.update_from_path(&config.access_list.path) {
                 ::log::error!("Couldn't update access list: {:?}", err);
             }
         }
-        AccessListMode::Ignore => {}
+        AccessListMode::Off => {}
     }
 }
 

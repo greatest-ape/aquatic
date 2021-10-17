@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "lowercase")]
 pub enum AccessListMode {
     /// Only serve torrents with info hash present in file
-    Require,
+    White,
     /// Do not serve torrents if info hash present in file
-    Forbid,
+    Black,
     /// Turn off access list functionality
-    Ignore,
+    Off,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -31,7 +31,7 @@ impl Default for AccessListConfig {
     fn default() -> Self {
         Self {
             path: "".into(),
-            mode: AccessListMode::Ignore,
+            mode: AccessListMode::Off,
         }
     }
 }
@@ -70,9 +70,9 @@ impl AccessList {
 
     pub fn allows(&self, list_mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
         match list_mode {
-            AccessListMode::Require => self.0.load().contains(info_hash_bytes),
-            AccessListMode::Forbid => !self.0.load().contains(info_hash_bytes),
-            AccessListMode::Ignore => true,
+            AccessListMode::White => self.0.load().contains(info_hash_bytes),
+            AccessListMode::Black => !self.0.load().contains(info_hash_bytes),
+            AccessListMode::Off => true,
         }
     }
 }
