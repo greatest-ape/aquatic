@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::convert::TryInto;
 use std::io::{self, Cursor, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -37,7 +38,7 @@ pub struct ScrapeResponse {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ErrorResponse {
     pub transaction_id: TransactionId,
-    pub message: String,
+    pub message: Cow<'static, str>,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -224,7 +225,9 @@ impl Response {
 
                 Ok((ErrorResponse {
                     transaction_id: TransactionId(transaction_id),
-                    message: String::from_utf8_lossy(&inner[position..]).into(),
+                    message: String::from_utf8_lossy(&inner[position..])
+                        .into_owned()
+                        .into(),
                 })
                 .into())
             }
@@ -262,7 +265,7 @@ impl Response {
             }
             _ => Ok((ErrorResponse {
                 transaction_id: TransactionId(transaction_id),
-                message: "Invalid action".to_string(),
+                message: "Invalid action".into(),
             })
             .into()),
         }

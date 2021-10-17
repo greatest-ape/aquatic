@@ -3,53 +3,29 @@ use std::time::Instant;
 
 use histogram::Histogram;
 
+use aquatic_common::access_list::AccessListMode;
+
 use crate::common::*;
 use crate::config::Config;
 
-pub fn clean_connections_and_torrents(state: &State) {
-    let now = Instant::now();
-
-    {
-        let mut connections = state.connections.lock();
-
-        connections.retain(|_, v| v.0 > now);
-        connections.shrink_to_fit();
+pub fn update_access_list(config: &Config, state: &State) {
+    match config.access_list.mode {
+        AccessListMode::White | AccessListMode::Black => {
+            if let Err(err) = state.access_list.update_from_path(&config.access_list.path) {
+                ::log::error!("Update access list from path: {:?}", err);
+            }
+        }
+        AccessListMode::Off => {}
     }
-
-    let mut torrents = state.torrents.lock();
-
-    clean_torrent_map(&mut torrents.ipv4, now);
-    clean_torrent_map(&mut torrents.ipv6, now);
 }
 
-#[inline]
-fn clean_torrent_map<I: Ip>(torrents: &mut TorrentMap<I>, now: Instant) {
-    torrents.retain(|_, torrent| {
-        let num_seeders = &mut torrent.num_seeders;
-        let num_leechers = &mut torrent.num_leechers;
+pub fn clean_connections(state: &State) {
+    let now = Instant::now();
 
-        torrent.peers.retain(|_, peer| {
-            let keep = peer.valid_until.0 > now;
+    let mut connections = state.connections.lock();
 
-            if !keep {
-                match peer.status {
-                    PeerStatus::Seeding => {
-                        *num_seeders -= 1;
-                    }
-                    PeerStatus::Leeching => {
-                        *num_leechers -= 1;
-                    }
-                    _ => (),
-                };
-            }
-
-            keep
-        });
-
-        !torrent.peers.is_empty()
-    });
-
-    torrents.shrink_to_fit();
+    connections.retain(|_, v| v.0 > now);
+    connections.shrink_to_fit();
 }
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {

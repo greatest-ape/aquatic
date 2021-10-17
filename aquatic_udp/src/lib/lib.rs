@@ -23,29 +23,42 @@ pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::default();
 
+    tasks::update_access_list(&config, &state);
+
     let num_bound_sockets = start_workers(config.clone(), state.clone())?;
 
     if config.privileges.drop_privileges {
+        let mut counter = 0usize;
+
         loop {
             let sockets = num_bound_sockets.load(Ordering::SeqCst);
 
             if sockets == config.socket_workers {
                 PrivDrop::default()
-                    .chroot(config.privileges.chroot_path)
-                    .user(config.privileges.user)
+                    .chroot(config.privileges.chroot_path.clone())
+                    .user(config.privileges.user.clone())
                     .apply()?;
 
                 break;
             }
 
             ::std::thread::sleep(Duration::from_millis(10));
+
+            counter += 1;
+
+            if counter == 500 {
+                panic!("Sockets didn't bind in time for privilege drop.");
+            }
         }
     }
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_connections_and_torrents(&state);
+        tasks::clean_connections(&state);
+        tasks::update_access_list(&config, &state);
+
+        state.torrents.lock().clean(&config, &state.access_list);
     }
 }
 

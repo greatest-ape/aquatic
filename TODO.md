@@ -1,13 +1,23 @@
 # TODO
 
-* Consider turning on safety and override flags in mimalloc (mostly for
-  simd-json)
+* access lists:
+  * use arc-swap Cache
+  * test functionality
+    * aquatic_udp
+    * aquatic_http
+    * aquatic_ws, including sending back new error responses
+
+* aquatic_ws: should it send back error on message parse error, or does that
+  just indicate that not enough data has been received yet?
+
+* Consider turning on safety and override flags in mimalloc, mostly for
+  simd-json. It might be faster to just stop using simd-json if I consider
+  it insecure, which it maybe isn't.
 
 ## General
 * extract response peers: extract "one extra" to compensate for removal,
   of sender if present in selection? maybe make criterion benchmark,
-  optimize. consider rerunning udp benchmark, last change (filtering out
-  sender) might have had an adverse impact on performance.
+  optimize
 
 ## aquatic_http_load_test
 * how handle large number of peers for "popular" torrents in keepalive mode?
@@ -24,7 +34,6 @@
 
 ## aquatic_http
 * test torrent transfer with real clients
-  * test tls
   * scrape: does it work (serialization etc), and with multiple hashes?
   * 'left' optional in magnet requests? Probably not. Transmission sends huge
     positive number.
@@ -40,12 +49,6 @@
   scrape requests I suppose.
 
 ## aquatic_ws
-* panic when unwrapping peer_address after peer closes connection:
-
-```
-thread 'socket-01' panicked at 'called `Result::unwrap()` on an `Err` value: Os { code: 22, kind: InvalidInput, message: "Invalid argument" }', aquatic_ws/src/lib/network/connection.rs:28:59
-```
-
 * websocket_max_frame_size should be at least something like 64 * 1024,
   maybe put it and message size at 128k just to be sure
 * test transfer, specifically ipv6/ipv4 mapping

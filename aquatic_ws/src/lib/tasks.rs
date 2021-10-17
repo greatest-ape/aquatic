@@ -1,45 +1,18 @@
-use std::time::Instant;
-
+use aquatic_common::access_list::AccessListMode;
 use histogram::Histogram;
 
 use crate::common::*;
+use crate::config::Config;
 
-pub fn clean_torrents(state: &State) {
-    fn clean_torrent_map(torrent_map: &mut TorrentMap) {
-        let now = Instant::now();
-
-        torrent_map.retain(|_, torrent_data| {
-            let num_seeders = &mut torrent_data.num_seeders;
-            let num_leechers = &mut torrent_data.num_leechers;
-
-            torrent_data.peers.retain(|_, peer| {
-                let keep = peer.valid_until.0 >= now;
-
-                if !keep {
-                    match peer.status {
-                        PeerStatus::Seeding => {
-                            *num_seeders -= 1;
-                        }
-                        PeerStatus::Leeching => {
-                            *num_leechers -= 1;
-                        }
-                        _ => (),
-                    };
-                }
-
-                keep
-            });
-
-            !torrent_data.peers.is_empty()
-        });
-
-        torrent_map.shrink_to_fit();
+pub fn update_access_list(config: &Config, state: &State) {
+    match config.access_list.mode {
+        AccessListMode::White | AccessListMode::Black => {
+            if let Err(err) = state.access_list.update_from_path(&config.access_list.path) {
+                ::log::error!("Couldn't update access list: {:?}", err);
+            }
+        }
+        AccessListMode::Off => {}
     }
-
-    let mut torrent_maps = state.torrent_maps.lock();
-
-    clean_torrent_map(&mut torrent_maps.ipv4);
-    clean_torrent_map(&mut torrent_maps.ipv6);
 }
 
 pub fn print_statistics(state: &State) {

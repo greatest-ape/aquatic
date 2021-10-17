@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::Write;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -131,10 +132,16 @@ impl ScrapeResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FailureResponse {
     #[serde(rename = "failure reason")]
-    pub failure_reason: String,
+    pub failure_reason: Cow<'static, str>,
 }
 
 impl FailureResponse {
+    pub fn new<S: Into<Cow<'static, str>>>(reason: S) -> Self {
+        Self {
+            failure_reason: reason.into(),
+        }
+    }
+
     fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
@@ -242,7 +249,7 @@ impl quickcheck::Arbitrary for ScrapeResponse {
 impl quickcheck::Arbitrary for FailureResponse {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
-            failure_reason: String::arbitrary(g),
+            failure_reason: String::arbitrary(g).into(),
         }
     }
 }

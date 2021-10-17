@@ -131,6 +131,8 @@ fn read_requests(
     let mut requests_received: usize = 0;
     let mut bytes_received: usize = 0;
 
+    let access_list_mode = config.access_list.mode;
+
     loop {
         match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
@@ -144,6 +146,18 @@ fn read_requests(
                 }
 
                 match request {
+                    Ok(Request::Announce(AnnounceRequest {
+                        info_hash,
+                        transaction_id,
+                        ..
+                    })) if !state.access_list.allows(access_list_mode, &info_hash.0) => {
+                        let response = Response::Error(ErrorResponse {
+                            transaction_id,
+                            message: "Info hash not allowed".into(),
+                        });
+
+                        local_responses.push((response, src))
+                    }
                     Ok(request) => {
                         requests.push((request, src));
                     }
@@ -152,9 +166,9 @@ fn read_requests(
 
                         if let Some(transaction_id) = err.transaction_id {
                             let opt_message = if err.error.is_some() {
-                                Some("Parse error".to_string())
+                                Some("Parse error".into())
                             } else if let Some(message) = err.message {
-                                Some(message)
+                                Some(message.into())
                             } else {
                                 None
                             };

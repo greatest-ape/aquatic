@@ -151,6 +151,16 @@ impl Connection {
 
                             self.can_send = true;
                         }
+                        Ok(OutMessage::ErrorResponse(response)) => {
+                            state
+                                .statistics
+                                .responses_error
+                                .fetch_add(1, Ordering::SeqCst);
+
+                            eprintln!("received error response: {:?}", response.failure_reason);
+
+                            self.can_send = true;
+                        }
                         Err(err) => {
                             eprintln!("error deserializing offer: {:?}", err);
                         }

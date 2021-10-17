@@ -85,13 +85,16 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
             statistics.responses_answer.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
         let responses_scrape_per_second =
             statistics.responses_scrape.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+        let responses_error_per_second =
+            statistics.responses_error.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
 
         let responses_announce_per_second = responses_announce / interval_f64;
 
         let responses_per_second = responses_announce_per_second
             + responses_offer_per_second
             + responses_answer_per_second
-            + responses_scrape_per_second;
+            + responses_scrape_per_second
+            + responses_error_per_second;
 
         report_avg_response_vec.push(responses_per_second);
 
@@ -105,6 +108,7 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
         println!("  - Offer responses:    {:.2}", responses_offer_per_second);
         println!("  - Answer responses:   {:.2}", responses_answer_per_second);
         println!("  - Scrape responses:   {:.2}", responses_scrape_per_second);
+        println!("  - Error responses:   {:.2}", responses_error_per_second);
 
         let time_elapsed = start_time.elapsed();
         let duration = Duration::from_secs(config.duration as u64);

@@ -1,6 +1,81 @@
-use serde::{de::Visitor, Deserializer, Serializer};
+use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{AnnounceAction, ScrapeAction};
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PeerId(
+    #[serde(
+        deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes"
+    )]
+    pub [u8; 20],
+);
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct InfoHash(
+    #[serde(
+        deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes"
+    )]
+    pub [u8; 20],
+);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct OfferId(
+    #[serde(
+        deserialize_with = "deserialize_20_bytes",
+        serialize_with = "serialize_20_bytes"
+    )]
+    pub [u8; 20],
+);
+
+/// Some kind of nested structure from https://www.npmjs.com/package/simple-peer
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct JsonValue(pub ::serde_json::Value);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnnounceAction;
+
+impl Serialize for AnnounceAction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str("announce")
+    }
+}
+
+impl<'de> Deserialize<'de> for AnnounceAction {
+    fn deserialize<D>(deserializer: D) -> Result<AnnounceAction, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(AnnounceActionVisitor)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScrapeAction;
+
+impl Serialize for ScrapeAction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str("scrape")
+    }
+}
+
+impl<'de> Deserialize<'de> for ScrapeAction {
+    fn deserialize<D>(deserializer: D) -> Result<ScrapeAction, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ScrapeActionVisitor)
+    }
+}
 
 pub struct AnnounceActionVisitor;
 
@@ -44,7 +119,7 @@ impl<'de> Visitor<'de> for ScrapeActionVisitor {
     }
 }
 
-pub fn serialize_20_bytes<S>(data: &[u8; 20], serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_20_bytes<S>(data: &[u8; 20], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -102,7 +177,7 @@ impl<'de> Visitor<'de> for TwentyByteVisitor {
 }
 
 #[inline]
-pub fn deserialize_20_bytes<'de, D>(deserializer: D) -> Result<[u8; 20], D::Error>
+fn deserialize_20_bytes<'de, D>(deserializer: D) -> Result<[u8; 20], D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -113,7 +188,7 @@ where
 mod tests {
     use quickcheck_macros::quickcheck;
 
-    use crate::InfoHash;
+    use crate::common::InfoHash;
 
     fn info_hash_from_bytes(bytes: &[u8]) -> InfoHash {
         let mut arr = [0u8; 20];

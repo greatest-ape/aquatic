@@ -22,12 +22,16 @@ pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
 pub fn run(config: Config) -> anyhow::Result<()> {
     let state = State::default();
 
+    tasks::update_access_list(&config, &state);
+
     start_workers(config.clone(), state.clone())?;
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_torrents(&state);
+        tasks::update_access_list(&config, &state);
+
+        state.torrent_maps.lock().clean(&config, &state.access_list);
     }
 }
 
@@ -51,6 +55,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
 
     for i in 0..config.socket_workers {
         let config = config.clone();
+        let state = state.clone();
         let socket_worker_statuses = socket_worker_statuses.clone();
         let request_channel_sender = request_channel_sender.clone();
         let opt_tls_acceptor = opt_tls_acceptor.clone();
@@ -67,6 +72,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
             .spawn(move || {
                 network::run_socket_worker(
                     config,
+                    state,
                     i,
                     socket_worker_statuses,
                     request_channel_sender,

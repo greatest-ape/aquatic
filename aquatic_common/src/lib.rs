@@ -4,6 +4,8 @@ use std::time::{Duration, Instant};
 use indexmap::IndexMap;
 use rand::Rng;
 
+pub mod access_list;
+
 /// Peer or connection valid until this instant
 ///
 /// Used instead of "last seen" or similar to hopefully prevent arithmetic
