@@ -16,7 +16,7 @@ pub fn bench_scrape_handler(
     bench_config: &BenchConfig,
     aquatic_config: &Config,
     request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
-    response_receiver: &Receiver<(Response, SocketAddr)>,
+    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
@@ -41,10 +41,12 @@ pub fn bench_scrape_handler(
     for round in (0..bench_config.num_rounds).progress_with(pb) {
         for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
-                request_sender.send((ConnectedRequest::Scrape(request.clone()), *src)).unwrap();
+                request_sender
+                    .send((ConnectedRequest::Scrape(request.clone()), *src))
+                    .unwrap();
             }
 
-            while let Ok((Response::Scrape(r), _)) = response_receiver.try_recv() {
+            while let Ok((ConnectedResponse::Scrape(r), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
                 if let Some(stat) = r.torrent_stats.last() {
@@ -56,7 +58,7 @@ pub fn bench_scrape_handler(
         let total = bench_config.num_scrape_requests * (round + 1);
 
         while num_responses < total {
-            if let Ok((Response::Scrape(r), _)) = response_receiver.recv() {
+            if let Ok((ConnectedResponse::Scrape(r), _)) = response_receiver.recv() {
                 num_responses += 1;
 
                 if let Some(stat) = r.torrent_stats.last() {
@@ -101,7 +103,10 @@ pub fn create_requests(
             info_hashes: request_info_hashes,
         };
 
-        requests.push((request, SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 1))));
+        requests.push((
+            request,
+            SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 1)),
+        ));
     }
 
     requests

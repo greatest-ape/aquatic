@@ -35,6 +35,20 @@ pub enum ConnectedRequest {
     Scrape(ScrapeRequest),
 }
 
+pub enum ConnectedResponse {
+    Announce(AnnounceResponse),
+    Scrape(ScrapeResponse),
+}
+
+impl Into<Response> for ConnectedResponse {
+    fn into(self) -> Response {
+        match self {
+            Self::Announce(response) => Response::Announce(response),
+            Self::Scrape(response) => Response::Scrape(response),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConnectionKey {
     pub connection_id: ConnectionId,

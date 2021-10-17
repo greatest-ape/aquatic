@@ -16,7 +16,7 @@ pub fn bench_announce_handler(
     bench_config: &BenchConfig,
     aquatic_config: &Config,
     request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
-    response_receiver: &Receiver<(Response, SocketAddr)>,
+    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
@@ -36,10 +36,12 @@ pub fn bench_announce_handler(
     for round in (0..bench_config.num_rounds).progress_with(pb) {
         for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
-                request_sender.send((ConnectedRequest::Announce(request.clone()), *src)).unwrap();
+                request_sender
+                    .send((ConnectedRequest::Announce(request.clone()), *src))
+                    .unwrap();
             }
 
-            while let Ok((Response::Announce(r), _)) = response_receiver.try_recv() {
+            while let Ok((ConnectedResponse::Announce(r), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {
@@ -51,7 +53,7 @@ pub fn bench_announce_handler(
         let total = bench_config.num_announce_requests * (round + 1);
 
         while num_responses < total {
-            if let Ok((Response::Announce(r), _)) = response_receiver.recv() {
+            if let Ok((ConnectedResponse::Announce(r), _)) = response_receiver.recv() {
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {
@@ -99,7 +101,10 @@ pub fn create_requests(
             port: Port(rng.gen()),
         };
 
-        requests.push((request, SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 1))));
+        requests.push((
+            request,
+            SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 1)),
+        ));
     }
 
     requests

@@ -23,12 +23,12 @@ pub fn run_request_worker(
     state: State,
     config: Config,
     request_receiver: Receiver<(ConnectedRequest, SocketAddr)>,
-    response_sender: Sender<(Response, SocketAddr)>,
+    response_sender: Sender<(ConnectedResponse, SocketAddr)>,
 ) {
     let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::new();
     let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::new();
 
-    let mut responses: Vec<(Response, SocketAddr)> = Vec::new();
+    let mut responses: Vec<(ConnectedResponse, SocketAddr)> = Vec::new();
 
     let mut std_rng = StdRng::from_entropy();
     let mut small_rng = SmallRng::from_rng(&mut std_rng).unwrap();

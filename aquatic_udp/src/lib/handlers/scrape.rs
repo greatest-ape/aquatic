@@ -12,7 +12,7 @@ use crate::common::*;
 pub fn handle_scrape_requests(
     torrents: &mut MutexGuard<TorrentMaps>,
     requests: Drain<(ScrapeRequest, SocketAddr)>,
-    responses: &mut Vec<(Response, SocketAddr)>,
+    responses: &mut Vec<(ConnectedResponse, SocketAddr)>,
 ) {
     let empty_stats = create_torrent_scrape_statistics(0, 0);
 
@@ -45,7 +45,7 @@ pub fn handle_scrape_requests(
             }
         }
 
-        let response = Response::Scrape(ScrapeResponse {
+        let response = ConnectedResponse::Scrape(ScrapeResponse {
             transaction_id: request.transaction_id,
             torrent_stats: stats,
         });

@@ -23,7 +23,7 @@ pub fn run_socket_worker(
     config: Config,
     token_num: usize,
     request_sender: Sender<(ConnectedRequest, SocketAddr)>,
-    response_receiver: Receiver<(Response, SocketAddr)>,
+    response_receiver: Receiver<(ConnectedResponse, SocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
     let mut rng = StdRng::from_entropy();
@@ -249,7 +249,7 @@ fn send_responses(
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    response_receiver: &Receiver<(Response, SocketAddr)>,
+    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     local_responses: Drain<(Response, SocketAddr)>,
 ) {
     let mut responses_sent: usize = 0;
@@ -257,9 +257,11 @@ fn send_responses(
 
     let mut cursor = Cursor::new(buffer);
 
-    let response_iterator = local_responses
-        .into_iter()
-        .chain(response_receiver.try_iter());
+    let response_iterator = local_responses.into_iter().chain(
+        response_receiver
+            .try_iter()
+            .map(|(response, addr)| (response.into(), addr)),
+    );
 
     for (response, src) in response_iterator {
         cursor.set_position(0);
