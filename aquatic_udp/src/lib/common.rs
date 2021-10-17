@@ -30,6 +30,11 @@ impl Ip for Ipv6Addr {
     }
 }
 
+pub enum ConnectedRequest {
+    Announce(AnnounceRequest),
+    Scrape(ScrapeRequest),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConnectionKey {
     pub connection_id: ConnectionId,
@@ -180,7 +185,6 @@ pub struct Statistics {
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessList>,
-    pub connections: Arc<Mutex<ConnectionMap>>,
     pub torrents: Arc<Mutex<TorrentMaps>>,
     pub statistics: Arc<Statistics>,
 }
@@ -189,7 +193,6 @@ impl Default for State {
     fn default() -> Self {
         Self {
             access_list: Arc::new(AccessList::default()),
-            connections: Arc::new(Mutex::new(HashMap::new())),
             torrents: Arc::new(Mutex::new(TorrentMaps::default())),
             statistics: Arc::new(Statistics::default()),
         }

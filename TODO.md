@@ -1,7 +1,5 @@
 # TODO
 
-* aquatic_udp needs to check connection validity before sending error responses! connection validity checks could be moved to socket workers, since theyare sharded by ip
-
 * access lists:
   * use arc-swap Cache
   * test functionality

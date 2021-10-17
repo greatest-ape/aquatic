@@ -55,7 +55,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::clean_connections(&state);
         tasks::update_access_list(&config, &state);
 
         state.torrents.lock().clean(&config, &state.access_list);

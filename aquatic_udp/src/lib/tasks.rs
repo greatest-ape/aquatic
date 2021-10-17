@@ -1,5 +1,4 @@
 use std::sync::atomic::Ordering;
-use std::time::Instant;
 
 use histogram::Histogram;
 
@@ -17,15 +16,6 @@ pub fn update_access_list(config: &Config, state: &State) {
         }
         AccessListMode::Off => {}
     }
-}
-
-pub fn clean_connections(state: &State) {
-    let now = Instant::now();
-
-    let mut connections = state.connections.lock();
-
-    connections.retain(|_, v| v.0 > now);
-    connections.shrink_to_fit();
 }
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {

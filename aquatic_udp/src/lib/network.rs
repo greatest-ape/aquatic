@@ -4,12 +4,13 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::vec::Drain;
 
 use crossbeam_channel::{Receiver, Sender};
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
+use rand::prelude::{Rng, SeedableRng, StdRng};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::{IpVersion, Request, Response};
@@ -21,10 +22,11 @@ pub fn run_socket_worker(
     state: State,
     config: Config,
     token_num: usize,
-    request_sender: Sender<(Request, SocketAddr)>,
+    request_sender: Sender<(ConnectedRequest, SocketAddr)>,
     response_receiver: Receiver<(Response, SocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
+    let mut rng = StdRng::from_entropy();
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
     let mut socket = UdpSocket::from_std(create_socket(&config));
@@ -39,8 +41,9 @@ pub fn run_socket_worker(
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
+    let mut connections = ConnectionMap::default();
 
-    let mut requests: Vec<(Request, SocketAddr)> = Vec::new();
+    let mut requests: Vec<(ConnectedRequest, SocketAddr)> = Vec::new();
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
     let timeout = Duration::from_millis(50);
@@ -54,8 +57,10 @@ pub fn run_socket_worker(
 
             if (token.0 == token_num) & event.is_readable() {
                 read_requests(
-                    &state,
                     &config,
+                    &state,
+                    &mut connections,
+                    &mut rng,
                     &mut socket,
                     &mut buffer,
                     &mut requests,
@@ -83,6 +88,11 @@ pub fn run_socket_worker(
             &response_receiver,
             local_responses.drain(..),
         );
+
+        let now = Instant::now();
+
+        connections.retain(|_, v| v.0 > now);
+        connections.shrink_to_fit();
     }
 }
 
@@ -121,16 +131,19 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
 
 #[inline]
 fn read_requests(
-    state: &State,
     config: &Config,
+    state: &State,
+    connections: &mut ConnectionMap,
+    rng: &mut StdRng,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    requests: &mut Vec<(Request, SocketAddr)>,
+    requests: &mut Vec<(ConnectedRequest, SocketAddr)>,
     local_responses: &mut Vec<(Response, SocketAddr)>,
 ) {
     let mut requests_received: usize = 0;
     let mut bytes_received: usize = 0;
 
+    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let access_list_mode = config.access_list.mode;
 
     loop {
@@ -146,20 +159,43 @@ fn read_requests(
                 }
 
                 match request {
-                    Ok(Request::Announce(AnnounceRequest {
-                        info_hash,
-                        transaction_id,
-                        ..
-                    })) if !state.access_list.allows(access_list_mode, &info_hash.0) => {
-                        let response = Response::Error(ErrorResponse {
-                            transaction_id,
-                            message: "Info hash not allowed".into(),
+                    Ok(Request::Connect(request)) => {
+                        let connection_id = ConnectionId(rng.gen());
+
+                        connections.insert(ConnectionKey::new(connection_id, src), valid_until);
+
+                        let response = Response::Connect(ConnectResponse {
+                            connection_id,
+                            transaction_id: request.transaction_id,
                         });
 
                         local_responses.push((response, src))
                     }
-                    Ok(request) => {
-                        requests.push((request, src));
+                    Ok(Request::Announce(request)) => {
+                        let key = ConnectionKey::new(request.connection_id, src);
+
+                        if connections.contains_key(&key) {
+                            if state
+                                .access_list
+                                .allows(access_list_mode, &request.info_hash.0)
+                            {
+                                requests.push((ConnectedRequest::Announce(request), src));
+                            } else {
+                                let response = Response::Error(ErrorResponse {
+                                    transaction_id: request.transaction_id,
+                                    message: "Info hash not allowed".into(),
+                                });
+
+                                local_responses.push((response, src))
+                            }
+                        }
+                    }
+                    Ok(Request::Scrape(request)) => {
+                        let key = ConnectionKey::new(request.connection_id, src);
+
+                        if connections.contains_key(&key) {
+                            requests.push((ConnectedRequest::Scrape(request), src));
+                        }
                     }
                     Err(err) => {
                         ::log::debug!("request_from_bytes error: {:?}", err);

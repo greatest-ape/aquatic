@@ -29,7 +29,6 @@ use config::BenchConfig;
 mod announce;
 mod common;
 mod config;
-mod connect;
 mod scrape;
 
 #[global_allocator]
@@ -65,18 +64,10 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     // Run benchmarks
 
-    let c = connect::bench_connect_handler(
-        &bench_config,
-        &aquatic_config,
-        &request_sender,
-        &response_receiver,
-    );
-
     let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
     let info_hashes = create_info_hashes(&mut rng);
 
     let a = announce::bench_announce_handler(
-        &state,
         &bench_config,
         &aquatic_config,
         &request_sender,
@@ -86,7 +77,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     );
 
     let s = scrape::bench_scrape_handler(
-        &state,
         &bench_config,
         &aquatic_config,
         &request_sender,
@@ -100,7 +90,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
         bench_config.num_rounds, bench_config.num_threads,
     );
 
-    print_results("Connect: ", c.0, c.1);
     print_results("Announce:", a.0, a.1);
     print_results("Scrape:  ", s.0, s.1);
 
