@@ -2,11 +2,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use crossbeam_channel::{Receiver, Sender};
-use parking_lot::MutexGuard;
-use rand::{
-    rngs::{SmallRng, StdRng},
-    SeedableRng,
-};
+use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_udp_protocol::*;
 
@@ -27,11 +23,9 @@ pub fn run_request_worker(
 ) {
     let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::new();
     let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::new();
-
     let mut responses: Vec<(ConnectedResponse, SocketAddr)> = Vec::new();
 
-    let mut std_rng = StdRng::from_entropy();
-    let mut small_rng = SmallRng::from_rng(&mut std_rng).unwrap();
+    let mut small_rng = SmallRng::from_entropy();
 
     let timeout = Duration::from_micros(config.handlers.channel_recv_timeout_microseconds);
 
@@ -70,20 +64,20 @@ pub fn run_request_worker(
             }
         }
 
-        let mut torrents: MutexGuard<TorrentMaps> =
-            opt_torrents.unwrap_or_else(|| state.torrents.lock());
+        // Generate responses for announce and scrape requests, then drop MutexGuard.
+        {
+            let mut torrents = opt_torrents.unwrap_or_else(|| state.torrents.lock());
 
-        // Generate responses for announce and scrape requests
+            handle_announce_requests(
+                &config,
+                &mut torrents,
+                &mut small_rng,
+                announce_requests.drain(..),
+                &mut responses,
+            );
 
-        handle_announce_requests(
-            &config,
-            &mut torrents,
-            &mut small_rng,
-            announce_requests.drain(..),
-            &mut responses,
-        );
-
-        handle_scrape_requests(&mut torrents, scrape_requests.drain(..), &mut responses);
+            handle_scrape_requests(&mut torrents, scrape_requests.drain(..), &mut responses);
+        }
 
         for r in responses.drain(..) {
             if let Err(err) = response_sender.send(r) {
