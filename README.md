@@ -73,7 +73,7 @@ mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
 path = '' # Path to text file with newline-delimited hex-encoded info hashes
 ```
 
-Some documentation of the various options might be available under
+Some more documentation of configuration file values might be available under
 `src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
 
 ## Details on implementations
