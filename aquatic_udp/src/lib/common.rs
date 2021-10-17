@@ -1,5 +1,5 @@
 use std::hash::Hash;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Instant;
 
@@ -48,23 +48,6 @@ impl Into<Response> for ConnectedResponse {
         }
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ConnectionKey {
-    pub connection_id: ConnectionId,
-    pub socket_addr: SocketAddr,
-}
-
-impl ConnectionKey {
-    pub fn new(connection_id: ConnectionId, socket_addr: SocketAddr) -> Self {
-        Self {
-            connection_id,
-            socket_addr,
-        }
-    }
-}
-
-pub type ConnectionMap = HashMap<ConnectionKey, ValidUntil>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum PeerStatus {

@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use std::vec::Drain;
 
 use crossbeam_channel::{Receiver, Sender};
+use hashbrown::HashMap;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
 use rand::prelude::{Rng, SeedableRng, StdRng};
@@ -17,6 +18,23 @@ use aquatic_udp_protocol::{IpVersion, Request, Response};
 
 use crate::common::*;
 use crate::config::Config;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConnectionKey {
+    pub connection_id: ConnectionId,
+    pub socket_addr: SocketAddr,
+}
+
+impl ConnectionKey {
+    pub fn new(connection_id: ConnectionId, socket_addr: SocketAddr) -> Self {
+        Self {
+            connection_id,
+            socket_addr,
+        }
+    }
+}
+
+pub type ConnectionMap = HashMap<ConnectionKey, ValidUntil>;
 
 pub fn run_socket_worker(
     state: State,
