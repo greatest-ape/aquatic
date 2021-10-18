@@ -12,6 +12,9 @@ pub use aquatic_udp_protocol::*;
 
 use crate::config::Config;
 
+pub mod announce;
+pub mod network;
+
 pub const MAX_PACKET_SIZE: usize = 4096;
 
 pub trait Ip: Hash + PartialEq + Eq + Clone + Copy {

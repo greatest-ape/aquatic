@@ -27,8 +27,8 @@ use crate::config::Config;
 pub fn run_socket_worker(
     state: State,
     config: Config,
-    request_sender: SharedSender<(ConnectedRequest, SocketAddr)>,
-    response_receiver: SharedReceiver<(ConnectedResponse, SocketAddr)>,
+    request_sender: SharedSender<(AnnounceRequest, SocketAddr)>,
+    response_receiver: SharedReceiver<(AnnounceResponse, SocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
     LocalExecutorBuilder::default()
@@ -65,7 +65,7 @@ pub fn run_socket_worker(
 async fn read_requests(
     config: Config,
     access_list: Arc<AccessList>,
-    request_sender: SharedSender<(ConnectedRequest, SocketAddr)>,
+    request_sender: SharedSender<(AnnounceRequest, SocketAddr)>,
     local_sender: LocalSender<(Response, SocketAddr)>,
     socket: Rc<UdpSocket>,
 ) {
@@ -102,7 +102,7 @@ async fn read_requests(
                         if connections.contains(request.connection_id, src) {
                             if access_list.allows(access_list_mode, &request.info_hash.0) {
                                 if let Err(err) = request_sender
-                                    .try_send((ConnectedRequest::Announce(request), src))
+                                    .try_send((request, src))
                                 {
                                     ::log::warn!("request_sender.try_send failed: {:?}", err)
                                 }
@@ -118,11 +118,12 @@ async fn read_requests(
                     }
                     Ok(Request::Scrape(request)) => {
                         if connections.contains(request.connection_id, src) {
-                            if let Err(err) =
-                                request_sender.try_send((ConnectedRequest::Scrape(request), src))
-                            {
-                                ::log::warn!("request_sender.try_send failed: {:?}", err)
-                            }
+                            let response = Response::Error(ErrorResponse {
+                                transaction_id: request.transaction_id,
+                                message: "Scrape requests not supported".into(),
+                            });
+
+                            local_sender.try_send((response, src));
                         }
                     }
                     Err(err) => {
@@ -156,7 +157,7 @@ async fn read_requests(
 }
 
 async fn send_responses(
-    response_receiver: SharedReceiver<(ConnectedResponse, SocketAddr)>,
+    response_receiver: SharedReceiver<(AnnounceResponse, SocketAddr)>,
     local_receiver: LocalReceiver<(Response, SocketAddr)>,
     socket: Rc<UdpSocket>,
 ) {
