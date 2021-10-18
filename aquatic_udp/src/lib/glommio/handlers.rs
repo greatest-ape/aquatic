@@ -21,10 +21,11 @@ pub fn run_request_worker(
 
             let mut rng = SmallRng::from_entropy();
 
+            // Need to be cleaned periodically: use timer?
             let mut torrents_ipv4 = TorrentMap::<Ipv4Addr>::default();
             let mut torrents_ipv6 = TorrentMap::<Ipv6Addr>::default();
 
-            // Needs to be updated periodically
+            // Needs to be updated periodically: use timer?
             let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
             while let Some((request, addr)) = request_receiver.recv().await {

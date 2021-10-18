@@ -1,9 +1,7 @@
 /// TODO
-/// - move connection checks to socket workers
-/// - ignore scrape requests. forward announce requests to request workers
-///   sharded by info hash (with some nice algo to make it difficult for an
-///   attacker to know which one they get forwarded to). this way, shared
-///   state can be avoided.
+/// - forward announce requests to request workers sharded by info hash (with
+///   some nice algo to make it difficult for an attacker to know which one
+///   they get forwarded to)
 use std::io::Cursor;
 use std::net::{IpAddr, SocketAddr};
 use std::rc::Rc;
