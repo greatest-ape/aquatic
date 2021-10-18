@@ -74,6 +74,8 @@ pub fn run_socket_worker(
 
     let timeout = Duration::from_millis(50);
 
+    let mut iter_counter = 0usize;
+
     loop {
         poll.poll(&mut events, Some(timeout))
             .expect("failed polling");
@@ -115,7 +117,13 @@ pub fn run_socket_worker(
             local_responses.drain(..),
         );
 
-        connections.clean();
+        iter_counter += 1;
+
+        if iter_counter == 1000 {
+            connections.clean();
+
+            iter_counter = 0;
+        }
     }
 }
 

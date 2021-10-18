@@ -1,7 +1,5 @@
 # TODO
 
-* aquatic_udp: clean ConnectionMap less often
-
 * access lists:
   * use arc-swap Cache
   * add CI tests
