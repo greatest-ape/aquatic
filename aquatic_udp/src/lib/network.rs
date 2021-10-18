@@ -216,21 +216,18 @@ fn read_requests(
                         }
                     }
                     Err(err) => {
-                        ::log::debug!("request_from_bytes error: {:?}", err);
+                        ::log::debug!("Request::from_bytes error: {:?}", err);
 
-                        if let Some(transaction_id) = err.transaction_id {
-                            let opt_message = if err.error.is_some() {
-                                Some("Parse error".into())
-                            } else if let Some(message) = err.message {
-                                Some(message.into())
-                            } else {
-                                None
-                            };
-
-                            if let Some(message) = opt_message {
+                        if let RequestParseError::Sendable {
+                            connection_id,
+                            transaction_id,
+                            err,
+                        } = err
+                        {
+                            if connections.contains_key(&ConnectionKey::new(connection_id, src)) {
                                 let response = ErrorResponse {
                                     transaction_id,
-                                    message,
+                                    message: err.right_or("Parse error").into(),
                                 };
 
                                 local_responses.push((response.into(), src));

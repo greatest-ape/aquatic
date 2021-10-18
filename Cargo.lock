@@ -216,6 +216,7 @@ name = "aquatic_udp_protocol"
 version = "0.1.0"
 dependencies = [
  "byteorder",
+ "either",
  "quickcheck",
  "quickcheck_macros",
 ]
