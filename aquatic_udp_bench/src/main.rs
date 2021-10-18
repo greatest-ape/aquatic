@@ -2,16 +2,9 @@
 //!
 //! Example outputs:
 //! ```
-//! # Results over 20 rounds with 1 threads
-//! Connect:   2 306 637 requests/second,   433.53 ns/request
-//! Announce:    688 391 requests/second,  1452.66 ns/request
-//! Scrape:    1 505 700 requests/second,   664.14 ns/request
-//! ```
-//! ```
-//! # Results over 20 rounds with 2 threads
-//! Connect:   3 472 434 requests/second,   287.98 ns/request
-//! Announce:    739 371 requests/second,  1352.50 ns/request
-//! Scrape:    1 845 253 requests/second,   541.93 ns/request
+//! # Results over 10 rounds with 2 threads
+//! Announce:    429 540 requests/second,  2328.07 ns/request
+//! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
 use crossbeam_channel::unbounded;
