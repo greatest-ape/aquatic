@@ -292,21 +292,26 @@ fn send_responses(
 
         let ip_version = ip_version_from_ip(src.ip());
 
-        response.write(&mut cursor, ip_version).unwrap();
+        match response.write(&mut cursor, ip_version) {
+            Ok(()) => {
+                let amt = cursor.position() as usize;
 
-        let amt = cursor.position() as usize;
+                match socket.send_to(&cursor.get_ref()[..amt], src) {
+                    Ok(amt) => {
+                        responses_sent += 1;
+                        bytes_sent += amt;
+                    }
+                    Err(err) => {
+                        if err.kind() == ErrorKind::WouldBlock {
+                            break;
+                        }
 
-        match socket.send_to(&cursor.get_ref()[..amt], src) {
-            Ok(amt) => {
-                responses_sent += 1;
-                bytes_sent += amt;
-            }
-            Err(err) => {
-                if err.kind() == ErrorKind::WouldBlock {
-                    break;
+                        ::log::info!("send_to error: {}", err);
+                    }
                 }
-
-                ::log::info!("send_to error: {}", err);
+            },
+            Err(err) => {
+                ::log::error!("Response::write error: {:?}", err);
             }
         }
     }
