@@ -7,8 +7,8 @@ use rand::rngs::SmallRng;
 use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_udp_protocol::*;
 
-use crate::common::*;
 use crate::common::announce::handle_announce_request;
+use crate::common::*;
 use crate::config::Config;
 
 #[inline]

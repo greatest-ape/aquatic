@@ -1,7 +1,5 @@
 /// TODO
-/// - forward announce requests to request workers sharded by info hash (with
-///   some nice algo to make it difficult for an attacker to know which one
-///   they get forwarded to)
+/// - Don't use race, use other means to receive from multiple channels
 use std::io::Cursor;
 use std::net::{IpAddr, SocketAddr};
 use std::rc::Rc;
@@ -11,8 +9,8 @@ use std::sync::{
 };
 
 use futures_lite::StreamExt;
+use glommio::channels::channel_mesh::{MeshBuilder, Partial, Receivers, Role, Senders};
 use glommio::channels::local_channel::{new_unbounded, LocalReceiver, LocalSender};
-use glommio::channels::shared_channel::{SharedReceiver, SharedSender};
 use glommio::net::UdpSocket;
 use glommio::prelude::*;
 use rand::prelude::{Rng, SeedableRng, StdRng};
@@ -23,10 +21,9 @@ use crate::common::*;
 use crate::config::Config;
 
 pub fn run_socket_worker(
-    state: State,
     config: Config,
-    request_sender: SharedSender<(AnnounceRequest, SocketAddr)>,
-    response_receiver: SharedReceiver<(AnnounceResponse, SocketAddr)>,
+    request_mesh_builder: MeshBuilder<(usize, AnnounceRequest, SocketAddr), Partial>,
+    response_mesh_builder: MeshBuilder<(AnnounceResponse, SocketAddr), Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
     LocalExecutorBuilder::default()
@@ -45,15 +42,21 @@ pub fn run_socket_worker(
 
             num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
+            let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
+
+            let (_, response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
+
+            let response_consumer_index = response_receivers.consumer_id().unwrap();
+
             spawn_local(read_requests(
                 config.clone(),
-                state.access_list.clone(),
-                request_sender,
+                request_senders,
+                response_consumer_index,
                 local_sender,
                 socket.clone(),
             ))
             .await;
-            spawn_local(send_responses(response_receiver, local_receiver, socket)).await;
+            spawn_local(send_responses(response_receivers, local_receiver, socket)).await;
         })
         .expect("failed to spawn local executor")
         .join()
@@ -62,18 +65,17 @@ pub fn run_socket_worker(
 
 async fn read_requests(
     config: Config,
-    access_list: Arc<AccessList>,
-    request_sender: SharedSender<(AnnounceRequest, SocketAddr)>,
+    request_senders: Senders<(usize, AnnounceRequest, SocketAddr)>,
+    response_consumer_index: usize,
     local_sender: LocalSender<(Response, SocketAddr)>,
     socket: Rc<UdpSocket>,
 ) {
-    let request_sender = request_sender.connect().await;
-
     let mut rng = StdRng::from_entropy();
 
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let access_list_mode = config.access_list.mode;
 
+    let access_list = AccessList::default();
     let mut connections = ConnectionMap::default();
 
     let mut buf = [0u8; 2048];
@@ -99,9 +101,13 @@ async fn read_requests(
                     Ok(Request::Announce(request)) => {
                         if connections.contains(request.connection_id, src) {
                             if access_list.allows(access_list_mode, &request.info_hash.0) {
-                                if let Err(err) = request_sender
-                                    .try_send((request, src))
-                                {
+                                let request_consumer_index =
+                                    (request.info_hash.0[0] as usize) % config.request_workers;
+
+                                if let Err(err) = request_senders.try_send_to(
+                                    request_consumer_index,
+                                    (response_consumer_index, request, src),
+                                ) {
                                     ::log::warn!("request_sender.try_send failed: {:?}", err)
                                 }
                             } else {
@@ -155,18 +161,18 @@ async fn read_requests(
 }
 
 async fn send_responses(
-    response_receiver: SharedReceiver<(AnnounceResponse, SocketAddr)>,
+    mut response_receivers: Receivers<(AnnounceResponse, SocketAddr)>,
     local_receiver: LocalReceiver<(Response, SocketAddr)>,
     socket: Rc<UdpSocket>,
 ) {
-    let response_receiver = response_receiver.connect().await;
-
     let mut buf = [0u8; MAX_PACKET_SIZE];
     let mut buf = Cursor::new(&mut buf[..]);
 
-    let mut stream = local_receiver
-        .stream()
-        .race(response_receiver.map(|(response, addr)| (response.into(), addr)));
+    let mut stream = local_receiver.stream().boxed_local();
+
+    for (_, receiver) in response_receivers.streams().into_iter() {
+        stream = Box::pin(stream.race(receiver.map(|(response, addr)| (response.into(), addr))));
+    }
 
     while let Some((response, src)) = stream.next().await {
         buf.set_position(0);
