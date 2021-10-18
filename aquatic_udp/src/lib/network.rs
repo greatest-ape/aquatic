@@ -93,11 +93,6 @@ pub fn run_socket_worker(
                     &request_sender,
                     &mut local_responses,
                 );
-
-                state
-                    .statistics
-                    .readable_events
-                    .fetch_add(1, Ordering::SeqCst);
             }
         }
 

@@ -41,19 +41,9 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
     let bytes_received_per_second: f64 = bytes_received / interval as f64;
     let bytes_sent_per_second: f64 = bytes_sent / interval as f64;
 
-    let readable_events: f64 = state
-        .statistics
-        .readable_events
-        .fetch_and(0, Ordering::SeqCst) as f64;
-    let requests_per_readable_event = if readable_events == 0.0 {
-        0.0
-    } else {
-        requests_received / readable_events
-    };
-
     println!(
-        "stats: {:.2} requests/second, {:.2} responses/second, {:.2} requests/readable event",
-        requests_per_second, responses_per_second, requests_per_readable_event
+        "stats: {:.2} requests/second, {:.2} responses/second",
+        requests_per_second, responses_per_second
     );
 
     println!(

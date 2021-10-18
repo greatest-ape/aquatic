@@ -174,7 +174,6 @@ impl TorrentMaps {
 pub struct Statistics {
     pub requests_received: AtomicUsize,
     pub responses_sent: AtomicUsize,
-    pub readable_events: AtomicUsize,
     pub bytes_received: AtomicUsize,
     pub bytes_sent: AtomicUsize,
 }
