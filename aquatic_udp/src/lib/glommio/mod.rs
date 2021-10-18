@@ -1,6 +1,7 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use glommio::channels::channel_mesh::MeshBuilder;
+use glommio::prelude::*;
 
 use crate::config::Config;
 
@@ -15,21 +16,44 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
+    let mut executors = Vec::new();
+
     for _ in 0..(config.socket_workers) {
-        network::run_socket_worker(
-            config.clone(),
-            request_mesh_builder.clone(),
-            response_mesh_builder.clone(),
-            num_bound_sockets.clone(),
-        );
+        let config = config.clone();
+        let request_mesh_builder = request_mesh_builder.clone();
+        let response_mesh_builder = response_mesh_builder.clone();
+        let num_bound_sockets = num_bound_sockets.clone();
+
+        let executor = LocalExecutorBuilder::default().spawn(|| async move {
+            network::run_socket_worker(
+                config,
+                request_mesh_builder,
+                response_mesh_builder,
+                num_bound_sockets,
+            )
+            .await
+        });
+
+        executors.push(executor);
     }
 
     for _ in 0..(config.request_workers) {
-        handlers::run_request_worker(
-            config.clone(),
-            request_mesh_builder.clone(),
-            response_mesh_builder.clone(),
-        );
+        let config = config.clone();
+        let request_mesh_builder = request_mesh_builder.clone();
+        let response_mesh_builder = response_mesh_builder.clone();
+
+        let executor = LocalExecutorBuilder::default().spawn(|| async move {
+            handlers::run_request_worker(config, request_mesh_builder, response_mesh_builder).await
+        });
+
+        executors.push(executor);
+    }
+
+    for executor in executors {
+        executor
+            .expect("failed to spawn local executor")
+            .join()
+            .unwrap();
     }
 
     Ok(())
