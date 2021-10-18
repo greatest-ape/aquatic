@@ -201,10 +201,10 @@ fn read_requests(
                                 .access_list
                                 .allows(access_list_mode, &request.info_hash.0)
                             {
-                                if let Err(err) =
-                                    request_sender.send((ConnectedRequest::Announce(request), src))
+                                if let Err(err) = request_sender
+                                    .try_send((ConnectedRequest::Announce(request), src))
                                 {
-                                    ::log::warn!("request_sender.send failed: {:?}", err)
+                                    ::log::warn!("request_sender.try_send failed: {:?}", err)
                                 }
                             } else {
                                 let response = Response::Error(ErrorResponse {
@@ -219,9 +219,9 @@ fn read_requests(
                     Ok(Request::Scrape(request)) => {
                         if connections.contains(request.connection_id, src) {
                             if let Err(err) =
-                                request_sender.send((ConnectedRequest::Scrape(request), src))
+                                request_sender.try_send((ConnectedRequest::Scrape(request), src))
                             {
-                                ::log::warn!("request_sender.send failed: {:?}", err)
+                                ::log::warn!("request_sender.try_send failed: {:?}", err)
                             }
                         }
                     }
