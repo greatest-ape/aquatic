@@ -23,7 +23,7 @@ pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::default();
 
-    tasks::update_access_list(&config, &state);
+    tasks::update_access_list(&config, &state.access_list);
 
     let num_bound_sockets = start_workers(config.clone(), state.clone())?;
 
@@ -55,7 +55,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        tasks::update_access_list(&config, &state);
+        tasks::update_access_list(&config, &state.access_list);
 
         state.torrents.lock().clean(&config, &state.access_list);
     }
