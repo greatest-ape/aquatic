@@ -84,7 +84,7 @@ pub struct StatisticsConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
-    /// Clean torrents and connections this often (seconds)
+    /// Update access list and clean torrents this often (seconds)
     pub interval: u64,
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
