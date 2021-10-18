@@ -1,5 +1,5 @@
 use std::sync::atomic::Ordering;
-use std::time::Instant;
+use std::sync::Arc;
 
 use histogram::Histogram;
 
@@ -8,24 +8,15 @@ use aquatic_common::access_list::AccessListMode;
 use crate::common::*;
 use crate::config::Config;
 
-pub fn update_access_list(config: &Config, state: &State) {
+pub fn update_access_list(config: &Config, access_list: &Arc<AccessList>) {
     match config.access_list.mode {
         AccessListMode::White | AccessListMode::Black => {
-            if let Err(err) = state.access_list.update_from_path(&config.access_list.path) {
+            if let Err(err) = access_list.update_from_path(&config.access_list.path) {
                 ::log::error!("Update access list from path: {:?}", err);
             }
         }
         AccessListMode::Off => {}
     }
-}
-
-pub fn clean_connections(state: &State) {
-    let now = Instant::now();
-
-    let mut connections = state.connections.lock();
-
-    connections.retain(|_, v| v.0 > now);
-    connections.shrink_to_fit();
 }
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {
@@ -50,19 +41,9 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
     let bytes_received_per_second: f64 = bytes_received / interval as f64;
     let bytes_sent_per_second: f64 = bytes_sent / interval as f64;
 
-    let readable_events: f64 = state
-        .statistics
-        .readable_events
-        .fetch_and(0, Ordering::SeqCst) as f64;
-    let requests_per_readable_event = if readable_events == 0.0 {
-        0.0
-    } else {
-        requests_received / readable_events
-    };
-
     println!(
-        "stats: {:.2} requests/second, {:.2} responses/second, {:.2} requests/readable event",
-        requests_per_second, responses_per_second, requests_per_readable_event
+        "stats: {:.2} requests/second, {:.2} responses/second",
+        requests_per_second, responses_per_second
     );
 
     println!(

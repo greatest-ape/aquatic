@@ -3,6 +3,7 @@ use std::io::{self, Cursor, Read, Write};
 use std::net::Ipv4Addr;
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
+use either::Either;
 
 use super::common::*;
 
@@ -67,32 +68,40 @@ pub struct ScrapeRequest {
 }
 
 #[derive(Debug)]
-pub struct RequestParseError {
-    pub transaction_id: Option<TransactionId>,
-    pub message: Option<String>,
-    pub error: Option<io::Error>,
+pub enum RequestParseError {
+    Sendable {
+        connection_id: ConnectionId,
+        transaction_id: TransactionId,
+        err: Either<io::Error, &'static str>,
+    },
+    Unsendable {
+        err: Either<io::Error, &'static str>,
+    },
 }
 
 impl RequestParseError {
-    pub fn new(err: io::Error, transaction_id: i32) -> Self {
-        Self {
-            transaction_id: Some(TransactionId(transaction_id)),
-            message: None,
-            error: Some(err),
+    pub fn sendable_io(err: io::Error, connection_id: i64, transaction_id: i32) -> Self {
+        Self::Sendable {
+            connection_id: ConnectionId(connection_id),
+            transaction_id: TransactionId(transaction_id),
+            err: Either::Left(err),
         }
     }
-    pub fn io(err: io::Error) -> Self {
-        Self {
-            transaction_id: None,
-            message: None,
-            error: Some(err),
+    pub fn sendable_text(text: &'static str, connection_id: i64, transaction_id: i32) -> Self {
+        Self::Sendable {
+            connection_id: ConnectionId(connection_id),
+            transaction_id: TransactionId(transaction_id),
+            err: Either::Right(text),
         }
     }
-    pub fn text(transaction_id: i32, message: &str) -> Self {
-        Self {
-            transaction_id: Some(TransactionId(transaction_id)),
-            message: Some(message.to_string()),
-            error: None,
+    pub fn unsendable_io(err: io::Error) -> Self {
+        Self::Unsendable {
+            err: Either::Left(err),
+        }
+    }
+    pub fn unsendable_text(text: &'static str) -> Self {
+        Self::Unsendable {
+            err: Either::Right(text),
         }
     }
 }
@@ -171,13 +180,13 @@ impl Request {
 
         let connection_id = cursor
             .read_i64::<NetworkEndian>()
-            .map_err(RequestParseError::io)?;
+            .map_err(RequestParseError::unsendable_io)?;
         let action = cursor
             .read_i32::<NetworkEndian>()
-            .map_err(RequestParseError::io)?;
+            .map_err(RequestParseError::unsendable_io)?;
         let transaction_id = cursor
             .read_i32::<NetworkEndian>()
-            .map_err(RequestParseError::io)?;
+            .map_err(RequestParseError::unsendable_io)?;
 
         match action {
             // Connect
@@ -188,8 +197,7 @@ impl Request {
                     })
                     .into())
                 } else {
-                    Err(RequestParseError::text(
-                        transaction_id,
+                    Err(RequestParseError::unsendable_text(
                         "Protocol identifier missing",
                     ))
                 }
@@ -201,39 +209,39 @@ impl Request {
                 let mut peer_id = [0; 20];
                 let mut ip = [0; 4];
 
-                cursor
-                    .read_exact(&mut info_hash)
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                cursor
-                    .read_exact(&mut peer_id)
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                cursor.read_exact(&mut info_hash).map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
+                cursor.read_exact(&mut peer_id).map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
 
-                let bytes_downloaded = cursor
-                    .read_i64::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let bytes_left = cursor
-                    .read_i64::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let bytes_uploaded = cursor
-                    .read_i64::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let event = cursor
-                    .read_i32::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                let bytes_downloaded = cursor.read_i64::<NetworkEndian>().map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
+                let bytes_left = cursor.read_i64::<NetworkEndian>().map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
+                let bytes_uploaded = cursor.read_i64::<NetworkEndian>().map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
+                let event = cursor.read_i32::<NetworkEndian>().map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
 
-                cursor
-                    .read_exact(&mut ip)
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                cursor.read_exact(&mut ip).map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
 
-                let key = cursor
-                    .read_u32::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let peers_wanted = cursor
-                    .read_i32::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
-                let port = cursor
-                    .read_u16::<NetworkEndian>()
-                    .map_err(|err| RequestParseError::new(err, transaction_id))?;
+                let key = cursor.read_u32::<NetworkEndian>().map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
+                let peers_wanted = cursor.read_i32::<NetworkEndian>().map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
+                let port = cursor.read_u16::<NetworkEndian>().map_err(|err| {
+                    RequestParseError::sendable_io(err, connection_id, transaction_id)
+                })?;
 
                 let opt_ip = if ip == [0; 4] {
                     None
@@ -277,7 +285,11 @@ impl Request {
                 .into())
             }
 
-            _ => Err(RequestParseError::text(transaction_id, "Invalid action")),
+            _ => Err(RequestParseError::sendable_text(
+                "Invalid action",
+                connection_id,
+                transaction_id,
+            )),
         }
     }
 }

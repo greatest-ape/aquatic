@@ -1,5 +1,5 @@
 use std::hash::Hash;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Instant;
 
@@ -30,22 +30,24 @@ impl Ip for Ipv6Addr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ConnectionKey {
-    pub connection_id: ConnectionId,
-    pub socket_addr: SocketAddr,
+pub enum ConnectedRequest {
+    Announce(AnnounceRequest),
+    Scrape(ScrapeRequest),
 }
 
-impl ConnectionKey {
-    pub fn new(connection_id: ConnectionId, socket_addr: SocketAddr) -> Self {
-        Self {
-            connection_id,
-            socket_addr,
+pub enum ConnectedResponse {
+    Announce(AnnounceResponse),
+    Scrape(ScrapeResponse),
+}
+
+impl Into<Response> for ConnectedResponse {
+    fn into(self) -> Response {
+        match self {
+            Self::Announce(response) => Response::Announce(response),
+            Self::Scrape(response) => Response::Scrape(response),
         }
     }
 }
-
-pub type ConnectionMap = HashMap<ConnectionKey, ValidUntil>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum PeerStatus {
@@ -172,7 +174,6 @@ impl TorrentMaps {
 pub struct Statistics {
     pub requests_received: AtomicUsize,
     pub responses_sent: AtomicUsize,
-    pub readable_events: AtomicUsize,
     pub bytes_received: AtomicUsize,
     pub bytes_sent: AtomicUsize,
 }
@@ -180,7 +181,6 @@ pub struct Statistics {
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessList>,
-    pub connections: Arc<Mutex<ConnectionMap>>,
     pub torrents: Arc<Mutex<TorrentMaps>>,
     pub statistics: Arc<Statistics>,
 }
@@ -189,7 +189,6 @@ impl Default for State {
     fn default() -> Self {
         Self {
             access_list: Arc::new(AccessList::default()),
-            connections: Arc::new(Mutex::new(HashMap::new())),
             torrents: Arc::new(Mutex::new(TorrentMaps::default())),
             statistics: Arc::new(Statistics::default()),
         }

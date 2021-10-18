@@ -16,7 +16,7 @@ pub fn handle_announce_requests(
     torrents: &mut MutexGuard<TorrentMaps>,
     rng: &mut SmallRng,
     requests: Drain<(AnnounceRequest, SocketAddr)>,
-    responses: &mut Vec<(Response, SocketAddr)>,
+    responses: &mut Vec<(ConnectedResponse, SocketAddr)>,
 ) {
     let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
@@ -42,7 +42,7 @@ pub fn handle_announce_requests(
             ),
         };
 
-        (Response::Announce(response), src)
+        (ConnectedResponse::Announce(response), src)
     }));
 }
 

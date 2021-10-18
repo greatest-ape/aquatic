@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, Sender};
@@ -13,16 +13,14 @@ use crate::common::*;
 use crate::config::BenchConfig;
 
 pub fn bench_scrape_handler(
-    state: &State,
     bench_config: &BenchConfig,
     aquatic_config: &Config,
-    request_sender: &Sender<(Request, SocketAddr)>,
-    response_receiver: &Receiver<(Response, SocketAddr)>,
+    request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
+    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
     let requests = create_requests(
-        state,
         rng,
         info_hashes,
         bench_config.num_scrape_requests,
@@ -43,10 +41,12 @@ pub fn bench_scrape_handler(
     for round in (0..bench_config.num_rounds).progress_with(pb) {
         for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
-                request_sender.send((request.clone().into(), *src)).unwrap();
+                request_sender
+                    .send((ConnectedRequest::Scrape(request.clone()), *src))
+                    .unwrap();
             }
 
-            while let Ok((Response::Scrape(r), _)) = response_receiver.try_recv() {
+            while let Ok((ConnectedResponse::Scrape(r), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
                 if let Some(stat) = r.torrent_stats.last() {
@@ -58,7 +58,7 @@ pub fn bench_scrape_handler(
         let total = bench_config.num_scrape_requests * (round + 1);
 
         while num_responses < total {
-            if let Ok((Response::Scrape(r), _)) = response_receiver.recv() {
+            if let Ok((ConnectedResponse::Scrape(r), _)) = response_receiver.recv() {
                 num_responses += 1;
 
                 if let Some(stat) = r.torrent_stats.last() {
@@ -78,7 +78,6 @@ pub fn bench_scrape_handler(
 }
 
 pub fn create_requests(
-    state: &State,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
     number: usize,
@@ -88,13 +87,9 @@ pub fn create_requests(
 
     let max_index = info_hashes.len() - 1;
 
-    let connections = state.connections.lock();
-
-    let connection_keys: Vec<ConnectionKey> = connections.keys().take(number).cloned().collect();
-
     let mut requests = Vec::new();
 
-    for connection_key in connection_keys.into_iter() {
+    for _ in 0..number {
         let mut request_info_hashes = Vec::new();
 
         for _ in 0..hashes_per_request {
@@ -103,12 +98,15 @@ pub fn create_requests(
         }
 
         let request = ScrapeRequest {
-            connection_id: connection_key.connection_id,
+            connection_id: ConnectionId(0),
             transaction_id: TransactionId(rng.gen()),
             info_hashes: request_info_hashes,
         };
 
-        requests.push((request, connection_key.socket_addr));
+        requests.push((
+            request,
+            SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 1)),
+        ));
     }
 
     requests

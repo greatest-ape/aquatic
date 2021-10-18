@@ -1,13 +1,8 @@
 # TODO
 
-* aquatic_udp needs to check connection validity before sending error responses! connection validity checks could be moved to socket workers, since theyare sharded by ip
-
 * access lists:
   * use arc-swap Cache
-  * test functionality
-    * aquatic_udp
-    * aquatic_http
-    * aquatic_ws, including sending back new error responses
+  * add CI tests
 
 * aquatic_ws: should it send back error on message parse error, or does that
   just indicate that not enough data has been received yet?

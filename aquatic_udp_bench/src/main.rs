@@ -2,16 +2,9 @@
 //!
 //! Example outputs:
 //! ```
-//! # Results over 20 rounds with 1 threads
-//! Connect:   2 306 637 requests/second,   433.53 ns/request
-//! Announce:    688 391 requests/second,  1452.66 ns/request
-//! Scrape:    1 505 700 requests/second,   664.14 ns/request
-//! ```
-//! ```
-//! # Results over 20 rounds with 2 threads
-//! Connect:   3 472 434 requests/second,   287.98 ns/request
-//! Announce:    739 371 requests/second,  1352.50 ns/request
-//! Scrape:    1 845 253 requests/second,   541.93 ns/request
+//! # Results over 10 rounds with 2 threads
+//! Announce:    429 540 requests/second,  2328.07 ns/request
+//! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
 use crossbeam_channel::unbounded;
@@ -29,7 +22,6 @@ use config::BenchConfig;
 mod announce;
 mod common;
 mod config;
-mod connect;
 mod scrape;
 
 #[global_allocator]
@@ -65,18 +57,10 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     // Run benchmarks
 
-    let c = connect::bench_connect_handler(
-        &bench_config,
-        &aquatic_config,
-        &request_sender,
-        &response_receiver,
-    );
-
     let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
     let info_hashes = create_info_hashes(&mut rng);
 
     let a = announce::bench_announce_handler(
-        &state,
         &bench_config,
         &aquatic_config,
         &request_sender,
@@ -86,7 +70,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     );
 
     let s = scrape::bench_scrape_handler(
-        &state,
         &bench_config,
         &aquatic_config,
         &request_sender,
@@ -100,7 +83,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
         bench_config.num_rounds, bench_config.num_threads,
     );
 
-    print_results("Connect: ", c.0, c.1);
     print_results("Announce:", a.0, a.1);
     print_results("Scrape:  ", s.0, s.1);
 
