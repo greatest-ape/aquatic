@@ -7,7 +7,7 @@ use crate::config::Config;
 pub mod handlers;
 pub mod network;
 
-fn start_workers(config: Config) {
+pub fn run(config: Config) -> anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, 1024);
@@ -31,4 +31,6 @@ fn start_workers(config: Config) {
             response_mesh_builder.clone(),
         );
     }
+
+    Ok(())
 }
