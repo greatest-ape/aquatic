@@ -11,8 +11,8 @@ use privdrop::PrivDrop;
 
 pub mod common;
 pub mod config;
-pub mod handlers;
-pub mod network;
+pub mod glommio;
+pub mod mio;
 pub mod tasks;
 
 use common::State;
@@ -74,7 +74,7 @@ pub fn start_workers(config: Config, state: State) -> ::anyhow::Result<Arc<Atomi
         Builder::new()
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
-                handlers::run_request_worker(state, config, request_receiver, response_sender)
+                mio::handlers::run_request_worker(state, config, request_receiver, response_sender)
             })
             .with_context(|| "spawn request worker")?;
     }
@@ -91,7 +91,7 @@ pub fn start_workers(config: Config, state: State) -> ::anyhow::Result<Arc<Atomi
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
-                network::run_socket_worker(
+                mio::network::run_socket_worker(
                     state,
                     config,
                     i,

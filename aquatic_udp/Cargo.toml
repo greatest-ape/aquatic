@@ -32,6 +32,9 @@ rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 socket2 = { version = "0.4.1", features = ["all"] }
 
+glommio = { git = "https://github.com/DataDog/glommio.git" }
+futures-lite = "1"
+
 [dev-dependencies]
 quickcheck = "1.0"
 quickcheck_macros = "1.0"
