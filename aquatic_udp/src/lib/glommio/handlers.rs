@@ -3,6 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use futures_lite::stream::empty;
 use futures_lite::StreamExt;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role};
+use glommio::prelude::*;
 use rand::prelude::SmallRng;
 use rand::SeedableRng;
 
@@ -56,5 +57,7 @@ pub async fn run_request_worker(
         if let Err(err) = response_senders.try_send_to(producer_index, (response, addr)) {
             ::log::warn!("response_sender.try_send: {:?}", err);
         }
+
+        yield_if_needed().await;
     }
 }

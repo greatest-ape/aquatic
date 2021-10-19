@@ -65,9 +65,10 @@ async fn read_requests(
 ) {
     let mut rng = StdRng::from_entropy();
 
-    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let access_list_mode = config.access_list.mode;
 
+    // Needs to be updated periodically: use timer?
+    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     // Needs to be updated periodically: use timer?
     let access_list = AccessList::default();
     // Needs to be cleaned periodically: use timer?
