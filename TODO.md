@@ -1,5 +1,15 @@
 # TODO
 
+* aquatic_udp glommio
+  * use fairer stream receiver scheduling than StreamExt::or, like running a
+    task for each stream - but then what about access to the TorrentMaps?
+  * update access lists
+  * clean connections
+  * clean torrents (using access list)
+  * update peer valid until
+  * privdrop
+  * a lot of "common code" is only used in mio implementation
+
 * access lists:
   * use arc-swap Cache
   * add CI tests
