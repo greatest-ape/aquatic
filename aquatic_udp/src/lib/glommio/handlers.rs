@@ -30,7 +30,7 @@ pub async fn run_request_worker(
     let mut stream = empty().boxed_local();
 
     for (_, receiver) in request_receivers.streams() {
-        stream = Box::pin(stream.race(receiver));
+        stream = Box::pin(stream.or(receiver));
     }
 
     while let Some((producer_index, request, addr)) = stream.next().await {

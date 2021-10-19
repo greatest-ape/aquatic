@@ -68,7 +68,9 @@ async fn read_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let access_list_mode = config.access_list.mode;
 
+    // Needs to be updated periodically: use timer?
     let access_list = AccessList::default();
+    // Needs to be cleaned periodically: use timer?
     let mut connections = ConnectionMap::default();
 
     let mut buf = [0u8; 2048];
@@ -164,7 +166,7 @@ async fn send_responses(
     let mut stream = local_receiver.stream().boxed_local();
 
     for (_, receiver) in response_receivers.streams().into_iter() {
-        stream = Box::pin(stream.race(receiver.map(|(response, addr)| (response.into(), addr))));
+        stream = Box::pin(stream.or(receiver.map(|(response, addr)| (response.into(), addr))));
     }
 
     while let Some((response, src)) = stream.next().await {
