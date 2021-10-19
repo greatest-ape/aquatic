@@ -3,9 +3,8 @@ use std::net::{IpAddr, SocketAddr};
 use std::rc::Rc;
 use std::time::Duration;
 
-use futures_lite::{AsyncBufReadExt, Stream, StreamExt};
+use futures_lite::{Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
-use glommio::io::{BufferedFile, StreamReaderBuilder};
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
 use rand::prelude::SmallRng;
@@ -14,6 +13,7 @@ use rand::SeedableRng;
 use crate::common::announce::handle_announce_request;
 use crate::common::*;
 use crate::config::Config;
+use crate::glommio::common::update_access_list;
 
 pub async fn run_request_worker(
     config: Config,
@@ -91,28 +91,3 @@ async fn handle_request_stream<S>(
     }
 }
 
-pub async fn update_access_list(
-    config: Config,
-    access_list: Rc<RefCell<AccessList>>,
-){
-    if config.access_list.mode.is_on(){
-        let access_list_file = BufferedFile::open(config.access_list.path).await.unwrap();
-
-        let mut reader = StreamReaderBuilder::new(access_list_file).build();
-
-        loop {
-            let mut buf = String::with_capacity(42);
-
-            match reader.read_line(&mut buf).await {
-                Ok(_) => {
-                    access_list.borrow_mut().insert_from_line(&buf);
-                },
-                Err(err) => {
-                    break;
-                }
-            }
-
-            yield_if_needed().await;
-        }
-    }
-}

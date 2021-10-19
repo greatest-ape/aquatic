@@ -5,6 +5,7 @@ use glommio::prelude::*;
 
 use crate::config::Config;
 
+mod common;
 pub mod handlers;
 pub mod network;
 
