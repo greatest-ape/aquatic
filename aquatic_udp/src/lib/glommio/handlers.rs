@@ -32,8 +32,9 @@ pub async fn run_request_worker(
             torrents_ipv4.clone(),
             torrents_ipv6.clone(),
             response_senders.clone(),
-            receiver
-        ).await;
+            receiver,
+        )
+        .await;
     }
 }
 
@@ -43,7 +44,9 @@ async fn handle_request_stream<S>(
     torrents_ipv6: Rc<RefCell<TorrentMap<Ipv6Addr>>>,
     response_senders: Rc<Senders<(AnnounceResponse, SocketAddr)>>,
     mut stream: S,
-) where S: Stream<Item = (usize, AnnounceRequest, SocketAddr)> + ::std::marker::Unpin {
+) where
+    S: Stream<Item = (usize, AnnounceRequest, SocketAddr)> + ::std::marker::Unpin,
+{
     let mut rng = SmallRng::from_entropy();
 
     // Needs to be updated periodically: use timer?

@@ -6,9 +6,9 @@ use std::sync::{
     Arc,
 };
 
-use futures_lite::StreamExt;
-use glommio::channels::channel_mesh::{MeshBuilder, Partial, Receivers, Role, Senders};
-use glommio::channels::local_channel::{new_unbounded, LocalReceiver, LocalSender};
+use futures_lite::{Stream, StreamExt};
+use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
+use glommio::channels::local_channel::{new_unbounded, LocalSender};
 use glommio::net::UdpSocket;
 use glommio::prelude::*;
 use rand::prelude::{Rng, SeedableRng, StdRng};
@@ -40,7 +40,7 @@ pub async fn run_socket_worker(
 
     let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
 
-    let (_, response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
+    let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
 
     let response_consumer_index = response_receivers.consumer_id().unwrap();
 
@@ -53,7 +53,15 @@ pub async fn run_socket_worker(
     ))
     .await;
 
-    spawn_local(send_responses(response_receivers, local_receiver, socket)).await;
+    for (_, receiver) in response_receivers.streams().into_iter() {
+        spawn_local(send_responses(
+            socket.clone(),
+            receiver.map(|(response, addr)| (response.into(), addr)),
+        ))
+        .await;
+    }
+
+    send_responses(socket, local_receiver.stream()).await;
 }
 
 async fn read_requests(
@@ -156,19 +164,12 @@ async fn read_requests(
     }
 }
 
-async fn send_responses(
-    mut response_receivers: Receivers<(AnnounceResponse, SocketAddr)>,
-    local_receiver: LocalReceiver<(Response, SocketAddr)>,
-    socket: Rc<UdpSocket>,
-) {
+async fn send_responses<S>(socket: Rc<UdpSocket>, mut stream: S)
+where
+    S: Stream<Item = (Response, SocketAddr)> + ::std::marker::Unpin,
+{
     let mut buf = [0u8; MAX_PACKET_SIZE];
     let mut buf = Cursor::new(&mut buf[..]);
-
-    let mut stream = local_receiver.stream().boxed_local();
-
-    for (_, receiver) in response_receivers.streams().into_iter() {
-        stream = Box::pin(stream.or(receiver.map(|(response, addr)| (response.into(), addr))));
-    }
 
     while let Some((response, src)) = stream.next().await {
         buf.set_position(0);
