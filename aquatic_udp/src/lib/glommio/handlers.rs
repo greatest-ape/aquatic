@@ -40,18 +40,17 @@ pub async fn run_request_worker(
     }));
 
     for (_, receiver) in request_receivers.streams() {
-        handle_request_stream(
-            &config,
+        spawn_local(handle_request_stream(
+            config.clone(),
             torrents.clone(),
             response_senders.clone(),
             receiver,
-        )
-        .await;
+        )).await;
     }
 }
 
 async fn handle_request_stream<S>(
-    config: &Config,
+    config: Config,
     torrents: Rc<RefCell<TorrentMaps>>,
     response_senders: Rc<Senders<(AnnounceResponse, SocketAddr)>>,
     mut stream: S,
