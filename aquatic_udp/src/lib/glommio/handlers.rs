@@ -28,26 +28,10 @@ pub async fn run_request_worker(
     let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
     let access_list = Rc::new(RefCell::new(AccessList::default()));
 
+    // Periodically clean torrents and update access list
     TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
         enclose!((config, torrents, access_list) move || async move {
-            if config.access_list.mode.is_on(){
-                let access_list_file = BufferedFile::open(config.access_list.path).await.unwrap();
-
-                let mut reader = StreamReaderBuilder::new(access_list_file).build();
-
-                loop {
-                    let mut buf = String::with_capacity(42);
-
-                    match reader.read_line(&mut buf).await {
-                        Ok(_) => {
-                            access_list.borrow_mut().insert_from_line(&buf).unwrap() // FIXME
-                        },
-                        Err(err) => {
-
-                        }
-                    }
-                }
-            }
+            update_access_list(config.clone(), access_list.clone()).await;
 
             torrents.borrow_mut().clean(&config, &*access_list.borrow());
 
@@ -104,5 +88,31 @@ async fn handle_request_stream<S>(
         }
 
         yield_if_needed().await;
+    }
+}
+
+pub async fn update_access_list(
+    config: Config,
+    access_list: Rc<RefCell<AccessList>>,
+){
+    if config.access_list.mode.is_on(){
+        let access_list_file = BufferedFile::open(config.access_list.path).await.unwrap();
+
+        let mut reader = StreamReaderBuilder::new(access_list_file).build();
+
+        loop {
+            let mut buf = String::with_capacity(42);
+
+            match reader.read_line(&mut buf).await {
+                Ok(_) => {
+                    access_list.borrow_mut().insert_from_line(&buf);
+                },
+                Err(err) => {
+                    break;
+                }
+            }
+
+            yield_if_needed().await;
+        }
     }
 }
