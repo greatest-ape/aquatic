@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
+use aquatic_common::access_list::AccessListQuery;
 use aquatic_http_protocol::request::Request;
 use hashbrown::HashMap;
 use log::{debug, error, info};

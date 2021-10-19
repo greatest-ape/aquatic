@@ -15,6 +15,7 @@ use rand::prelude::{Rng, SeedableRng, StdRng};
 
 use aquatic_udp_protocol::{IpVersion, Request, Response};
 
+use crate::common::network::ConnectionMap;
 use crate::common::*;
 use crate::config::Config;
 

@@ -18,6 +18,12 @@ pub enum AccessListMode {
     Off,
 }
 
+impl AccessListMode {
+    pub fn is_on(&self) -> bool {
+        !matches!(self, Self::Off)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AccessListConfig {
     pub mode: AccessListMode,
@@ -36,45 +42,62 @@ impl Default for AccessListConfig {
     }
 }
 
-pub struct AccessList(ArcSwap<HashSet<[u8; 20]>>);
+#[derive(Default)]
+pub struct AccessList(HashSet<[u8; 20]>);
 
-impl Default for AccessList {
-    fn default() -> Self {
-        Self(ArcSwap::from(Arc::new(HashSet::default())))
+impl AccessList {
+    pub fn insert_from_line(&mut self, line: &str) -> anyhow::Result<()> {
+        self.0.insert(parse_info_hash(line)?);
+
+        Ok(())
+    }
+    pub fn allows(&self, mode: AccessListMode, info_hash: &[u8; 20]) -> bool {
+        match mode {
+            AccessListMode::White => self.0.contains(info_hash),
+            AccessListMode::Black => !self.0.contains(info_hash),
+            AccessListMode::Off => true,
+        }
     }
 }
 
-impl AccessList {
-    fn parse_info_hash(line: String) -> anyhow::Result<[u8; 20]> {
-        let mut bytes = [0u8; 20];
+pub trait AccessListQuery {
+    fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()>;
+    fn allows(&self, list_mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool;
+}
 
-        hex::decode_to_slice(line, &mut bytes)?;
+pub type AccessListArcSwap = ArcSwap<AccessList>;
 
-        Ok(bytes)
-    }
-
-    pub fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()> {
+impl AccessListQuery for AccessListArcSwap {
+    fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
 
         let mut new_list = HashSet::new();
 
         for line in reader.lines() {
-            new_list.insert(Self::parse_info_hash(line?)?);
+            new_list.insert(parse_info_hash(&line?)?);
         }
 
-        self.0.store(Arc::new(new_list));
+        self.store(Arc::new(AccessList(new_list)));
 
         Ok(())
     }
 
-    pub fn allows(&self, list_mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
-        match list_mode {
-            AccessListMode::White => self.0.load().contains(info_hash_bytes),
-            AccessListMode::Black => !self.0.load().contains(info_hash_bytes),
+    fn allows(&self, mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
+        match mode {
+            AccessListMode::White => self.load().0.contains(info_hash_bytes),
+            AccessListMode::Black => !self.load().0.contains(info_hash_bytes),
             AccessListMode::Off => true,
         }
     }
+}
+
+fn parse_info_hash(line: &str) -> anyhow::Result<[u8; 20]> {
+    let mut bytes = [0u8; 20];
+
+    hex::decode_to_slice(line, &mut bytes)?;
+
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -83,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_parse_info_hash() {
-        let f = AccessList::parse_info_hash;
+        let f = parse_info_hash;
 
         assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee".into()).is_ok());
         assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".into()).is_err());

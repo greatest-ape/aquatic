@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use aquatic_common::access_list::{AccessList, AccessListMode};
+use aquatic_common::access_list::{AccessListArcSwap, AccessListMode, AccessListQuery};
 
 pub mod common;
 pub mod config;
@@ -15,7 +15,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     mio::run(config)
 }
 
-pub fn update_access_list(config: &Config, access_list: &Arc<AccessList>) {
+pub fn update_access_list(config: &Config, access_list: &Arc<AccessListArcSwap>) {
     match config.access_list.mode {
         AccessListMode::White | AccessListMode::Black => {
             if let Err(err) = access_list.update_from_path(&config.access_list.path) {

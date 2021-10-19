@@ -33,7 +33,10 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         tasks::update_access_list(&config, &state);
 
-        state.torrent_maps.lock().clean(&config, &state.access_list);
+        state
+            .torrent_maps
+            .lock()
+            .clean(&config, &state.access_list.load_full());
     }
 }
 

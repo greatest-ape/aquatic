@@ -163,6 +163,7 @@ dependencies = [
  "futures-lite",
  "glommio",
  "hashbrown 0.11.2",
+ "hex",
  "histogram",
  "indexmap",
  "log",

@@ -1,8 +1,10 @@
+use std::borrow::Borrow;
 use std::hash::Hash;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Instant;
 
+use aquatic_common::access_list::AccessListArcSwap;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
@@ -127,19 +129,19 @@ pub struct TorrentMaps {
 
 impl TorrentMaps {
     /// Remove disallowed and inactive torrents
-    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessList>) {
+    pub fn clean<T: Borrow<AccessList>>(&mut self, config: &Config, access_list: T) {
         let now = Instant::now();
 
         let access_list_mode = config.access_list.mode;
 
         self.ipv4.retain(|info_hash, torrent| {
-            access_list.allows(access_list_mode, &info_hash.0)
+            access_list.borrow().allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv4.shrink_to_fit();
 
         self.ipv6.retain(|info_hash, torrent| {
-            access_list.allows(access_list_mode, &info_hash.0)
+            access_list.borrow().allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv6.shrink_to_fit();
@@ -183,7 +185,7 @@ pub struct Statistics {
 
 #[derive(Clone)]
 pub struct State {
-    pub access_list: Arc<AccessList>,
+    pub access_list: Arc<AccessListArcSwap>,
     pub torrents: Arc<Mutex<TorrentMaps>>,
     pub statistics: Arc<Statistics>,
 }
@@ -191,35 +193,10 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
-            access_list: Arc::new(AccessList::default()),
+            access_list: Arc::new(AccessListArcSwap::default()),
             torrents: Arc::new(Mutex::new(TorrentMaps::default())),
             statistics: Arc::new(Statistics::default()),
         }
-    }
-}
-
-#[derive(Default)]
-pub struct ConnectionMap(HashMap<(ConnectionId, SocketAddr), ValidUntil>);
-
-impl ConnectionMap {
-    pub fn insert(
-        &mut self,
-        connection_id: ConnectionId,
-        socket_addr: SocketAddr,
-        valid_until: ValidUntil,
-    ) {
-        self.0.insert((connection_id, socket_addr), valid_until);
-    }
-
-    pub fn contains(&mut self, connection_id: ConnectionId, socket_addr: SocketAddr) -> bool {
-        self.0.contains_key(&(connection_id, socket_addr))
-    }
-
-    pub fn clean(&mut self) {
-        let now = Instant::now();
-
-        self.0.retain(|_, v| v.0 > now);
-        self.0.shrink_to_fit();
     }
 }
 

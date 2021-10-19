@@ -3,10 +3,11 @@ use std::net::{IpAddr, SocketAddr};
 use std::rc::Rc;
 use std::time::Duration;
 
-use futures_lite::{Stream, StreamExt};
+use futures_lite::{AsyncBufReadExt, Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
-use glommio::{enclose, prelude::*};
+use glommio::io::{BufferedFile, StreamReaderBuilder};
 use glommio::timer::TimerActionRepeat;
+use glommio::{enclose, prelude::*};
 use rand::prelude::SmallRng;
 use rand::SeedableRng;
 
@@ -24,19 +25,34 @@ pub async fn run_request_worker(
 
     let response_senders = Rc::new(response_senders);
 
-    let torrents= Rc::new(RefCell::new(TorrentMaps::default()));
+    let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
+    let access_list = Rc::new(RefCell::new(AccessList::default()));
 
-    async fn clean(
-        config: Config,
-        torrents: Rc<RefCell<TorrentMaps>>,
-    ) -> Option<Duration> {
-        torrents.borrow_mut(); // .clean(config, access_list);
+    TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
+        enclose!((config, torrents, access_list) move || async move {
+            if config.access_list.mode.is_on(){
+                let access_list_file = BufferedFile::open(config.access_list.path).await.unwrap();
 
-        Some(Duration::from_secs(config.cleaning.interval))
-    }
+                let mut reader = StreamReaderBuilder::new(access_list_file).build();
 
-    TimerActionRepeat::repeat(enclose!((config, torrents) move || {
-        clean(config.clone(), torrents.clone())
+                loop {
+                    let mut buf = String::with_capacity(42);
+
+                    match reader.read_line(&mut buf).await {
+                        Ok(_) => {
+                            access_list.borrow_mut().insert_from_line(&buf).unwrap() // FIXME
+                        },
+                        Err(err) => {
+
+                        }
+                    }
+                }
+            }
+
+            torrents.borrow_mut().clean(&config, &*access_list.borrow());
+
+            Some(Duration::from_secs(config.cleaning.interval))
+        })()
     }));
 
     for (_, receiver) in request_receivers.streams() {

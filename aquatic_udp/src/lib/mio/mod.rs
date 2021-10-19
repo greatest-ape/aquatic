@@ -1,9 +1,12 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
 use std::thread::Builder;
 use std::time::Duration;
+use std::{
+    ops::Deref,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::Context;
 use crossbeam_channel::unbounded;
@@ -56,7 +59,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         update_access_list(&config, &state.access_list);
 
-        state.torrents.lock().clean(&config, &state.access_list);
+        state
+            .torrents
+            .lock()
+            .clean(&config, state.access_list.load_full().deref());
     }
 }
 
