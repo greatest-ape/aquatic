@@ -9,11 +9,13 @@ mod common;
 pub mod handlers;
 pub mod network;
 
+pub const SHARED_CHANNEL_SIZE: usize = 4096;
+
 pub fn run(config: Config) -> anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;
 
-    let request_mesh_builder = MeshBuilder::partial(num_peers, 1024);
-    let response_mesh_builder = MeshBuilder::partial(num_peers, 1024);
+    let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
+    let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 

@@ -51,15 +51,13 @@ pub async fn run_socket_worker(
         response_consumer_index,
         local_sender,
         socket.clone(),
-    ))
-    .await;
+    )).detach();
 
     for (_, receiver) in response_receivers.streams().into_iter() {
         spawn_local(send_responses(
             socket.clone(),
             receiver.map(|(response, addr)| (response.into(), addr)),
-        ))
-        .await;
+        )).detach();
     }
 
     send_responses(socket, local_receiver.stream()).await;
@@ -90,6 +88,8 @@ async fn read_requests(
             Ok((amt, src)) => {
                 let request = Request::from_bytes(&buf[..amt], config.protocol.max_scrape_torrents);
 
+                ::log::debug!("read request: {:?}", request);
+
                 match request {
                     Ok(Request::Connect(request)) => {
                         let connection_id = ConnectionId(rng.gen());
@@ -101,7 +101,7 @@ async fn read_requests(
                             transaction_id: request.transaction_id,
                         });
 
-                        local_sender.try_send((response, src));
+                        local_sender.try_send((response, src)).unwrap();
                     }
                     Ok(Request::Announce(request)) => {
                         if connections.contains(request.connection_id, src) {
@@ -121,7 +121,7 @@ async fn read_requests(
                                     message: "Info hash not allowed".into(),
                                 });
 
-                                local_sender.try_send((response, src));
+                                local_sender.try_send((response, src)).unwrap();
                             }
                         }
                     }
@@ -132,7 +132,7 @@ async fn read_requests(
                                 message: "Scrape requests not supported".into(),
                             });
 
-                            local_sender.try_send((response, src));
+                            local_sender.try_send((response, src)).unwrap();
                         }
                     }
                     Err(err) => {
@@ -150,7 +150,7 @@ async fn read_requests(
                                     message: err.right_or("Parse error").into(),
                                 };
 
-                                local_sender.try_send((response.into(), src));
+                                local_sender.try_send((response.into(), src)).unwrap();
                             }
                         }
                     }
@@ -174,6 +174,8 @@ where
 
     while let Some((response, src)) = stream.next().await {
         buf.set_position(0);
+        
+        ::log::debug!("preparing to send response: {:?}", response.clone());
 
         response
             .write(&mut buf, ip_version_from_ip(src.ip()))

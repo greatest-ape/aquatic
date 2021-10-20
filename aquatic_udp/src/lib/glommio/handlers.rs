@@ -39,13 +39,21 @@ pub async fn run_request_worker(
         })()
     }));
 
+    let mut handles = Vec::new();
+
     for (_, receiver) in request_receivers.streams() {
-        spawn_local(handle_request_stream(
+        let handle = spawn_local(handle_request_stream(
             config.clone(),
             torrents.clone(),
             response_senders.clone(),
             receiver,
-        )).await;
+        )).detach();
+
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.await;
     }
 }
 
@@ -81,6 +89,8 @@ async fn handle_request_stream<S>(
                 peer_valid_until,
             ),
         };
+
+        ::log::debug!("preparing to send response to channel: {:?}", response);
 
         if let Err(err) = response_senders.try_send_to(producer_index, (response, addr)) {
             ::log::warn!("response_sender.try_send: {:?}", err);

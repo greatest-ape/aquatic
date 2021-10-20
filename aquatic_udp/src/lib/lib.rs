@@ -12,7 +12,7 @@ use config::Config;
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    mio::run(config)
+    glommio::run(config)
 }
 
 pub fn update_access_list(config: &Config, access_list: &Arc<AccessListArcSwap>) {
