@@ -177,6 +177,7 @@ dependencies = [
  "rand",
  "serde",
  "socket2 0.4.2",
+ "udp-socket",
 ]
 
 [[package]]
@@ -1954,6 +1955,15 @@ name = "typenum"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b63708a265f51345575b27fe43f9500ad611579e764c79edbc2037b1121959ec"
+
+[[package]]
+name = "udp-socket"
+version = "0.1.5"
+source = "git+https://github.com/greatest-ape/udp-socket.git?branch=use-as-lib#7504137bf1d0253cc36fcd601f8ec910724ef799"
+dependencies = [
+ "libc",
+ "socket2 0.4.2",
+]
 
 [[package]]
 name = "unicode-bidi"

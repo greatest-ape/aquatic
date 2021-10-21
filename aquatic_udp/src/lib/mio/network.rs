@@ -1,4 +1,4 @@
-use std::io::{Cursor, ErrorKind};
+use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -15,6 +15,7 @@ use rand::prelude::{Rng, SeedableRng, StdRng};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::{IpVersion, Request, Response};
+use udp_socket::Transmit;
 
 use crate::common::network::ConnectionMap;
 use crate::common::*;
@@ -78,7 +79,6 @@ pub fn run_socket_worker(
             &state,
             &config,
             &mut socket,
-            &mut buffer,
             &response_receiver,
             local_responses.drain(..),
         );
@@ -123,7 +123,11 @@ fn create_socket(config: &Config) -> ::std::net::UdpSocket {
         }
     }
 
-    socket.into()
+    let socket = socket.into();
+
+    udp_socket::unix::init(&socket).expect("udp_socket init");
+
+    socket
 }
 
 #[inline]
@@ -246,14 +250,10 @@ fn send_responses(
     state: &State,
     config: &Config,
     socket: &mut UdpSocket,
-    buffer: &mut [u8],
     response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     local_responses: Drain<(Response, SocketAddr)>,
 ) {
     let mut responses_sent: usize = 0;
-    let mut bytes_sent: usize = 0;
-
-    let mut cursor = Cursor::new(buffer);
 
     let response_iterator = local_responses.into_iter().chain(
         response_receiver
@@ -261,32 +261,37 @@ fn send_responses(
             .map(|(response, addr)| (response.into(), addr)),
     );
 
-    for (response, src) in response_iterator {
-        cursor.set_position(0);
+    let mut transmits: Vec<Transmit> = Vec::new();
+    
+    for (response, addr) in response_iterator {
+        let mut contents = Vec::new();
 
-        let ip_version = ip_version_from_ip(src.ip());
+        let ip_version = ip_version_from_ip(addr.ip());
 
-        match response.write(&mut cursor, ip_version) {
+        match response.write(&mut contents, ip_version) {
             Ok(()) => {
-                let amt = cursor.position() as usize;
+                let transmit = Transmit {
+                    destination: addr,
+                    contents,
+                    src_ip: None,
+                    ecn: None,
+                    segment_size: None,
+                };
 
-                match socket.send_to(&cursor.get_ref()[..amt], src) {
-                    Ok(amt) => {
-                        responses_sent += 1;
-                        bytes_sent += amt;
-                    }
-                    Err(err) => {
-                        if err.kind() == ErrorKind::WouldBlock {
-                            break;
-                        }
-
-                        ::log::info!("send_to error: {}", err);
-                    }
-                }
+                transmits.push(transmit);
             }
             Err(err) => {
                 ::log::error!("Response::write error: {:?}", err);
             }
+        }
+    }
+
+    match udp_socket::unix::send(socket, &transmits[..]) {
+        Ok(num_sent) => {
+            responses_sent += num_sent;
+        }
+        Err(err) => {
+            ::log::warn!("socket send error: {:?}", err);
         }
     }
 
@@ -295,10 +300,6 @@ fn send_responses(
             .statistics
             .responses_sent
             .fetch_add(responses_sent, Ordering::SeqCst);
-        state
-            .statistics
-            .bytes_sent
-            .fetch_add(bytes_sent, Ordering::SeqCst);
     }
 }
 
