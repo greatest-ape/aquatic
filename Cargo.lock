@@ -203,6 +203,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_udp_protocol",
+ "core_affinity",
  "crossbeam-channel",
  "hashbrown 0.11.2",
  "mimalloc",
