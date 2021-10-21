@@ -159,6 +159,7 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_udp_protocol",
+ "cfg-if",
  "crossbeam-channel",
  "futures-lite",
  "glommio",
@@ -796,7 +797,7 @@ checksum = "f0a01e0497841a3b2db4f8afa483cce65f7e96a3498bd6c541734792aeac8fe7"
 [[package]]
 name = "glommio"
 version = "0.6.0"
-source = "git+https://github.com/DataDog/glommio.git#4e6b14772da2f4325271fbcf12d24cf91ed466e5"
+source = "git+https://github.com/DataDog/glommio.git?rev=4e6b14772da2f4325271fbcf12d24cf91ed466e5#4e6b14772da2f4325271fbcf12d24cf91ed466e5"
 dependencies = [
  "ahash 0.7.6",
  "bitflags",

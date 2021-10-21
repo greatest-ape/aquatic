@@ -14,11 +14,15 @@ path = "src/lib/lib.rs"
 [[bin]]
 name = "aquatic_udp"
 
+[features]
+with-glommio = ["glommio", "futures-lite"]
+
 [dependencies]
 anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
+cfg-if = "1"
 crossbeam-channel = "0.5"
 hashbrown = "0.11.2"
 hex = "0.4"
@@ -33,8 +37,8 @@ rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 socket2 = { version = "0.4.1", features = ["all"] }
 
-glommio = { git = "https://github.com/DataDog/glommio.git" }
-futures-lite = "1"
+glommio = { git = "https://github.com/DataDog/glommio.git", rev = "4e6b14772da2f4325271fbcf12d24cf91ed466e5", optional = true }
+futures-lite = { version = "1", optional = true }
 
 [dev-dependencies]
 quickcheck = "1.0"
