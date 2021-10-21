@@ -51,13 +51,15 @@ pub async fn run_socket_worker(
         response_consumer_index,
         local_sender,
         socket.clone(),
-    )).detach();
+    ))
+    .detach();
 
     for (_, receiver) in response_receivers.streams().into_iter() {
         spawn_local(send_responses(
             socket.clone(),
             receiver.map(|(response, addr)| (response.into(), addr)),
-        )).detach();
+        ))
+        .detach();
     }
 
     send_responses(socket, local_receiver.stream()).await;
@@ -174,7 +176,7 @@ where
 
     while let Some((response, src)) = stream.next().await {
         buf.set_position(0);
-        
+
         ::log::debug!("preparing to send response: {:?}", response.clone());
 
         response

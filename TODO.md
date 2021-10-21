@@ -5,7 +5,6 @@
   * clean connections
   * update peer valid until
   * privdrop
-  * a lot of "common code" is only used in mio implementation
 
 * access lists:
   * use arc-swap Cache

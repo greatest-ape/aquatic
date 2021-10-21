@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 
 use histogram::Histogram;
 
-use crate::common::*;
+use super::common::*;
 use crate::config::Config;
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {

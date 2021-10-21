@@ -1,3 +1,8 @@
+//! Work-in-progress glommio (io_uring) implementation
+//! 
+//! * Doesn't support scrape requests
+//! * Currently not faster than mio implementation
+
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use glommio::channels::channel_mesh::MeshBuilder;

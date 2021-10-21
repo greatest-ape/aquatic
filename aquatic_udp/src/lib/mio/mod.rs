@@ -12,13 +12,16 @@ use anyhow::Context;
 use crossbeam_channel::unbounded;
 use privdrop::PrivDrop;
 
+pub mod common;
 pub mod handlers;
 pub mod network;
 pub mod tasks;
 
-use crate::common::State;
+use aquatic_common::access_list::{AccessListArcSwap, AccessListMode, AccessListQuery};
+
 use crate::config::Config;
-use crate::update_access_list;
+
+use common::State;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::default();
@@ -125,4 +128,15 @@ pub fn start_workers(
     }
 
     Ok(())
+}
+
+pub fn update_access_list(config: &Config, access_list: &Arc<AccessListArcSwap>) {
+    match config.access_list.mode {
+        AccessListMode::White | AccessListMode::Black => {
+            if let Err(err) = access_list.update_from_path(&config.access_list.path) {
+                ::log::error!("Update access list from path: {:?}", err);
+            }
+        }
+        AccessListMode::Off => {}
+    }
 }

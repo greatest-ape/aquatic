@@ -47,7 +47,8 @@ pub async fn run_request_worker(
             torrents.clone(),
             response_senders.clone(),
             receiver,
-        )).detach();
+        ))
+        .detach();
 
         handles.push(handle);
     }
