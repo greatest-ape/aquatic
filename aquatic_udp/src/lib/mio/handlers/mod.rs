@@ -6,8 +6,8 @@ use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_udp_protocol::*;
 
-use crate::common::*;
 use crate::config::Config;
+use crate::mio::common::*;
 
 mod announce;
 mod scrape;

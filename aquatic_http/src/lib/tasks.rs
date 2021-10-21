@@ -1,6 +1,6 @@
 use histogram::Histogram;
 
-use aquatic_common::access_list::AccessListMode;
+use aquatic_common::access_list::{AccessListMode, AccessListQuery};
 
 use crate::{common::*, config::Config};
 

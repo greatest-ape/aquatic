@@ -1,16 +1,18 @@
+use std::borrow::Borrow;
 use std::hash::Hash;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Instant;
 
 use hashbrown::HashMap;
 use indexmap::IndexMap;
-use parking_lot::Mutex;
 
 pub use aquatic_common::{access_list::AccessList, ValidUntil};
 pub use aquatic_udp_protocol::*;
 
 use crate::config::Config;
+
+pub mod announce;
+pub mod network;
 
 pub const MAX_PACKET_SIZE: usize = 4096;
 
@@ -27,25 +29,6 @@ impl Ip for Ipv4Addr {
 impl Ip for Ipv6Addr {
     fn ip_addr(self) -> IpAddr {
         IpAddr::V6(self)
-    }
-}
-
-pub enum ConnectedRequest {
-    Announce(AnnounceRequest),
-    Scrape(ScrapeRequest),
-}
-
-pub enum ConnectedResponse {
-    Announce(AnnounceResponse),
-    Scrape(ScrapeResponse),
-}
-
-impl Into<Response> for ConnectedResponse {
-    fn into(self) -> Response {
-        match self {
-            Self::Announce(response) => Response::Announce(response),
-            Self::Scrape(response) => Response::Scrape(response),
-        }
     }
 }
 
@@ -124,19 +107,19 @@ pub struct TorrentMaps {
 
 impl TorrentMaps {
     /// Remove disallowed and inactive torrents
-    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessList>) {
+    pub fn clean<T: Borrow<AccessList>>(&mut self, config: &Config, access_list: T) {
         let now = Instant::now();
 
         let access_list_mode = config.access_list.mode;
 
         self.ipv4.retain(|info_hash, torrent| {
-            access_list.allows(access_list_mode, &info_hash.0)
+            access_list.borrow().allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv4.shrink_to_fit();
 
         self.ipv6.retain(|info_hash, torrent| {
-            access_list.allows(access_list_mode, &info_hash.0)
+            access_list.borrow().allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv6.shrink_to_fit();
@@ -167,31 +150,6 @@ impl TorrentMaps {
         });
 
         !torrent.peers.is_empty()
-    }
-}
-
-#[derive(Default)]
-pub struct Statistics {
-    pub requests_received: AtomicUsize,
-    pub responses_sent: AtomicUsize,
-    pub bytes_received: AtomicUsize,
-    pub bytes_sent: AtomicUsize,
-}
-
-#[derive(Clone)]
-pub struct State {
-    pub access_list: Arc<AccessList>,
-    pub torrents: Arc<Mutex<TorrentMaps>>,
-    pub statistics: Arc<Statistics>,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            access_list: Arc::new(AccessList::default()),
-            torrents: Arc::new(Mutex::new(TorrentMaps::default())),
-            statistics: Arc::new(Statistics::default()),
-        }
     }
 }
 

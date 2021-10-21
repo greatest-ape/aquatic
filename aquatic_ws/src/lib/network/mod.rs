@@ -2,6 +2,7 @@ use std::io::ErrorKind;
 use std::time::Duration;
 use std::vec::Drain;
 
+use aquatic_common::access_list::AccessListQuery;
 use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
 use log::{debug, error, info};

@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Instant;
 
-use aquatic_common::access_list::AccessList;
+use aquatic_common::access_list::{AccessList, AccessListArcSwap};
 use crossbeam_channel::{Receiver, Sender};
 use either::Either;
 use hashbrown::HashMap;
@@ -165,7 +165,7 @@ impl TorrentMaps {
 
 #[derive(Clone)]
 pub struct State {
-    pub access_list: Arc<AccessList>,
+    pub access_list: Arc<AccessListArcSwap>,
     pub torrent_maps: Arc<Mutex<TorrentMaps>>,
 }
 

@@ -4,11 +4,11 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::vec::Drain;
 
+use aquatic_common::access_list::AccessListQuery;
 use crossbeam_channel::{Receiver, Sender};
-use hashbrown::HashMap;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
 use rand::prelude::{Rng, SeedableRng, StdRng};
@@ -16,33 +16,11 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::{IpVersion, Request, Response};
 
+use crate::common::network::ConnectionMap;
 use crate::common::*;
 use crate::config::Config;
 
-#[derive(Default)]
-struct ConnectionMap(HashMap<(ConnectionId, SocketAddr), ValidUntil>);
-
-impl ConnectionMap {
-    fn insert(
-        &mut self,
-        connection_id: ConnectionId,
-        socket_addr: SocketAddr,
-        valid_until: ValidUntil,
-    ) {
-        self.0.insert((connection_id, socket_addr), valid_until);
-    }
-
-    fn contains(&mut self, connection_id: ConnectionId, socket_addr: SocketAddr) -> bool {
-        self.0.contains_key(&(connection_id, socket_addr))
-    }
-
-    fn clean(&mut self) {
-        let now = Instant::now();
-
-        self.0.retain(|_, v| v.0 > now);
-        self.0.shrink_to_fit();
-    }
-}
+use super::common::*;
 
 pub fn run_socket_worker(
     state: State,
