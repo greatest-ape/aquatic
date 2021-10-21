@@ -24,6 +24,12 @@ use crate::config::Config;
 use common::State;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
+    if config.core_affinity.set_affinities {
+        core_affinity::set_for_current(
+            core_affinity::CoreId { id: config.core_affinity.offset }
+        );
+    }
+
     let state = State::default();
 
     update_access_list(&config, &state.access_list);
@@ -86,6 +92,12 @@ pub fn start_workers(
         Builder::new()
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
+                if config.core_affinity.set_affinities {
+                    core_affinity::set_for_current(
+                        core_affinity::CoreId { id: config.core_affinity.offset + 1 + i }
+                    );
+                }
+
                 handlers::run_request_worker(state, config, request_receiver, response_sender)
             })
             .with_context(|| "spawn request worker")?;
@@ -101,6 +113,12 @@ pub fn start_workers(
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
+                if config.core_affinity.set_affinities {
+                    core_affinity::set_for_current(
+                        core_affinity::CoreId { id: config.core_affinity.offset + 1 + config.request_workers  + i }
+                    );
+                }
+
                 network::run_socket_worker(
                     state,
                     config,
@@ -119,10 +137,18 @@ pub fn start_workers(
 
         Builder::new()
             .name("statistics-collector".to_string())
-            .spawn(move || loop {
-                ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
+            .spawn(move || {
+                if config.core_affinity.set_affinities {
+                    core_affinity::set_for_current(
+                        core_affinity::CoreId { id: config.core_affinity.offset }
+                    );
+                }
 
-                tasks::gather_and_print_statistics(&state, &config);
+                loop {
+                    ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
+
+                    tasks::gather_and_print_statistics(&state, &config);
+                }
             })
             .with_context(|| "spawn statistics worker")?;
     }

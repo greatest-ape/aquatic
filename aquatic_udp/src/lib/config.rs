@@ -23,6 +23,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
+    pub core_affinity: CoreAffinityConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -103,6 +104,13 @@ pub struct PrivilegeConfig {
     pub user: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CoreAffinityConfig {
+    pub set_affinities: bool,
+    pub offset: usize,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -116,6 +124,7 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
+            core_affinity: CoreAffinityConfig::default(),
         }
     }
 }
@@ -171,6 +180,15 @@ impl Default for PrivilegeConfig {
             drop_privileges: false,
             chroot_path: ".".to_string(),
             user: "nobody".to_string(),
+        }
+    }
+}
+
+impl Default for CoreAffinityConfig {
+    fn default() -> Self {
+        Self {
+            set_affinities: false,
+            offset: 0,
         }
     }
 }
