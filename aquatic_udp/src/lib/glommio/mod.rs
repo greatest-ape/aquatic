@@ -57,7 +57,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         executors.push(executor);
     }
 
-    for _ in 0..(config.request_workers) {
+    for i in 0..(config.request_workers) {
         let config = config.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
