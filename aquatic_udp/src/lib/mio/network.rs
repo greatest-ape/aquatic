@@ -1,4 +1,4 @@
-use std::io::ErrorKind;
+use std::io::{ErrorKind, IoSliceMut};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -7,7 +7,7 @@ use std::sync::{
 use std::time::Duration;
 use std::vec::Drain;
 
-use aquatic_common::access_list::AccessListQuery;
+use aquatic_common::access_list::{AccessListArcSwap, AccessListMode, AccessListQuery};
 use crossbeam_channel::{Receiver, Sender};
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
@@ -15,7 +15,7 @@ use rand::prelude::{Rng, SeedableRng, StdRng};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::{IpVersion, Request, Response};
-use udp_socket::Transmit;
+use udp_socket::{RecvMeta, Transmit, BATCH_SIZE};
 
 use crate::common::network::ConnectionMap;
 use crate::common::*;
@@ -32,7 +32,6 @@ pub fn run_socket_worker(
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
     let mut rng = StdRng::from_entropy();
-    let mut buffer = [0u8; MAX_PACKET_SIZE];
 
     let mut socket = UdpSocket::from_std(create_socket(&config));
     let mut poll = Poll::new().expect("create poll");
@@ -68,7 +67,6 @@ pub fn run_socket_worker(
                     &mut connections,
                     &mut rng,
                     &mut socket,
-                    &mut buffer,
                     &request_sender,
                     &mut local_responses,
                 );
@@ -137,7 +135,6 @@ fn read_requests(
     connections: &mut ConnectionMap,
     rng: &mut StdRng,
     socket: &mut UdpSocket,
-    buffer: &mut [u8],
     request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
     local_responses: &mut Vec<(Response, SocketAddr)>,
 ) {
@@ -147,80 +144,36 @@ fn read_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let access_list_mode = config.access_list.mode;
 
+    let mut storage = [[0u8; 1200]; BATCH_SIZE];
+
+    let mut buffers = setup_buffers(&mut storage);
+    let mut meta = [RecvMeta::default(); BATCH_SIZE];
+
     loop {
-        match socket.recv_from(&mut buffer[..]) {
-            Ok((amt, src)) => {
-                let request =
-                    Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
+        // Informing mio is not necessary on Linux/macOS
+        match udp_socket::unix::recv(socket, &mut buffers, &mut meta) {
+            Ok(n) => {
+                for (meta, buf) in meta.iter().zip(buffers.iter()).take(n) {
+                    let request =
+                        Request::from_bytes(&buf[..meta.len], config.protocol.max_scrape_torrents);
 
-                bytes_received += amt;
+                    bytes_received += meta.len;
 
-                if request.is_ok() {
-                    requests_received += 1;
-                }
-
-                match request {
-                    Ok(Request::Connect(request)) => {
-                        let connection_id = ConnectionId(rng.gen());
-
-                        connections.insert(connection_id, src, valid_until);
-
-                        let response = Response::Connect(ConnectResponse {
-                            connection_id,
-                            transaction_id: request.transaction_id,
-                        });
-
-                        local_responses.push((response, src))
+                    if request.is_ok() {
+                        requests_received += 1;
                     }
-                    Ok(Request::Announce(request)) => {
-                        if connections.contains(request.connection_id, src) {
-                            if state
-                                .access_list
-                                .allows(access_list_mode, &request.info_hash.0)
-                            {
-                                if let Err(err) = request_sender
-                                    .try_send((ConnectedRequest::Announce(request), src))
-                                {
-                                    ::log::warn!("request_sender.try_send failed: {:?}", err)
-                                }
-                            } else {
-                                let response = Response::Error(ErrorResponse {
-                                    transaction_id: request.transaction_id,
-                                    message: "Info hash not allowed".into(),
-                                });
 
-                                local_responses.push((response, src))
-                            }
-                        }
-                    }
-                    Ok(Request::Scrape(request)) => {
-                        if connections.contains(request.connection_id, src) {
-                            if let Err(err) =
-                                request_sender.try_send((ConnectedRequest::Scrape(request), src))
-                            {
-                                ::log::warn!("request_sender.try_send failed: {:?}", err)
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        ::log::debug!("Request::from_bytes error: {:?}", err);
-
-                        if let RequestParseError::Sendable {
-                            connection_id,
-                            transaction_id,
-                            err,
-                        } = err
-                        {
-                            if connections.contains(connection_id, src) {
-                                let response = ErrorResponse {
-                                    transaction_id,
-                                    message: err.right_or("Parse error").into(),
-                                };
-
-                                local_responses.push((response.into(), src));
-                            }
-                        }
-                    }
+                    handle_request(
+                        &state.access_list,
+                        connections,
+                        rng,
+                        request_sender,
+                        local_responses,
+                        access_list_mode,
+                        valid_until,
+                        request,
+                        meta.source
+                    );
                 }
             }
             Err(err) => {
@@ -242,6 +195,79 @@ fn read_requests(
             .statistics
             .bytes_received
             .fetch_add(bytes_received, Ordering::SeqCst);
+    }
+}
+
+fn handle_request(
+    access_list: &Arc<AccessListArcSwap>,
+    connections: &mut ConnectionMap,
+    rng: &mut StdRng,
+    request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
+    local_responses: &mut Vec<(Response, SocketAddr)>,
+    access_list_mode: AccessListMode,
+    valid_until: ValidUntil,
+    request: Result<Request, RequestParseError>,
+    src: SocketAddr,
+) {
+    match request {
+        Ok(Request::Connect(request)) => {
+            let connection_id = ConnectionId(rng.gen());
+
+            connections.insert(connection_id, src, valid_until);
+
+            let response = Response::Connect(ConnectResponse {
+                connection_id,
+                transaction_id: request.transaction_id,
+            });
+
+            local_responses.push((response, src))
+        }
+        Ok(Request::Announce(request)) => {
+            if connections.contains(request.connection_id, src) {
+                if access_list.allows(access_list_mode, &request.info_hash.0) {
+                    if let Err(err) = request_sender
+                        .try_send((ConnectedRequest::Announce(request), src))
+                    {
+                        ::log::warn!("request_sender.try_send failed: {:?}", err)
+                    }
+                } else {
+                    let response = Response::Error(ErrorResponse {
+                        transaction_id: request.transaction_id,
+                        message: "Info hash not allowed".into(),
+                    });
+
+                    local_responses.push((response, src))
+                }
+            }
+        }
+        Ok(Request::Scrape(request)) => {
+            if connections.contains(request.connection_id, src) {
+                if let Err(err) =
+                    request_sender.try_send((ConnectedRequest::Scrape(request), src))
+                {
+                    ::log::warn!("request_sender.try_send failed: {:?}", err)
+                }
+            }
+        }
+        Err(err) => {
+            ::log::debug!("Request::from_bytes error: {:?}", err);
+
+            if let RequestParseError::Sendable {
+                connection_id,
+                transaction_id,
+                err,
+            } = err
+            {
+                if connections.contains(connection_id, src) {
+                    let response = ErrorResponse {
+                        transaction_id,
+                        message: err.right_or("Parse error").into(),
+                    };
+
+                    local_responses.push((response.into(), src));
+                }
+            }
+        }
     }
 }
 
@@ -286,6 +312,7 @@ fn send_responses(
         }
     }
 
+    // Informing mio is not necessary on Linux/macOS
     match udp_socket::unix::send(socket, &transmits[..]) {
         Ok(num_sent) => {
             responses_sent += num_sent;
@@ -301,6 +328,19 @@ fn send_responses(
             .responses_sent
             .fetch_add(responses_sent, Ordering::SeqCst);
     }
+}
+
+fn setup_buffers<'a>(storage: &'a mut [[u8; 1200]; BATCH_SIZE]) -> Vec<IoSliceMut<'a>> {
+    let mut buffers = Vec::with_capacity(BATCH_SIZE);
+    let mut rest = &mut storage[..];
+
+    for _ in 0..BATCH_SIZE {
+        let (b, r) = rest.split_at_mut(1);
+        rest = r;
+        buffers.push(IoSliceMut::new(&mut b[0]));
+    }
+
+    buffers
 }
 
 fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
