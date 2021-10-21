@@ -49,6 +49,10 @@ pub fn run_socket_worker(
 
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
+    let mut recv_storage = [[0u8; 1200]; BATCH_SIZE];
+    let mut recv_buffers = setup_buffers(&mut recv_storage);
+    let mut recv_metas = [RecvMeta::default(); BATCH_SIZE];
+
     let timeout = Duration::from_millis(50);
 
     let mut iter_counter = 0usize;
@@ -67,23 +71,31 @@ pub fn run_socket_worker(
                     &mut connections,
                     &mut rng,
                     &mut socket,
+                    &mut recv_buffers,
+                    &mut recv_metas,
                     &request_sender,
                     &mut local_responses,
                 );
             }
         }
 
-        send_responses(
-            &state,
-            &config,
-            &mut socket,
-            &response_receiver,
-            local_responses.drain(..),
+        local_responses.extend(response_receiver
+            .try_iter()
+            .map(|(response, addr)| (response.into(), addr))
         );
+
+        if local_responses.len() >= 1 {
+            send_responses(
+                &state,
+                &config,
+                &mut socket,
+                local_responses.drain(..),
+            );
+        }
 
         iter_counter += 1;
 
-        if iter_counter == 1000 {
+        if iter_counter == 1024 {
             connections.clean();
 
             iter_counter = 0;
@@ -135,6 +147,8 @@ fn read_requests(
     connections: &mut ConnectionMap,
     rng: &mut StdRng,
     socket: &mut UdpSocket,
+    buffers: &mut [IoSliceMut<'_>],
+    metas: &mut [RecvMeta],
     request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
     local_responses: &mut Vec<(Response, SocketAddr)>,
 ) {
@@ -144,16 +158,11 @@ fn read_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let access_list_mode = config.access_list.mode;
 
-    let mut storage = [[0u8; 1200]; BATCH_SIZE];
-
-    let mut buffers = setup_buffers(&mut storage);
-    let mut meta = [RecvMeta::default(); BATCH_SIZE];
-
     loop {
         // Informing mio is not necessary on Linux/macOS
-        match udp_socket::unix::recv(socket, &mut buffers, &mut meta) {
+        match udp_socket::unix::recv(socket, buffers, metas) {
             Ok(n) => {
-                for (meta, buf) in meta.iter().zip(buffers.iter()).take(n) {
+                for (meta, buf) in metas.iter().zip(buffers.iter()).take(n) {
                     let request =
                         Request::from_bytes(&buf[..meta.len], config.protocol.max_scrape_torrents);
 
@@ -276,20 +285,13 @@ fn send_responses(
     state: &State,
     config: &Config,
     socket: &mut UdpSocket,
-    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
-    local_responses: Drain<(Response, SocketAddr)>,
+    responses: Drain<(Response, SocketAddr)>,
 ) {
     let mut responses_sent: usize = 0;
 
-    let response_iterator = local_responses.into_iter().chain(
-        response_receiver
-            .try_iter()
-            .map(|(response, addr)| (response.into(), addr)),
-    );
-
-    let mut transmits: Vec<Transmit> = Vec::new();
+    let mut transmits: Vec<Transmit> = Vec::with_capacity(responses.len());
     
-    for (response, addr) in response_iterator {
+    for (response, addr) in responses {
         let mut contents = Vec::new();
 
         let ip_version = ip_version_from_ip(addr.ip());
