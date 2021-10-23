@@ -42,7 +42,7 @@ impl Default for AccessListConfig {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct AccessList(HashSet<[u8; 20]>);
 
 impl AccessList {
