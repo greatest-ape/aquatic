@@ -114,7 +114,7 @@ async fn read_requests(
         })()
     }));
 
-    let mut buf = [0u8; 2048];
+    let mut buf = [0u8; MAX_PACKET_SIZE];
 
     loop {
         match socket.recv_from(&mut buf).await {
