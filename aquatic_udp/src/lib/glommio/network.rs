@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::net::{IpAddr, SocketAddr};
 use std::rc::Rc;
@@ -32,7 +33,7 @@ const PENDING_SCRAPE_MAX_WAIT: u64 = 30;
 struct PendingScrapeResponse {
     pending_worker_responses: usize,
     valid_until: ValidUntil,
-    stats: Vec<TorrentScrapeStatistics>,
+    stats: BTreeMap<usize, TorrentScrapeStatistics>,
 }
 
 #[derive(Default)]
@@ -48,16 +49,25 @@ impl PendingScrapeResponses {
         let pending = PendingScrapeResponse {
             pending_worker_responses,
             valid_until,
-            stats: Vec::new(),
+            stats: BTreeMap::new(),
         };
 
         self.0.insert(transaction_id, pending);
     }
 
-    fn add_and_get_finished(&mut self, mut response: ScrapeResponse) -> Option<ScrapeResponse> {
+    fn add_and_get_finished(
+        &mut self,
+        mut response: ScrapeResponse,
+        mut original_indices: Vec<usize>,
+    ) -> Option<ScrapeResponse> {
         let finished = if let Some(r) = self.0.get_mut(&response.transaction_id) {
             r.pending_worker_responses -= 1;
-            r.stats.append(&mut response.torrent_stats);
+
+            r.stats.extend(
+                original_indices
+                    .drain(..)
+                    .zip(response.torrent_stats.drain(..)),
+            );
 
             r.pending_worker_responses == 0
         } else {
@@ -67,11 +77,12 @@ impl PendingScrapeResponses {
         };
 
         if finished {
-            let r = self.0.remove(&response.transaction_id).unwrap();
+            let PendingScrapeResponse { stats, .. } =
+                self.0.remove(&response.transaction_id).unwrap();
 
             Some(ScrapeResponse {
                 transaction_id: response.transaction_id,
-                torrent_stats: r.stats,
+                torrent_stats: stats.into_values().collect(),
             })
         } else {
             None
@@ -258,37 +269,47 @@ async fn read_requests(
                             }
                         }
                     }
-                    Ok(Request::Scrape(request)) => {
-                        if connections.borrow().contains(request.connection_id, src) {
-                            let mut consumer_requests: HashMap<usize, ScrapeRequest> =
+                    Ok(Request::Scrape(ScrapeRequest {
+                        transaction_id,
+                        connection_id,
+                        info_hashes,
+                    })) => {
+                        if connections.borrow().contains(connection_id, src) {
+                            let mut consumer_requests: HashMap<usize, (ScrapeRequest, Vec<usize>)> =
                                 HashMap::new();
 
-                            for info_hash in request.info_hashes {
-                                consumer_requests
+                            for (i, info_hash) in info_hashes.into_iter().enumerate() {
+                                let (req, indices) = consumer_requests
                                     .entry(calculate_request_consumer_index(&config, info_hash))
-                                    .or_insert(ScrapeRequest {
-                                        transaction_id: request.transaction_id,
-                                        connection_id: request.connection_id,
-                                        info_hashes: Vec::new(),
-                                    })
-                                    .info_hashes
-                                    .push(info_hash);
+                                    .or_insert_with(|| {
+                                        let request = ScrapeRequest {
+                                            transaction_id: transaction_id,
+                                            connection_id: connection_id,
+                                            info_hashes: Vec::new(),
+                                        };
+
+                                        (request, Vec::new())
+                                    });
+
+                                req.info_hashes.push(info_hash);
+                                indices.push(i);
                             }
 
                             pending_scrape_responses.borrow_mut().prepare(
-                                request.transaction_id,
+                                transaction_id,
                                 consumer_requests.len(),
                                 pending_scrape_valid_until.borrow().to_owned(),
                             );
 
-                            for (consumer_index, request) in consumer_requests {
+                            for (consumer_index, (request, original_indices)) in consumer_requests {
+                                let request = ConnectedRequest::Scrape {
+                                    request,
+                                    original_indices,
+                                };
+
                                 if let Err(err) = request_senders.try_send_to(
                                     consumer_index,
-                                    (
-                                        response_consumer_index,
-                                        ConnectedRequest::Scrape(request),
-                                        src,
-                                    ),
+                                    (response_consumer_index, request, src),
                                 ) {
                                     ::log::warn!("request_sender.try_send failed: {:?}", err)
                                 }
@@ -338,9 +359,12 @@ async fn handle_shared_responses<S>(
     while let Some((response, addr)) = stream.next().await {
         let opt_response = match response {
             ConnectedResponse::Announce(response) => Some((Response::Announce(response), addr)),
-            ConnectedResponse::Scrape(response) => pending_scrape_responses
+            ConnectedResponse::Scrape {
+                response,
+                original_indices,
+            } => pending_scrape_responses
                 .borrow_mut()
-                .add_and_get_finished(response)
+                .add_and_get_finished(response, original_indices)
                 .map(|response| (Response::Scrape(response), addr)),
         };
 

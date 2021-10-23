@@ -55,8 +55,8 @@ pub fn run_request_worker(
             };
 
             match request {
-                ConnectedRequest::Announce(r) => announce_requests.push((r, src)),
-                ConnectedRequest::Scrape(r) => scrape_requests.push((r, src)),
+                ConnectedRequest::Announce(request) => announce_requests.push((request, src)),
+                ConnectedRequest::Scrape { request, .. } => scrape_requests.push((request, src)),
             }
         }
 
@@ -80,8 +80,10 @@ pub fn run_request_worker(
             }));
 
             responses.extend(scrape_requests.drain(..).map(|(request, src)| {
-                let response =
-                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, src, request));
+                let response = ConnectedResponse::Scrape {
+                    response: handle_scrape_request(&mut torrents, src, request),
+                    original_indices: Vec::new(),
+                };
 
                 (response, src)
             }));

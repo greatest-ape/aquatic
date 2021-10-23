@@ -10,20 +10,28 @@ use crate::common::*;
 #[derive(Debug)]
 pub enum ConnectedRequest {
     Announce(AnnounceRequest),
-    Scrape(ScrapeRequest),
+    Scrape {
+        request: ScrapeRequest,
+        /// Currently only used by glommio implementation
+        original_indices: Vec<usize>,
+    },
 }
 
 #[derive(Debug)]
 pub enum ConnectedResponse {
     Announce(AnnounceResponse),
-    Scrape(ScrapeResponse),
+    Scrape {
+        response: ScrapeResponse,
+        /// Currently only used by glommio implementation
+        original_indices: Vec<usize>,
+    },
 }
 
 impl Into<Response> for ConnectedResponse {
     fn into(self) -> Response {
         match self {
             Self::Announce(response) => Response::Announce(response),
-            Self::Scrape(response) => Response::Scrape(response),
+            Self::Scrape { response, .. } => Response::Scrape(response),
         }
     }
 }

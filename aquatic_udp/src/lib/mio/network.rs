@@ -192,9 +192,12 @@ fn read_requests(
                     }
                     Ok(Request::Scrape(request)) => {
                         if connections.contains(request.connection_id, src) {
-                            if let Err(err) =
-                                request_sender.try_send((ConnectedRequest::Scrape(request), src))
-                            {
+                            let request = ConnectedRequest::Scrape {
+                                request,
+                                original_indices: Vec::new(),
+                            };
+
+                            if let Err(err) = request_sender.try_send((request, src)) {
                                 ::log::warn!("request_sender.try_send failed: {:?}", err)
                             }
                         }
