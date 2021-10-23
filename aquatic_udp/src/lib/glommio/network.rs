@@ -119,7 +119,6 @@ pub async fn run_socket_worker(
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
-
     let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
 
     let response_consumer_index = response_receivers.consumer_id().unwrap();
