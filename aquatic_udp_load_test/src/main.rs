@@ -33,6 +33,16 @@ pub fn main() {
 impl aquatic_cli_helpers::Config for Config {}
 
 fn run(config: Config) -> ::anyhow::Result<()> {
+    let affinity_max = core_affinity::get_core_ids()
+        .map(|ids| ids.iter().map(|id| id.id ).max())
+        .flatten().unwrap_or(0);
+
+    if config.core_affinity.set_affinities {
+        core_affinity::set_for_current(
+            core_affinity::CoreId { id: affinity_max }
+        );
+    }
+
     if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape
         == 0
     {
@@ -92,17 +102,28 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
 
         thread::spawn(move || {
+            if config.core_affinity.set_affinities {
+                core_affinity::set_for_current(
+                    core_affinity::CoreId { id: affinity_max - 1 - i as usize }
+                );
+            }
+
             run_socket_thread(state, response_sender, receiver, &config, addr, thread_id)
         });
     }
 
-    for _ in 0..config.num_request_workers {
+    for i in 0..config.num_request_workers {
         let config = config.clone();
         let state = state.clone();
         let request_senders = request_senders.clone();
         let response_receiver = response_receiver.clone();
 
         thread::spawn(move || {
+            if config.core_affinity.set_affinities {
+                core_affinity::set_for_current(
+                    core_affinity::CoreId { id: affinity_max - config.num_socket_workers as usize - 1 - i as usize }
+                );
+            }
             run_handler_thread(&config, state, pareto, request_senders, response_receiver)
         });
     }

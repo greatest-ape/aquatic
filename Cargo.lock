@@ -160,6 +160,7 @@ dependencies = [
  "aquatic_common",
  "aquatic_udp_protocol",
  "cfg-if",
+ "core_affinity",
  "crossbeam-channel",
  "futures-lite",
  "glommio",
@@ -202,6 +203,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_udp_protocol",
+ "core_affinity",
  "crossbeam-channel",
  "hashbrown 0.11.2",
  "mimalloc",
@@ -496,6 +498,18 @@ name = "core-foundation-sys"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
+
+[[package]]
+name = "core_affinity"
+version = "0.5.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f8a03115cc34fb0d7c321dd154a3914b3ca082ccc5c11d91bf7117dbbe7171f"
+dependencies = [
+ "kernel32-sys",
+ "libc",
+ "num_cpus",
+ "winapi 0.2.8",
+]
 
 [[package]]
 name = "cpufeatures"
