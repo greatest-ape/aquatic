@@ -68,8 +68,16 @@ async fn handle_request_stream<S>(
 {
     let mut rng = SmallRng::from_entropy();
 
-    // Needs to be updated periodically: use timer?
-    let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+    let max_peer_age = config.cleaning.max_peer_age;
+    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(max_peer_age)));
+
+    TimerActionRepeat::repeat(enclose!((peer_valid_until) move || {
+        enclose!((peer_valid_until) move || async move {
+            *peer_valid_until.borrow_mut() = ValidUntil::new(max_peer_age);
+
+            Some(Duration::from_secs(1))
+        })()
+    }));
 
     while let Some((producer_index, request, addr)) = stream.next().await {
         let response = match addr.ip() {
@@ -79,7 +87,7 @@ async fn handle_request_stream<S>(
                 &mut torrents.borrow_mut().ipv4,
                 request,
                 ip,
-                peer_valid_until,
+                peer_valid_until.borrow().to_owned(),
             ),
             IpAddr::V6(ip) => handle_announce_request(
                 &config,
@@ -87,7 +95,7 @@ async fn handle_request_stream<S>(
                 &mut torrents.borrow_mut().ipv6,
                 request,
                 ip,
-                peer_valid_until,
+                peer_valid_until.borrow().to_owned(),
             ),
         };
 
