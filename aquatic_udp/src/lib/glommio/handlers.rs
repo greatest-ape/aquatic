@@ -10,15 +10,16 @@ use glommio::{enclose, prelude::*};
 use rand::prelude::SmallRng;
 use rand::SeedableRng;
 
-use crate::common::announce::handle_announce_request;
+use crate::common::handlers::handle_announce_request;
 use crate::common::*;
+use crate::common::handlers::*;
 use crate::config::Config;
 use crate::glommio::common::update_access_list;
 
 pub async fn run_request_worker(
     config: Config,
-    request_mesh_builder: MeshBuilder<(usize, AnnounceRequest, SocketAddr), Partial>,
-    response_mesh_builder: MeshBuilder<(AnnounceResponse, SocketAddr), Partial>,
+    request_mesh_builder: MeshBuilder<(usize, ConnectedRequest, SocketAddr), Partial>,
+    response_mesh_builder: MeshBuilder<(ConnectedResponse, SocketAddr), Partial>,
     access_list: AccessList,
 ) {
     let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
@@ -62,10 +63,10 @@ pub async fn run_request_worker(
 async fn handle_request_stream<S>(
     config: Config,
     torrents: Rc<RefCell<TorrentMaps>>,
-    response_senders: Rc<Senders<(AnnounceResponse, SocketAddr)>>,
+    response_senders: Rc<Senders<(ConnectedResponse, SocketAddr)>>,
     mut stream: S,
 ) where
-    S: Stream<Item = (usize, AnnounceRequest, SocketAddr)> + ::std::marker::Unpin,
+    S: Stream<Item = (usize, ConnectedRequest, SocketAddr)> + ::std::marker::Unpin,
 {
     let mut rng = SmallRng::from_entropy();
 
@@ -81,23 +82,30 @@ async fn handle_request_stream<S>(
     }));
 
     while let Some((producer_index, request, addr)) = stream.next().await {
-        let response = match addr.ip() {
-            IpAddr::V4(ip) => handle_announce_request(
-                &config,
-                &mut rng,
-                &mut torrents.borrow_mut().ipv4,
-                request,
-                ip,
-                peer_valid_until.borrow().to_owned(),
-            ),
-            IpAddr::V6(ip) => handle_announce_request(
-                &config,
-                &mut rng,
-                &mut torrents.borrow_mut().ipv6,
-                request,
-                ip,
-                peer_valid_until.borrow().to_owned(),
-            ),
+        let response = match request {
+            ConnectedRequest::Announce(request) => {
+                ConnectedResponse::Announce(match addr.ip() {
+                    IpAddr::V4(ip) => handle_announce_request(
+                        &config,
+                        &mut rng,
+                        &mut torrents.borrow_mut().ipv4,
+                        request,
+                        ip,
+                        peer_valid_until.borrow().to_owned(),
+                    ),
+                    IpAddr::V6(ip) => handle_announce_request(
+                        &config,
+                        &mut rng,
+                        &mut torrents.borrow_mut().ipv6,
+                        request,
+                        ip,
+                        peer_valid_until.borrow().to_owned(),
+                    ),
+                })
+            }
+            ConnectedRequest::Scrape(request) => {
+                ConnectedResponse::Scrape(handle_scrape_request(&mut torrents.borrow_mut(), addr, request))
+            }
         };
 
         ::log::debug!("preparing to send response to channel: {:?}", response);

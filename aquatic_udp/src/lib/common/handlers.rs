@@ -1,8 +1,32 @@
+use std::net::SocketAddr;
+
 use rand::rngs::SmallRng;
 
 use aquatic_common::extract_response_peers;
+use aquatic_common::convert_ipv4_mapped_ipv6;
 
 use crate::common::*;
+
+#[derive(Debug)]
+pub enum ConnectedRequest {
+    Announce(AnnounceRequest),
+    Scrape(ScrapeRequest),
+}
+
+#[derive(Debug)]
+pub enum ConnectedResponse {
+    Announce(AnnounceResponse),
+    Scrape(ScrapeResponse),
+}
+
+impl Into<Response> for ConnectedResponse {
+    fn into(self) -> Response {
+        match self {
+            Self::Announce(response) => Response::Announce(response),
+            Self::Scrape(response) => Response::Scrape(response),
+        }
+    }
+}
 
 pub fn handle_announce_request<I: Ip>(
     config: &Config,
@@ -80,6 +104,57 @@ fn calc_max_num_peers_to_take(config: &Config, peers_wanted: i32) -> usize {
             config.protocol.max_response_peers as usize,
             peers_wanted as usize,
         )
+    }
+}
+
+#[inline]
+pub fn handle_scrape_request(
+    torrents: &mut TorrentMaps,
+    src: SocketAddr,
+    request: ScrapeRequest,
+) -> ScrapeResponse {
+    let empty_stats = create_torrent_scrape_statistics(0, 0);
+
+    let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(request.info_hashes.len());
+
+    let peer_ip = convert_ipv4_mapped_ipv6(src.ip());
+
+    if peer_ip.is_ipv4() {
+        for info_hash in request.info_hashes.iter() {
+            if let Some(torrent_data) = torrents.ipv4.get(info_hash) {
+                stats.push(create_torrent_scrape_statistics(
+                    torrent_data.num_seeders as i32,
+                    torrent_data.num_leechers as i32,
+                ));
+            } else {
+                stats.push(empty_stats);
+            }
+        }
+    } else {
+        for info_hash in request.info_hashes.iter() {
+            if let Some(torrent_data) = torrents.ipv6.get(info_hash) {
+                stats.push(create_torrent_scrape_statistics(
+                    torrent_data.num_seeders as i32,
+                    torrent_data.num_leechers as i32,
+                ));
+            } else {
+                stats.push(empty_stats);
+            }
+        }
+    }
+
+    ScrapeResponse {
+        transaction_id: request.transaction_id,
+        torrent_stats: stats,
+    }
+}
+
+#[inline(always)]
+fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
+    TorrentScrapeStatistics {
+        seeders: NumberOfPeers(seeders),
+        completed: NumberOfDownloads(0), // No implementation planned
+        leechers: NumberOfPeers(leechers),
     }
 }
 
