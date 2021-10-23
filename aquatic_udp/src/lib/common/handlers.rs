@@ -141,7 +141,7 @@ pub fn handle_scrape_request(
     src: SocketAddr,
     request: ScrapeRequest,
 ) -> ScrapeResponse {
-    let empty_stats = create_torrent_scrape_statistics(0, 0);
+    const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
 
     let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(request.info_hashes.len());
 
@@ -155,7 +155,7 @@ pub fn handle_scrape_request(
                     torrent_data.num_leechers as i32,
                 ));
             } else {
-                stats.push(empty_stats);
+                stats.push(EMPTY_STATS);
             }
         }
     } else {
@@ -166,7 +166,7 @@ pub fn handle_scrape_request(
                     torrent_data.num_leechers as i32,
                 ));
             } else {
-                stats.push(empty_stats);
+                stats.push(EMPTY_STATS);
             }
         }
     }
@@ -178,7 +178,7 @@ pub fn handle_scrape_request(
 }
 
 #[inline(always)]
-fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
+const fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
     TorrentScrapeStatistics {
         seeders: NumberOfPeers(seeders),
         completed: NumberOfDownloads(0), // No implementation planned
