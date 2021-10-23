@@ -110,6 +110,22 @@ Server responses per second, best result in bold:
 
 Please refer to `documents/aquatic-udp-load-test-2021-08-19.pdf` for more details.
 
+#### Alternative implementation using io_uring
+
+[io_uring]: https://en.wikipedia.org/wiki/Io_uring
+[glommio]: https://github.com/DataDog/glommio
+
+There is an alternative implementation that utilizes [io_uring] by running on
+[glommio]. It only runs on Linux and requires a recent kernel (version 5.1 or later).
+In some cases, it performs even better than the cross-platform implementation.
+
+To use it, pass the `with-glommio` feature when building, e.g.:
+
+```sh
+cargo build -p aquatic_udp --features "with-glommio" --no-default-features
+./target/release/aquatic_udp
+```
+
 ### aquatic_http: HTTP BitTorrent tracker
 
 Aims for compatibility with the HTTP BitTorrent protocol, as described
