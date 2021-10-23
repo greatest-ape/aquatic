@@ -1,7 +1,6 @@
 # TODO
 
 * aquatic_udp glommio
-  * disable by default!
   * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
     containing TransactionId and BTreeMap<usize, InfoHash>, and same for
     response

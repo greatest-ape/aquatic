@@ -15,8 +15,7 @@ path = "src/lib/lib.rs"
 name = "aquatic_udp"
 
 [features]
-default = ["with-glommio"]
-with-glommio = ["glommio", "futures-lite"]
+io_uring = ["glommio", "futures-lite"]
 
 [dependencies]
 anyhow = "1"
