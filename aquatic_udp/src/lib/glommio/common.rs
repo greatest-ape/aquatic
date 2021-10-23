@@ -10,23 +10,32 @@ use crate::config::Config;
 
 pub async fn update_access_list(config: Config, access_list: Rc<RefCell<AccessList>>) {
     if config.access_list.mode.is_on() {
-        let access_list_file = BufferedFile::open(config.access_list.path).await.unwrap();
+        match BufferedFile::open(config.access_list.path).await {
+            Ok(file) => {
+                let mut reader = StreamReaderBuilder::new(file).build();
 
-        let mut reader = StreamReaderBuilder::new(access_list_file).build();
+                loop {
+                    let mut buf = String::with_capacity(42);
 
-        loop {
-            let mut buf = String::with_capacity(42);
+                    match reader.read_line(&mut buf).await {
+                        Ok(_) => {
+                            if let Err(err) = access_list.borrow_mut().insert_from_line(&buf) {
+                                ::log::error!("Couln't parse access list line '{}': {:?}", buf, err);
+                            }
+                        }
+                        Err(err) => {
+                            ::log::error!("Couln't read access list line {:?}", err);
 
-            match reader.read_line(&mut buf).await {
-                Ok(_) => {
-                    access_list.borrow_mut().insert_from_line(&buf);
+                            break;
+                        }
+                    }
+
+                    yield_if_needed().await;
                 }
-                Err(err) => {
-                    break;
-                }
+            },
+            Err(err) => {
+                ::log::error!("Couldn't open access list file: {:?}", err)
             }
-
-            yield_if_needed().await;
-        }
+        };
     }
 }
