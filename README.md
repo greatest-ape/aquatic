@@ -91,6 +91,8 @@ except that it:
 Supports IPv4 and IPv6 (BitTorrent UDP protocol doesn't support IPv6 very well,
 however.)
 
+For optimal performance, enable setting of core affinities in configuration.
+
 #### Benchmarks
 
 [opentracker]: http://erdgeist.org/arts/software/opentracker/
