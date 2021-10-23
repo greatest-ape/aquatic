@@ -17,7 +17,7 @@ impl ConnectionMap {
         self.0.insert((connection_id, socket_addr), valid_until);
     }
 
-    pub fn contains(&mut self, connection_id: ConnectionId, socket_addr: SocketAddr) -> bool {
+    pub fn contains(&self, connection_id: ConnectionId, socket_addr: SocketAddr) -> bool {
         self.0.contains_key(&(connection_id, socket_addr))
     }
 
