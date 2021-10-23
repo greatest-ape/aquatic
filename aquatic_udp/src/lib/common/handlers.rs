@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 
 use rand::rngs::SmallRng;
 
-use aquatic_common::extract_response_peers;
 use aquatic_common::convert_ipv4_mapped_ipv6;
+use aquatic_common::extract_response_peers;
 
 use crate::common::*;
 

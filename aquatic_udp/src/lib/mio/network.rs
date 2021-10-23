@@ -16,9 +16,9 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::{IpVersion, Request, Response};
 
+use crate::common::handlers::*;
 use crate::common::network::ConnectionMap;
 use crate::common::*;
-use crate::common::handlers::*;
 use crate::config::Config;
 
 use super::common::*;

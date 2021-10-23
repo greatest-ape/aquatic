@@ -6,9 +6,9 @@ use indicatif::ProgressIterator;
 use rand::Rng;
 use rand_distr::Pareto;
 
+use aquatic_udp::common::handlers::*;
 use aquatic_udp::common::*;
 use aquatic_udp::config::Config;
-use aquatic_udp::common::handlers::*;
 
 use crate::common::*;
 use crate::config::BenchConfig;

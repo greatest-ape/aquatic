@@ -11,8 +11,8 @@ use rand::prelude::SmallRng;
 use rand::SeedableRng;
 
 use crate::common::handlers::handle_announce_request;
-use crate::common::*;
 use crate::common::handlers::*;
+use crate::common::*;
 use crate::config::Config;
 use crate::glommio::common::update_access_list;
 
@@ -83,29 +83,29 @@ async fn handle_request_stream<S>(
 
     while let Some((producer_index, request, addr)) = stream.next().await {
         let response = match request {
-            ConnectedRequest::Announce(request) => {
-                ConnectedResponse::Announce(match addr.ip() {
-                    IpAddr::V4(ip) => handle_announce_request(
-                        &config,
-                        &mut rng,
-                        &mut torrents.borrow_mut().ipv4,
-                        request,
-                        ip,
-                        peer_valid_until.borrow().to_owned(),
-                    ),
-                    IpAddr::V6(ip) => handle_announce_request(
-                        &config,
-                        &mut rng,
-                        &mut torrents.borrow_mut().ipv6,
-                        request,
-                        ip,
-                        peer_valid_until.borrow().to_owned(),
-                    ),
-                })
-            }
-            ConnectedRequest::Scrape(request) => {
-                ConnectedResponse::Scrape(handle_scrape_request(&mut torrents.borrow_mut(), addr, request))
-            }
+            ConnectedRequest::Announce(request) => ConnectedResponse::Announce(match addr.ip() {
+                IpAddr::V4(ip) => handle_announce_request(
+                    &config,
+                    &mut rng,
+                    &mut torrents.borrow_mut().ipv4,
+                    request,
+                    ip,
+                    peer_valid_until.borrow().to_owned(),
+                ),
+                IpAddr::V6(ip) => handle_announce_request(
+                    &config,
+                    &mut rng,
+                    &mut torrents.borrow_mut().ipv6,
+                    request,
+                    ip,
+                    peer_valid_until.borrow().to_owned(),
+                ),
+            }),
+            ConnectedRequest::Scrape(request) => ConnectedResponse::Scrape(handle_scrape_request(
+                &mut torrents.borrow_mut(),
+                addr,
+                request,
+            )),
         };
 
         ::log::debug!("preparing to send response to channel: {:?}", response);

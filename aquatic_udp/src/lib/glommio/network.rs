@@ -39,7 +39,12 @@ struct PendingScrapeResponse {
 struct PendingScrapeResponses(HashMap<TransactionId, PendingScrapeResponse>);
 
 impl PendingScrapeResponses {
-    fn prepare(&mut self, transaction_id: TransactionId, pending_worker_responses: usize, valid_until: ValidUntil) {
+    fn prepare(
+        &mut self,
+        transaction_id: TransactionId,
+        pending_worker_responses: usize,
+        valid_until: ValidUntil,
+    ) {
         let pending = PendingScrapeResponse {
             pending_worker_responses,
             valid_until,
@@ -76,9 +81,7 @@ impl PendingScrapeResponses {
     fn clean(&mut self) {
         let now = Instant::now();
 
-        self.0.retain(|_, v| {
-            v.valid_until.0 > now
-        });
+        self.0.retain(|_, v| v.valid_until.0 > now);
         self.0.shrink_to_fit();
     }
 }
@@ -159,7 +162,8 @@ async fn read_requests(
 
     let max_connection_age = config.cleaning.max_connection_age;
     let connection_valid_until = Rc::new(RefCell::new(ValidUntil::new(max_connection_age)));
-    let pending_scrape_valid_until = Rc::new(RefCell::new(ValidUntil::new(PENDING_SCRAPE_MAX_WAIT)));
+    let pending_scrape_valid_until =
+        Rc::new(RefCell::new(ValidUntil::new(PENDING_SCRAPE_MAX_WAIT)));
     let access_list = Rc::new(RefCell::new(access_list));
     let connections = Rc::new(RefCell::new(ConnectionMap::default()));
 
@@ -236,7 +240,11 @@ async fn read_requests(
 
                                 if let Err(err) = request_senders.try_send_to(
                                     request_consumer_index,
-                                    (response_consumer_index, ConnectedRequest::Announce(request), src),
+                                    (
+                                        response_consumer_index,
+                                        ConnectedRequest::Announce(request),
+                                        src,
+                                    ),
                                 ) {
                                     ::log::warn!("request_sender.try_send failed: {:?}", err)
                                 }
@@ -252,19 +260,19 @@ async fn read_requests(
                     }
                     Ok(Request::Scrape(request)) => {
                         if connections.borrow().contains(request.connection_id, src) {
-                            let mut consumer_requests: HashMap<usize, ScrapeRequest> = HashMap::new();
+                            let mut consumer_requests: HashMap<usize, ScrapeRequest> =
+                                HashMap::new();
 
                             for info_hash in request.info_hashes {
                                 consumer_requests
                                     .entry(calculate_request_consumer_index(&config, info_hash))
-                                    .or_insert(
-                                        ScrapeRequest {
-                                            transaction_id: request.transaction_id,
-                                            connection_id: request.connection_id,
-                                            info_hashes: Vec::new(),
-                                        }
-                                    )
-                                    .info_hashes.push(info_hash);
+                                    .or_insert(ScrapeRequest {
+                                        transaction_id: request.transaction_id,
+                                        connection_id: request.connection_id,
+                                        info_hashes: Vec::new(),
+                                    })
+                                    .info_hashes
+                                    .push(info_hash);
                             }
 
                             pending_scrape_responses.borrow_mut().prepare(
@@ -276,7 +284,11 @@ async fn read_requests(
                             for (consumer_index, request) in consumer_requests {
                                 if let Err(err) = request_senders.try_send_to(
                                     consumer_index,
-                                    (response_consumer_index, ConnectedRequest::Scrape(request), src),
+                                    (
+                                        response_consumer_index,
+                                        ConnectedRequest::Scrape(request),
+                                        src,
+                                    ),
                                 ) {
                                     ::log::warn!("request_sender.try_send failed: {:?}", err)
                                 }
@@ -326,12 +338,10 @@ async fn handle_shared_responses<S>(
     while let Some((response, addr)) = stream.next().await {
         let opt_response = match response {
             ConnectedResponse::Announce(response) => Some((Response::Announce(response), addr)),
-            ConnectedResponse::Scrape(response) => {
-                pending_scrape_responses
-                    .borrow_mut()
-                    .add_and_get_finished(response)
-                    .map(|response| (Response::Scrape(response), addr))
-            },
+            ConnectedResponse::Scrape(response) => pending_scrape_responses
+                .borrow_mut()
+                .add_and_get_finished(response)
+                .map(|response| (Response::Scrape(response), addr)),
         };
 
         if let Some((response, addr)) = opt_response {

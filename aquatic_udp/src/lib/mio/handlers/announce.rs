@@ -8,9 +8,9 @@ use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_udp_protocol::*;
 
 use crate::common::handlers::handle_announce_request;
+use crate::common::handlers::*;
 use crate::common::*;
 use crate::config::Config;
-use crate::common::handlers::*;
 
 #[inline]
 pub fn handle_announce_requests(

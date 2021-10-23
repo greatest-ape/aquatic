@@ -6,8 +6,8 @@ use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_udp_protocol::*;
 
-use crate::config::Config;
 use crate::common::handlers::*;
+use crate::config::Config;
 use crate::mio::common::*;
 
 mod announce;
@@ -75,7 +75,10 @@ pub fn run_request_worker(
             );
 
             responses.extend(scrape_requests.drain(..).map(|(request, src)| {
-                (ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, src, request)), src)
+                (
+                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, src, request)),
+                    src,
+                )
             }));
         }
 
