@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -81,36 +81,27 @@ async fn handle_request_stream<S>(
         })()
     }));
 
-    while let Some((producer_index, request, addr)) = stream.next().await {
-        let response = match request {
-            ConnectedRequest::Announce(request) => ConnectedResponse::Announce(match addr.ip() {
-                IpAddr::V4(ip) => handle_announce_request(
-                    &config,
-                    &mut rng,
-                    &mut torrents.borrow_mut().ipv4,
-                    request,
-                    ip,
-                    peer_valid_until.borrow().to_owned(),
+    while let Some((producer_index, request, src)) = stream.next().await {
+        let response =
+            match request {
+                ConnectedRequest::Announce(request) => {
+                    ConnectedResponse::Announce(handle_announce_request(
+                        &config,
+                        &mut rng,
+                        &mut torrents.borrow_mut(),
+                        request,
+                        src,
+                        peer_valid_until.borrow().to_owned(),
+                    ))
+                }
+                ConnectedRequest::Scrape(request) => ConnectedResponse::Scrape(
+                    handle_scrape_request(&mut torrents.borrow_mut(), src, request),
                 ),
-                IpAddr::V6(ip) => handle_announce_request(
-                    &config,
-                    &mut rng,
-                    &mut torrents.borrow_mut().ipv6,
-                    request,
-                    ip,
-                    peer_valid_until.borrow().to_owned(),
-                ),
-            }),
-            ConnectedRequest::Scrape(request) => ConnectedResponse::Scrape(handle_scrape_request(
-                &mut torrents.borrow_mut(),
-                addr,
-                request,
-            )),
-        };
+            };
 
         ::log::debug!("preparing to send response to channel: {:?}", response);
 
-        if let Err(err) = response_senders.try_send_to(producer_index, (response, addr)) {
+        if let Err(err) = response_senders.try_send_to(producer_index, (response, src)) {
             ::log::warn!("response_sender.try_send: {:?}", err);
         }
 

@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use aquatic_common::ValidUntil;
 use crossbeam_channel::{Receiver, Sender};
 use rand::{rngs::SmallRng, SeedableRng};
 
@@ -9,9 +10,6 @@ use aquatic_udp_protocol::*;
 use crate::common::handlers::*;
 use crate::config::Config;
 use crate::mio::common::*;
-
-mod announce;
-use announce::handle_announce_requests;
 
 pub fn run_request_worker(
     state: State,
@@ -66,19 +64,26 @@ pub fn run_request_worker(
         {
             let mut torrents = opt_torrents.unwrap_or_else(|| state.torrents.lock());
 
-            handle_announce_requests(
-                &config,
-                &mut torrents,
-                &mut small_rng,
-                announce_requests.drain(..),
-                &mut responses,
-            );
+            let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+
+            responses.extend(announce_requests.drain(..).map(|(request, src)| {
+                let response = handle_announce_request(
+                    &config,
+                    &mut small_rng,
+                    &mut torrents,
+                    request,
+                    src,
+                    peer_valid_until,
+                );
+
+                (ConnectedResponse::Announce(response), src)
+            }));
 
             responses.extend(scrape_requests.drain(..).map(|(request, src)| {
-                (
-                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, src, request)),
-                    src,
-                )
+                let response =
+                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, src, request));
+
+                (response, src)
             }));
         }
 

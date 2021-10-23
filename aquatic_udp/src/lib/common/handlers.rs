@@ -28,7 +28,35 @@ impl Into<Response> for ConnectedResponse {
     }
 }
 
-pub fn handle_announce_request<I: Ip>(
+pub fn handle_announce_request(
+    config: &Config,
+    rng: &mut SmallRng,
+    torrents: &mut TorrentMaps,
+    request: AnnounceRequest,
+    src: SocketAddr,
+    peer_valid_until: ValidUntil,
+) -> AnnounceResponse {
+    match convert_ipv4_mapped_ipv6(src.ip()) {
+        IpAddr::V4(ip) => handle_announce_request_inner(
+            config,
+            rng,
+            &mut torrents.ipv4,
+            request,
+            ip,
+            peer_valid_until,
+        ),
+        IpAddr::V6(ip) => handle_announce_request_inner(
+            config,
+            rng,
+            &mut torrents.ipv6,
+            request,
+            ip,
+            peer_valid_until,
+        ),
+    }
+}
+
+fn handle_announce_request_inner<I: Ip>(
     config: &Config,
     rng: &mut SmallRng,
     torrents: &mut TorrentMap<I>,
