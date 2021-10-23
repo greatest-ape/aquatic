@@ -25,9 +25,9 @@ use common::State;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     if config.core_affinity.set_affinities {
-        core_affinity::set_for_current(
-            core_affinity::CoreId { id: config.core_affinity.offset }
-        );
+        core_affinity::set_for_current(core_affinity::CoreId {
+            id: config.core_affinity.offset,
+        });
     }
 
     let state = State::default();
@@ -93,9 +93,9 @@ pub fn start_workers(
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
                 if config.core_affinity.set_affinities {
-                    core_affinity::set_for_current(
-                        core_affinity::CoreId { id: config.core_affinity.offset + 1 + i }
-                    );
+                    core_affinity::set_for_current(core_affinity::CoreId {
+                        id: config.core_affinity.offset + 1 + i,
+                    });
                 }
 
                 handlers::run_request_worker(state, config, request_receiver, response_sender)
@@ -114,9 +114,9 @@ pub fn start_workers(
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
                 if config.core_affinity.set_affinities {
-                    core_affinity::set_for_current(
-                        core_affinity::CoreId { id: config.core_affinity.offset + 1 + config.request_workers  + i }
-                    );
+                    core_affinity::set_for_current(core_affinity::CoreId {
+                        id: config.core_affinity.offset + 1 + config.request_workers + i,
+                    });
                 }
 
                 network::run_socket_worker(
@@ -139,9 +139,9 @@ pub fn start_workers(
             .name("statistics-collector".to_string())
             .spawn(move || {
                 if config.core_affinity.set_affinities {
-                    core_affinity::set_for_current(
-                        core_affinity::CoreId { id: config.core_affinity.offset }
-                    );
+                    core_affinity::set_for_current(core_affinity::CoreId {
+                        id: config.core_affinity.offset,
+                    });
                 }
 
                 loop {

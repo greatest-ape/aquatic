@@ -1,5 +1,5 @@
 //! Work-in-progress glommio (io_uring) implementation
-//! 
+//!
 //! * Doesn't support scrape requests
 //! * Currently not faster than mio implementation
 
@@ -18,9 +18,9 @@ pub const SHARED_CHANNEL_SIZE: usize = 4096;
 
 pub fn run(config: Config) -> anyhow::Result<()> {
     if config.core_affinity.set_affinities {
-        core_affinity::set_for_current(
-            core_affinity::CoreId { id: config.core_affinity.offset }
-        );
+        core_affinity::set_for_current(core_affinity::CoreId {
+            id: config.core_affinity.offset,
+        });
     }
 
     let num_peers = config.socket_workers + config.request_workers;
@@ -65,7 +65,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let mut builder = LocalExecutorBuilder::default();
 
         if config.core_affinity.set_affinities {
-            builder = builder.pin_to_cpu(config.core_affinity.offset + 1 + config.socket_workers + i);
+            builder =
+                builder.pin_to_cpu(config.core_affinity.offset + 1 + config.socket_workers + i);
         }
 
         let executor = builder.spawn(|| async move {

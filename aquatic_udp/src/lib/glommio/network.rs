@@ -9,9 +9,9 @@ use std::sync::{
 use std::time::Duration;
 
 use futures_lite::{Stream, StreamExt};
-use glommio::enclose;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_unbounded, LocalSender};
+use glommio::enclose;
 use glommio::net::UdpSocket;
 use glommio::prelude::*;
 use glommio::timer::TimerActionRepeat;
@@ -127,7 +127,11 @@ async fn read_requests(
                     Ok(Request::Connect(request)) => {
                         let connection_id = ConnectionId(rng.gen());
 
-                        connections.borrow_mut().insert(connection_id, src, connection_valid_until.borrow().to_owned());
+                        connections.borrow_mut().insert(
+                            connection_id,
+                            src,
+                            connection_valid_until.borrow().to_owned(),
+                        );
 
                         let response = Response::Connect(ConnectResponse {
                             connection_id,
@@ -138,7 +142,10 @@ async fn read_requests(
                     }
                     Ok(Request::Announce(request)) => {
                         if connections.borrow().contains(request.connection_id, src) {
-                            if access_list.borrow().allows(access_list_mode, &request.info_hash.0) {
+                            if access_list
+                                .borrow()
+                                .allows(access_list_mode, &request.info_hash.0)
+                            {
                                 let request_consumer_index =
                                     (request.info_hash.0[0] as usize) % config.request_workers;
 
