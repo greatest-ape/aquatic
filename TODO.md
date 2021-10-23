@@ -1,12 +1,13 @@
 # TODO
 
 * aquatic_udp glommio
+  * Add to file transfer CI
   * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
     containing TransactionId and BTreeMap<usize, InfoHash>, and same for
     response
 
 * access lists:
-  * use arc-swap Cache
+  * use arc-swap Cache?
   * add CI tests
 
 * aquatic_ws: should it send back error on message parse error, or does that
