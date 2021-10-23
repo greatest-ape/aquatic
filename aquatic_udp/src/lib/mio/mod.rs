@@ -2,15 +2,11 @@ use std::thread::Builder;
 use std::time::Duration;
 use std::{
     ops::Deref,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicUsize, Arc},
 };
 
 use anyhow::Context;
 use crossbeam_channel::unbounded;
-use privdrop::PrivDrop;
 
 pub mod common;
 pub mod handlers;
@@ -20,6 +16,7 @@ pub mod tasks;
 use aquatic_common::access_list::{AccessListArcSwap, AccessListMode, AccessListQuery};
 
 use crate::config::Config;
+use crate::drop_privileges_after_socket_binding;
 
 use common::State;
 
@@ -38,30 +35,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     start_workers(config.clone(), state.clone(), num_bound_sockets.clone())?;
 
-    if config.privileges.drop_privileges {
-        let mut counter = 0usize;
-
-        loop {
-            let sockets = num_bound_sockets.load(Ordering::SeqCst);
-
-            if sockets == config.socket_workers {
-                PrivDrop::default()
-                    .chroot(config.privileges.chroot_path.clone())
-                    .user(config.privileges.user.clone())
-                    .apply()?;
-
-                break;
-            }
-
-            ::std::thread::sleep(Duration::from_millis(10));
-
-            counter += 1;
-
-            if counter == 500 {
-                panic!("Sockets didn't bind in time for privilege drop.");
-            }
-        }
-    }
+    drop_privileges_after_socket_binding(&config, num_bound_sockets).unwrap();
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));

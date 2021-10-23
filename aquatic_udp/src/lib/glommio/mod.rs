@@ -5,6 +5,7 @@ use glommio::channels::channel_mesh::MeshBuilder;
 use glommio::prelude::*;
 
 use crate::config::Config;
+use crate::drop_privileges_after_socket_binding;
 
 mod common;
 pub mod handlers;
@@ -86,6 +87,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         executors.push(executor);
     }
+
+    drop_privileges_after_socket_binding(&config, num_bound_sockets).unwrap();
 
     for executor in executors {
         executor
