@@ -1,9 +1,6 @@
 # TODO
 
 * aquatic_udp glommio
-  * update access lists
-  * clean connections
-  * update peer valid until
   * privdrop
 
 * access lists:
