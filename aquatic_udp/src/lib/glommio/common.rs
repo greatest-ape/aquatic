@@ -20,7 +20,11 @@ pub async fn update_access_list(config: Config, access_list: Rc<RefCell<AccessLi
                     match reader.read_line(&mut buf).await {
                         Ok(_) => {
                             if let Err(err) = access_list.borrow_mut().insert_from_line(&buf) {
-                                ::log::error!("Couln't parse access list line '{}': {:?}", buf, err);
+                                ::log::error!(
+                                    "Couln't parse access list line '{}': {:?}",
+                                    buf,
+                                    err
+                                );
                             }
                         }
                         Err(err) => {
@@ -32,7 +36,7 @@ pub async fn update_access_list(config: Config, access_list: Rc<RefCell<AccessLi
 
                     yield_if_needed().await;
                 }
-            },
+            }
             Err(err) => {
                 ::log::error!("Couldn't open access list file: {:?}", err)
             }

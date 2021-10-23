@@ -30,6 +30,7 @@ pub async fn run_socket_worker(
     request_mesh_builder: MeshBuilder<(usize, AnnounceRequest, SocketAddr), Partial>,
     response_mesh_builder: MeshBuilder<(AnnounceResponse, SocketAddr), Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
+    access_list: AccessList,
 ) {
     let (local_sender, local_receiver) = new_unbounded();
 
@@ -57,6 +58,7 @@ pub async fn run_socket_worker(
         response_consumer_index,
         local_sender,
         socket.clone(),
+        access_list,
     ))
     .detach();
 
@@ -77,6 +79,7 @@ async fn read_requests(
     response_consumer_index: usize,
     local_sender: LocalSender<(Response, SocketAddr)>,
     socket: Rc<UdpSocket>,
+    access_list: AccessList,
 ) {
     let mut rng = StdRng::from_entropy();
 
@@ -84,7 +87,7 @@ async fn read_requests(
 
     let max_connection_age = config.cleaning.max_connection_age;
     let connection_valid_until = Rc::new(RefCell::new(ValidUntil::new(max_connection_age)));
-    let access_list = Rc::new(RefCell::new(AccessList::default()));
+    let access_list = Rc::new(RefCell::new(access_list));
     let connections = Rc::new(RefCell::new(ConnectionMap::default()));
 
     // Periodically update connection_valid_until

@@ -19,6 +19,7 @@ pub async fn run_request_worker(
     config: Config,
     request_mesh_builder: MeshBuilder<(usize, AnnounceRequest, SocketAddr), Partial>,
     response_mesh_builder: MeshBuilder<(AnnounceResponse, SocketAddr), Partial>,
+    access_list: AccessList,
 ) {
     let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
     let (response_senders, _) = response_mesh_builder.join(Role::Producer).await.unwrap();
@@ -26,7 +27,7 @@ pub async fn run_request_worker(
     let response_senders = Rc::new(response_senders);
 
     let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
-    let access_list = Rc::new(RefCell::new(AccessList::default()));
+    let access_list = Rc::new(RefCell::new(access_list));
 
     // Periodically clean torrents and update access list
     TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
