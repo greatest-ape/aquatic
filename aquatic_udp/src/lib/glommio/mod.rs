@@ -1,8 +1,3 @@
-//! Work-in-progress glommio (io_uring) implementation
-//!
-//! * Doesn't support scrape requests
-//! * Currently not faster than mio implementation
-
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use aquatic_common::access_list::AccessList;
