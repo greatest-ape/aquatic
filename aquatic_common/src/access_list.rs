@@ -51,6 +51,20 @@ impl AccessList {
 
         Ok(())
     }
+
+    pub fn create_from_path(path: &PathBuf) -> anyhow::Result<Self> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+
+        let mut new_list = Self::default();
+
+        for line in reader.lines() {
+            new_list.insert_from_line(&line?)?;
+        }
+
+        Ok(new_list)
+    }
+
     pub fn allows(&self, mode: AccessListMode, info_hash: &[u8; 20]) -> bool {
         match mode {
             AccessListMode::White => self.0.contains(info_hash),
@@ -69,16 +83,7 @@ pub type AccessListArcSwap = ArcSwap<AccessList>;
 
 impl AccessListQuery for AccessListArcSwap {
     fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-
-        let mut new_list = HashSet::new();
-
-        for line in reader.lines() {
-            new_list.insert(parse_info_hash(&line?)?);
-        }
-
-        self.store(Arc::new(AccessList(new_list)));
+        self.store(Arc::new(AccessList::create_from_path(path)?));
 
         Ok(())
     }
