@@ -118,7 +118,7 @@ Please refer to `documents/aquatic-udp-load-test-2021-08-19.pdf` for more detail
 [glommio]: https://github.com/DataDog/glommio
 
 There is an alternative implementation that utilizes [io_uring] by running on
-[glommio]. It only runs on Linux and requires a recent kernel (version 5.1 or later).
+[glommio]. It only runs on Linux and requires a recent kernel (version 5.8 or later).
 In some cases, it performs even better than the cross-platform implementation.
 
 To use it, pass the `with-glommio` feature when building, e.g.:
