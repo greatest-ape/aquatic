@@ -1,8 +1,10 @@
-# Container image that runs your code
+# Not used by Github action, but can be used to run test locally:
+#   1. docker build -t aquatic ./path/to/Dockerfile
+#   2. docker run aquatic
+#   3. On failure, run `docker rmi aquatic -f` and go back to step 1
+
 FROM rust:bullseye
 
-# Copies your code file from your action repository to the filesystem path `/` of the container
 COPY entrypoint.sh /entrypoint.sh
 
-# Code file to execute when the docker container starts up (`entrypoint.sh`)
 ENTRYPOINT ["/entrypoint.sh"]

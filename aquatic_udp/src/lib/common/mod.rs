@@ -11,7 +11,7 @@ pub use aquatic_udp_protocol::*;
 
 use crate::config::Config;
 
-pub mod announce;
+pub mod handlers;
 pub mod network;
 
 pub const MAX_PACKET_SIZE: usize = 4096;

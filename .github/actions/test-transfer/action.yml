@@ -10,5 +10,7 @@ outputs:
   wss_ipv4:
     description: 'WSS IPv4 status'
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
+  using: 'composite'
+  steps:
+    - run: $GITHUB_ACTION_PATH/entrypoint.sh
+      shell: bash

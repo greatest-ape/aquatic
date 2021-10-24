@@ -5,11 +5,6 @@
 # 
 # IPv6 is unfortunately disabled by default in Docker
 # (see sysctl net.ipv6.conf.lo.disable_ipv6)
-#
-# When testing locally, use:
-#   1. docker build -t aquatic ./path/to/Dockerfile
-#   2. docker run aquatic
-#   3. On failure, run `docker rmi aquatic -f` and go back to step 1
 
 set -e
 
@@ -20,6 +15,8 @@ if command -v sudo; then
 else
     SUDO=""
 fi
+
+ulimit -a
 
 $SUDO apt-get update
 $SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-certificates curl golang
@@ -42,6 +39,9 @@ if [[ -z "${GITHUB_WORKSPACE}" ]]; then
 else
     cd "$GITHUB_WORKSPACE"
 fi
+
+echo "last aquatic commits:"
+git log --oneline -3
 
 # Setup bogus TLS certificate
 

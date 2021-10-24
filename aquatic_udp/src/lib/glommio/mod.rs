@@ -1,14 +1,11 @@
-//! Work-in-progress glommio (io_uring) implementation
-//! 
-//! * Doesn't support scrape requests
-//! * Currently not faster than mio implementation
-
 use std::sync::{atomic::AtomicUsize, Arc};
 
+use aquatic_common::access_list::AccessList;
 use glommio::channels::channel_mesh::MeshBuilder;
 use glommio::prelude::*;
 
 use crate::config::Config;
+use crate::drop_privileges_after_socket_binding;
 
 mod common;
 pub mod handlers;
@@ -18,10 +15,16 @@ pub const SHARED_CHANNEL_SIZE: usize = 4096;
 
 pub fn run(config: Config) -> anyhow::Result<()> {
     if config.core_affinity.set_affinities {
-        core_affinity::set_for_current(
-            core_affinity::CoreId { id: config.core_affinity.offset }
-        );
+        core_affinity::set_for_current(core_affinity::CoreId {
+            id: config.core_affinity.offset,
+        });
     }
+
+    let access_list = if config.access_list.mode.is_on() {
+        AccessList::create_from_path(&config.access_list.path).expect("Load access list")
+    } else {
+        AccessList::default()
+    };
 
     let num_peers = config.socket_workers + config.request_workers;
 
@@ -37,6 +40,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
         let num_bound_sockets = num_bound_sockets.clone();
+        let access_list = access_list.clone();
 
         let mut builder = LocalExecutorBuilder::default();
 
@@ -50,6 +54,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
                 request_mesh_builder,
                 response_mesh_builder,
                 num_bound_sockets,
+                access_list,
             )
             .await
         });
@@ -61,19 +66,29 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let config = config.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
+        let access_list = access_list.clone();
 
         let mut builder = LocalExecutorBuilder::default();
 
         if config.core_affinity.set_affinities {
-            builder = builder.pin_to_cpu(config.core_affinity.offset + 1 + config.socket_workers + i);
+            builder =
+                builder.pin_to_cpu(config.core_affinity.offset + 1 + config.socket_workers + i);
         }
 
         let executor = builder.spawn(|| async move {
-            handlers::run_request_worker(config, request_mesh_builder, response_mesh_builder).await
+            handlers::run_request_worker(
+                config,
+                request_mesh_builder,
+                response_mesh_builder,
+                access_list,
+            )
+            .await
         });
 
         executors.push(executor);
     }
+
+    drop_privileges_after_socket_binding(&config, num_bound_sockets).unwrap();
 
     for executor in executors {
         executor

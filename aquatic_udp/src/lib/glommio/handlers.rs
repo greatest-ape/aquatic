@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -10,15 +10,17 @@ use glommio::{enclose, prelude::*};
 use rand::prelude::SmallRng;
 use rand::SeedableRng;
 
-use crate::common::announce::handle_announce_request;
+use crate::common::handlers::handle_announce_request;
+use crate::common::handlers::*;
 use crate::common::*;
 use crate::config::Config;
 use crate::glommio::common::update_access_list;
 
 pub async fn run_request_worker(
     config: Config,
-    request_mesh_builder: MeshBuilder<(usize, AnnounceRequest, SocketAddr), Partial>,
-    response_mesh_builder: MeshBuilder<(AnnounceResponse, SocketAddr), Partial>,
+    request_mesh_builder: MeshBuilder<(usize, ConnectedRequest, SocketAddr), Partial>,
+    response_mesh_builder: MeshBuilder<(ConnectedResponse, SocketAddr), Partial>,
+    access_list: AccessList,
 ) {
     let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
     let (response_senders, _) = response_mesh_builder.join(Role::Producer).await.unwrap();
@@ -26,7 +28,7 @@ pub async fn run_request_worker(
     let response_senders = Rc::new(response_senders);
 
     let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
-    let access_list = Rc::new(RefCell::new(AccessList::default()));
+    let access_list = Rc::new(RefCell::new(access_list));
 
     // Periodically clean torrents and update access list
     TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
@@ -61,39 +63,52 @@ pub async fn run_request_worker(
 async fn handle_request_stream<S>(
     config: Config,
     torrents: Rc<RefCell<TorrentMaps>>,
-    response_senders: Rc<Senders<(AnnounceResponse, SocketAddr)>>,
+    response_senders: Rc<Senders<(ConnectedResponse, SocketAddr)>>,
     mut stream: S,
 ) where
-    S: Stream<Item = (usize, AnnounceRequest, SocketAddr)> + ::std::marker::Unpin,
+    S: Stream<Item = (usize, ConnectedRequest, SocketAddr)> + ::std::marker::Unpin,
 {
     let mut rng = SmallRng::from_entropy();
 
-    // Needs to be updated periodically: use timer?
-    let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+    let max_peer_age = config.cleaning.max_peer_age;
+    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(max_peer_age)));
 
-    while let Some((producer_index, request, addr)) = stream.next().await {
-        let response = match addr.ip() {
-            IpAddr::V4(ip) => handle_announce_request(
-                &config,
-                &mut rng,
-                &mut torrents.borrow_mut().ipv4,
+    TimerActionRepeat::repeat(enclose!((peer_valid_until) move || {
+        enclose!((peer_valid_until) move || async move {
+            *peer_valid_until.borrow_mut() = ValidUntil::new(max_peer_age);
+
+            Some(Duration::from_secs(1))
+        })()
+    }));
+
+    while let Some((producer_index, request, src)) = stream.next().await {
+        let response = match request {
+            ConnectedRequest::Announce(request) => {
+                ConnectedResponse::Announce(handle_announce_request(
+                    &config,
+                    &mut rng,
+                    &mut torrents.borrow_mut(),
+                    request,
+                    src,
+                    peer_valid_until.borrow().to_owned(),
+                ))
+            }
+            ConnectedRequest::Scrape {
                 request,
-                ip,
-                peer_valid_until,
-            ),
-            IpAddr::V6(ip) => handle_announce_request(
-                &config,
-                &mut rng,
-                &mut torrents.borrow_mut().ipv6,
-                request,
-                ip,
-                peer_valid_until,
-            ),
+                original_indices,
+            } => {
+                let response = handle_scrape_request(&mut torrents.borrow_mut(), src, request);
+
+                ConnectedResponse::Scrape {
+                    response,
+                    original_indices,
+                }
+            }
         };
 
         ::log::debug!("preparing to send response to channel: {:?}", response);
 
-        if let Err(err) = response_senders.try_send_to(producer_index, (response, addr)) {
+        if let Err(err) = response_senders.try_send_to(producer_index, (response, src)) {
             ::log::warn!("response_sender.try_send: {:?}", err);
         }
 

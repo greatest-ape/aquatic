@@ -1,10 +1,70 @@
+use std::net::SocketAddr;
+
 use rand::rngs::SmallRng;
 
+use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_common::extract_response_peers;
 
 use crate::common::*;
 
-pub fn handle_announce_request<I: Ip>(
+#[derive(Debug)]
+pub enum ConnectedRequest {
+    Announce(AnnounceRequest),
+    Scrape {
+        request: ScrapeRequest,
+        /// Currently only used by glommio implementation
+        original_indices: Vec<usize>,
+    },
+}
+
+#[derive(Debug)]
+pub enum ConnectedResponse {
+    Announce(AnnounceResponse),
+    Scrape {
+        response: ScrapeResponse,
+        /// Currently only used by glommio implementation
+        original_indices: Vec<usize>,
+    },
+}
+
+impl Into<Response> for ConnectedResponse {
+    fn into(self) -> Response {
+        match self {
+            Self::Announce(response) => Response::Announce(response),
+            Self::Scrape { response, .. } => Response::Scrape(response),
+        }
+    }
+}
+
+pub fn handle_announce_request(
+    config: &Config,
+    rng: &mut SmallRng,
+    torrents: &mut TorrentMaps,
+    request: AnnounceRequest,
+    src: SocketAddr,
+    peer_valid_until: ValidUntil,
+) -> AnnounceResponse {
+    match convert_ipv4_mapped_ipv6(src.ip()) {
+        IpAddr::V4(ip) => handle_announce_request_inner(
+            config,
+            rng,
+            &mut torrents.ipv4,
+            request,
+            ip,
+            peer_valid_until,
+        ),
+        IpAddr::V6(ip) => handle_announce_request_inner(
+            config,
+            rng,
+            &mut torrents.ipv6,
+            request,
+            ip,
+            peer_valid_until,
+        ),
+    }
+}
+
+fn handle_announce_request_inner<I: Ip>(
     config: &Config,
     rng: &mut SmallRng,
     torrents: &mut TorrentMap<I>,
@@ -80,6 +140,57 @@ fn calc_max_num_peers_to_take(config: &Config, peers_wanted: i32) -> usize {
             config.protocol.max_response_peers as usize,
             peers_wanted as usize,
         )
+    }
+}
+
+#[inline]
+pub fn handle_scrape_request(
+    torrents: &mut TorrentMaps,
+    src: SocketAddr,
+    request: ScrapeRequest,
+) -> ScrapeResponse {
+    const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
+
+    let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(request.info_hashes.len());
+
+    let peer_ip = convert_ipv4_mapped_ipv6(src.ip());
+
+    if peer_ip.is_ipv4() {
+        for info_hash in request.info_hashes.iter() {
+            if let Some(torrent_data) = torrents.ipv4.get(info_hash) {
+                stats.push(create_torrent_scrape_statistics(
+                    torrent_data.num_seeders as i32,
+                    torrent_data.num_leechers as i32,
+                ));
+            } else {
+                stats.push(EMPTY_STATS);
+            }
+        }
+    } else {
+        for info_hash in request.info_hashes.iter() {
+            if let Some(torrent_data) = torrents.ipv6.get(info_hash) {
+                stats.push(create_torrent_scrape_statistics(
+                    torrent_data.num_seeders as i32,
+                    torrent_data.num_leechers as i32,
+                ));
+            } else {
+                stats.push(EMPTY_STATS);
+            }
+        }
+    }
+
+    ScrapeResponse {
+        transaction_id: request.transaction_id,
+        torrent_stats: stats,
+    }
+}
+
+#[inline(always)]
+const fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
+    TorrentScrapeStatistics {
+        seeders: NumberOfPeers(seeders),
+        completed: NumberOfDownloads(0), // No implementation planned
+        leechers: NumberOfPeers(leechers),
     }
 }
 

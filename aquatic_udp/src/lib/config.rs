@@ -18,7 +18,9 @@ pub struct Config {
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
+    #[cfg(feature = "with-mio")]
     pub handlers: HandlerConfig,
+    #[cfg(feature = "with-mio")]
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
@@ -52,6 +54,7 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_max=104857600
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
+    #[cfg(feature = "with-mio")]
     pub poll_event_capacity: usize,
 }
 
@@ -66,6 +69,7 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: i32,
 }
 
+#[cfg(feature = "with-mio")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
@@ -75,6 +79,7 @@ pub struct HandlerConfig {
     pub channel_recv_timeout_microseconds: u64,
 }
 
+#[cfg(feature = "with-mio")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
@@ -119,7 +124,9 @@ impl Default for Config {
             log_level: LogLevel::Error,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
+            #[cfg(feature = "with-mio")]
             handlers: HandlerConfig::default(),
+            #[cfg(feature = "with-mio")]
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
@@ -133,8 +140,9 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
-            poll_event_capacity: 4096,
             socket_recv_buffer_size: 4096 * 128,
+            #[cfg(feature = "with-mio")]
+            poll_event_capacity: 4096,
         }
     }
 }
@@ -149,6 +157,7 @@ impl Default for ProtocolConfig {
     }
 }
 
+#[cfg(feature = "with-mio")]
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
@@ -158,6 +167,7 @@ impl Default for HandlerConfig {
     }
 }
 
+#[cfg(feature = "with-mio")]
 impl Default for StatisticsConfig {
     fn default() -> Self {
         Self { interval: 0 }

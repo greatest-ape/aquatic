@@ -1,19 +1,15 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use aquatic_common::ValidUntil;
 use crossbeam_channel::{Receiver, Sender};
 use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_udp_protocol::*;
 
+use crate::common::handlers::*;
 use crate::config::Config;
 use crate::mio::common::*;
-
-mod announce;
-mod scrape;
-
-use announce::handle_announce_requests;
-use scrape::handle_scrape_requests;
 
 pub fn run_request_worker(
     state: State,
@@ -59,8 +55,8 @@ pub fn run_request_worker(
             };
 
             match request {
-                ConnectedRequest::Announce(r) => announce_requests.push((r, src)),
-                ConnectedRequest::Scrape(r) => scrape_requests.push((r, src)),
+                ConnectedRequest::Announce(request) => announce_requests.push((request, src)),
+                ConnectedRequest::Scrape { request, .. } => scrape_requests.push((request, src)),
             }
         }
 
@@ -68,15 +64,29 @@ pub fn run_request_worker(
         {
             let mut torrents = opt_torrents.unwrap_or_else(|| state.torrents.lock());
 
-            handle_announce_requests(
-                &config,
-                &mut torrents,
-                &mut small_rng,
-                announce_requests.drain(..),
-                &mut responses,
-            );
+            let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
-            handle_scrape_requests(&mut torrents, scrape_requests.drain(..), &mut responses);
+            responses.extend(announce_requests.drain(..).map(|(request, src)| {
+                let response = handle_announce_request(
+                    &config,
+                    &mut small_rng,
+                    &mut torrents,
+                    request,
+                    src,
+                    peer_valid_until,
+                );
+
+                (ConnectedResponse::Announce(response), src)
+            }));
+
+            responses.extend(scrape_requests.drain(..).map(|(request, src)| {
+                let response = ConnectedResponse::Scrape {
+                    response: handle_scrape_request(&mut torrents, src, request),
+                    original_indices: Vec::new(),
+                };
+
+                (response, src)
+            }));
         }
 
         for r in responses.drain(..) {

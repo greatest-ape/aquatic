@@ -4,25 +4,6 @@ use std::sync::{atomic::AtomicUsize, Arc};
 
 use crate::common::*;
 
-pub enum ConnectedRequest {
-    Announce(AnnounceRequest),
-    Scrape(ScrapeRequest),
-}
-
-pub enum ConnectedResponse {
-    Announce(AnnounceResponse),
-    Scrape(ScrapeResponse),
-}
-
-impl Into<Response> for ConnectedResponse {
-    fn into(self) -> Response {
-        match self {
-            Self::Announce(response) => Response::Announce(response),
-            Self::Scrape(response) => Response::Scrape(response),
-        }
-    }
-}
-
 #[derive(Default)]
 pub struct Statistics {
     pub requests_received: AtomicUsize,
