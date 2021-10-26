@@ -10,6 +10,7 @@ use native_tls::{MidHandshakeTlsStream, TlsAcceptor};
 
 use aquatic_http_protocol::request::{Request, RequestParseError};
 
+use crate::common::num_digits_in_usize;
 use crate::mio::common::*;
 
 use super::stream::Stream;
@@ -85,7 +86,7 @@ impl EstablishedConnection {
 
     pub fn send_response(&mut self, body: &[u8]) -> ::std::io::Result<()> {
         let content_len = body.len() + 2; // 2 is for newlines at end
-        let content_len_num_digits = Self::num_digits_in_usize(content_len);
+        let content_len_num_digits = num_digits_in_usize(content_len);
 
         let mut response = Vec::with_capacity(39 + content_len_num_digits + body.len());
 
@@ -108,18 +109,6 @@ impl EstablishedConnection {
         self.stream.flush()?;
 
         Ok(())
-    }
-
-    fn num_digits_in_usize(mut number: usize) -> usize {
-        let mut num_digits = 1usize;
-
-        while number >= 10 {
-            num_digits += 1;
-
-            number /= 10;
-        }
-
-        num_digits
     }
 
     #[inline]
@@ -269,23 +258,3 @@ impl Connection {
 }
 
 pub type ConnectionMap = HashMap<Token, Connection>;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_num_digits_in_usize() {
-        let f = EstablishedConnection::num_digits_in_usize;
-
-        assert_eq!(f(0), 1);
-        assert_eq!(f(1), 1);
-        assert_eq!(f(9), 1);
-        assert_eq!(f(10), 2);
-        assert_eq!(f(11), 2);
-        assert_eq!(f(99), 2);
-        assert_eq!(f(100), 3);
-        assert_eq!(f(101), 3);
-        assert_eq!(f(1000), 4);
-    }
-}
