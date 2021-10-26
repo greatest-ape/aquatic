@@ -30,7 +30,7 @@ pub fn run_request_worker(
     let timeout = Duration::from_micros(config.handlers.channel_recv_timeout_microseconds);
 
     loop {
-        let mut opt_torrent_map_guard: Option<MutexGuard<TorrentMaps>> = None;
+        let mut opt_torrent_maps: Option<MutexGuard<TorrentMaps>> = None;
 
         // If torrent state mutex is locked, just keep collecting requests
         // and process them later. This can happen with either multiple
@@ -51,7 +51,7 @@ pub fn run_request_worker(
                 }
                 None => {
                     if let Some(torrent_guard) = state.torrent_maps.try_lock() {
-                        opt_torrent_map_guard = Some(torrent_guard);
+                        opt_torrent_maps = Some(torrent_guard);
 
                         break;
                     }
@@ -59,8 +59,8 @@ pub fn run_request_worker(
             }
         }
 
-        let mut torrent_map_guard =
-            opt_torrent_map_guard.unwrap_or_else(|| state.torrent_maps.lock());
+        let mut torrent_maps =
+            opt_torrent_maps.unwrap_or_else(|| state.torrent_maps.lock());
 
         let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
@@ -68,7 +68,7 @@ pub fn run_request_worker(
             let response = handle_announce_request(
                 &config,
                 &mut rng,
-                &mut torrent_map_guard,
+                &mut torrent_maps,
                 valid_until,
                 meta,
                 request
@@ -79,7 +79,12 @@ pub fn run_request_worker(
         }
 
         for (meta, request) in scrape_requests.drain(..) {
-            let response = handle_scrape_request(&config, &mut torrent_map_guard, (meta, request));
+            let response = handle_scrape_request(
+                &config,
+                &mut torrent_maps,
+                meta,
+                request
+            );
 
             response_channel_sender.send(meta, Response::Scrape(response));
             wake_socket_workers[meta.worker_index] = true;

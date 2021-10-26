@@ -171,7 +171,8 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
 pub fn handle_scrape_request(
     config: &Config,
     torrent_maps: &mut TorrentMaps,
-    (meta, request): (ConnectionMeta, ScrapeRequest),
+    meta: ConnectionMeta,
+    request: ScrapeRequest,
 ) -> ScrapeResponse {
     let num_to_take = request
         .info_hashes
