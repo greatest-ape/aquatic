@@ -1,10 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
-use std::vec::Drain;
 
 use mio::Waker;
 use parking_lot::MutexGuard;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_http_protocol::request::*;
 use aquatic_http_protocol::response::*;
@@ -63,22 +62,28 @@ pub fn run_request_worker(
         let mut torrent_map_guard =
             opt_torrent_map_guard.unwrap_or_else(|| state.torrent_maps.lock());
 
-        handle_announce_requests(
-            &config,
-            &mut rng,
-            &mut torrent_map_guard,
-            &response_channel_sender,
-            &mut wake_socket_workers,
-            announce_requests.drain(..),
-        );
+        let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
-        handle_scrape_requests(
-            &config,
-            &mut torrent_map_guard,
-            &response_channel_sender,
-            &mut wake_socket_workers,
-            scrape_requests.drain(..),
-        );
+        for (meta, request) in announce_requests.drain(..) {
+            let response = handle_announce_request(
+                &config,
+                &mut rng,
+                &mut torrent_map_guard,
+                valid_until,
+                meta,
+                request
+            );
+
+            response_channel_sender.send(meta, Response::Announce(response));
+            wake_socket_workers[meta.worker_index] = true;
+        }
+
+        for (meta, request) in scrape_requests.drain(..) {
+            let response = handle_scrape_request(&config, &mut torrent_map_guard, (meta, request));
+
+            response_channel_sender.send(meta, Response::Scrape(response));
+            wake_socket_workers[meta.worker_index] = true;
+        }
 
         for (worker_index, wake) in wake_socket_workers.iter_mut().enumerate() {
             if *wake {
@@ -89,38 +94,5 @@ pub fn run_request_worker(
                 *wake = false;
             }
         }
-    }
-}
-
-pub fn handle_announce_requests(
-    config: &Config,
-    rng: &mut impl Rng,
-    torrent_maps: &mut TorrentMaps,
-    response_channel_sender: &ResponseChannelSender,
-    wake_socket_workers: &mut Vec<bool>,
-    requests: Drain<(ConnectionMeta, AnnounceRequest)>,
-) {
-    let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
-
-    for (meta, request) in requests {
-        let response = handle_announce_request(config, rng, torrent_maps, valid_until, meta, request);
-
-        response_channel_sender.send(meta, Response::Announce(response));
-        wake_socket_workers[meta.worker_index] = true;
-    }
-}
-
-pub fn handle_scrape_requests(
-    config: &Config,
-    torrent_maps: &mut TorrentMaps,
-    response_channel_sender: &ResponseChannelSender,
-    wake_socket_workers: &mut Vec<bool>,
-    requests: Drain<(ConnectionMeta, ScrapeRequest)>,
-) {
-    for (meta, request) in requests {
-        let response = handle_scrape_request(config, torrent_maps, (meta, request));
-
-        response_channel_sender.send(meta, Response::Scrape(response));
-        wake_socket_workers[meta.worker_index] = true;
     }
 }
