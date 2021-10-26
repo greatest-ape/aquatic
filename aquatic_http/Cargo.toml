@@ -17,7 +17,7 @@ path = "src/bin/main.rs"
 
 [features]
 default = ["with-mio"]
-with-glommio = ["glommio", "futures-lite", "rustls", "rustls-pemfile"]
+with-glommio = ["glommio", "futures-lite", "rustls", "rustls-pemfile", "slab"]
 with-mio = ["crossbeam-channel", "histogram", "mio", "native-tls", "socket2"]
 
 [dependencies]
@@ -51,6 +51,7 @@ futures-lite = { version = "1", optional = true }
 glommio = { git = "https://github.com/DataDog/glommio.git", rev = "4e6b14772da2f4325271fbcf12d24cf91ed466e5", optional = true }
 rustls = { version = "0.20", optional = true }
 rustls-pemfile = { version = "0.2", optional = true }
+slab = { version = "0.4", optional = true }
 
 [dev-dependencies]
 quickcheck = "1.0"

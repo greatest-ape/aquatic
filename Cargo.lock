@@ -113,6 +113,7 @@ dependencies = [
  "rustls",
  "rustls-pemfile",
  "serde",
+ "slab",
  "smartstring",
  "socket2 0.4.2",
 ]
