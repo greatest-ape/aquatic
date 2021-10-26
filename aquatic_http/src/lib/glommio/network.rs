@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::io::{Cursor, ErrorKind, Read, Write};
+use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -8,9 +9,9 @@ use aquatic_http_protocol::common::InfoHash;
 use aquatic_http_protocol::request::{AnnounceRequest, Request, RequestParseError};
 use aquatic_http_protocol::response::{FailureResponse, Response};
 use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt};
-use glommio::channels::channel_mesh::{MeshBuilder, Partial, Receivers, Role, Senders};
+use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
-use glommio::channels::shared_channel::{ConnectedReceiver, ConnectedSender, SharedSender};
+use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
 use glommio::prelude::*;
 use glommio::task::JoinHandle;
@@ -75,7 +76,7 @@ pub async fn run_socket_worker(
     while let Some(stream) = incoming.next().await {
         match stream {
             Ok(stream) => {
-                let (response_sender, response_receiver) = new_bounded(1);
+                let (response_sender, response_receiver) = new_bounded(config.request_workers);
 
                 let mut slab = connection_slab.borrow_mut();
                 let entry = slab.vacant_entry();
@@ -123,7 +124,9 @@ async fn receive_responses(
             .borrow()
             .get(channel_response.get_connection_id().0)
         {
-            reference.response_sender.try_send(channel_response);
+            if let Err(err) = reference.response_sender.try_send(channel_response) {
+                ::log::error!("Couldn't send response to local receiver: {:?}", err);
+            }
         }
     }
 }
@@ -134,56 +137,8 @@ impl Connection {
             let opt_request = self.read_tls().await?;
 
             if let Some(request) = opt_request {
-                let peer_addr = self
-                    .stream
-                    .peer_addr()
-                    .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
-
-                match request {
-                    Request::Announce(request @ AnnounceRequest { info_hash, .. }) => {
-                        let request = ChannelRequest::Announce {
-                            request,
-                            connection_id: self.connection_id,
-                            response_consumer_id: self.response_consumer_id,
-                            peer_addr,
-                        };
-
-                        let consumer_index =
-                            calculate_request_consumer_index(&self.config, info_hash);
-                        self.request_senders.try_send_to(consumer_index, request);
-                    }
-                    Request::Scrape(request) => {
-                        // TODO
-                    }
-                }
-
-                // Wait for response to arrive, then send it
-                if let Some(channel_response) = self.response_receiver.recv().await {
-                    if channel_response.get_peer_addr() != peer_addr {
-                        return Err(anyhow::anyhow!("peer addressess didn't match"));
-                    }
-
-                    let opt_response = match channel_response {
-                        ChannelResponse::Announce { response, .. } => {
-                            Some(Response::Announce(response))
-                        }
-                        ChannelResponse::Scrape {
-                            response,
-                            original_indices,
-                            ..
-                        } => {
-                            None // TODO: accumulate scrape requests
-                        }
-                    };
-
-                    if let Some(response) = opt_response {
-                        self.queue_response(&response)?;
-
-                        if !self.config.network.keep_alive {
-                            self.close_after_writing = true;
-                        }
-                    }
-                }
+                self.handle_request(request)?;
+                self.wait_for_and_send_response().await?;
             }
 
             self.write_tls().await?;
@@ -300,6 +255,63 @@ impl Connection {
         Ok(())
     }
 
+    /// Send on request to proper request worker/workers
+    fn handle_request(&mut self, request: Request) -> anyhow::Result<()> {
+        let peer_addr = self.get_peer_addr()?;
+
+        match request {
+            Request::Announce(request @ AnnounceRequest { info_hash, .. }) => {
+                let request = ChannelRequest::Announce {
+                    request,
+                    connection_id: self.connection_id,
+                    response_consumer_id: self.response_consumer_id,
+                    peer_addr,
+                };
+
+                let consumer_index =
+                    calculate_request_consumer_index(&self.config, info_hash);
+                self.request_senders.try_send_to(consumer_index, request);
+            }
+            Request::Scrape(request) => {
+                // TODO
+            }
+        }
+
+        Ok(())
+    }
+
+    // Wait for response to arrive, then queue it for sending to peer
+    async fn wait_for_and_send_response(&mut self) -> anyhow::Result<()> {
+        if let Some(channel_response) = self.response_receiver.recv().await {
+            if channel_response.get_peer_addr() != self.get_peer_addr()? {
+                return Err(anyhow::anyhow!("peer addressess didn't match"));
+            }
+
+            let opt_response = match channel_response {
+                ChannelResponse::Announce { response, .. } => {
+                    Some(Response::Announce(response))
+                }
+                ChannelResponse::Scrape {
+                    response,
+                    original_indices,
+                    ..
+                } => {
+                    None // TODO: accumulate scrape requests
+                }
+            };
+
+            if let Some(response) = opt_response {
+                self.queue_response(&response)?;
+
+                if !self.config.network.keep_alive {
+                    self.close_after_writing = true;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn queue_response(&mut self, response: &Response) -> anyhow::Result<()> {
         let mut body = Vec::new();
 
@@ -319,6 +331,13 @@ impl Connection {
         self.tls.writer().write(&response_bytes[..])?;
 
         Ok(())
+    }
+
+    fn get_peer_addr(&self) -> anyhow::Result<SocketAddr> {
+        self
+            .stream
+            .peer_addr()
+            .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))
     }
 }
 
