@@ -30,6 +30,7 @@ struct ConnectionReference {
 }
 
 struct Connection {
+    config: Rc<Config>,
     // request_senders: Rc<Senders<(ConnectionId, Request)>>,
     response_receiver: LocalReceiver<Response>,
     tls: ServerConnection,
@@ -74,6 +75,7 @@ pub async fn run_socket_worker(
                 let entry = slab.vacant_entry();
 
                 let conn = Connection {
+                    config: config.clone(),
                     // request_senders: request_senders.clone(),
                     response_receiver,
                     tls: ServerConnection::new(tls_config.clone()).unwrap(),
@@ -129,7 +131,9 @@ impl Connection {
 
                     self.wait_for_response = false;
 
-                    // TODO: trigger close here if keepalive is false
+                    if !self.config.network.keep_alive {
+                        self.close_after_writing = true;
+                    }
                 }
             }
 
