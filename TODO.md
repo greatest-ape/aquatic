@@ -1,6 +1,15 @@
 # TODO
 
+* aquatic_http glommio:
+  * cpu pinning - also rename config
+  * access lists
+  * scrape requests
+  * clean out connections regularly
+    * timeout inside of task for "it took to long to receive request, send response"?
+    * remove finished tasks from slab
+
 * aquatic_udp glommio
+  * Check that it is the response consumer id responses are sent back to
   * Add to file transfer CI
   * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
     containing TransactionId and BTreeMap<usize, InfoHash>, and same for
