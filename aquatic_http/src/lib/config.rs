@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::access_list::AccessListConfig;
 use serde::{Deserialize, Serialize};
@@ -37,6 +37,8 @@ pub struct TlsConfig {
     pub use_tls: bool,
     pub tls_pkcs12_path: String,
     pub tls_pkcs12_password: String,
+    pub tls_certificate_path: PathBuf,
+    pub tls_private_key_path: PathBuf,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -182,6 +184,8 @@ impl Default for TlsConfig {
             use_tls: false,
             tls_pkcs12_path: "".into(),
             tls_pkcs12_password: "".into(),
+            tls_certificate_path: "".into(),
+            tls_private_key_path: "".into(),
         }
     }
 }

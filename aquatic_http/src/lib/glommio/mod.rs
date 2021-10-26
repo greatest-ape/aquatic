@@ -1,4 +1,4 @@
-use std::sync::{Arc, atomic::AtomicUsize};
+use std::{fs::File, io::BufReader, sync::{Arc, atomic::AtomicUsize}};
 
 use aquatic_common::access_list::AccessList;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
@@ -25,10 +25,13 @@ pub fn run(
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
+    let tls_config = Arc::new(create_tls_config(&config).unwrap());
+
     let mut executors = Vec::new();
 
     for i in 0..(config.socket_workers) {
         let config = config.clone();
+        let tls_config = tls_config.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
         let num_bound_sockets = num_bound_sockets.clone();
@@ -43,6 +46,7 @@ pub fn run(
         let executor = builder.spawn(|| async move {
             network::run_socket_worker(
                 config,
+                tls_config,
                 request_mesh_builder,
                 response_mesh_builder,
                 num_bound_sockets,
@@ -62,4 +66,35 @@ pub fn run(
     }
     
     Ok(())
+}
+
+fn create_tls_config(
+    config: &Config,
+) -> anyhow::Result<rustls::ServerConfig> {
+    let certs = {
+        let f = File::open(&config.network.tls.tls_certificate_path)?;
+        let mut f = BufReader::new(f);
+
+        rustls_pemfile::certs(&mut f)?
+            .into_iter()
+            .map(|bytes| rustls::Certificate(bytes))
+            .collect()
+    };
+
+    let private_key = {
+        let f = File::open(&config.network.tls.tls_private_key_path)?;
+        let mut f = BufReader::new(f);
+
+        rustls_pemfile::pkcs8_private_keys(&mut f)?
+            .first()
+            .map(|bytes| rustls::PrivateKey(bytes.clone()))
+            .ok_or(anyhow::anyhow!("No private keys in file"))?
+    };
+
+    let tls_config = rustls::ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(certs, private_key)?;
+    
+    Ok(tls_config)
 }

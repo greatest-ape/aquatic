@@ -37,11 +37,11 @@ struct Connection {
 
 pub async fn run_socket_worker(
     config: Config,
+    tls_config: Arc<rustls::ServerConfig>,
     request_mesh_builder: MeshBuilder<(ConnectionId, Request), Partial>,
     response_mesh_builder: MeshBuilder<(ConnectionId, Response), Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
-    let tls_config = Arc::new(create_tls_config(&config));
     let config = Rc::new(config);
 
     let listener = TcpListener::bind(config.network.address).expect("bind socket");
@@ -173,36 +173,4 @@ impl Connection {
 
         Request::from_bytes(&request_bytes[..]).map_err(|err| anyhow::anyhow!("{:?}", err))
     }
-}
-
-fn create_tls_config(
-    config: &Config,
-) -> rustls::ServerConfig {
-    let mut certs = Vec::new();
-    let mut private_key = None;
-
-    use std::iter;
-    use rustls_pemfile::{Item, read_one};
-
-    let pemfile = Vec::new();
-    let mut reader = BufReader::new(&pemfile[..]);
-
-    for item in iter::from_fn(|| read_one(&mut reader).transpose()) {
-        match item.unwrap() {
-            Item::X509Certificate(cert) => {
-                certs.push(rustls::Certificate(cert));
-            },
-            Item::RSAKey(key) | Item::PKCS8Key(key) => {
-                if private_key.is_none(){
-                    private_key = Some(rustls::PrivateKey(key));
-                }
-            }
-        }
-    }
-
-    rustls::ServerConfig::builder()
-        .with_safe_defaults()
-        .with_no_client_auth()
-        .with_single_cert(certs, private_key.expect("no private key"))
-        .expect("bad certificate/key")
 }
