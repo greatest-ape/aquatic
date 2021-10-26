@@ -124,7 +124,7 @@ In some cases, it performs even better than the cross-platform implementation.
 To use it, pass the `with-glommio` feature when building, e.g.:
 
 ```sh
-cargo build -p aquatic_udp --features "with-glommio" --no-default-features
+cargo build --release -p aquatic_udp --features "with-glommio" --no-default-features
 ./target/release/aquatic_udp
 ```
 
