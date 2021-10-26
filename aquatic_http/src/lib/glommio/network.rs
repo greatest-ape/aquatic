@@ -54,12 +54,11 @@ pub async fn run_socket_worker(
     let listener = TcpListener::bind(config.network.address).expect("bind socket");
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
-    let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
-
-    let response_consumer_id = ConsumerId(response_receivers.consumer_id().unwrap());
-
     let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
     let request_senders = Rc::new(request_senders);
+
+    let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
+    let response_consumer_id = ConsumerId(response_receivers.consumer_id().unwrap());
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
 
