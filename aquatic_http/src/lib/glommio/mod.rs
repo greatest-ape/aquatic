@@ -5,6 +5,7 @@ use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
 use crate::config::Config;
 
+mod handlers;
 mod network;
 
 const SHARED_CHANNEL_SIZE: usize = 1024;
