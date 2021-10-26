@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::io::{BufReader, Cursor, Read};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use aquatic_http_protocol::request::{Request, RequestParseError};
 use aquatic_http_protocol::response::Response;
@@ -38,11 +39,13 @@ pub async fn run_socket_worker(
     config: Config,
     request_mesh_builder: MeshBuilder<(ConnectionId, Request), Partial>,
     response_mesh_builder: MeshBuilder<(ConnectionId, Response), Partial>,
+    num_bound_sockets: Arc<AtomicUsize>,
 ) {
     let tls_config = Arc::new(create_tls_config(&config));
     let config = Rc::new(config);
 
     let listener = TcpListener::bind(config.network.address).expect("bind socket");
+    num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
 
