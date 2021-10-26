@@ -10,7 +10,7 @@ use native_tls::{MidHandshakeTlsStream, TlsAcceptor};
 
 use aquatic_http_protocol::request::{Request, RequestParseError};
 
-use crate::common::*;
+use crate::mio::common::*;
 
 use super::stream::Stream;
 

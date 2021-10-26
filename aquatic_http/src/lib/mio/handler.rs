@@ -13,8 +13,8 @@ use aquatic_common::extract_response_peers;
 use aquatic_http_protocol::request::*;
 use aquatic_http_protocol::response::*;
 
-use crate::common::*;
 use crate::config::Config;
+use super::common::*;
 
 pub fn run_request_worker(
     config: Config,
