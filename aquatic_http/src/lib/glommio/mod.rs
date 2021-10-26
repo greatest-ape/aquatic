@@ -5,6 +5,7 @@ use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
 use crate::config::Config;
 
+mod common;
 mod handlers;
 mod network;
 
@@ -58,6 +59,34 @@ pub fn run(
 
         executors.push(executor);
     }
+
+    for i in 0..(config.request_workers) {
+        let config = config.clone();
+        let request_mesh_builder = request_mesh_builder.clone();
+        let response_mesh_builder = response_mesh_builder.clone();
+        let access_list = access_list.clone();
+
+        let mut builder = LocalExecutorBuilder::default();
+
+        // if config.core_affinity.set_affinities {
+        //     builder =
+        //         builder.pin_to_cpu(config.core_affinity.offset + 1 + config.socket_workers + i);
+        // }
+
+        let executor = builder.spawn(|| async move {
+            handlers::run_request_worker(
+                config,
+                request_mesh_builder,
+                response_mesh_builder,
+                access_list,
+            )
+            .await
+        });
+
+        executors.push(executor);
+    }
+
+    // drop_privileges_after_socket_binding(&config, num_bound_sockets).unwrap();
 
     for executor in executors {
         executor

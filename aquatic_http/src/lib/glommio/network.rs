@@ -4,7 +4,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use aquatic_http_protocol::request::{Request, RequestParseError};
+use aquatic_http_protocol::common::InfoHash;
+use aquatic_http_protocol::request::{AnnounceRequest, Request, RequestParseError};
 use aquatic_http_protocol::response::{FailureResponse, Response};
 use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Receivers, Role, Senders};
@@ -19,23 +20,24 @@ use slab::Slab;
 use crate::common::num_digits_in_usize;
 use crate::config::Config;
 
+use super::common::*;
+
 const BUFFER_SIZE: usize = 1024;
 
-#[derive(Clone, Copy, Debug)]
-pub struct ConnectionId(pub usize);
 
 struct ConnectionReference {
-    response_sender: LocalSender<Response>,
+    response_sender: LocalSender<ChannelResponse>,
     handle: JoinHandle<()>,
 }
 
 struct Connection {
     config: Rc<Config>,
-    // request_senders: Rc<Senders<(ConnectionId, Request)>>,
-    response_receiver: LocalReceiver<Response>,
+    request_senders: Rc<Senders<ChannelRequest>>,
+    response_receiver: LocalReceiver<ChannelResponse>,
+    response_consumer_id: ConsumerId,
     tls: ServerConnection,
     stream: TcpStream,
-    index: ConnectionId,
+    connection_id: ConnectionId,
     request_buffer: Vec<u8>,
     close_after_writing: bool,
 }
@@ -43,8 +45,8 @@ struct Connection {
 pub async fn run_socket_worker(
     config: Config,
     tls_config: Arc<rustls::ServerConfig>,
-    request_mesh_builder: MeshBuilder<(ConnectionId, Request), Partial>,
-    response_mesh_builder: MeshBuilder<(ConnectionId, Response), Partial>,
+    request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
+    response_mesh_builder: MeshBuilder<ChannelResponse, Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
     let config = Rc::new(config);
@@ -52,16 +54,18 @@ pub async fn run_socket_worker(
     let listener = TcpListener::bind(config.network.address).expect("bind socket");
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
-    // let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
+    let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
 
-    // let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
-    // let request_senders = Rc::new(request_senders);
+    let response_consumer_id = ConsumerId(response_receivers.consumer_id().unwrap());
+
+    let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
+    let request_senders = Rc::new(request_senders);
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
 
-    // for (_, response_receiver) in response_receivers.streams() {
-    //     spawn_local(receive_responses(response_receiver, connection_slab.clone())).detach();
-    // }
+    for (_, response_receiver) in response_receivers.streams() {
+        spawn_local(receive_responses(response_receiver, connection_slab.clone())).detach();
+    }
 
     let mut incoming = listener.incoming();
 
@@ -75,11 +79,12 @@ pub async fn run_socket_worker(
 
                 let conn = Connection {
                     config: config.clone(),
-                    // request_senders: request_senders.clone(),
+                    request_senders: request_senders.clone(),
                     response_receiver,
+                    response_consumer_id,
                     tls: ServerConnection::new(tls_config.clone()).unwrap(),
                     stream,
-                    index: ConnectionId(entry.key()),
+                    connection_id: ConnectionId(entry.key()),
                     request_buffer: Vec::new(),
                     close_after_writing: false,
                 };
@@ -108,12 +113,12 @@ pub async fn run_socket_worker(
 }
 
 async fn receive_responses(
-    mut response_receiver: ConnectedReceiver<(ConnectionId, Response)>,
+    mut response_receiver: ConnectedReceiver<ChannelResponse>,
     connection_references: Rc<RefCell<Slab<ConnectionReference>>>,
 ) {
-    while let Some((connection_id, response)) = response_receiver.next().await {
-        if let Some(reference) = connection_references.borrow().get(connection_id.0) {
-            reference.response_sender.try_send(response);
+    while let Some(channel_response) = response_receiver.next().await {
+        if let Some(reference) = connection_references.borrow().get(channel_response.get_connection_id().0) {
+            reference.response_sender.try_send(channel_response);
         }
     }
 }
@@ -128,16 +133,44 @@ impl Connection {
                     .peer_addr()
                     .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
                 
-                // TODO: send request to channel
+                match request {
+                    Request::Announce(request@AnnounceRequest { info_hash, .. }) => {
+                        let request = ChannelRequest::Announce {
+                            request,
+                            connection_id: self.connection_id,
+                            response_consumer_id: self.response_consumer_id,
+                            peer_addr,
+                        };
+
+                        let consumer_index = calculate_request_consumer_index(&self.config, info_hash);
+                        self.request_senders.try_send_to(consumer_index, request);
+                    },
+                    Request::Scrape(request) => {
+                        // TODO
+                    },
+                }
 
                 // Wait for response to arrive, then send it
-                if let Some(response) = self.response_receiver.recv().await {
-                    // TODO: compare IP addresses?
+                if let Some(channel_response) = self.response_receiver.recv().await {
+                    if channel_response.get_peer_addr() != peer_addr {
+                        return Err(anyhow::anyhow!("peer addressess didn't match"));
+                    }
+                    
+                    let opt_response = match channel_response {
+                        ChannelResponse::Announce { response, ..  } => {
+                            Some(Response::Announce(response))
+                        }
+                        ChannelResponse::Scrape { response, original_indices, .. } => {
+                            None // TODO: accumulate scrape requests
+                        }
+                    };
 
-                    self.queue_response(&response)?;
+                    if let Some(response) = opt_response {
+                        self.queue_response(&response)?;
 
-                    if !self.config.network.keep_alive {
-                        self.close_after_writing = true;
+                        if !self.config.network.keep_alive {
+                            self.close_after_writing = true;
+                        }
                     }
                 }
             }
@@ -273,4 +306,8 @@ impl Connection {
 
         Ok(())
     }
+}
+
+fn calculate_request_consumer_index(config: &Config, info_hash: InfoHash) -> usize {
+    (info_hash.0[0] as usize) % config.request_workers
 }

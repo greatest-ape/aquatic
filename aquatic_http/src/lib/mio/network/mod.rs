@@ -217,7 +217,7 @@ pub fn handle_connection_read_event(
                 {
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
-                        poll_token,
+                        poll_token: poll_token.0,
                         peer_addr: established.peer_addr,
                     };
                     let response = FailureResponse::new("Info hash not allowed");
@@ -231,7 +231,7 @@ pub fn handle_connection_read_event(
                 Ok(request) => {
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
-                        poll_token,
+                        poll_token: poll_token.0,
                         peer_addr: established.peer_addr,
                     };
 
@@ -254,7 +254,7 @@ pub fn handle_connection_read_event(
 
                     let meta = ConnectionMeta {
                         worker_index: socket_worker_index,
-                        poll_token,
+                        poll_token: poll_token.0,
                         peer_addr: established.peer_addr,
                     };
 
@@ -322,7 +322,7 @@ pub fn send_responses(
 
     for (meta, response) in local_responses.chain(channel_responses_drain) {
         if let Some(established) = connections
-            .get_mut(&meta.poll_token)
+            .get_mut(&Token(meta.poll_token))
             .and_then(Connection::get_established)
         {
             if established.peer_addr != meta.peer_addr {
@@ -344,7 +344,7 @@ pub fn send_responses(
                     );
 
                     if !config.network.keep_alive {
-                        remove_connection(poll, connections, &meta.poll_token);
+                        remove_connection(poll, connections, &Token(meta.poll_token));
                     }
                 }
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
@@ -353,7 +353,7 @@ pub fn send_responses(
                 Err(err) => {
                     info!("error sending response: {}", err);
 
-                    remove_connection(poll, connections, &meta.poll_token);
+                    remove_connection(poll, connections, &Token(meta.poll_token));
                 }
             }
         }

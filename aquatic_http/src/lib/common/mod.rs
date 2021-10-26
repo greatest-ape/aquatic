@@ -1,12 +1,10 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::sync::Arc;
 use std::time::Instant;
 
 use aquatic_common::access_list::{AccessList};
 use either::Either;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
-use mio::Token;
 use smartstring::{LazyCompact, SmartString};
 
 pub use aquatic_common::{convert_ipv4_mapped_ipv6, ValidUntil};
@@ -27,15 +25,15 @@ impl Ip for Ipv6Addr {}
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
-    pub worker_index: usize,
+    pub worker_index: usize, // Or response consumer id in glommio
     pub peer_addr: SocketAddr,
-    pub poll_token: Token,
+    pub poll_token: usize, // Or connection id in glommio
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct PeerConnectionMeta<I: Ip> {
     pub worker_index: usize,
-    pub poll_token: Token,
+    pub poll_token: usize,
     pub peer_ip_address: I,
 }
 
@@ -113,14 +111,14 @@ pub struct TorrentMaps {
 }
 
 impl TorrentMaps {
-    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessList>) {
+    pub fn clean(&mut self, config: &Config, access_list: &AccessList) {
         Self::clean_torrent_map(config, access_list, &mut self.ipv4);
         Self::clean_torrent_map(config, access_list, &mut self.ipv6);
     }
 
     fn clean_torrent_map<I: Ip>(
         config: &Config,
-        access_list: &Arc<AccessList>,
+        access_list: &AccessList,
         torrent_map: &mut TorrentMap<I>,
     ) {
         let now = Instant::now();
