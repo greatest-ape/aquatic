@@ -1,4 +1,8 @@
-use std::{fs::File, io::BufReader, sync::{Arc, atomic::AtomicUsize}};
+use std::{
+    fs::File,
+    io::BufReader,
+    sync::{atomic::AtomicUsize, Arc},
+};
 
 use aquatic_common::access_list::AccessList;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
@@ -11,9 +15,7 @@ mod network;
 
 const SHARED_CHANNEL_SIZE: usize = 1024;
 
-pub fn run(
-    config: Config,
-) -> anyhow::Result<()> {
+pub fn run(config: Config) -> anyhow::Result<()> {
     let access_list = if config.access_list.mode.is_on() {
         AccessList::create_from_path(&config.access_list.path).expect("Load access list")
     } else {
@@ -94,13 +96,11 @@ pub fn run(
             .join()
             .unwrap();
     }
-    
+
     Ok(())
 }
 
-fn create_tls_config(
-    config: &Config,
-) -> anyhow::Result<rustls::ServerConfig> {
+fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
     let certs = {
         let f = File::open(&config.network.tls.tls_certificate_path)?;
         let mut f = BufReader::new(f);
@@ -125,6 +125,6 @@ fn create_tls_config(
         .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(certs, private_key)?;
-    
+
     Ok(tls_config)
 }

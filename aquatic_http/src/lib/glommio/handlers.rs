@@ -88,7 +88,7 @@ async fn handle_request_stream<S>(
                 request,
                 peer_addr,
                 response_consumer_id,
-                connection_id
+                connection_id,
             } => {
                 let meta = ConnectionMeta {
                     worker_index: response_consumer_id.0,
@@ -126,7 +126,8 @@ async fn handle_request_stream<S>(
                     peer_addr,
                 };
 
-                let response = handle_scrape_request(&config, &mut torrents.borrow_mut(), meta, request);
+                let response =
+                    handle_scrape_request(&config, &mut torrents.borrow_mut(), meta, request);
 
                 let response = ChannelResponse::Scrape {
                     response,
@@ -148,4 +149,3 @@ async fn handle_request_stream<S>(
         yield_if_needed().await;
     }
 }
-

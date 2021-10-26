@@ -1,7 +1,7 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Instant;
 
-use aquatic_common::access_list::{AccessList};
+use aquatic_common::access_list::AccessList;
 use either::Either;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -10,7 +10,7 @@ use smartstring::{LazyCompact, SmartString};
 pub use aquatic_common::{convert_ipv4_mapped_ipv6, ValidUntil};
 
 use aquatic_http_protocol::common::*;
-use aquatic_http_protocol::response::{ResponsePeer};
+use aquatic_http_protocol::response::ResponsePeer;
 
 use crate::config::Config;
 

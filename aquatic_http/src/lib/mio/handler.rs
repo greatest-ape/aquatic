@@ -8,10 +8,10 @@ use rand::{rngs::SmallRng, SeedableRng};
 use aquatic_http_protocol::request::*;
 use aquatic_http_protocol::response::*;
 
+use super::common::*;
 use crate::common::handlers::{handle_announce_request, handle_scrape_request};
 use crate::common::*;
 use crate::config::Config;
-use super::common::*;
 
 pub fn run_request_worker(
     config: Config,
@@ -59,8 +59,7 @@ pub fn run_request_worker(
             }
         }
 
-        let mut torrent_maps =
-            opt_torrent_maps.unwrap_or_else(|| state.torrent_maps.lock());
+        let mut torrent_maps = opt_torrent_maps.unwrap_or_else(|| state.torrent_maps.lock());
 
         let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
@@ -71,7 +70,7 @@ pub fn run_request_worker(
                 &mut torrent_maps,
                 valid_until,
                 meta,
-                request
+                request,
             );
 
             response_channel_sender.send(meta, Response::Announce(response));
@@ -79,12 +78,7 @@ pub fn run_request_worker(
         }
 
         for (meta, request) in scrape_requests.drain(..) {
-            let response = handle_scrape_request(
-                &config,
-                &mut torrent_maps,
-                meta,
-                request
-            );
+            let response = handle_scrape_request(&config, &mut torrent_maps, meta, request);
 
             response_channel_sender.send(meta, Response::Scrape(response));
             wake_socket_workers[meta.worker_index] = true;

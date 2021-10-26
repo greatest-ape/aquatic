@@ -2,14 +2,14 @@ use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use either::Either;
-use rand::{Rng};
+use rand::Rng;
 
 use aquatic_common::extract_response_peers;
 use aquatic_http_protocol::request::*;
 use aquatic_http_protocol::response::*;
 
-use crate::config::Config;
 use super::*;
+use crate::config::Config;
 
 pub fn handle_announce_request(
     config: &Config,
@@ -215,4 +215,3 @@ pub fn handle_scrape_request(
 
     response
 }
-

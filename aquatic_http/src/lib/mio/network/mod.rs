@@ -13,9 +13,9 @@ use native_tls::TlsAcceptor;
 
 use aquatic_http_protocol::response::*;
 
-use crate::mio::common::*;
-use crate::config::Config;
 use crate::common::*;
+use crate::config::Config;
+use crate::mio::common::*;
 
 pub mod connection;
 pub mod stream;

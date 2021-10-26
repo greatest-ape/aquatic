@@ -1,12 +1,12 @@
 use cfg_if::cfg_if;
 
-pub mod config;
 pub mod common;
+pub mod config;
 
-#[cfg(feature = "with-mio")]
-pub mod mio;
 #[cfg(all(feature = "with-glommio", target_os = "linux"))]
 pub mod glommio;
+#[cfg(feature = "with-mio")]
+pub mod mio;
 
 pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
 

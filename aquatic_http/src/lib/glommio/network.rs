@@ -1,20 +1,20 @@
 use std::cell::RefCell;
 use std::io::{Cursor, ErrorKind, Read, Write};
 use std::rc::Rc;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use aquatic_http_protocol::common::InfoHash;
 use aquatic_http_protocol::request::{AnnounceRequest, Request, RequestParseError};
 use aquatic_http_protocol::response::{FailureResponse, Response};
 use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Receivers, Role, Senders};
-use glommio::channels::shared_channel::{ConnectedReceiver, ConnectedSender, SharedSender};
-use glommio::prelude::*;
-use glommio::net::{TcpListener, TcpStream};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
+use glommio::channels::shared_channel::{ConnectedReceiver, ConnectedSender, SharedSender};
+use glommio::net::{TcpListener, TcpStream};
+use glommio::prelude::*;
 use glommio::task::JoinHandle;
-use rustls::{ServerConnection};
+use rustls::ServerConnection;
 use slab::Slab;
 
 use crate::common::num_digits_in_usize;
@@ -23,7 +23,6 @@ use crate::config::Config;
 use super::common::*;
 
 const BUFFER_SIZE: usize = 1024;
-
 
 struct ConnectionReference {
     response_sender: LocalSender<ChannelResponse>,
@@ -64,7 +63,11 @@ pub async fn run_socket_worker(
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
 
     for (_, response_receiver) in response_receivers.streams() {
-        spawn_local(receive_responses(response_receiver, connection_slab.clone())).detach();
+        spawn_local(receive_responses(
+            response_receiver,
+            connection_slab.clone(),
+        ))
+        .detach();
     }
 
     let mut incoming = listener.incoming();
@@ -103,12 +106,11 @@ pub async fn run_socket_worker(
                 };
 
                 entry.insert(connection_reference);
-            },
+            }
             Err(err) => {
                 ::log::error!("accept connection: {:?}", err);
             }
         }
-        
     }
 }
 
@@ -117,7 +119,10 @@ async fn receive_responses(
     connection_references: Rc<RefCell<Slab<ConnectionReference>>>,
 ) {
     while let Some(channel_response) = response_receiver.next().await {
-        if let Some(reference) = connection_references.borrow().get(channel_response.get_connection_id().0) {
+        if let Some(reference) = connection_references
+            .borrow()
+            .get(channel_response.get_connection_id().0)
+        {
             reference.response_sender.try_send(channel_response);
         }
     }
@@ -129,12 +134,13 @@ impl Connection {
             let opt_request = self.read_tls().await?;
 
             if let Some(request) = opt_request {
-                let peer_addr = self.stream
+                let peer_addr = self
+                    .stream
                     .peer_addr()
                     .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
-                
+
                 match request {
-                    Request::Announce(request@AnnounceRequest { info_hash, .. }) => {
+                    Request::Announce(request @ AnnounceRequest { info_hash, .. }) => {
                         let request = ChannelRequest::Announce {
                             request,
                             connection_id: self.connection_id,
@@ -142,12 +148,13 @@ impl Connection {
                             peer_addr,
                         };
 
-                        let consumer_index = calculate_request_consumer_index(&self.config, info_hash);
+                        let consumer_index =
+                            calculate_request_consumer_index(&self.config, info_hash);
                         self.request_senders.try_send_to(consumer_index, request);
-                    },
+                    }
                     Request::Scrape(request) => {
                         // TODO
-                    },
+                    }
                 }
 
                 // Wait for response to arrive, then send it
@@ -155,12 +162,16 @@ impl Connection {
                     if channel_response.get_peer_addr() != peer_addr {
                         return Err(anyhow::anyhow!("peer addressess didn't match"));
                     }
-                    
+
                     let opt_response = match channel_response {
-                        ChannelResponse::Announce { response, ..  } => {
+                        ChannelResponse::Announce { response, .. } => {
                             Some(Response::Announce(response))
                         }
-                        ChannelResponse::Scrape { response, original_indices, .. } => {
+                        ChannelResponse::Scrape {
+                            response,
+                            original_indices,
+                            ..
+                        } => {
                             None // TODO: accumulate scrape requests
                         }
                     };
@@ -219,7 +230,7 @@ impl Connection {
                             self.request_buffer.extend_from_slice(&buf[..amt]);
 
                             added_plaintext = true;
-                        },
+                        }
                         Err(err) if err.kind() == ErrorKind::WouldBlock => {
                             break;
                         }
@@ -241,7 +252,10 @@ impl Connection {
                         return Ok(Some(request));
                     }
                     Err(RequestParseError::NeedMoreData) => {
-                        ::log::debug!("need more request data. current data: {:?}", std::str::from_utf8(&self.request_buffer));
+                        ::log::debug!(
+                            "need more request data. current data: {:?}",
+                            std::str::from_utf8(&self.request_buffer)
+                        );
                     }
                     Err(RequestParseError::Invalid(err)) => {
                         ::log::debug!("invalid request: {:?}", err);
@@ -259,7 +273,7 @@ impl Connection {
             }
 
             if self.tls.wants_write() {
-                break
+                break;
             }
         }
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use aquatic_common::access_list::{AccessListArcSwap};
+use aquatic_common::access_list::AccessListArcSwap;
 use crossbeam_channel::{Receiver, Sender};
 use log::error;
 use mio::Token;
@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 pub use aquatic_common::{convert_ipv4_mapped_ipv6, ValidUntil};
 
 use aquatic_http_protocol::request::Request;
-use aquatic_http_protocol::response::{Response};
+use aquatic_http_protocol::response::Response;
 
 use crate::common::*;
 

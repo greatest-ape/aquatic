@@ -2,8 +2,8 @@ use histogram::Histogram;
 
 use aquatic_common::access_list::{AccessListMode, AccessListQuery};
 
-use crate::config::Config;
 use super::common::*;
+use crate::config::Config;
 
 pub fn update_access_list(config: &Config, state: &State) {
     match config.access_list.mode {
