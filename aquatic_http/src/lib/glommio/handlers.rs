@@ -118,7 +118,6 @@ async fn handle_request_stream<S>(
                 peer_addr,
                 response_consumer_id,
                 connection_id,
-                original_indices,
             } => {
                 let meta = ConnectionMeta {
                     worker_index: response_consumer_id.0,
@@ -133,7 +132,6 @@ async fn handle_request_stream<S>(
                     response,
                     peer_addr,
                     connection_id,
-                    original_indices,
                 };
 
                 (response, response_consumer_id)

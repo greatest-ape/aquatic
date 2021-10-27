@@ -1,9 +1,6 @@
 use std::net::SocketAddr;
 
-use aquatic_http_protocol::{
-    request::{AnnounceRequest, ScrapeRequest},
-    response::{AnnounceResponse, ScrapeResponse},
-};
+use aquatic_http_protocol::{common::InfoHash, request::{AnnounceRequest, ScrapeRequest}, response::{AnnounceResponse, ScrapeResponse, ScrapeStatistics}};
 
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
@@ -22,7 +19,6 @@ pub enum ChannelRequest {
     Scrape {
         request: ScrapeRequest,
         peer_addr: SocketAddr,
-        original_indices: Vec<usize>,
         connection_id: ConnectionId,
         response_consumer_id: ConsumerId,
     },
@@ -38,7 +34,6 @@ pub enum ChannelResponse {
     Scrape {
         response: ScrapeResponse,
         peer_addr: SocketAddr,
-        original_indices: Vec<usize>,
         connection_id: ConnectionId,
     },
 }
