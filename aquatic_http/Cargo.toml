@@ -16,7 +16,7 @@ name = "aquatic_http"
 path = "src/bin/main.rs"
 
 [features]
-default = ["with-mio"]
+default = ["with-glommio"]
 with-glommio = ["glommio", "futures-lite", "rustls", "rustls-pemfile", "slab"]
 with-mio = ["crossbeam-channel", "histogram", "mio", "native-tls", "socket2"]
 
