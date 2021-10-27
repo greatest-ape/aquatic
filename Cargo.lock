@@ -94,19 +94,15 @@ dependencies = [
  "aquatic_http_protocol",
  "cfg-if",
  "core_affinity",
- "crossbeam-channel",
  "either",
  "futures-lite",
  "glommio",
  "hashbrown 0.11.2",
- "histogram",
  "indexmap",
  "itoa",
  "log",
  "memchr",
  "mimalloc",
- "mio",
- "native-tls",
  "parking_lot",
  "privdrop",
  "quickcheck",
@@ -117,7 +113,6 @@ dependencies = [
  "serde",
  "slab",
  "smartstring",
- "socket2 0.4.2",
 ]
 
 [[package]]
