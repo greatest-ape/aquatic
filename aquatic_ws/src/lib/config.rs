@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use aquatic_common::access_list::AccessListConfig;
+use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;
@@ -84,17 +84,6 @@ pub struct StatisticsConfig {
     pub interval: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct PrivilegeConfig {
-    /// Chroot and switch user after binding to sockets
-    pub drop_privileges: bool,
-    /// Chroot to this path
-    pub chroot_path: String,
-    /// User to switch to after chrooting
-    pub user: String,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -160,15 +149,5 @@ impl Default for CleaningConfig {
 impl Default for StatisticsConfig {
     fn default() -> Self {
         Self { interval: 0 }
-    }
-}
-
-impl Default for PrivilegeConfig {
-    fn default() -> Self {
-        Self {
-            drop_privileges: false,
-            chroot_path: ".".to_string(),
-            user: "nobody".to_string(),
-        }
     }
 }
