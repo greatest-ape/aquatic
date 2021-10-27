@@ -1,4 +1,4 @@
-name: "Test HTTP, UDP and WSS file transfer"
+name: "Test UDP, TLS and WSS file transfer"
 
 on:
   push:
@@ -9,10 +9,10 @@ on:
 jobs:
   test-transfer-http:
     runs-on: ubuntu-latest
-    name: "Test BitTorrent file transfer over HTTP (with and without TLS), UDP and WSS"
+    name: "Test BitTorrent file transfer over UDP, TLS and WSS"
     timeout-minutes: 20
     container:
-      image: rust:1.56-bullseye
+      image: rust:1-bullseye
       options: --ulimit memlock=524288:524288
     steps:
       - name: Checkout

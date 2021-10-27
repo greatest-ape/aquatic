@@ -1,8 +1,8 @@
 name: 'test-transfer'
 description: 'test aquatic file transfer'
 outputs:
-  http_ipv4:
-    description: 'HTTP IPv4 status'
+  # http_ipv4:
+  #   description: 'HTTP IPv4 status'
   http_tls_ipv4:
     description: 'HTTP IPv4 over TLS status'
   udp_ipv4:
