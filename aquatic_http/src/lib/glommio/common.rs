@@ -1,6 +1,9 @@
 use std::net::SocketAddr;
 
-use aquatic_http_protocol::{common::InfoHash, request::{AnnounceRequest, ScrapeRequest}, response::{AnnounceResponse, ScrapeResponse, ScrapeStatistics}};
+use aquatic_http_protocol::{
+    request::{AnnounceRequest, ScrapeRequest},
+    response::{AnnounceResponse, ScrapeResponse},
+};
 
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
