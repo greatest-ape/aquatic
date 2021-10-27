@@ -213,6 +213,8 @@ impl Connection {
                     Ok(request) => {
                         ::log::debug!("received request: {:?}", request);
 
+                        self.request_buffer = Vec::new();
+
                         return Ok(Some(request));
                     }
                     Err(RequestParseError::NeedMoreData) => {
