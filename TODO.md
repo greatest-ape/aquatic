@@ -1,11 +1,12 @@
 # TODO
 
 * aquatic_http glommio:
+  * test with load tester with multiple workers: requires tls load tester
+  * remove mio version
+    * get rid of / improve ConnectionMeta stuff in handler
   * clean out connections regularly
     * timeout inside of task for "it took to long to receive request, send response"?
     * handle panicked/cancelled tasks
-  * test with load tester with multiple workers: requires tls load tester..
-  * get rid of / improve ConnectionMeta stuff in handler
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
   * Scrape: should stats with only zeroes be sent back for non-registered info hashes?
