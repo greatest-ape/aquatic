@@ -52,7 +52,6 @@ struct Connection {
     stream: TcpStream,
     connection_id: ConnectionId,
     request_buffer: Vec<u8>,
-    close_after_writing: bool,
 }
 
 pub async fn run_socket_worker(
@@ -127,7 +126,6 @@ pub async fn run_socket_worker(
                     stream,
                     connection_id: ConnectionId(entry.key()),
                     request_buffer: Vec::new(),
-                    close_after_writing: false,
                 };
 
                 let connections_to_remove = connections_to_remove.clone();
@@ -172,32 +170,42 @@ async fn receive_responses(
 
 impl Connection {
     async fn handle_stream(&mut self) -> anyhow::Result<()> {
+        let mut close_after_writing = false;
+
         loop {
-            let opt_request = self.read_tls().await?;
+            match self.read_tls().await? {
+                Some(Either::Left(request)) => {
+                    let response = match self.handle_request(request).await? {
+                        Some(Either::Left(response)) => {
+                            response
+                        }
+                        Some(Either::Right(pending_scrape_response)) => {
+                            self.wait_for_response(Some(pending_scrape_response)).await?
+                        },
+                        None => {
+                            self.wait_for_response(None).await?
+                        }
+                    };
 
-            if let Some(request) = opt_request {
-                let response = match self.handle_request(request).await? {
-                    Some(Either::Left(response)) => {
-                        response
+                    self.queue_response(&response)?;
+
+                    if !self.config.network.keep_alive {
+                        close_after_writing = true;
                     }
-                    Some(Either::Right(pending_scrape_response)) => {
-                        self.wait_for_response(Some(pending_scrape_response)).await?
-                    },
-                    None => {
-                        self.wait_for_response(None).await?
-                    }
-                };
+                }
+                Some(Either::Right(response)) => {
+                    self.queue_response(&Response::Failure(response))?;
 
-                self.queue_response(&response)?;
-
-                if !self.config.network.keep_alive {
-                    self.close_after_writing = true;
+                    close_after_writing = true;
+                }
+                None => {
+                    // Still handshaking
                 }
             }
 
             self.write_tls().await?;
 
-            if self.close_after_writing {
+            if close_after_writing {
                 let _ = self.stream.shutdown(std::net::Shutdown::Both).await;
 
                 break;
@@ -207,7 +215,7 @@ impl Connection {
         Ok(())
     }
 
-    async fn read_tls(&mut self) -> anyhow::Result<Option<Request>> {
+    async fn read_tls(&mut self) -> anyhow::Result<Option<Either<Request, FailureResponse>>> {
         loop {
             ::log::debug!("read_tls");
 
@@ -216,11 +224,7 @@ impl Connection {
             let bytes_read = self.stream.read(&mut buf).await?;
 
             if bytes_read == 0 {
-                ::log::debug!("peer has closed connection");
-
-                self.close_after_writing = true;
-
-                break;
+                return Err(anyhow::anyhow!("Peer has closed connection"));
             }
 
             let _ = self.tls.read_tls(&mut &buf[..bytes_read]).unwrap();
@@ -260,7 +264,7 @@ impl Connection {
 
                         self.request_buffer = Vec::new();
 
-                        return Ok(Some(request));
+                        return Ok(Some(Either::Left(request)));
                     }
                     Err(RequestParseError::NeedMoreData) => {
                         ::log::debug!(
@@ -271,14 +275,11 @@ impl Connection {
                     Err(RequestParseError::Invalid(err)) => {
                         ::log::debug!("invalid request: {:?}", err);
 
-                        let response = Response::Failure(FailureResponse {
+                        let response = FailureResponse {
                             failure_reason: "Invalid request".into(),
-                        });
+                        };
 
-                        self.queue_response(&response)?;
-                        self.close_after_writing = true;
-
-                        break;
+                        return Ok(Some(Either::Right(response)));
                     }
                 }
             }
