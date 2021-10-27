@@ -16,9 +16,9 @@ mod network;
 const SHARED_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config) -> anyhow::Result<()> {
-    if config.core_affinity.set_affinities {
+    if config.cpu_pinning.active {
         core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.core_affinity.offset,
+            id: config.cpu_pinning.offset,
         });
     }
 
@@ -49,8 +49,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         let mut builder = LocalExecutorBuilder::default();
 
-        if config.core_affinity.set_affinities {
-            builder = builder.pin_to_cpu(config.core_affinity.offset + 1 + i);
+        if config.cpu_pinning.active {
+            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + i);
         }
 
         let executor = builder.spawn(|| async move {
@@ -76,9 +76,9 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         let mut builder = LocalExecutorBuilder::default();
 
-        if config.core_affinity.set_affinities {
+        if config.cpu_pinning.active {
             builder =
-                builder.pin_to_cpu(config.core_affinity.offset + 1 + config.socket_workers + i);
+                builder.pin_to_cpu(config.cpu_pinning.offset + 1 + config.socket_workers + i);
         }
 
         let executor = builder.spawn(|| async move {

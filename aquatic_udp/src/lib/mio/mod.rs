@@ -21,9 +21,9 @@ use crate::drop_privileges_after_socket_binding;
 use common::State;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.core_affinity.set_affinities {
+    if config.cpu_pinning.active {
         core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.core_affinity.offset,
+            id: config.cpu_pinning.offset,
         });
     }
 
@@ -66,9 +66,9 @@ pub fn start_workers(
         Builder::new()
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
-                if config.core_affinity.set_affinities {
+                if config.cpu_pinning.active {
                     core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.core_affinity.offset + 1 + i,
+                        id: config.cpu_pinning.offset + 1 + i,
                     });
                 }
 
@@ -87,9 +87,9 @@ pub fn start_workers(
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
-                if config.core_affinity.set_affinities {
+                if config.cpu_pinning.active {
                     core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.core_affinity.offset + 1 + config.request_workers + i,
+                        id: config.cpu_pinning.offset + 1 + config.request_workers + i,
                     });
                 }
 
@@ -112,9 +112,9 @@ pub fn start_workers(
         Builder::new()
             .name("statistics-collector".to_string())
             .spawn(move || {
-                if config.core_affinity.set_affinities {
+                if config.cpu_pinning.active {
                     core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.core_affinity.offset,
+                        id: config.cpu_pinning.offset,
                     });
                 }
 

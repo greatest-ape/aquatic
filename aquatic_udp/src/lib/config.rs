@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use aquatic_common::access_list::AccessListConfig;
-use aquatic_common::cpu_pinning::CoreAffinityConfig;
+use aquatic_common::cpu_pinning::CpuPinningConfig;
 use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;
@@ -26,7 +26,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
-    pub core_affinity: CoreAffinityConfig,
+    pub cpu_pinning: CpuPinningConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -125,7 +125,7 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            core_affinity: CoreAffinityConfig::default(),
+            cpu_pinning: CpuPinningConfig::default(),
         }
     }
 }

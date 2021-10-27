@@ -2,15 +2,15 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
-pub struct CoreAffinityConfig {
-    pub set_affinities: bool,
+pub struct CpuPinningConfig {
+    pub active: bool,
     pub offset: usize,
 }
 
-impl Default for CoreAffinityConfig {
+impl Default for CpuPinningConfig {
     fn default() -> Self {
         Self {
-            set_affinities: false,
+            active: false,
             offset: 0,
         }
     }
