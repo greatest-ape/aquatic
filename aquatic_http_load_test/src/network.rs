@@ -1,316 +1,260 @@
-use std::convert::TryInto;
-use std::io::{Cursor, ErrorKind, Read, Write};
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::{cell::RefCell, convert::TryInto, io::{Cursor, ErrorKind, Read}, rc::Rc, sync::{Arc, atomic::Ordering}, time::Duration};
 
-use hashbrown::HashMap;
-use mio::{net::TcpStream, Events, Interest, Poll, Token};
-use rand::{prelude::*, rngs::SmallRng};
+use aquatic_http_protocol::response::Response;
+use futures_lite::{AsyncReadExt, AsyncWriteExt};
+use glommio::{enclose, prelude::*, timer::TimerActionRepeat};
+use glommio::net::TcpStream;
+use rand::{SeedableRng, prelude::SmallRng};
+use rustls::ClientConnection;
 
-use crate::common::*;
-use crate::config::*;
-use crate::utils::create_random_request;
+use crate::{common::LoadTestState, config::Config, utils::create_random_request};
 
-pub struct Connection {
+pub async fn run_socket_thread(
+    config: Config,
+    tls_config: Arc<rustls::ClientConfig>,
+    load_test_state: LoadTestState,
+) -> anyhow::Result<()> {
+    let config = Rc::new(config);
+    let num_active_connections = Rc::new(RefCell::new(0usize));
+
+    TimerActionRepeat::repeat(enclose!((config, tls_config, load_test_state, num_active_connections) move || {
+        enclose!((config, tls_config, load_test_state, num_active_connections) move || async move {
+            if *num_active_connections.borrow() < config.num_connections {
+                spawn_local(async move {
+                    if let Err(err) = Connection::run(config, tls_config, load_test_state, num_active_connections).await {
+                        eprintln!("connection creation error: {:?}", err);
+                    }
+                }).detach();
+            }
+
+            Some(Duration::from_secs(1))
+        })()
+    }));
+
+    futures_lite::future::pending::<bool>().await;
+
+    Ok(())
+}
+
+struct Connection {
+    config: Rc<Config>,
+    load_test_state: LoadTestState,
+    rng: SmallRng,
     stream: TcpStream,
-    tls: rustls::ClientConnection,
-    read_buffer: [u8; 4096],
-    response_buffer: Vec<u8>,
-    bytes_read: usize,
-    can_send: bool,
+    tls: ClientConnection,
+    response_buffer: [u8; 2048],
+    response_buffer_position: usize,
+    send_new_request: bool,
+    queued_responses: usize,
 }
 
 impl Connection {
-    pub fn create_and_register(
-        config: &Config,
+    async fn run(
+        config: Rc<Config>,
         tls_config: Arc<rustls::ClientConfig>,
-        connections: &mut ConnectionMap,
-        poll: &mut Poll,
-        token_counter: &mut usize,
+        load_test_state: LoadTestState,
+        num_active_connections: Rc<RefCell<usize>>,
     ) -> anyhow::Result<()> {
-        let mut stream = TcpStream::connect(config.server_address)?;
-        let tls = rustls::ClientConnection::new(tls_config, "example.com".try_into().unwrap())?;
+        let stream = TcpStream::connect(config.server_address).await
+            .map_err(|err| anyhow::anyhow!("connect: {:?}", err))?;
+        let tls = ClientConnection::new(tls_config, "example.com".try_into().unwrap()).unwrap();
+        let rng = SmallRng::from_entropy();
 
-        poll.registry()
-            .register(&mut stream, Token(*token_counter), Interest::READABLE)
-            .unwrap();
-
-        let connection = Connection {
+        let mut connection = Connection {
+            config,
+            load_test_state,
+            rng,
             stream,
             tls,
-            read_buffer: [0; 4096],
-            response_buffer: Vec::new(),
-            bytes_read: 0,
-            can_send: true,
+            response_buffer: [0; 2048],
+            response_buffer_position: 0,
+            send_new_request: true,
+            queued_responses: 0,
         };
 
-        connections.insert(*token_counter, connection);
+        *num_active_connections.borrow_mut() += 1;
 
-        *token_counter = token_counter.wrapping_add(1);
+        println!("run connection");
+
+        if let Err(err) = connection.run_connection_loop().await {
+            eprintln!("connection error: {:?}", err);
+        }
+
+        *num_active_connections.borrow_mut() -= 1;
 
         Ok(())
     }
 
-    pub fn read_response(&mut self, state: &LoadTestState) -> bool {
-        // bool = remove connection
+    async fn run_connection_loop(&mut self) -> anyhow::Result<()> {
         loop {
-            match self.stream.read(&mut self.read_buffer[self.bytes_read..]) {
-                Ok(0) => {
-                    if self.bytes_read == self.read_buffer.len() {
-                        eprintln!("read buffer is full");
-                    }
+            if self.send_new_request {
+                let request = create_random_request(&self.config, &self.load_test_state, &mut self.rng);
 
-                    break true;
-                }
-                Ok(bytes_read) => {
-                    self.bytes_read += bytes_read;
+                request.write(&mut self.tls.writer())?;
+                self.queued_responses += 1;
 
-                    let mut interesting_bytes = &self.read_buffer[..self.bytes_read];
+                self.send_new_request = false;
+            }
 
-                    self.tls.read_tls(&mut interesting_bytes as &mut dyn std::io::Read).unwrap();
+            self.write_tls().await?;
+            self.read_tls().await?;
+        }
+    }
 
-                    let io_state = self.tls.process_new_packets().unwrap();
+    async fn read_tls(&mut self) -> anyhow::Result<()> {
+        loop {
+            let mut buf = [0u8; 1024];
 
-                    if io_state.plaintext_bytes_to_read() == 0 {
-                        while self.tls.wants_write(){
-                            self.tls.write_tls(&mut self.stream).unwrap();
+            let bytes_read = self.stream.read(&mut buf).await?;
+
+            if bytes_read == 0 {
+                return Err(anyhow::anyhow!("Peer has closed connection"));
+            }
+
+            self
+                .load_test_state
+                .statistics
+                .bytes_received
+                .fetch_add(bytes_read, Ordering::SeqCst);
+
+            let _ = self.tls.read_tls(&mut &buf[..bytes_read]).unwrap();
+
+            let io_state = self.tls.process_new_packets()?;
+
+            let mut added_plaintext = false;
+
+            if io_state.plaintext_bytes_to_read() != 0 {
+                loop {
+                    match self.tls.reader().read(&mut buf) {
+                        Ok(0) => {
+                            break;
                         }
+                        Ok(amt) => {
+                            let end = self.response_buffer_position + amt;
 
-                        break false;
-                    }
+                            if end > self.response_buffer.len() {
+                                return Err(anyhow::anyhow!("response too large"));
+                            } else {
+                                let response_buffer_slice = &mut self.response_buffer[self.response_buffer_position..end];
 
-                    self.tls.reader().read_to_end(&mut self.response_buffer).unwrap();
+                                response_buffer_slice.copy_from_slice(&buf[..amt]);
 
-                    let interesting_bytes = &self.response_buffer[..];
+                                self.response_buffer_position = end;
 
-                    let mut opt_body_start_index = None;
-
-                    for (i, chunk) in interesting_bytes.windows(4).enumerate() {
-                        if chunk == b"\r\n\r\n" {
-                            opt_body_start_index = Some(i + 4);
-
+                                added_plaintext = true;
+                            }
+                        }
+                        Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                            break;
+                        }
+                        Err(err) => {
                             break;
                         }
                     }
+                }
+            }
 
-                    if let Some(body_start_index) = opt_body_start_index {
-                        let interesting_bytes = &interesting_bytes[body_start_index..];
+            if added_plaintext {
+                let interesting_bytes = &self.response_buffer[..self.response_buffer_position];
 
-                        match Response::from_bytes(interesting_bytes) {
-                            Ok(response) => {
-                                state
-                                    .statistics
-                                    .bytes_received
-                                    .fetch_add(self.bytes_read, Ordering::SeqCst);
+                let mut opt_body_start_index = None;
 
-                                match response {
-                                    Response::Announce(_) => {
-                                        state
-                                            .statistics
-                                            .responses_announce
-                                            .fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    Response::Scrape(_) => {
-                                        state
-                                            .statistics
-                                            .responses_scrape
-                                            .fetch_add(1, Ordering::SeqCst);
-                                    }
-                                    Response::Failure(response) => {
-                                        state
-                                            .statistics
-                                            .responses_failure
-                                            .fetch_add(1, Ordering::SeqCst);
-                                        println!(
-                                            "failure response: reason: {}",
-                                            response.failure_reason
-                                        );
-                                    }
+                for (i, chunk) in interesting_bytes.windows(4).enumerate() {
+                    if chunk == b"\r\n\r\n" {
+                        opt_body_start_index = Some(i + 4);
+
+                        break;
+                    }
+                }
+
+                if let Some(body_start_index) = opt_body_start_index {
+                    let interesting_bytes = &interesting_bytes[body_start_index..];
+
+                    match Response::from_bytes(interesting_bytes) {
+                        Ok(response) => {
+
+                            match response {
+                                Response::Announce(_) => {
+                                    self
+                                        .load_test_state
+                                        .statistics
+                                        .responses_announce
+                                        .fetch_add(1, Ordering::SeqCst);
                                 }
+                                Response::Scrape(_) => {
+                                    self
+                                        .load_test_state
+                                        .statistics
+                                        .responses_scrape
+                                        .fetch_add(1, Ordering::SeqCst);
+                                }
+                                Response::Failure(response) => {
+                                    self
+                                        .load_test_state
+                                        .statistics
+                                        .responses_failure
+                                        .fetch_add(1, Ordering::SeqCst);
+                                    println!(
+                                        "failure response: reason: {}",
+                                        response.failure_reason
+                                    );
+                                }
+                            }
 
-                                self.bytes_read = 0;
-                                self.can_send = true;
-                            }
-                            Err(err) => {
-                                eprintln!(
-                                    "deserialize response error with {} bytes read: {:?}, text: {}",
-                                    self.bytes_read,
-                                    err,
-                                    String::from_utf8_lossy(interesting_bytes)
-                                );
-                            }
+                            self.response_buffer_position = 0;
+                            self.send_new_request = true;
+
+                            break;
+                        }
+                        Err(err) => {
+                            eprintln!(
+                                "deserialize response error with {} bytes read: {:?}, text: {}",
+                                self.response_buffer_position,
+                                err,
+                                String::from_utf8_lossy(interesting_bytes)
+                            );
                         }
                     }
                 }
-                Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                    break false;
-                }
-                Err(_) => {
-                    self.bytes_read = 0;
+            }
 
-                    break true;
-                }
+            if self.tls.wants_write() {
+                break;
             }
         }
-    }
-
-    pub fn send_request(
-        &mut self,
-        config: &Config,
-        state: &LoadTestState,
-        rng: &mut impl Rng,
-        request_buffer: &mut Cursor<&mut [u8]>,
-    ) -> bool {
-        // bool = remove connection
-        if !self.can_send {
-            return false;
-        }
-
-        let request = create_random_request(&config, &state, rng);
-
-        request_buffer.set_position(0);
-        request.write(request_buffer).unwrap();
-        let position = request_buffer.position() as usize;
-
-        match self.send_request_inner(state, &request_buffer.get_mut()[..position]) {
-            Ok(()) => {
-                state.statistics.requests.fetch_add(1, Ordering::SeqCst);
-
-                self.can_send = false;
-
-                false
-            }
-            Err(_) => true,
-        }
-    }
-
-    fn send_request_inner(
-        &mut self,
-        state: &LoadTestState,
-        request: &[u8],
-    ) -> ::std::io::Result<()> {
-        self.tls.writer().write(request)?;
-
-        let mut bytes_sent = 0;
-
-        while self.tls.wants_write(){
-            bytes_sent += self.tls.write_tls(&mut self.stream)?;
-        }
-
-        state
-            .statistics
-            .bytes_sent
-            .fetch_add(bytes_sent, Ordering::SeqCst);
-
-        self.stream.flush()?;
 
         Ok(())
     }
 
-    fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
-        poll.registry().deregister(&mut self.stream)
-    }
-}
-
-pub type ConnectionMap = HashMap<usize, Connection>;
-
-pub fn run_socket_thread(
-    config: &Config,
-    tls_config: Arc<rustls::ClientConfig>,
-    state: LoadTestState,
-    num_initial_requests: usize
-) {
-    let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
-    let create_conn_interval = 2 ^ config.network.connection_creation_interval;
-
-    let mut connections: ConnectionMap = HashMap::with_capacity(config.num_connections);
-    let mut poll = Poll::new().expect("create poll");
-    let mut events = Events::with_capacity(config.network.poll_event_capacity);
-    let mut rng = SmallRng::from_entropy();
-    let mut request_buffer = [0u8; 1024];
-    let mut request_buffer = Cursor::new(&mut request_buffer[..]);
-
-    let mut token_counter = 0usize;
-
-    for _ in 0..num_initial_requests {
-        Connection::create_and_register(config, tls_config.clone(), &mut connections, &mut poll, &mut token_counter)
-            .unwrap();
-    }
-
-    let mut iter_counter = 0usize;
-    let mut num_to_create = 0usize;
-
-    let mut drop_connections = Vec::with_capacity(config.num_connections);
-
-    loop {
-        poll.poll(&mut events, Some(timeout))
-            .expect("failed polling");
-
-        for event in events.iter() {
-            if event.is_readable() {
-                let token = event.token();
-
-                if let Some(connection) = connections.get_mut(&token.0) {
-                    // Note that this does not indicate successfully reading
-                    // response
-                    if connection.read_response(&state) {
-                        remove_connection(&mut poll, &mut connections, token.0);
-
-                        num_to_create += 1;
-                    }
-                } else {
-                    eprintln!("connection not found: {:?}", token);
-                }
-            }
+    async fn write_tls(&mut self) -> anyhow::Result<()> {
+        if !self.tls.wants_write() {
+            return Ok(());
         }
 
-        for (k, connection) in connections.iter_mut() {
-            let remove_connection =
-                connection.send_request(config, &state, &mut rng, &mut request_buffer);
+        let mut buf = Vec::new();
+        let mut buf = Cursor::new(&mut buf);
 
-            if remove_connection {
-                drop_connections.push(*k);
-            }
+        while self.tls.wants_write() {
+            self.tls.write_tls(&mut buf).unwrap();
         }
 
-        for k in drop_connections.drain(..) {
-            remove_connection(&mut poll, &mut connections, k);
+        let len = buf.get_ref().len();
 
-            num_to_create += 1;
+        self.stream.write_all(&buf.into_inner()).await?;
+        self.stream.flush().await?;
+
+        self
+            .load_test_state
+            .statistics
+            .bytes_sent
+            .fetch_add(len, Ordering::SeqCst);
+
+        if self.queued_responses != 0 {
+            self.load_test_state.statistics.requests.fetch_add(self.queued_responses, Ordering::SeqCst);
+
+            self.queued_responses = 0;
         }
 
-        let max_new = config.num_connections - connections.len();
-
-        if iter_counter % create_conn_interval == 0 {
-            num_to_create += 1;
-        }
-
-        num_to_create = num_to_create.min(max_new);
-
-        for _ in 0..num_to_create {
-            let ok = Connection::create_and_register(
-                config,
-                tls_config.clone(),
-                &mut connections,
-                &mut poll,
-                &mut token_counter,
-            )
-            .is_ok();
-
-            if ok {
-                num_to_create -= 1;
-            }
-        }
-
-        iter_counter = iter_counter.wrapping_add(1);
-    }
-}
-
-fn remove_connection(poll: &mut Poll, connections: &mut ConnectionMap, connection_id: usize) {
-    if let Some(mut connection) = connections.remove(&connection_id) {
-        if let Err(err) = connection.deregister(poll) {
-            eprintln!("couldn't deregister connection: {}", err);
-        }
+        Ok(())
     }
 }

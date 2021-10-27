@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::BufReader;
 use std::sync::{atomic::Ordering, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -10,7 +8,6 @@ use rand_distr::Pareto;
 
 mod common;
 mod config;
-mod glommio;
 mod network;
 mod utils;
 
@@ -65,40 +62,13 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
 
         LocalExecutorBuilder::default().spawn(|| async move {
-            glommio::run_socket_thread(config, tls_config, state).await.unwrap();
+            run_socket_thread(config, tls_config, state).await.unwrap();
         }).unwrap();
     }
 
     monitor_statistics(state, &config);
 
     Ok(())
-}
-
-struct FakeCertificateVerifier;
-
-impl rustls::client::ServerCertVerifier for FakeCertificateVerifier {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::Certificate,
-        _intermediates: &[rustls::Certificate],
-        _server_name: &rustls::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
-        _ocsp_response: &[u8],
-        _now: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::ServerCertVerified::assertion())
-    }
-}
-
-fn create_tls_config() -> anyhow::Result<Arc<rustls::ClientConfig>> {
-    let mut config = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(rustls::RootCertStore::empty())
-        .with_no_client_auth();
-    
-    config.dangerous().set_certificate_verifier(Arc::new(FakeCertificateVerifier));
-    
-    Ok(Arc::new(config))
 }
 
 fn monitor_statistics(state: LoadTestState, config: &Config) {
@@ -182,4 +152,31 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
             break;
         }
     }
+}
+
+struct FakeCertificateVerifier;
+
+impl rustls::client::ServerCertVerifier for FakeCertificateVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::Certificate,
+        _intermediates: &[rustls::Certificate],
+        _server_name: &rustls::ServerName,
+        _scts: &mut dyn Iterator<Item = &[u8]>,
+        _ocsp_response: &[u8],
+        _now: std::time::SystemTime,
+    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::ServerCertVerified::assertion())
+    }
+}
+
+fn create_tls_config() -> anyhow::Result<Arc<rustls::ClientConfig>> {
+    let mut config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(rustls::RootCertStore::empty())
+        .with_no_client_auth();
+    
+    config.dangerous().set_certificate_verifier(Arc::new(FakeCertificateVerifier));
+    
+    Ok(Arc::new(config))
 }

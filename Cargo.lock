@@ -131,13 +131,11 @@ dependencies = [
  "glommio",
  "hashbrown 0.11.2",
  "mimalloc",
- "mio",
  "quickcheck",
  "quickcheck_macros",
  "rand",
  "rand_distr",
  "rustls",
- "rustls-pemfile",
  "serde",
 ]
 
