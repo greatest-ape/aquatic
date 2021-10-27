@@ -3,10 +3,16 @@
 * aquatic_http glommio:
   * cpu pinning - also rename config
   * access lists
+  * privdrop
   * scrape requests
   * clean out connections regularly
     * timeout inside of task for "it took to long to receive request, send response"?
     * remove finished tasks from slab
+  * Don't return read request immediately. Set it as self.read_request
+    and continue looping to wait for any new input. Then check after
+    read_tls is finished. This might prevent issues when using plain HTTP
+    where only part of request is read, but that part is valid, and reading
+    is stopped, which might lead to various issues.
 
 * aquatic_udp glommio
   * Check that it is the response consumer id responses are sent back to
