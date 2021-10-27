@@ -1,4 +1,6 @@
+use std::convert::TryInto;
 use std::io::{Cursor, ErrorKind, Read, Write};
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
@@ -12,7 +14,9 @@ use crate::utils::create_random_request;
 
 pub struct Connection {
     stream: TcpStream,
+    tls: rustls::ClientConnection,
     read_buffer: [u8; 4096],
+    response_buffer: Vec<u8>,
     bytes_read: usize,
     can_send: bool,
 }
@@ -20,11 +24,13 @@ pub struct Connection {
 impl Connection {
     pub fn create_and_register(
         config: &Config,
+        tls_config: Arc<rustls::ClientConfig>,
         connections: &mut ConnectionMap,
         poll: &mut Poll,
         token_counter: &mut usize,
     ) -> anyhow::Result<()> {
         let mut stream = TcpStream::connect(config.server_address)?;
+        let tls = rustls::ClientConnection::new(tls_config, "example.com".try_into().unwrap())?;
 
         poll.registry()
             .register(&mut stream, Token(*token_counter), Interest::READABLE)
@@ -32,7 +38,9 @@ impl Connection {
 
         let connection = Connection {
             stream,
+            tls,
             read_buffer: [0; 4096],
+            response_buffer: Vec::new(),
             bytes_read: 0,
             can_send: true,
         };
@@ -58,7 +66,23 @@ impl Connection {
                 Ok(bytes_read) => {
                     self.bytes_read += bytes_read;
 
-                    let interesting_bytes = &self.read_buffer[..self.bytes_read];
+                    let mut interesting_bytes = &self.read_buffer[..self.bytes_read];
+
+                    self.tls.read_tls(&mut interesting_bytes as &mut dyn std::io::Read).unwrap();
+
+                    let io_state = self.tls.process_new_packets().unwrap();
+
+                    if io_state.plaintext_bytes_to_read() == 0 {
+                        while self.tls.wants_write(){
+                            self.tls.write_tls(&mut self.stream).unwrap();
+                        }
+
+                        break false;
+                    }
+
+                    self.tls.reader().read_to_end(&mut self.response_buffer).unwrap();
+
+                    let interesting_bytes = &self.response_buffer[..];
 
                     let mut opt_body_start_index = None;
 
@@ -166,7 +190,13 @@ impl Connection {
         state: &LoadTestState,
         request: &[u8],
     ) -> ::std::io::Result<()> {
-        let bytes_sent = self.stream.write(request)?;
+        self.tls.writer().write(request)?;
+
+        let mut bytes_sent = 0;
+
+        while self.tls.wants_write(){
+            bytes_sent += self.tls.write_tls(&mut self.stream)?;
+        }
 
         state
             .statistics
@@ -185,7 +215,12 @@ impl Connection {
 
 pub type ConnectionMap = HashMap<usize, Connection>;
 
-pub fn run_socket_thread(config: &Config, state: LoadTestState, num_initial_requests: usize) {
+pub fn run_socket_thread(
+    config: &Config,
+    tls_config: Arc<rustls::ClientConfig>,
+    state: LoadTestState,
+    num_initial_requests: usize
+) {
     let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
     let create_conn_interval = 2 ^ config.network.connection_creation_interval;
 
@@ -199,7 +234,7 @@ pub fn run_socket_thread(config: &Config, state: LoadTestState, num_initial_requ
     let mut token_counter = 0usize;
 
     for _ in 0..num_initial_requests {
-        Connection::create_and_register(config, &mut connections, &mut poll, &mut token_counter)
+        Connection::create_and_register(config, tls_config.clone(), &mut connections, &mut poll, &mut token_counter)
             .unwrap();
     }
 
@@ -256,6 +291,7 @@ pub fn run_socket_thread(config: &Config, state: LoadTestState, num_initial_requ
         for _ in 0..num_to_create {
             let ok = Connection::create_and_register(
                 config,
+                tls_config.clone(),
                 &mut connections,
                 &mut poll,
                 &mut token_counter,
