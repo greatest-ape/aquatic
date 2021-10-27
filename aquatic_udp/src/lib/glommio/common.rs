@@ -9,7 +9,10 @@ use glommio::prelude::*;
 use crate::common::*;
 use crate::config::Config;
 
-pub async fn update_access_list<C: Borrow<Config>>(config: C, access_list: Rc<RefCell<AccessList>>) {
+pub async fn update_access_list<C: Borrow<Config>>(
+    config: C,
+    access_list: Rc<RefCell<AccessList>>,
+) {
     if config.borrow().access_list.mode.is_on() {
         match BufferedFile::open(&config.borrow().access_list.path).await {
             Ok(file) => {

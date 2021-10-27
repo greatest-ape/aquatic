@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use aquatic_common::access_list::AccessList;
 use aquatic_http_protocol::common::InfoHash;
-use aquatic_http_protocol::request::{AnnounceRequest, Request, RequestParseError, ScrapeRequest};
+use aquatic_http_protocol::request::{Request, RequestParseError, ScrapeRequest};
 use aquatic_http_protocol::response::{
     FailureResponse, Response, ScrapeResponse, ScrapeStatistics,
 };
@@ -19,9 +19,9 @@ use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
-use glommio::{enclose, prelude::*};
 use glommio::task::JoinHandle;
 use glommio::timer::TimerActionRepeat;
+use glommio::{enclose, prelude::*};
 use rustls::ServerConnection;
 use slab::Slab;
 
@@ -89,24 +89,26 @@ pub async fn run_socket_worker(
     }));
 
     // Periodically remove closed connections
-    TimerActionRepeat::repeat(enclose!((config, connection_slab, connections_to_remove) move || {
-        enclose!((config, connection_slab, connections_to_remove) move || async move {
-            let connections_to_remove = connections_to_remove.replace(Vec::new());
+    TimerActionRepeat::repeat(
+        enclose!((config, connection_slab, connections_to_remove) move || {
+            enclose!((config, connection_slab, connections_to_remove) move || async move {
+                let connections_to_remove = connections_to_remove.replace(Vec::new());
 
-            for connection_id in connections_to_remove {
-                if let Some(_) = connection_slab.borrow_mut().try_remove(connection_id) {
-                    ::log::debug!("removed connection with id {}", connection_id);
-                } else {
-                    ::log::error!(
-                        "couldn't remove connection with id {}, it is not in connection slab",
-                        connection_id
-                    );
+                for connection_id in connections_to_remove {
+                    if let Some(_) = connection_slab.borrow_mut().try_remove(connection_id) {
+                        ::log::debug!("removed connection with id {}", connection_id);
+                    } else {
+                        ::log::error!(
+                            "couldn't remove connection with id {}, it is not in connection slab",
+                            connection_id
+                        );
+                    }
                 }
-            }
 
-            Some(Duration::from_secs(config.cleaning.interval))
-        })()
-    }));
+                Some(Duration::from_secs(config.cleaning.interval))
+            })()
+        }),
+    );
 
     for (_, response_receiver) in response_receivers.streams() {
         spawn_local(receive_responses(
@@ -148,7 +150,8 @@ pub async fn run_socket_worker(
                     }
 
                     connections_to_remove.borrow_mut().push(key);
-                }).detach();
+                })
+                .detach();
 
                 let connection_reference = ConnectionReference {
                     response_sender,
@@ -188,15 +191,12 @@ impl Connection {
             match self.read_tls().await? {
                 Some(Either::Left(request)) => {
                     let response = match self.handle_request(request).await? {
-                        Some(Either::Left(response)) => {
-                            response
-                        }
+                        Some(Either::Left(response)) => response,
                         Some(Either::Right(pending_scrape_response)) => {
-                            self.wait_for_response(Some(pending_scrape_response)).await?
-                        },
-                        None => {
-                            self.wait_for_response(None).await?
+                            self.wait_for_response(Some(pending_scrape_response))
+                                .await?
                         }
+                        None => self.wait_for_response(None).await?,
                     };
 
                     self.queue_response(&response)?;
@@ -257,7 +257,8 @@ impl Connection {
                             if end > self.request_buffer.len() {
                                 return Err(anyhow::anyhow!("request too large"));
                             } else {
-                                let request_buffer_slice = &mut self.request_buffer[self.request_buffer_position..end];
+                                let request_buffer_slice =
+                                    &mut self.request_buffer[self.request_buffer_position..end];
 
                                 request_buffer_slice.copy_from_slice(&buf[..amt]);
 
@@ -341,7 +342,7 @@ impl Connection {
     ///   relevant request workers, and return PendingScrapeResponse struct.
     async fn handle_request(
         &self,
-        request: Request
+        request: Request,
     ) -> anyhow::Result<Option<Either<Response, PendingScrapeResponse>>> {
         let peer_addr = self.get_peer_addr()?;
 
@@ -349,8 +350,11 @@ impl Connection {
             Request::Announce(request) => {
                 let info_hash = request.info_hash;
 
-                if self.access_list.borrow().allows(self.config.access_list.mode, &info_hash.0) {
-
+                if self
+                    .access_list
+                    .borrow()
+                    .allows(self.config.access_list.mode, &info_hash.0)
+                {
                     let request = ChannelRequest::Announce {
                         request,
                         connection_id: self.connection_id,
@@ -417,7 +421,7 @@ impl Connection {
     /// return full response
     async fn wait_for_response(
         &self,
-        mut opt_pending_scrape_response: Option<PendingScrapeResponse>
+        mut opt_pending_scrape_response: Option<PendingScrapeResponse>,
     ) -> anyhow::Result<Response> {
         loop {
             if let Some(channel_response) = self.response_receiver.recv().await {

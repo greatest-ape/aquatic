@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::net::SocketAddr;
+use std::rc::Rc;
 
 use aquatic_common::access_list::AccessList;
 use futures_lite::AsyncBufReadExt;
@@ -66,7 +66,10 @@ impl ChannelResponse {
     }
 }
 
-pub async fn update_access_list<C: Borrow<Config>>(config: C, access_list: Rc<RefCell<AccessList>>) {
+pub async fn update_access_list<C: Borrow<Config>>(
+    config: C,
+    access_list: Rc<RefCell<AccessList>>,
+) {
     if config.borrow().access_list.mode.is_on() {
         match BufferedFile::open(&config.borrow().access_list.path).await {
             Ok(file) => {
@@ -104,5 +107,3 @@ pub async fn update_access_list<C: Borrow<Config>>(config: C, access_list: Rc<Re
         };
     }
 }
-
-

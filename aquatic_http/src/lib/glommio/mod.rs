@@ -77,8 +77,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let mut builder = LocalExecutorBuilder::default();
 
         if config.cpu_pinning.active {
-            builder =
-                builder.pin_to_cpu(config.cpu_pinning.offset + 1 + config.socket_workers + i);
+            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + config.socket_workers + i);
         }
 
         let executor = builder.spawn(|| async move {
@@ -94,7 +93,12 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         executors.push(executor);
     }
 
-    drop_privileges_after_socket_binding(&config.privileges, num_bound_sockets, config.socket_workers).unwrap();
+    drop_privileges_after_socket_binding(
+        &config.privileges,
+        num_bound_sockets,
+        config.socket_workers,
+    )
+    .unwrap();
 
     for executor in executors {
         executor

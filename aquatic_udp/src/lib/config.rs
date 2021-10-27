@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
-use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use aquatic_common::cpu_pinning::CpuPinningConfig;
+use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;

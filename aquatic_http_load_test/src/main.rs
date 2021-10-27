@@ -61,9 +61,11 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let tls_config = tls_config.clone();
         let state = state.clone();
 
-        LocalExecutorBuilder::default().spawn(|| async move {
-            run_socket_thread(config, tls_config, state).await.unwrap();
-        }).unwrap();
+        LocalExecutorBuilder::default()
+            .spawn(|| async move {
+                run_socket_thread(config, tls_config, state).await.unwrap();
+            })
+            .unwrap();
     }
 
     monitor_statistics(state, &config);
@@ -175,8 +177,10 @@ fn create_tls_config() -> anyhow::Result<Arc<rustls::ClientConfig>> {
         .with_safe_defaults()
         .with_root_certificates(rustls::RootCertStore::empty())
         .with_no_client_auth();
-    
-    config.dangerous().set_certificate_verifier(Arc::new(FakeCertificateVerifier));
-    
+
+    config
+        .dangerous()
+        .set_certificate_verifier(Arc::new(FakeCertificateVerifier));
+
     Ok(Arc::new(config))
 }
