@@ -27,7 +27,6 @@ use aquatic_http_protocol::{
     response::{AnnounceResponse, ScrapeResponse},
 };
 
-
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
 

@@ -9,8 +9,8 @@ use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
 use crate::config::Config;
 
-pub mod config;
 mod common;
+pub mod config;
 mod handlers;
 mod network;
 
