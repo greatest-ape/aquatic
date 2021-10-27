@@ -115,7 +115,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
 fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
     let certs = {
-        let f = File::open(&config.network.tls.tls_certificate_path)?;
+        let f = File::open(&config.network.tls_certificate_path)?;
         let mut f = BufReader::new(f);
 
         rustls_pemfile::certs(&mut f)?
@@ -125,7 +125,7 @@ fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
     };
 
     let private_key = {
-        let f = File::open(&config.network.tls.tls_private_key_path)?;
+        let f = File::open(&config.network.tls_private_key_path)?;
         let mut f = BufReader::new(f);
 
         rustls_pemfile::pkcs8_private_keys(&mut f)?
