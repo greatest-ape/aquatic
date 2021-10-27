@@ -54,7 +54,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
                 request_mesh_builder,
                 response_mesh_builder,
                 num_bound_sockets,
-                // access_list,
+                access_list,
             )
             .await
         });
