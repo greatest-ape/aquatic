@@ -238,6 +238,10 @@ impl Request {
 
             Ok(Request::Announce(request))
         } else {
+            if info_hashes.is_empty() {
+                return Err(anyhow::anyhow!("No info hashes sent"));
+            }
+
             let request = ScrapeRequest { info_hashes };
 
             Ok(Request::Scrape(request))
