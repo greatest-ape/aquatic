@@ -6,7 +6,7 @@
   * privdrop
   * clean out connections regularly
     * timeout inside of task for "it took to long to receive request, send response"?
-    * remove finished tasks from slab
+    * handle panicked/cancelled tasks
   * test with load tester with multiple workers
   * get rid of / improve ConnectionMeta stuff in handler
   * consider better error type for request parsing, so that better error
