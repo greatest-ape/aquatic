@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use aquatic_common::access_list::AccessListConfig;
+use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use serde::{Deserialize, Serialize};
 
@@ -99,17 +99,6 @@ pub struct CleaningConfig {
     pub max_connection_age: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct PrivilegeConfig {
-    /// Chroot and switch user after binding to sockets
-    pub drop_privileges: bool,
-    /// Chroot to this path
-    pub chroot_path: String,
-    /// User to switch to after chrooting
-    pub user: String,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -174,16 +163,6 @@ impl Default for CleaningConfig {
             interval: 30,
             max_peer_age: 60 * 20,
             max_connection_age: 60 * 5,
-        }
-    }
-}
-
-impl Default for PrivilegeConfig {
-    fn default() -> Self {
-        Self {
-            drop_privileges: false,
-            chroot_path: ".".to_string(),
-            user: "nobody".to_string(),
         }
     }
 }

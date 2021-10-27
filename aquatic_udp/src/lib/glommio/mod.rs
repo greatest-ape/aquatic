@@ -1,11 +1,11 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use aquatic_common::access_list::AccessList;
+use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use glommio::channels::channel_mesh::MeshBuilder;
 use glommio::prelude::*;
 
 use crate::config::Config;
-use crate::drop_privileges_after_socket_binding;
 
 mod common;
 pub mod handlers;
@@ -88,7 +88,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         executors.push(executor);
     }
 
-    drop_privileges_after_socket_binding(&config, num_bound_sockets).unwrap();
+    drop_privileges_after_socket_binding(&config.privileges, num_bound_sockets, config.socket_workers).unwrap();
 
     for executor in executors {
         executor

@@ -79,6 +79,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "hex",
  "indexmap",
+ "privdrop",
  "rand",
  "serde",
 ]
@@ -179,7 +180,6 @@ dependencies = [
  "mimalloc",
  "mio",
  "parking_lot",
- "privdrop",
  "quickcheck",
  "quickcheck_macros",
  "rand",

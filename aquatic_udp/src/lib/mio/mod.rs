@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::Context;
+use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use crossbeam_channel::unbounded;
 
 pub mod common;
@@ -16,7 +17,6 @@ pub mod tasks;
 use aquatic_common::access_list::{AccessListArcSwap, AccessListMode, AccessListQuery};
 
 use crate::config::Config;
-use crate::drop_privileges_after_socket_binding;
 
 use common::State;
 
@@ -35,7 +35,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     start_workers(config.clone(), state.clone(), num_bound_sockets.clone())?;
 
-    drop_privileges_after_socket_binding(&config, num_bound_sockets).unwrap();
+    drop_privileges_after_socket_binding(&config.privileges, num_bound_sockets, config.socket_workers).unwrap();
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
