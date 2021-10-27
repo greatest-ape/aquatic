@@ -1,7 +1,6 @@
 # TODO
 
 * aquatic_http glommio:
-  * test with load tester with multiple workers: requires tls load tester
   * remove mio version
     * get rid of / improve ConnectionMeta stuff in handler
   * clean out connections regularly
