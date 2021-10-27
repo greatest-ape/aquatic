@@ -346,8 +346,11 @@ impl Connection {
         let peer_addr = self.get_peer_addr()?;
 
         match request {
-            Request::Announce(request @ AnnounceRequest { info_hash, .. }) => {
+            Request::Announce(request) => {
+                let info_hash = request.info_hash;
+
                 if self.access_list.borrow().allows(self.config.access_list.mode, &info_hash.0) {
+
                     let request = ChannelRequest::Announce {
                         request,
                         connection_id: self.connection_id,
