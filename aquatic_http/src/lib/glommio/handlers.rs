@@ -34,7 +34,7 @@ pub async fn run_request_worker(
     // Periodically clean torrents and update access list
     TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
         enclose!((config, torrents, access_list) move || async move {
-            // update_access_list(config.clone(), access_list.clone()).await;
+            update_access_list(&config, access_list.clone()).await;
 
             torrents.borrow_mut().clean(&config, &*access_list.borrow());
 

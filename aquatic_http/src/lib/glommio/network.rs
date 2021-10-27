@@ -79,6 +79,15 @@ pub async fn run_socket_worker(
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
     let connections_to_remove = Rc::new(RefCell::new(Vec::new()));
 
+    // Periodically update access list
+    TimerActionRepeat::repeat(enclose!((config, access_list) move || {
+        enclose!((config, access_list) move || async move {
+            update_access_list(config.clone(), access_list.clone()).await;
+
+            Some(Duration::from_secs(config.cleaning.interval))
+        })()
+    }));
+
     // Periodically remove closed connections
     TimerActionRepeat::repeat(enclose!((config, connection_slab, connections_to_remove) move || {
         enclose!((config, connection_slab, connections_to_remove) move || async move {
