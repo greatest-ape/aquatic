@@ -92,6 +92,7 @@ dependencies = [
  "aquatic_common",
  "aquatic_http_protocol",
  "cfg-if",
+ "core_affinity",
  "crossbeam-channel",
  "either",
  "futures-lite",

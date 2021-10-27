@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use aquatic_common::access_list::AccessListConfig;
+use aquatic_common::cpu_pinning::CoreAffinityConfig;
 use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;
@@ -109,13 +110,6 @@ pub struct PrivilegeConfig {
     pub user: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CoreAffinityConfig {
-    pub set_affinities: bool,
-    pub offset: usize,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -190,15 +184,6 @@ impl Default for PrivilegeConfig {
             drop_privileges: false,
             chroot_path: ".".to_string(),
             user: "nobody".to_string(),
-        }
-    }
-}
-
-impl Default for CoreAffinityConfig {
-    fn default() -> Self {
-        Self {
-            set_affinities: false,
-            offset: 0,
         }
     }
 }
