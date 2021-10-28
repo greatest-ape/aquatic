@@ -25,7 +25,7 @@ of sub-implementations for different protocols:
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- If you want to run aquatic_ws and are on a Unix-like OS, install the OpenSSL
+- If you want to run aquatic_ws and are on Linux or BSD, install OpenSSL
   components necessary for dynamic linking (e.g., `apt-get install libssl-dev`)
 - Clone this git repository and enter it
 
