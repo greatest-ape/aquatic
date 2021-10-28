@@ -26,7 +26,7 @@ Copyright (c) 2020-2021 Joakim Frostegård
 
 Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
-## Building
+## Usage
 
 ### Prerequisites
 
@@ -47,18 +47,9 @@ cargo build --release -p aquatic_http
 cargo build --release -p aquatic_ws
 ```
 
-## Running
+### Running
 
-To start a tracker with default configuration, run any of:
-
-```sh
-./target/release/aquatic_udp
-./target/release/aquatic_http
-./target/release/aquatic_ws
-```
-
-To adjust the configuration, begin by generating configuration files. They
-differ between protocols.
+Begin by generating configuration files. They differ between protocols.
 
 ```sh
 ./target/release/aquatic_udp -p > "aquatic-udp-config.toml"
@@ -66,7 +57,15 @@ differ between protocols.
 ./target/release/aquatic_ws -p > "aquatic-ws-config.toml"
 ```
 
-Make adjustments to the files. Then run the tracker with:
+Make adjustments to the files.  The values you will most likely want to adjust
+are `socket_workers` (number of threads reading from and writing to sockets)
+and `address` under the `network` section (listening address). This goes for
+all three protocols.
+
+`aquatic_http` requires configuring a TLS certificate file and a private key file
+to run. More information is available futher down in this document.
+
+Once done, run the tracker:
 
 ```sh
 ./target/release/aquatic_udp -c "aquatic-udp-config.toml"
@@ -74,21 +73,19 @@ Make adjustments to the files. Then run the tracker with:
 ./target/release/aquatic_ws -c "aquatic-ws-config.toml"
 ```
 
-The configuration file values you will most likely want to adjust are
-`socket_workers` (number of threads reading from and writing to sockets) and
-`address` under the `network` section (listening address). This goes for all
-three protocols.
+More documentation of configuration file values might be available under
+`src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
 
-Access control by info hash is supported for all protocols. Relevant part of configuration:
+#### General settings
+
+Access control by info hash is supported for all protocols. The relevant part
+of configuration is:
 
 ```toml
 [access_list]
 mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
 path = '' # Path to text file with newline-delimited hex-encoded info hashes
 ```
-
-More documentation of configuration file values might be available under
-`src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
 
 ## Details on implementations
 
