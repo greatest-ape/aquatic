@@ -4,7 +4,7 @@
 
 Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
 
-Consists of three sub-implementations for different protocols:
+Consists of sub-implementations for different protocols:
 
 [BitTorrent over UDP]: https://libtorrent.org/udp_tracker_protocol.html
 [BitTorrent over HTTP]: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol
@@ -14,11 +14,11 @@ Consists of three sub-implementations for different protocols:
 [mio]: https://github.com/tokio-rs/mio
 [glommio]: https://github.com/DataDog/glommio
 
-| Name         | Protocol                                      | OS requirements                                                 |
-|--------------|-----------------------------------------------|-----------------------------------------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]                         | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
-| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls])    | Linux 5.8+                                                      |
-| aquatic_ws   | [WebTorrent], plain / with TLS ([native-tls]) | Cross-platform                                                  |
+| Name         | Protocol                                       | OS requirements                                                 |
+|--------------|------------------------------------------------|-----------------------------------------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]                          | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
+| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls])     | Linux 5.8+                                                      |
+| aquatic_ws   | [WebTorrent], plain or with TLS ([native-tls]) | Cross-platform                                                  |
 
 ## Copyright and license
 
@@ -26,48 +26,52 @@ Copyright (c) 2020-2021 Joakim Frostegård
 
 Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
-## Installation prerequisites
+## Building
+
+### Prerequisites
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- On GNU/Linux, also install the OpenSSL components necessary for dynamic
-  linking (e.g., `apt-get install libssl-dev`)
-- Clone the git repository and refer to the next section.
+- If you want to run aquatic_ws and are on a Unix-like OS, install the OpenSSL
+  components necessary for dynamic linking (e.g., `apt-get install libssl-dev`)
+- Clone this git repository and enter it
 
-## Compile and run
+### Compiling
 
-To compile the master executable for all protocols, run:
+Compile the implementations that you are interested in:
 
 ```sh
-./scripts/build-aquatic.sh
+cargo build --release -p aquatic_udp
+cargo build --release -p aquatic_udp --features "with-glommio" --no-default-features
+cargo build --release -p aquatic_http
+cargo build --release -p aquatic_ws
 ```
 
-To start the tracker for a protocol with default settings, run:
+## Running
+
+To start a tracker with default configuration, run any of:
 
 ```sh
-./target/release/aquatic udp
-./target/release/aquatic http
-./target/release/aquatic ws
+./target/release/aquatic_udp
+./target/release/aquatic_http
+./target/release/aquatic_ws
 ```
 
-To print default settings to standard output, pass the "-p" flag to the binary:
+To adjust the configuration, begin by generating configuration files. They
+differ between protocols.
 
 ```sh
-./target/release/aquatic udp -p
-./target/release/aquatic http -p
-./target/release/aquatic ws -p
+./target/release/aquatic_udp -p > "aquatic-udp-config.toml"
+./target/release/aquatic_http -p > "aquatic-http-config.toml"
+./target/release/aquatic_ws -p > "aquatic-ws-config.toml"
 ```
 
-Note that the configuration files differ between protocols.
-
-To adjust the settings, save the output of the relevant previous command to a
-file and make your changes. Then run `aquatic` with a "-c" argument pointing to
-the file, e.g.:
+Make adjustments to the files. Then run the tracker with:
 
 ```sh
-./target/release/aquatic udp -c "/path/to/aquatic-udp-config.toml"
-./target/release/aquatic http -c "/path/to/aquatic-http-config.toml"
-./target/release/aquatic ws -c "/path/to/aquatic-ws-config.toml"
+./target/release/aquatic_udp -c "aquatic-udp-config.toml"
+./target/release/aquatic_http -c "aquatic-http-config.toml"
+./target/release/aquatic_ws -c "aquatic-ws-config.toml"
 ```
 
 The configuration file values you will most likely want to adjust are
@@ -83,7 +87,7 @@ mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
 path = '' # Path to text file with newline-delimited hex-encoded info hashes
 ```
 
-Some more documentation of configuration file values might be available under
+More documentation of configuration file values might be available under
 `src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
 
 ## Details on implementations
@@ -131,24 +135,38 @@ There is an alternative implementation that utilizes [io_uring] by running on
 [glommio]. It only runs on Linux and requires a recent kernel (version 5.8 or later).
 In some cases, it performs even better than the cross-platform implementation.
 
-To use it, pass the `with-glommio` feature when building, e.g.:
-
-```sh
-cargo build -p aquatic_udp --features "with-glommio" --no-default-features
-./target/release/aquatic_udp
-```
-
 ### aquatic_http: HTTP BitTorrent tracker
 
-Aims for compatibility with the HTTP BitTorrent protocol, as described
-[here](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol),
-including TLS and scrape request support. There are some exceptions:
+[HTTP BitTorrent protocol]: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol
 
-  * Doesn't track of the number of torrent downloads (0 is always sent). 
+Aims for compatibility with the [HTTP BitTorrent protocol], with some exceptions:
+
+  * Only runs over TLS
+  * Doesn't track of the number of torrent downloads (0 is always sent)
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
 fine.
+
+A TLS certificate file (DER-encoded X.509) and a corresponding private key file
+(DER-encoded ASN.1 in either PKCS#8 or PKCS#1 format) are required. Set their
+paths in the configuration file, e.g.:
+
+```toml
+[network]
+address = '0.0.0.0:3000'
+tls_certificate_path = './cert.crt'
+tls_private_key_path = './key.pk8'
+```
+
+### aquatic_ws: WebTorrent tracker
+
+Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
+clients, including `wss` protocol support (WebSockets over TLS), with some
+exceptions:
+
+  * Doesn't track of the number of torrent downloads (0 is always sent). 
+  * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 #### TLS
 
@@ -164,24 +182,14 @@ Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
 and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
 the password in the field `tls_pkcs12_password` and set `use_tls` to true.
 
-### aquatic_ws: WebTorrent tracker
-
-Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
-clients, including `wss` protocol support (WebSockets over TLS), with some
-exceptions:
-
-  * Doesn't track of the number of torrent downloads (0 is always sent). 
-  * Doesn't allow full scrapes, i.e. of all registered info hashes
-
-For information about running over TLS, please refer to the TLS subsection
-of the `aquatic_http` section above.
-
 #### Benchmarks
 
 [wt-tracker]: https://github.com/Novage/wt-tracker
 [bittorrent-tracker]: https://github.com/webtorrent/bittorrent-tracker
 
-The following benchmark is not very realistic, as it simulates a small number of clients, each sending a large number of requests. Nonetheless, I think that it gives a useful indication of relative performance.
+The following benchmark is not very realistic, as it simulates a small number
+of clients, each sending a large number of requests. Nonetheless, I think that
+it gives a useful indication of relative performance.
 
 Server responses per second, best result in bold:
 
