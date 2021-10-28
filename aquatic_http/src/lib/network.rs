@@ -25,13 +25,16 @@ use glommio::{enclose, prelude::*};
 use rustls::ServerConnection;
 use slab::Slab;
 
-use crate::common::num_digits_in_usize;
 use crate::config::Config;
 
 use super::common::*;
 
 const INTERMEDIATE_BUFFER_SIZE: usize = 1024;
 const MAX_REQUEST_SIZE: usize = 2048;
+
+const MAX_RESPONSE_PLAINTEXT_SIZE: usize = 4096;
+const RESPONSE_HEADER_TEMPLATE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length:            \r\n\r\n";
+const RESPONSE_HEADER_CONTENT_LEN_INDEX: usize = 35;
 
 struct PendingScrapeResponse {
     pending_worker_responses: usize,
@@ -54,6 +57,7 @@ struct Connection {
     connection_id: ConnectionId,
     request_buffer: [u8; MAX_REQUEST_SIZE],
     request_buffer_position: usize,
+    response_plaintext_buffer: [u8; MAX_RESPONSE_PLAINTEXT_SIZE],
 }
 
 pub async fn run_socket_worker(
@@ -129,6 +133,10 @@ pub async fn run_socket_worker(
                 let entry = slab.vacant_entry();
                 let key = entry.key();
 
+                let mut response_buffer = [0u8; MAX_RESPONSE_PLAINTEXT_SIZE];
+
+                (response_buffer[0..RESPONSE_HEADER_TEMPLATE.len()]).copy_from_slice(RESPONSE_HEADER_TEMPLATE);
+
                 let mut conn = Connection {
                     config: config.clone(),
                     access_list: access_list.clone(),
@@ -140,6 +148,7 @@ pub async fn run_socket_worker(
                     connection_id: ConnectionId(entry.key()),
                     request_buffer: [0u8; MAX_REQUEST_SIZE],
                     request_buffer_position: 0,
+                    response_plaintext_buffer: response_buffer,
                 };
 
                 let connections_to_remove = connections_to_remove.clone();
@@ -464,22 +473,18 @@ impl Connection {
     }
 
     fn queue_response(&mut self, response: &Response) -> anyhow::Result<()> {
-        let mut body = Vec::new();
+        // Write body to response buffer
+        let mut position = RESPONSE_HEADER_TEMPLATE.len();
+        let body_len = response.write(&mut &mut self.response_plaintext_buffer[position..]).unwrap();
+        position += body_len;
+        (&mut self.response_plaintext_buffer[position..position + 2]).copy_from_slice(b"\r\n");
 
-        response.write(&mut body).unwrap();
+        // Update Content-Length header in response buffer with body len
+        let content_len = body_len + 2; // 2 is for newlines at end
+        ::itoa::write(&mut &mut self.response_plaintext_buffer[RESPONSE_HEADER_CONTENT_LEN_INDEX..], content_len)?;
 
-        let content_len = body.len() + 2; // 2 is for newlines at end
-        let content_len_num_digits = num_digits_in_usize(content_len);
-
-        let mut response_bytes = Vec::with_capacity(39 + content_len_num_digits + body.len());
-
-        response_bytes.extend_from_slice(b"HTTP/1.1 200 OK\r\nContent-Length: ");
-        ::itoa::write(&mut response_bytes, content_len)?;
-        response_bytes.extend_from_slice(b"\r\n\r\n");
-        response_bytes.append(&mut body);
-        response_bytes.extend_from_slice(b"\r\n");
-
-        self.tls.writer().write(&response_bytes[..])?;
+        // Write response buffer to rustls tls writer
+        self.tls.writer().write(&self.response_plaintext_buffer[..position])?;
 
         Ok(())
     }
