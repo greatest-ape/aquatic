@@ -1,6 +1,9 @@
 # TODO
 
 * aquatic_http glommio:
+  * optimize?
+    * get_peer_addr only once (takes 1.2% of runtime)
+    * queue response: allocating takes 2.8% of runtime
   * clean out connections regularly
     * timeout inside of task for "it took to long to receive request, send response"?
     * handle panicked/cancelled tasks
