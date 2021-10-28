@@ -2,9 +2,8 @@
 
 [![CargoBuildAndTest](https://github.com/greatest-ape/aquatic/actions/workflows/cargo-build-and-test.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/cargo-build-and-test.yml) [![Test HTTP, UDP and WSS file transfer](https://github.com/greatest-ape/aquatic/actions/workflows/test-transfer.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/test-transfer.yml)
 
-Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
-
-Consists of sub-implementations for different protocols:
+Blazingly fast, multi-threaded BitTorrent tracker written in Rust, consisting
+of sub-implementations for different protocols:
 
 [BitTorrent over UDP]: https://libtorrent.org/udp_tracker_protocol.html
 [BitTorrent over HTTP]: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol
@@ -19,12 +18,6 @@ Consists of sub-implementations for different protocols:
 | aquatic_udp  | [BitTorrent over UDP]                          | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
 | aquatic_http | [BitTorrent over HTTP] with TLS ([rustls])     | Linux 5.8+                                                      |
 | aquatic_ws   | [WebTorrent], plain or with TLS ([native-tls]) | Cross-platform                                                  |
-
-## Copyright and license
-
-Copyright (c) 2020-2021 Joakim Frostegård
-
-Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
 ## Usage
 
@@ -145,6 +138,8 @@ Aims for compatibility with the [HTTP BitTorrent protocol], with some exceptions
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
 fine.
 
+#### TLS
+
 A TLS certificate file (DER-encoded X.509) and a corresponding private key file
 (DER-encoded ASN.1 in either PKCS#8 or PKCS#1 format) are required. Set their
 paths in the configuration file, e.g.:
@@ -234,6 +229,12 @@ serialized and sent back to the peers.
 This design means little waiting for locks on internal state occurs,
 while network work can be efficiently distributed over multiple threads,
 making use of SO_REUSEPORT setting.
+
+## Copyright and license
+
+Copyright (c) 2020-2021 Joakim Frostegård
+
+Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
 ## Trivia
 
