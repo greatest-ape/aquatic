@@ -5,10 +5,20 @@
 Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
 
 Consists of three sub-implementations for different protocols:
-  * `aquatic_udp`: BitTorrent over UDP. Implementation achieves 45% higher throughput
-    than opentracker (see benchmarks below)
-  * `aquatic_http`: BitTorrent over HTTP/TLS (slightly experimental)
-  * `aquatic_ws`: WebTorrent (experimental)
+
+[BitTorrent over UDP]: https://libtorrent.org/udp_tracker_protocol.html
+[BitTorrent over HTTP]: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol
+[WebTorrent]: https://github.com/webtorrent
+[rustls]: https://github.com/rustls/rustls
+[native-tls]: https://github.com/sfackler/rust-native-tls
+[mio]: https://github.com/tokio-rs/mio
+[glommio]: https://github.com/DataDog/glommio
+
+| Name         | Protocol                                      | OS requirements                                                 |
+|--------------|-----------------------------------------------|-----------------------------------------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]                         | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
+| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls])    | Linux 5.8+                                                      |
+| aquatic_ws   | [WebTorrent], plain / with TLS ([native-tls]) | Cross-platform                                                  |
 
 ## Copyright and license
 
