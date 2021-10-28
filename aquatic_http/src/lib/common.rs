@@ -129,15 +129,16 @@ impl Ip for Ipv6Addr {}
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
-    pub worker_index: usize, // Or response consumer id in glommio
+    pub response_consumer_id: ConsumerId,
     pub peer_addr: SocketAddr,
-    pub poll_token: usize, // Or connection id in glommio
+    /// Connection id local to socket worker
+    pub connection_id: ConnectionId,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct PeerConnectionMeta<I: Ip> {
-    pub worker_index: usize,
-    pub poll_token: usize,
+    pub response_consumer_id: ConsumerId,
+    pub connection_id: ConnectionId,
     pub peer_ip_address: I,
 }
 

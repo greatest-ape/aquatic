@@ -97,8 +97,8 @@ async fn handle_request_stream<S>(
                 connection_id,
             } => {
                 let meta = ConnectionMeta {
-                    worker_index: response_consumer_id.0,
-                    poll_token: connection_id.0,
+                    response_consumer_id,
+                    connection_id,
                     peer_addr,
                 };
 
@@ -126,8 +126,8 @@ async fn handle_request_stream<S>(
                 connection_id,
             } => {
                 let meta = ConnectionMeta {
-                    worker_index: response_consumer_id.0,
-                    poll_token: connection_id.0,
+                    response_consumer_id,
+                    connection_id,
                     peer_addr,
                 };
 
@@ -172,8 +172,8 @@ pub fn handle_announce_request(
                 torrent_maps.ipv4.entry(request.info_hash).or_default();
 
             let peer_connection_meta = PeerConnectionMeta {
-                worker_index: meta.worker_index,
-                poll_token: meta.poll_token,
+                response_consumer_id: meta.response_consumer_id,
+                connection_id: meta.connection_id,
                 peer_ip_address,
             };
 
@@ -201,8 +201,8 @@ pub fn handle_announce_request(
                 torrent_maps.ipv6.entry(request.info_hash).or_default();
 
             let peer_connection_meta = PeerConnectionMeta {
-                worker_index: meta.worker_index,
-                poll_token: meta.poll_token,
+                response_consumer_id: meta.response_consumer_id,
+                connection_id: meta.connection_id,
                 peer_ip_address,
             };
 

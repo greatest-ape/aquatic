@@ -1,7 +1,6 @@
 # TODO
 
 * aquatic_http glommio:
-  * get rid of / improve ConnectionMeta stuff in handler
   * clean out connections regularly
     * timeout inside of task for "it took to long to receive request, send response"?
     * handle panicked/cancelled tasks
