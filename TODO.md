@@ -1,5 +1,22 @@
 # TODO
 
+* aquatic_http glommio:
+  * optimize?
+    * get_peer_addr only once (takes 1.2% of runtime)
+    * queue response: allocating takes 2.8% of runtime
+  * clean out connections regularly
+    * timeout inside of task for "it took to long to receive request, send response"?
+    * handle panicked/cancelled tasks
+  * consider better error type for request parsing, so that better error
+    messages can be sent back (e.g., "full scrapes are not supported")
+  * Scrape: should stats with only zeroes be sent back for non-registered info hashes?
+    Relevant for mio implementation too.
+  * Don't return read request immediately. Set it as self.read_request
+    and continue looping to wait for any new input. Then check after
+    read_tls is finished. This might prevent issues when using plain HTTP
+    where only part of request is read, but that part is valid, and reading
+    is stopped, which might lead to various issues.
+
 * aquatic_udp glommio
   * Add to file transfer CI
   * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)

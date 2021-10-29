@@ -2,79 +2,83 @@
 
 [![CargoBuildAndTest](https://github.com/greatest-ape/aquatic/actions/workflows/cargo-build-and-test.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/cargo-build-and-test.yml) [![Test HTTP, UDP and WSS file transfer](https://github.com/greatest-ape/aquatic/actions/workflows/test-transfer.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/test-transfer.yml)
 
-Blazingly fast, multi-threaded BitTorrent tracker written in Rust.
+Blazingly fast, multi-threaded BitTorrent tracker written in Rust, consisting
+of sub-implementations for different protocols:
 
-Consists of three sub-implementations for different protocols:
-  * `aquatic_udp`: BitTorrent over UDP. Implementation achieves 45% higher throughput
-    than opentracker (see benchmarks below)
-  * `aquatic_http`: BitTorrent over HTTP/TLS (slightly experimental)
-  * `aquatic_ws`: WebTorrent (experimental)
+[BitTorrent over UDP]: https://libtorrent.org/udp_tracker_protocol.html
+[BitTorrent over HTTP]: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol
+[WebTorrent]: https://github.com/webtorrent
+[rustls]: https://github.com/rustls/rustls
+[native-tls]: https://github.com/sfackler/rust-native-tls
+[mio]: https://github.com/tokio-rs/mio
+[glommio]: https://github.com/DataDog/glommio
 
-## Copyright and license
+| Name         | Protocol                                       | OS requirements                                                 |
+|--------------|------------------------------------------------|-----------------------------------------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]                          | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
+| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls])     | Linux 5.8+                                                      |
+| aquatic_ws   | [WebTorrent], plain or with TLS ([native-tls]) | Cross-platform                                                  |
 
-Copyright (c) 2020-2021 Joakim Frostegård
+## Usage
 
-Distributed under Apache 2.0 license (details in `LICENSE` file.)
-
-## Installation prerequisites
+### Prerequisites
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- On GNU/Linux, also install the OpenSSL components necessary for dynamic
-  linking (e.g., `apt-get install libssl-dev`)
-- Clone the git repository and refer to the next section.
+- If you want to run aquatic_ws and are on Linux or BSD, install OpenSSL
+  components necessary for dynamic linking (e.g., `apt-get install libssl-dev`)
+- Clone this git repository and enter it
 
-## Compile and run
+### Compiling
 
-To compile the master executable for all protocols, run:
-
-```sh
-./scripts/build-aquatic.sh
-```
-
-To start the tracker for a protocol with default settings, run:
+Compile the implementations that you are interested in:
 
 ```sh
-./target/release/aquatic udp
-./target/release/aquatic http
-./target/release/aquatic ws
+cargo build --release -p aquatic_udp
+cargo build --release -p aquatic_udp --features "with-glommio" --no-default-features
+cargo build --release -p aquatic_http
+cargo build --release -p aquatic_ws
 ```
 
-To print default settings to standard output, pass the "-p" flag to the binary:
+### Running
+
+Begin by generating configuration files. They differ between protocols.
 
 ```sh
-./target/release/aquatic udp -p
-./target/release/aquatic http -p
-./target/release/aquatic ws -p
+./target/release/aquatic_udp -p > "aquatic-udp-config.toml"
+./target/release/aquatic_http -p > "aquatic-http-config.toml"
+./target/release/aquatic_ws -p > "aquatic-ws-config.toml"
 ```
 
-Note that the configuration files differ between protocols.
+Make adjustments to the files.  The values you will most likely want to adjust
+are `socket_workers` (number of threads reading from and writing to sockets)
+and `address` under the `network` section (listening address). This goes for
+all three protocols.
 
-To adjust the settings, save the output of the relevant previous command to a
-file and make your changes. Then run `aquatic` with a "-c" argument pointing to
-the file, e.g.:
+`aquatic_http` requires configuring a TLS certificate file and a private key file
+to run. More information is available futher down in this document.
+
+Once done, run the tracker:
 
 ```sh
-./target/release/aquatic udp -c "/path/to/aquatic-udp-config.toml"
-./target/release/aquatic http -c "/path/to/aquatic-http-config.toml"
-./target/release/aquatic ws -c "/path/to/aquatic-ws-config.toml"
+./target/release/aquatic_udp -c "aquatic-udp-config.toml"
+./target/release/aquatic_http -c "aquatic-http-config.toml"
+./target/release/aquatic_ws -c "aquatic-ws-config.toml"
 ```
 
-The configuration file values you will most likely want to adjust are
-`socket_workers` (number of threads reading from and writing to sockets) and
-`address` under the `network` section (listening address). This goes for all
-three protocols.
+More documentation of configuration file values might be available under
+`src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
 
-Access control by info hash is supported for all protocols. Relevant part of configuration:
+#### General settings
+
+Access control by info hash is supported for all protocols. The relevant part
+of configuration is:
 
 ```toml
 [access_list]
 mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
 path = '' # Path to text file with newline-delimited hex-encoded info hashes
 ```
-
-Some more documentation of configuration file values might be available under
-`src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
 
 ## Details on implementations
 
@@ -121,24 +125,40 @@ There is an alternative implementation that utilizes [io_uring] by running on
 [glommio]. It only runs on Linux and requires a recent kernel (version 5.8 or later).
 In some cases, it performs even better than the cross-platform implementation.
 
-To use it, pass the `with-glommio` feature when building, e.g.:
-
-```sh
-cargo build --release -p aquatic_udp --features "with-glommio" --no-default-features
-./target/release/aquatic_udp
-```
-
 ### aquatic_http: HTTP BitTorrent tracker
 
-Aims for compatibility with the HTTP BitTorrent protocol, as described
-[here](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol),
-including TLS and scrape request support. There are some exceptions:
+[HTTP BitTorrent protocol]: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol
 
-  * Doesn't track of the number of torrent downloads (0 is always sent). 
+Aims for compatibility with the [HTTP BitTorrent protocol], with some exceptions:
+
+  * Only runs over TLS
+  * Doesn't track of the number of torrent downloads (0 is always sent)
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
 fine.
+
+#### TLS
+
+A TLS certificate file (DER-encoded X.509) and a corresponding private key file
+(DER-encoded ASN.1 in either PKCS#8 or PKCS#1 format) are required. Set their
+paths in the configuration file, e.g.:
+
+```toml
+[network]
+address = '0.0.0.0:3000'
+tls_certificate_path = './cert.crt'
+tls_private_key_path = './key.pk8'
+```
+
+### aquatic_ws: WebTorrent tracker
+
+Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
+clients, including `wss` protocol support (WebSockets over TLS), with some
+exceptions:
+
+  * Doesn't track of the number of torrent downloads (0 is always sent). 
+  * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 #### TLS
 
@@ -154,24 +174,14 @@ Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
 and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
 the password in the field `tls_pkcs12_password` and set `use_tls` to true.
 
-### aquatic_ws: WebTorrent tracker
-
-Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
-clients, including `wss` protocol support (WebSockets over TLS), with some
-exceptions:
-
-  * Doesn't track of the number of torrent downloads (0 is always sent). 
-  * Doesn't allow full scrapes, i.e. of all registered info hashes
-
-For information about running over TLS, please refer to the TLS subsection
-of the `aquatic_http` section above.
-
 #### Benchmarks
 
 [wt-tracker]: https://github.com/Novage/wt-tracker
 [bittorrent-tracker]: https://github.com/webtorrent/bittorrent-tracker
 
-The following benchmark is not very realistic, as it simulates a small number of clients, each sending a large number of requests. Nonetheless, I think that it gives a useful indication of relative performance.
+The following benchmark is not very realistic, as it simulates a small number
+of clients, each sending a large number of requests. Nonetheless, I think that
+it gives a useful indication of relative performance.
 
 Server responses per second, best result in bold:
 
@@ -219,6 +229,12 @@ serialized and sent back to the peers.
 This design means little waiting for locks on internal state occurs,
 while network work can be efficiently distributed over multiple threads,
 making use of SO_REUSEPORT setting.
+
+## Copyright and license
+
+Copyright (c) 2020-2021 Joakim Frostegård
+
+Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
 ## Trivia
 

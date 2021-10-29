@@ -9,19 +9,10 @@ pub struct Config {
     pub num_workers: u8,
     pub num_connections: usize,
     pub duration: usize,
-    pub network: NetworkConfig,
     pub torrents: TorrentConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct NetworkConfig {
-    pub connection_creation_interval: usize,
-    pub poll_timeout_microseconds: u64,
-    pub poll_event_capacity: usize,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -48,18 +39,7 @@ impl Default for Config {
             num_workers: 1,
             num_connections: 8,
             duration: 0,
-            network: NetworkConfig::default(),
             torrents: TorrentConfig::default(),
-        }
-    }
-}
-
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            connection_creation_interval: 10,
-            poll_timeout_microseconds: 197,
-            poll_event_capacity: 64,
         }
     }
 }

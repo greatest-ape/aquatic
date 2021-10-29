@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
-use aquatic_common::access_list::AccessListConfig;
+use aquatic_common::cpu_pinning::CpuPinningConfig;
+use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::{Deserialize, Serialize};
 
 use aquatic_cli_helpers::LogLevel;
@@ -25,7 +26,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
-    pub core_affinity: CoreAffinityConfig,
+    pub cpu_pinning: CpuPinningConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -98,24 +99,6 @@ pub struct CleaningConfig {
     pub max_connection_age: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct PrivilegeConfig {
-    /// Chroot and switch user after binding to sockets
-    pub drop_privileges: bool,
-    /// Chroot to this path
-    pub chroot_path: String,
-    /// User to switch to after chrooting
-    pub user: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CoreAffinityConfig {
-    pub set_affinities: bool,
-    pub offset: usize,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -131,7 +114,7 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            core_affinity: CoreAffinityConfig::default(),
+            cpu_pinning: CpuPinningConfig::default(),
         }
     }
 }
@@ -180,25 +163,6 @@ impl Default for CleaningConfig {
             interval: 30,
             max_peer_age: 60 * 20,
             max_connection_age: 60 * 5,
-        }
-    }
-}
-
-impl Default for PrivilegeConfig {
-    fn default() -> Self {
-        Self {
-            drop_privileges: false,
-            chroot_path: ".".to_string(),
-            user: "nobody".to_string(),
-        }
-    }
-}
-
-impl Default for CoreAffinityConfig {
-    fn default() -> Self {
-        Self {
-            set_affinities: false,
-            offset: 0,
         }
     }
 }

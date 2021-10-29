@@ -1,27 +1,124 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::sync::Arc;
 use std::time::Instant;
 
-use aquatic_common::access_list::{AccessList, AccessListArcSwap};
-use crossbeam_channel::{Receiver, Sender};
+use aquatic_common::access_list::AccessList;
 use either::Either;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
-use log::error;
-use mio::Token;
-use parking_lot::Mutex;
 use smartstring::{LazyCompact, SmartString};
 
 pub use aquatic_common::{convert_ipv4_mapped_ipv6, ValidUntil};
 
 use aquatic_http_protocol::common::*;
-use aquatic_http_protocol::request::Request;
-use aquatic_http_protocol::response::{Response, ResponsePeer};
+use aquatic_http_protocol::response::ResponsePeer;
 
 use crate::config::Config;
 
-pub const LISTENER_TOKEN: Token = Token(0);
-pub const CHANNEL_TOKEN: Token = Token(1);
+use std::borrow::Borrow;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use futures_lite::AsyncBufReadExt;
+use glommio::io::{BufferedFile, StreamReaderBuilder};
+use glommio::prelude::*;
+
+use aquatic_http_protocol::{
+    request::{AnnounceRequest, ScrapeRequest},
+    response::{AnnounceResponse, ScrapeResponse},
+};
+
+#[derive(Copy, Clone, Debug)]
+pub struct ConsumerId(pub usize);
+
+#[derive(Clone, Copy, Debug)]
+pub struct ConnectionId(pub usize);
+
+#[derive(Debug)]
+pub enum ChannelRequest {
+    Announce {
+        request: AnnounceRequest,
+        peer_addr: SocketAddr,
+        connection_id: ConnectionId,
+        response_consumer_id: ConsumerId,
+    },
+    Scrape {
+        request: ScrapeRequest,
+        peer_addr: SocketAddr,
+        connection_id: ConnectionId,
+        response_consumer_id: ConsumerId,
+    },
+}
+
+#[derive(Debug)]
+pub enum ChannelResponse {
+    Announce {
+        response: AnnounceResponse,
+        peer_addr: SocketAddr,
+        connection_id: ConnectionId,
+    },
+    Scrape {
+        response: ScrapeResponse,
+        peer_addr: SocketAddr,
+        connection_id: ConnectionId,
+    },
+}
+
+impl ChannelResponse {
+    pub fn get_connection_id(&self) -> ConnectionId {
+        match self {
+            Self::Announce { connection_id, .. } => *connection_id,
+            Self::Scrape { connection_id, .. } => *connection_id,
+        }
+    }
+    pub fn get_peer_addr(&self) -> SocketAddr {
+        match self {
+            Self::Announce { peer_addr, .. } => *peer_addr,
+            Self::Scrape { peer_addr, .. } => *peer_addr,
+        }
+    }
+}
+
+pub async fn update_access_list<C: Borrow<Config>>(
+    config: C,
+    access_list: Rc<RefCell<AccessList>>,
+) {
+    if config.borrow().access_list.mode.is_on() {
+        match BufferedFile::open(&config.borrow().access_list.path).await {
+            Ok(file) => {
+                let mut reader = StreamReaderBuilder::new(file).build();
+                let mut new_access_list = AccessList::default();
+
+                loop {
+                    let mut buf = String::with_capacity(42);
+
+                    match reader.read_line(&mut buf).await {
+                        Ok(_) => {
+                            if let Err(err) = new_access_list.insert_from_line(&buf) {
+                                ::log::error!(
+                                    "Couln't parse access list line '{}': {:?}",
+                                    buf,
+                                    err
+                                );
+                            }
+                        }
+                        Err(err) => {
+                            ::log::error!("Couln't read access list line {:?}", err);
+
+                            break;
+                        }
+                    }
+
+                    yield_if_needed().await;
+                }
+
+                *access_list.borrow_mut() = new_access_list;
+            }
+            Err(err) => {
+                ::log::error!("Couldn't open access list file: {:?}", err)
+            }
+        };
+    }
+}
 
 pub trait Ip: ::std::fmt::Debug + Copy + Eq + ::std::hash::Hash {}
 
@@ -32,15 +129,16 @@ impl Ip for Ipv6Addr {}
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
-    pub worker_index: usize,
+    pub response_consumer_id: ConsumerId,
     pub peer_addr: SocketAddr,
-    pub poll_token: Token,
+    /// Connection id local to socket worker
+    pub connection_id: ConnectionId,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct PeerConnectionMeta<I: Ip> {
-    pub worker_index: usize,
-    pub poll_token: Token,
+    pub response_consumer_id: ConsumerId,
+    pub connection_id: ConnectionId,
     pub peer_ip_address: I,
 }
 
@@ -118,14 +216,14 @@ pub struct TorrentMaps {
 }
 
 impl TorrentMaps {
-    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessList>) {
+    pub fn clean(&mut self, config: &Config, access_list: &AccessList) {
         Self::clean_torrent_map(config, access_list, &mut self.ipv4);
         Self::clean_torrent_map(config, access_list, &mut self.ipv6);
     }
 
     fn clean_torrent_map<I: Ip>(
         config: &Config,
-        access_list: &Arc<AccessList>,
+        access_list: &AccessList,
         torrent_map: &mut TorrentMap<I>,
     ) {
         let now = Instant::now();
@@ -163,42 +261,34 @@ impl TorrentMaps {
     }
 }
 
-#[derive(Clone)]
-pub struct State {
-    pub access_list: Arc<AccessListArcSwap>,
-    pub torrent_maps: Arc<Mutex<TorrentMaps>>,
-}
+pub fn num_digits_in_usize(mut number: usize) -> usize {
+    let mut num_digits = 1usize;
 
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            access_list: Arc::new(Default::default()),
-            torrent_maps: Arc::new(Mutex::new(TorrentMaps::default())),
-        }
-    }
-}
+    while number >= 10 {
+        num_digits += 1;
 
-pub type RequestChannelSender = Sender<(ConnectionMeta, Request)>;
-pub type RequestChannelReceiver = Receiver<(ConnectionMeta, Request)>;
-pub type ResponseChannelReceiver = Receiver<(ConnectionMeta, Response)>;
-
-#[derive(Clone)]
-pub struct ResponseChannelSender {
-    senders: Vec<Sender<(ConnectionMeta, Response)>>,
-}
-
-impl ResponseChannelSender {
-    pub fn new(senders: Vec<Sender<(ConnectionMeta, Response)>>) -> Self {
-        Self { senders }
+        number /= 10;
     }
 
-    #[inline]
-    pub fn send(&self, meta: ConnectionMeta, message: Response) {
-        if let Err(err) = self.senders[meta.worker_index].send((meta, message)) {
-            error!("ResponseChannelSender: couldn't send message: {:?}", err);
-        }
-    }
+    num_digits
 }
 
-pub type SocketWorkerStatus = Option<Result<(), String>>;
-pub type SocketWorkerStatuses = Arc<Mutex<Vec<SocketWorkerStatus>>>;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_num_digits_in_usize() {
+        let f = num_digits_in_usize;
+
+        assert_eq!(f(0), 1);
+        assert_eq!(f(1), 1);
+        assert_eq!(f(9), 1);
+        assert_eq!(f(10), 2);
+        assert_eq!(f(11), 2);
+        assert_eq!(f(99), 2);
+        assert_eq!(f(100), 3);
+        assert_eq!(f(101), 3);
+        assert_eq!(f(1000), 4);
+    }
+}

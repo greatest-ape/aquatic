@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::Context;
+use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use crossbeam_channel::unbounded;
 
 pub mod common;
@@ -16,14 +17,13 @@ pub mod tasks;
 use aquatic_common::access_list::{AccessListArcSwap, AccessListMode, AccessListQuery};
 
 use crate::config::Config;
-use crate::drop_privileges_after_socket_binding;
 
 use common::State;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.core_affinity.set_affinities {
+    if config.cpu_pinning.active {
         core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.core_affinity.offset,
+            id: config.cpu_pinning.offset,
         });
     }
 
@@ -35,7 +35,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     start_workers(config.clone(), state.clone(), num_bound_sockets.clone())?;
 
-    drop_privileges_after_socket_binding(&config, num_bound_sockets).unwrap();
+    drop_privileges_after_socket_binding(
+        &config.privileges,
+        num_bound_sockets,
+        config.socket_workers,
+    )
+    .unwrap();
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
@@ -66,9 +71,9 @@ pub fn start_workers(
         Builder::new()
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
-                if config.core_affinity.set_affinities {
+                if config.cpu_pinning.active {
                     core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.core_affinity.offset + 1 + i,
+                        id: config.cpu_pinning.offset + 1 + i,
                     });
                 }
 
@@ -87,9 +92,9 @@ pub fn start_workers(
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
-                if config.core_affinity.set_affinities {
+                if config.cpu_pinning.active {
                     core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.core_affinity.offset + 1 + config.request_workers + i,
+                        id: config.cpu_pinning.offset + 1 + config.request_workers + i,
                     });
                 }
 
@@ -112,9 +117,9 @@ pub fn start_workers(
         Builder::new()
             .name("statistics-collector".to_string())
             .spawn(move || {
-                if config.core_affinity.set_affinities {
+                if config.cpu_pinning.active {
                     core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.core_affinity.offset,
+                        id: config.cpu_pinning.offset,
                     });
                 }
 

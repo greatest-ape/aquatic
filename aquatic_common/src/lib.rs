@@ -5,6 +5,8 @@ use indexmap::IndexMap;
 use rand::Rng;
 
 pub mod access_list;
+pub mod cpu_pinning;
+pub mod privileges;
 
 /// Peer or connection valid until this instant
 ///
