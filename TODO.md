@@ -1,6 +1,16 @@
 # TODO
 
+* aquatic_udp
+  * CI for both implementations
+  * mio
+    * on ipv6: [ERROR] Response::write error: Error { kind: WriteZero,
+message: "failed to write whole buffer" }
+  * glommio
+    * ipv6 only flag
+    * consider sending local responses immediately
+
 * aquatic_http glommio:
+  * ipv6 only flag
   * optimize?
     * get_peer_addr only once (takes 1.2% of runtime)
     * queue response: allocating takes 2.8% of runtime
