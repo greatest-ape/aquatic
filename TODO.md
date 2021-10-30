@@ -2,12 +2,12 @@
 
 * aquatic_udp
   * CI for both implementations
-  * mio
-    * on ipv6: [ERROR] Response::write error: Error { kind: WriteZero,
-message: "failed to write whole buffer" }
   * glommio
     * ipv6 only flag
     * consider sending local responses immediately
+    * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
+      containing TransactionId and BTreeMap<usize, InfoHash>, and same for
+      response
 
 * aquatic_http glommio:
   * ipv6 only flag
@@ -26,12 +26,6 @@ message: "failed to write whole buffer" }
     read_tls is finished. This might prevent issues when using plain HTTP
     where only part of request is read, but that part is valid, and reading
     is stopped, which might lead to various issues.
-
-* aquatic_udp glommio
-  * Add to file transfer CI
-  * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
-    containing TransactionId and BTreeMap<usize, InfoHash>, and same for
-    response
 
 * access lists:
   * use arc-swap Cache?
