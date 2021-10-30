@@ -355,13 +355,22 @@ mod tests {
     #[test]
     fn quickcheck_serde_identity_request() {
         fn prop(request: Request) -> TestResult {
-            if let Request::Announce(AnnounceRequest {
-                key: Some(ref key), ..
-            }) = request
-            {
-                if key.len() > 30 {
-                    return TestResult::discard();
+            match request {
+                Request::Announce(AnnounceRequest {
+                    key: Some(ref key), ..
+                }) => {
+                    if key.len() > 30 {
+                        return TestResult::discard();
+                    }
                 }
+                Request::Scrape(ScrapeRequest {
+                    ref info_hashes,
+                }) => {
+                    if info_hashes.is_empty() {
+                        return TestResult::discard();
+                    }
+                }
+                _ => {}
             }
 
             let mut bytes = Vec::new();
