@@ -14,7 +14,7 @@ use crate::config::Config;
 pub mod handlers;
 pub mod network;
 
-pub const MAX_PACKET_SIZE: usize = 4096;
+pub const MAX_PACKET_SIZE: usize = 8192;
 
 pub trait Ip: Hash + PartialEq + Eq + Clone + Copy {
     fn ip_addr(self) -> IpAddr;
