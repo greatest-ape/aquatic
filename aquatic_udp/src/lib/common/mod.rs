@@ -14,7 +14,7 @@ use crate::config::Config;
 pub mod handlers;
 pub mod network;
 
-pub const MAX_PACKET_SIZE: usize = 4096;
+pub const MAX_PACKET_SIZE: usize = 8192;
 
 pub trait Ip: Hash + PartialEq + Eq + Clone + Copy {
     fn ip_addr(self) -> IpAddr;
@@ -155,6 +155,10 @@ impl TorrentMaps {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{IpAddr, Ipv6Addr};
+
+    use crate::{common::MAX_PACKET_SIZE, config::Config};
+
     #[test]
     fn test_peer_status_from_event_and_bytes_left() {
         use crate::common::*;
@@ -174,5 +178,37 @@ mod tests {
 
         assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes(0)));
         assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes(1)));
+    }
+
+    // Assumes that announce response with maximum amount of ipv6 peers will
+    // be the longest
+    #[test]
+    fn test_max_package_size() {
+        use aquatic_udp_protocol::*;
+
+        let config = Config::default();
+
+        let peers = ::std::iter::repeat(ResponsePeer {
+            ip_address: IpAddr::V6(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1)),
+            port: Port(1),
+        })
+        .take(config.protocol.max_response_peers)
+        .collect();
+
+        let response = Response::Announce(AnnounceResponse {
+            transaction_id: TransactionId(1),
+            announce_interval: AnnounceInterval(1),
+            seeders: NumberOfPeers(1),
+            leechers: NumberOfPeers(1),
+            peers,
+        });
+
+        let mut buf = Vec::new();
+
+        response.write(&mut buf, IpVersion::IPv6).unwrap();
+
+        println!("Buffer len: {}", buf.len());
+
+        assert!(buf.len() <= MAX_PACKET_SIZE);
     }
 }
