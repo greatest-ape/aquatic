@@ -4,7 +4,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::vec::Drain;
 
 use aquatic_common::access_list::AccessListQuery;
@@ -53,6 +53,7 @@ pub fn run_socket_worker(
     let timeout = Duration::from_millis(50);
 
     let mut iter_counter = 0usize;
+    let mut last_cleaning = Instant::now();
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -84,13 +85,17 @@ pub fn run_socket_worker(
             local_responses.drain(..),
         );
 
-        iter_counter += 1;
+        if iter_counter % 32 == 0 {
+            let now = Instant::now();
 
-        if iter_counter == 1000 {
-            connections.clean();
+            if last_cleaning + Duration::from_secs(config.cleaning.interval) > now {
+                connections.clean();
 
-            iter_counter = 0;
+                last_cleaning = now;
+            }
         }
+
+        iter_counter = iter_counter.wrapping_add(1);
     }
 }
 

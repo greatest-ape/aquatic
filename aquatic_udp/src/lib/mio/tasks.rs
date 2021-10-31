@@ -38,26 +38,46 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
         bytes_sent_per_second * 8.0 / 1_000_000.0,
     );
 
+    let mut total_num_torrents_ipv4 = 0usize;
+    let mut total_num_torrents_ipv6 = 0usize;
+    let mut total_num_peers_ipv4 = 0usize;
+    let mut total_num_peers_ipv6 = 0usize;
+
     let mut peers_per_torrent = Histogram::new();
 
     {
         let torrents = &mut state.torrents.lock();
 
         for torrent in torrents.ipv4.values() {
-            let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
+            let num_peers = torrent.num_seeders + torrent.num_leechers;
 
-            if let Err(err) = peers_per_torrent.increment(num_peers) {
+            if let Err(err) = peers_per_torrent.increment(num_peers as u64) {
                 ::log::error!("error incrementing peers_per_torrent histogram: {}", err)
             }
+
+            total_num_peers_ipv4 += num_peers;
         }
         for torrent in torrents.ipv6.values() {
-            let num_peers = (torrent.num_seeders + torrent.num_leechers) as u64;
+            let num_peers = torrent.num_seeders + torrent.num_leechers;
 
-            if let Err(err) = peers_per_torrent.increment(num_peers) {
+            if let Err(err) = peers_per_torrent.increment(num_peers as u64) {
                 ::log::error!("error incrementing peers_per_torrent histogram: {}", err)
             }
+
+            total_num_peers_ipv6 += num_peers;
         }
+
+        total_num_torrents_ipv4 += torrents.ipv4.len();
+        total_num_torrents_ipv6 += torrents.ipv6.len();
     }
+
+    println!(
+        "ipv4 torrents: {}, peers: {}; ipv6 torrents: {}, peers: {}",
+        total_num_torrents_ipv4,
+        total_num_peers_ipv4,
+        total_num_torrents_ipv6,
+        total_num_peers_ipv6,
+    );
 
     if peers_per_torrent.entries() != 0 {
         println!(
