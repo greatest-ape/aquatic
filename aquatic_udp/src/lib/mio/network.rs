@@ -53,7 +53,7 @@ pub fn run_socket_worker(
     let timeout = Duration::from_millis(50);
 
     let mut iter_counter = 0usize;
-    let mut now = Instant::now();
+    let mut last_cleaning = Instant::now();
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -86,10 +86,12 @@ pub fn run_socket_worker(
         );
 
         if iter_counter % 32 == 0 {
-            if now.elapsed().as_secs() >= config.cleaning.interval {
+            let now = Instant::now();
+
+            if last_cleaning + Duration::from_secs(config.cleaning.interval) > now {
                 connections.clean();
 
-                now = Instant::now();
+                last_cleaning = now;
             }
         }
 
