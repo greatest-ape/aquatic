@@ -27,6 +27,8 @@ use aquatic_http_protocol::{
     response::{AnnounceResponse, ScrapeResponse},
 };
 
+pub type TlsConfig = futures_rustls::rustls::ServerConfig;
+
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
 

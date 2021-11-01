@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::io::{Cursor, ErrorKind, Read, Write};
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,6 +14,8 @@ use aquatic_http_protocol::response::{
 };
 use either::Either;
 use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt};
+use futures_rustls::TlsAcceptor;
+use futures_rustls::server::TlsStream;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::channels::shared_channel::ConnectedReceiver;
@@ -22,7 +23,6 @@ use glommio::net::{TcpListener, TcpStream};
 use glommio::task::JoinHandle;
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
-use rustls::ServerConnection;
 use slab::Slab;
 
 use crate::common::num_digits_in_usize;
@@ -49,8 +49,7 @@ struct Connection {
     request_senders: Rc<Senders<ChannelRequest>>,
     response_receiver: LocalReceiver<ChannelResponse>,
     response_consumer_id: ConsumerId,
-    tls: ServerConnection,
-    stream: TcpStream,
+    tls_acceptor: TlsAcceptor,
     connection_id: ConnectionId,
     request_buffer: [u8; MAX_REQUEST_SIZE],
     request_buffer_position: usize,
@@ -58,7 +57,7 @@ struct Connection {
 
 pub async fn run_socket_worker(
     config: Config,
-    tls_config: Arc<rustls::ServerConfig>,
+    tls_config: Arc<TlsConfig>,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     response_mesh_builder: MeshBuilder<ChannelResponse, Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
@@ -135,8 +134,7 @@ pub async fn run_socket_worker(
                     request_senders: request_senders.clone(),
                     response_receiver,
                     response_consumer_id,
-                    tls: ServerConnection::new(tls_config.clone()).unwrap(),
-                    stream,
+                    tls_acceptor: tls_config.clone().into(),
                     connection_id: ConnectionId(entry.key()),
                     request_buffer: [0u8; MAX_REQUEST_SIZE],
                     request_buffer_position: 0,
@@ -145,7 +143,7 @@ pub async fn run_socket_worker(
                 let connections_to_remove = connections_to_remove.clone();
 
                 let handle = spawn_local(async move {
-                    if let Err(err) = conn.handle_stream().await {
+                    if let Err(err) = conn.handle_stream(stream).await {
                         ::log::info!("conn.handle_stream() error: {:?}", err);
                     }
 
@@ -184,41 +182,27 @@ async fn receive_responses(
 }
 
 impl Connection {
-    async fn handle_stream(&mut self) -> anyhow::Result<()> {
-        let mut close_after_writing = false;
+    async fn handle_stream(&mut self, stream: TcpStream) -> anyhow::Result<()> {
+        let peer_addr = Self::get_peer_addr(&stream)?;
+        let mut stream = self.tls_acceptor.accept(stream).await?;
 
         loop {
-            match self.read_tls().await? {
-                Some(Either::Left(request)) => {
-                    let response = match self.handle_request(request).await? {
-                        Some(Either::Left(response)) => response,
-                        Some(Either::Right(pending_scrape_response)) => {
-                            self.wait_for_response(Some(pending_scrape_response))
-                                .await?
+            let response = match self.read_request(&mut stream).await? {
+                Either::Left(response) => Response::Failure(response),
+                Either::Right(request) => {
+                    match self.handle_request(request, peer_addr).await? {
+                        Either::Left(response) => Response::Failure(response),
+                        Either::Right(opt_pending_scrape_response) => {
+                            self.wait_for_response(peer_addr, opt_pending_scrape_response).await?
                         }
-                        None => self.wait_for_response(None).await?,
-                    };
-
-                    self.queue_response(&response)?;
-
-                    if !self.config.network.keep_alive {
-                        close_after_writing = true;
                     }
                 }
-                Some(Either::Right(response)) => {
-                    self.queue_response(&Response::Failure(response))?;
+            };
 
-                    close_after_writing = true;
-                }
-                None => {
-                    // Still handshaking
-                }
-            }
+            self.write_response(&mut stream, &response).await?;
 
-            self.write_tls().await?;
-
-            if close_after_writing {
-                let _ = self.stream.shutdown(std::net::Shutdown::Both).await;
+            if matches!(response, Response::Failure(_)) || !self.config.network.keep_alive {
+                Self::close_stream(stream).await;
 
                 break;
             }
@@ -227,73 +211,42 @@ impl Connection {
         Ok(())
     }
 
-    async fn read_tls(&mut self) -> anyhow::Result<Option<Either<Request, FailureResponse>>> {
+    fn get_peer_addr(stream: &TcpStream) -> anyhow::Result<SocketAddr> {
+        stream
+            .peer_addr()
+            .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))
+    }
+
+    async fn close_stream(stream: TlsStream<TcpStream>) {
+        let _ = stream.get_ref().0.shutdown(std::net::Shutdown::Both).await;
+    }
+
+    async fn read_request(&mut self, stream: &mut TlsStream<TcpStream>) -> anyhow::Result<Either<FailureResponse, Request>> {
+        let mut buf = [0u8; INTERMEDIATE_BUFFER_SIZE];
+
         loop {
-            ::log::debug!("read_tls");
+            ::log::debug!("read");
 
-            let mut buf = [0u8; INTERMEDIATE_BUFFER_SIZE];
+            let bytes_read = stream.read(&mut buf).await?;
+            let request_buffer_end = self.request_buffer_position + bytes_read;
 
-            let bytes_read = self.stream.read(&mut buf).await?;
+            if request_buffer_end > self.request_buffer.len() {
+                return Err(anyhow::anyhow!("request too large"));
+            } else {
+                let request_buffer_slice =
+                    &mut self.request_buffer[self.request_buffer_position..request_buffer_end];
 
-            if bytes_read == 0 {
-                return Err(anyhow::anyhow!("Peer has closed connection"));
-            }
+                request_buffer_slice.copy_from_slice(&buf[..bytes_read]);
 
-            let _ = self.tls.read_tls(&mut &buf[..bytes_read]).unwrap();
+                self.request_buffer_position = request_buffer_end;
 
-            let io_state = self.tls.process_new_packets()?;
-
-            let mut added_plaintext = false;
-
-            if io_state.plaintext_bytes_to_read() != 0 {
-                loop {
-                    match self.tls.reader().read(&mut buf) {
-                        Ok(0) => {
-                            break;
-                        }
-                        Ok(amt) => {
-                            let end = self.request_buffer_position + amt;
-
-                            if end > self.request_buffer.len() {
-                                return Err(anyhow::anyhow!("request too large"));
-                            } else {
-                                let request_buffer_slice =
-                                    &mut self.request_buffer[self.request_buffer_position..end];
-
-                                request_buffer_slice.copy_from_slice(&buf[..amt]);
-
-                                self.request_buffer_position = end;
-
-                                added_plaintext = true;
-                            }
-                        }
-                        Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                            break;
-                        }
-                        Err(err) => {
-                            // Should never happen
-                            ::log::error!("tls.reader().read error: {:?}", err);
-
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if added_plaintext {
                 match Request::from_bytes(&self.request_buffer[..self.request_buffer_position]) {
                     Ok(request) => {
                         ::log::debug!("received request: {:?}", request);
 
                         self.request_buffer_position = 0;
 
-                        return Ok(Some(Either::Left(request)));
-                    }
-                    Err(RequestParseError::NeedMoreData) => {
-                        ::log::debug!(
-                            "need more request data. current data: {:?}",
-                            std::str::from_utf8(&self.request_buffer)
-                        );
+                        return Ok(Either::Right(request));
                     }
                     Err(RequestParseError::Invalid(err)) => {
                         ::log::debug!("invalid request: {:?}", err);
@@ -302,50 +255,29 @@ impl Connection {
                             failure_reason: "Invalid request".into(),
                         };
 
-                        return Ok(Some(Either::Right(response)));
+                        return Ok(Either::Left(response));
+                    }
+                    Err(RequestParseError::NeedMoreData) => {
+                        ::log::debug!(
+                            "need more request data. current data: {:?}",
+                            std::str::from_utf8(&self.request_buffer)
+                        );
                     }
                 }
             }
-
-            if self.tls.wants_write() {
-                break;
-            }
         }
-
-        Ok(None)
-    }
-
-    async fn write_tls(&mut self) -> anyhow::Result<()> {
-        if !self.tls.wants_write() {
-            return Ok(());
-        }
-
-        ::log::debug!("write_tls (wants write)");
-
-        let mut buf = Vec::new();
-        let mut buf = Cursor::new(&mut buf);
-
-        while self.tls.wants_write() {
-            self.tls.write_tls(&mut buf).unwrap();
-        }
-
-        self.stream.write_all(&buf.into_inner()).await?;
-        self.stream.flush().await?;
-
-        Ok(())
     }
 
     /// Take a request and:
     /// - Return error response if request is not allowed
-    /// - If it is an announce requests, pass it on to request workers and return None
+    /// - If it is an announce requests, pass it on to request workers and return Either::Right(None)
     /// - If it is a scrape requests, split it up and pass on parts to
-    ///   relevant request workers, and return PendingScrapeResponse struct.
+    ///   relevant request workers, and return Either::Right(Some(PendingScrapeResponse)).
     async fn handle_request(
         &self,
         request: Request,
-    ) -> anyhow::Result<Option<Either<Response, PendingScrapeResponse>>> {
-        let peer_addr = self.get_peer_addr()?;
-
+        peer_addr: SocketAddr,
+    ) -> anyhow::Result<Either<FailureResponse, Option<PendingScrapeResponse>>> {
         match request {
             Request::Announce(request) => {
                 let info_hash = request.info_hash;
@@ -370,13 +302,13 @@ impl Connection {
                         .await
                         .unwrap();
 
-                    Ok(None)
+                    Ok(Either::Right(None))
                 } else {
-                    let response = Response::Failure(FailureResponse {
+                    let response = FailureResponse {
                         failure_reason: "Info hash not allowed".into(),
-                    });
+                    };
 
-                    Ok(Some(Either::Left(response)))
+                    Ok(Either::Left(response))
                 }
             }
             Request::Scrape(ScrapeRequest { info_hashes }) => {
@@ -412,7 +344,7 @@ impl Connection {
                     stats: Default::default(),
                 };
 
-                Ok(Some(Either::Right(pending_scrape_response)))
+                Ok(Either::Right(Some(pending_scrape_response)))
             }
         }
     }
@@ -421,11 +353,12 @@ impl Connection {
     /// return full response
     async fn wait_for_response(
         &self,
+        peer_addr: SocketAddr,
         mut opt_pending_scrape_response: Option<PendingScrapeResponse>,
     ) -> anyhow::Result<Response> {
         loop {
             if let Some(channel_response) = self.response_receiver.recv().await {
-                if channel_response.get_peer_addr() != self.get_peer_addr()? {
+                if channel_response.get_peer_addr() != peer_addr {
                     return Err(anyhow::anyhow!("peer addressess didn't match"));
                 }
 
@@ -463,7 +396,7 @@ impl Connection {
         }
     }
 
-    fn queue_response(&mut self, response: &Response) -> anyhow::Result<()> {
+    async fn write_response(&mut self, stream: &mut TlsStream<TcpStream>, response: &Response) -> anyhow::Result<()> {
         let mut body = Vec::new();
 
         response.write(&mut body).unwrap();
@@ -479,15 +412,9 @@ impl Connection {
         response_bytes.append(&mut body);
         response_bytes.extend_from_slice(b"\r\n");
 
-        self.tls.writer().write(&response_bytes[..])?;
+        stream.write(&response_bytes[..]).await?;
 
         Ok(())
-    }
-
-    fn get_peer_addr(&self) -> anyhow::Result<SocketAddr> {
-        self.stream
-            .peer_addr()
-            .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))
     }
 }
 

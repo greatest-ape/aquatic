@@ -5,6 +5,7 @@ use std::{
 };
 
 use aquatic_common::{access_list::AccessList, privileges::drop_privileges_after_socket_binding};
+use common::TlsConfig;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
 use crate::config::Config;
@@ -113,14 +114,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
+fn create_tls_config(config: &Config) -> anyhow::Result<TlsConfig> {
     let certs = {
         let f = File::open(&config.network.tls_certificate_path)?;
         let mut f = BufReader::new(f);
 
         rustls_pemfile::certs(&mut f)?
             .into_iter()
-            .map(|bytes| rustls::Certificate(bytes))
+            .map(|bytes| futures_rustls::rustls::Certificate(bytes))
             .collect()
     };
 
@@ -130,11 +131,11 @@ fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
 
         rustls_pemfile::pkcs8_private_keys(&mut f)?
             .first()
-            .map(|bytes| rustls::PrivateKey(bytes.clone()))
+            .map(|bytes| futures_rustls::rustls::PrivateKey(bytes.clone()))
             .ok_or(anyhow::anyhow!("No private keys in file"))?
     };
 
-    let tls_config = rustls::ServerConfig::builder()
+    let tls_config = futures_rustls::rustls::ServerConfig::builder()
         .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(certs, private_key)?;
