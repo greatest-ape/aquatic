@@ -96,6 +96,7 @@ dependencies = [
  "core_affinity",
  "either",
  "futures-lite",
+ "futures-rustls",
  "glommio",
  "hashbrown 0.11.2",
  "indexmap",
@@ -108,7 +109,6 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand",
- "rustls",
  "rustls-pemfile",
  "serde",
  "slab",
@@ -783,6 +783,17 @@ dependencies = [
  "parking",
  "pin-project-lite",
  "waker-fn",
+]
+
+[[package]]
+name = "futures-rustls"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d383f0425d991a05e564c2f3ec150bd6dde863179c131dd60d8aa73a05434461"
+dependencies = [
+ "futures-io",
+ "rustls",
+ "webpki",
 ]
 
 [[package]]
