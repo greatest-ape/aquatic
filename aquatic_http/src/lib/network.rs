@@ -207,12 +207,7 @@ impl Connection {
         loop {
             let response = match self.read_request().await? {
                 Either::Left(response) => Response::Failure(response),
-                Either::Right(request) => match self.handle_request(request).await? {
-                    Either::Left(response) => Response::Failure(response),
-                    Either::Right(opt_pending_scrape_response) => {
-                        self.wait_for_response(opt_pending_scrape_response).await?
-                    }
-                },
+                Either::Right(request) => self.handle_request(request).await?,
             };
 
             self.write_response(&response).await?;
@@ -281,13 +276,11 @@ impl Connection {
 
     /// Take a request and:
     /// - Return error response if request is not allowed
-    /// - If it is an announce requests, pass it on to request workers and return Either::Right(None)
-    /// - If it is a scrape requests, split it up and pass on parts to
-    ///   relevant request workers, and return Either::Right(Some(PendingScrapeResponse)).
-    async fn handle_request(
-        &self,
-        request: Request,
-    ) -> anyhow::Result<Either<FailureResponse, Option<PendingScrapeResponse>>> {
+    /// - If it is an announce request, send it to request workers an await a
+    ///   response
+    /// - If it is a scrape requests, split it up, pass on the parts to
+    ///   relevant request workers and await a response
+    async fn handle_request(&self, request: Request) -> anyhow::Result<Response> {
         match request {
             Request::Announce(request) => {
                 let info_hash = request.info_hash;
@@ -312,13 +305,13 @@ impl Connection {
                         .await
                         .unwrap();
 
-                    Ok(Either::Right(None))
+                    self.wait_for_response(None).await
                 } else {
-                    let response = FailureResponse {
+                    let response = Response::Failure(FailureResponse {
                         failure_reason: "Info hash not allowed".into(),
-                    };
+                    });
 
-                    Ok(Either::Left(response))
+                    Ok(response)
                 }
             }
             Request::Scrape(ScrapeRequest { info_hashes }) => {
@@ -354,7 +347,7 @@ impl Connection {
                     stats: Default::default(),
                 };
 
-                Ok(Either::Right(Some(pending_scrape_response)))
+                self.wait_for_response(Some(pending_scrape_response)).await
             }
         }
     }
