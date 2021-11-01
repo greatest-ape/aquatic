@@ -25,6 +25,16 @@ of sub-implementations for different protocols:
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
+- Unless you're planning to only run aquatic_udp and only the cross-platform,
+  mio based implementation, make sure locked memory limits are sufficient.
+  You can do this by adding the following lines to `/etc/security/limits.conf`,
+  and then logging out and back in:
+
+```
+*    hard    memlock    512
+*    soft    memlock    512
+```
+
 - Clone this git repository and enter it
 
 ### Compiling
