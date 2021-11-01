@@ -89,22 +89,11 @@ pub async fn run_socket_worker(
     // Periodically remove closed connections
     TimerActionRepeat::repeat(
         enclose!((config, connection_slab, connections_to_remove) move || {
-            enclose!((config, connection_slab, connections_to_remove) move || async move {
-                let connections_to_remove = connections_to_remove.replace(Vec::new());
-
-                for connection_id in connections_to_remove {
-                    if let Some(_) = connection_slab.borrow_mut().try_remove(connection_id) {
-                        ::log::debug!("removed connection with id {}", connection_id);
-                    } else {
-                        ::log::error!(
-                            "couldn't remove connection with id {}, it is not in connection slab",
-                            connection_id
-                        );
-                    }
-                }
-
-                Some(Duration::from_secs(config.cleaning.interval))
-            })()
+            remove_closed_connections(
+                config.clone(),
+                connection_slab.clone(),
+                connections_to_remove.clone(),
+            )
         }),
     );
 
@@ -149,6 +138,27 @@ pub async fn run_socket_worker(
             }
         }
     }
+}
+
+async fn remove_closed_connections(
+    config: Rc<Config>,
+    connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
+    connections_to_remove: Rc<RefCell<Vec<usize>>>,
+) -> Option<Duration> {
+    let connections_to_remove = connections_to_remove.replace(Vec::new());
+
+    for connection_id in connections_to_remove {
+        if let Some(_) = connection_slab.borrow_mut().try_remove(connection_id) {
+            ::log::debug!("removed connection with id {}", connection_id);
+        } else {
+            ::log::error!(
+                "couldn't remove connection with id {}, it is not in connection slab",
+                connection_id
+            );
+        }
+    }
+
+    Some(Duration::from_secs(config.cleaning.interval))
 }
 
 async fn receive_responses(
