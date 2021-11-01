@@ -353,8 +353,12 @@ impl ConnectionReader {
             info_hash,
         });
 
-        self.out_message_sender
-            .try_send((self.make_connection_meta(None), out_message));
+        if let Err(err) = self
+            .out_message_sender
+            .try_send((self.make_connection_meta(None), out_message))
+        {
+            ::log::error!("ConnectionWriter::send_error_response failed: {:?}", err)
+        }
     }
 
     fn make_connection_meta(&self, pending_scrape_id: Option<PendingScrapeId>) -> ConnectionMeta {
