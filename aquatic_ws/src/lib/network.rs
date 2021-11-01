@@ -394,32 +394,33 @@ impl ConnectionWriter {
                         .pending_scrape_id
                         .expect("meta.pending_scrape_id not set");
 
-                    let opt_message = if let Some(pending) = Slab::get_mut(
+                    let finished = if let Some(pending) = Slab::get_mut(
                         &mut RefCell::borrow_mut(&self.pending_scrape_slab),
                         pending_scrape_id.0,
                     ) {
                         pending.stats.extend(out_message.files);
                         pending.pending_worker_out_messages -= 1;
 
-                        if pending.pending_worker_out_messages == 0 {
-                            Some(OutMessage::ScrapeResponse(ScrapeResponse {
-                                action: ScrapeAction,
-                                files: pending.stats.clone(), // FIXME: clone
-                            }))
-                        } else {
-                            None
-                        }
+                        pending.pending_worker_out_messages == 0
                     } else {
                         return Err(anyhow::anyhow!("pending scrape not found in slab"));
                     };
 
-                    if let Some(out_message) = opt_message {
-                        self.send_out_message(&out_message).await?;
+                    if finished {
+                        let out_message = {
+                            let mut slab = RefCell::borrow_mut(&self.pending_scrape_slab);
 
-                        let mut slab = RefCell::borrow_mut(&self.pending_scrape_slab);
-                        
-                        slab.remove(pending_scrape_id.0);
-                        slab.shrink_to_fit();
+                            let pending = slab.remove(pending_scrape_id.0);
+
+                            slab.shrink_to_fit();
+
+                            OutMessage::ScrapeResponse(ScrapeResponse {
+                                action: ScrapeAction,
+                                files: pending.stats,
+                            })
+                        };
+
+                        self.send_out_message(&out_message).await?;
                     }
                 }
                 out_message => {
