@@ -244,6 +244,11 @@ impl Connection {
             ::log::debug!("read");
 
             let bytes_read = self.stream.read(&mut buf).await?;
+
+            if bytes_read == 0 {
+                return Err(anyhow::anyhow!("peer closed connection"));
+            }
+
             let request_buffer_end = self.request_buffer_position + bytes_read;
 
             if request_buffer_end > self.request_buffer.len() {
