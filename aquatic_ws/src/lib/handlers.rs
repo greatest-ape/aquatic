@@ -282,8 +282,6 @@ pub fn handle_scrape_request(
         &mut torrent_maps.ipv6
     };
 
-    // If request.info_hashes is empty, don't return scrape for all
-    // torrents, even though reference server does it. It is too expensive.
     for info_hash in info_hashes.into_iter().take(num_to_take) {
         if let Some(torrent_data) = torrent_map.get(&info_hash) {
             let stats = ScrapeStatistics {

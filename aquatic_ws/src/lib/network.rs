@@ -305,6 +305,8 @@ impl Connection {
                 let info_hashes = if let Some(info_hashes) = info_hashes {
                     info_hashes
                 } else {
+                    // If request.info_hashes is empty, don't return scrape for all
+                    // torrents, even though reference server does it. It is too expensive.
                     let out_message = OutMessage::ErrorResponse(ErrorResponse {
                         action: Some(ErrorResponseAction::Scrape),
                         failure_reason: "Full scrapes are not allowed".into(),
