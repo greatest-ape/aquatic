@@ -27,16 +27,12 @@ impl InMessage {
 
         match ws_message {
             Message::Text(mut text) => {
-                ::simd_json::serde::from_str(&mut text)
-                    .context("deserialize from text xwith serde")
-            },
-            Message::Binary(mut bytes) => {
-                ::simd_json::serde::from_slice(&mut bytes[..])
-                    .context("deserialize from binary with serde")
-            },
-            _ => {
-                Err(anyhow::anyhow!("Message is neither text nor binary"))
+                ::simd_json::serde::from_str(&mut text).context("deserialize with serde")
             }
+            Message::Binary(mut bytes) => {
+                ::simd_json::serde::from_slice(&mut bytes[..]).context("deserialize with serde")
+            }
+            _ => Err(anyhow::anyhow!("Message is neither text nor binary")),
         }
     }
 }
