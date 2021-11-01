@@ -126,7 +126,7 @@ pub async fn run_socket_worker(
                         tls_config,
                         stream
                     ).await {
-                        ::log::info!("Connection::run() error: {:?}", err);
+                        ::log::debug!("Connection::run() error: {:?}", err);
                     }
 
                     connections_to_remove.borrow_mut().push(key);
