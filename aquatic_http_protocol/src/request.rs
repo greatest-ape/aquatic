@@ -363,9 +363,7 @@ mod tests {
                         return TestResult::discard();
                     }
                 }
-                Request::Scrape(ScrapeRequest {
-                    ref info_hashes,
-                }) => {
+                Request::Scrape(ScrapeRequest { ref info_hashes }) => {
                     if info_hashes.is_empty() {
                         return TestResult::discard();
                     }

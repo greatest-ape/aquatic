@@ -24,6 +24,7 @@ cfg-if = "1"
 core_affinity = "0.5"
 either = "1"
 futures-lite = "1"
+futures-rustls = "0.22"
 glommio = { git = "https://github.com/DataDog/glommio.git", rev = "4e6b14772da2f4325271fbcf12d24cf91ed466e5" }
 hashbrown = "0.11.2"
 indexmap = "1"
@@ -34,7 +35,6 @@ memchr = "2"
 parking_lot = "0.11"
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
-rustls = "0.20"
 rustls-pemfile = "0.2"
 serde = { version = "1", features = ["derive"] }
 slab = "0.4"
