@@ -58,13 +58,12 @@ Begin by generating configuration files. They differ between protocols.
 ./target/release/aquatic_ws -p > "aquatic-ws-config.toml"
 ```
 
-Make adjustments to the files.  The values you will most likely want to adjust
-are `socket_workers` (number of threads reading from and writing to sockets)
-and `address` under the `network` section (listening address). This goes for
-all three protocols.
+Make adjustments to the files. You will likely want to adjust `address`
+(listening address) under the `network` section.
 
-`aquatic_http` requires configuring a TLS certificate file and a private key file
-to run. More information is available futher down in this document.
+Both `aquatic_http` and `aquatic_ws` requires configuring a TLS certificate
+file as well as a private key file to run. More information is available
+in the `aquatic_http` subsection of this document.
 
 Once done, run the tracker:
 
@@ -74,10 +73,16 @@ Once done, run the tracker:
 ./target/release/aquatic_ws -c "aquatic-ws-config.toml"
 ```
 
-More documentation of configuration file values might be available under
-`src/lib/config.rs` in crates `aquatic_udp`, `aquatic_http`, `aquatic_ws`.
+### Configuration values
 
-#### General settings
+Starting a lot more socket workers than request workers is recommended. All
+implementations are heavily IO-bound and spend most of their time reading from
+and writing to sockets. This part is handled by the `socket_workers`, which
+also do parsing, serialisation and access control. They pass announce and
+scrape requests to the `request_workers`, which update internal tracker state
+and pass back responses.
+
+#### Access control
 
 Access control by info hash is supported for all protocols. The relevant part
 of configuration is:
@@ -87,6 +92,12 @@ of configuration is:
 mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
 path = '' # Path to text file with newline-delimited hex-encoded info hashes
 ```
+
+#### More information
+
+More documentation of the various configuration options might be available
+under `src/lib/config.rs` in directories `aquatic_udp`, `aquatic_http` and
+`aquatic_ws`.
 
 ## Details on implementations
 
@@ -205,7 +216,8 @@ implementation.
 ## Load testing
 
 There are load test binaries for all protocols. They use a CLI structure
-similar to `aquatic` and support generation and loading of configuration files.
+similar to the trackers and support generation and loading of configuration
+files.
 
 To run, first start the tracker that you want to test. Then run the
 corresponding load test binary:
@@ -218,18 +230,6 @@ corresponding load test binary:
 
 To fairly compare HTTP performance to opentracker, set keepalive to false in
 `aquatic_http` settings.
-
-## Architectural overview
-
-One or more socket workers open sockets, read and parse requests from peers and
-send them through channels to request workers. The request workers go through
-the requests, update shared internal tracker state as appropriate and generate
-responses that are sent back to the socket workers. The responses are then
-serialized and sent back to the peers.
-
-This design means little waiting for locks on internal state occurs,
-while network work can be efficiently distributed over multiple threads,
-making use of SO_REUSEPORT setting.
 
 ## Copyright and license
 
