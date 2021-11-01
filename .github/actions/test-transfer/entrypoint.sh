@@ -55,8 +55,6 @@ openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8 # rustls
 $SUDO cp cert.crt /usr/local/share/ca-certificates/snakeoil.crt
 $SUDO update-ca-certificates
 
-openssl pkcs12 -export -passout "pass:p" -out identity.pfx -inkey key.pem -in cert.crt
-
 # Build and start tracker
 
 cargo build --bin aquatic
@@ -85,9 +83,8 @@ echo "log_level = 'trace'
 
 [network]
 address = '127.0.0.1:3002'
-use_tls = true
-tls_pkcs12_path = './identity.pfx'
-tls_pkcs12_password = 'p'
+tls_certificate_path = './cert.crt'
+tls_private_key_path = './key.pk8'
 " > ws.toml
 ./target/debug/aquatic ws -c ws.toml > "$HOME/wss.log" 2>&1 &
 
