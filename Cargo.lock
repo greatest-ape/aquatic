@@ -247,7 +247,6 @@ dependencies = [
  "futures-rustls",
  "glommio",
  "hashbrown 0.11.2",
- "histogram",
  "indexmap",
  "log",
  "mimalloc",
