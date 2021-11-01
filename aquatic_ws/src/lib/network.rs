@@ -416,7 +416,10 @@ impl ConnectionWriter {
                     if let Some(out_message) = opt_message {
                         self.send_out_message(&out_message).await?;
 
-                        RefCell::borrow_mut(&self.pending_scrape_slab).remove(pending_scrape_id.0);
+                        let mut slab = RefCell::borrow_mut(&self.pending_scrape_slab);
+                        
+                        slab.remove(pending_scrape_id.0);
+                        slab.shrink_to_fit();
                     }
                 }
                 out_message => {
