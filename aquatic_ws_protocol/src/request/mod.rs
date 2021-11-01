@@ -23,14 +23,20 @@ impl InMessage {
 
     #[inline]
     pub fn from_ws_message(ws_message: tungstenite::Message) -> ::anyhow::Result<Self> {
-        use tungstenite::Message::Text;
+        use tungstenite::Message;
 
-        let mut text = if let Text(text) = ws_message {
-            text
-        } else {
-            return Err(anyhow::anyhow!("Message is not text"));
-        };
-
-        return ::simd_json::serde::from_str(&mut text).context("deserialize with serde");
+        match ws_message {
+            Message::Text(mut text) => {
+                ::simd_json::serde::from_str(&mut text)
+                    .context("deserialize from text xwith serde")
+            },
+            Message::Binary(mut bytes) => {
+                ::simd_json::serde::from_slice(&mut bytes[..])
+                    .context("deserialize from binary with serde")
+            },
+            _ => {
+                Err(anyhow::anyhow!("Message is neither text nor binary"))
+            }
+        }
     }
 }
