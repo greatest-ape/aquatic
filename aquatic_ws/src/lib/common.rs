@@ -20,6 +20,9 @@ use crate::config::Config;
 pub type TlsConfig = futures_rustls::rustls::ServerConfig;
 
 #[derive(Copy, Clone, Debug)]
+pub struct PendingScrapeId(pub usize);
+
+#[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
 
 #[derive(Clone, Copy, Debug)]
@@ -35,6 +38,7 @@ pub struct ConnectionMeta {
     /// an IPv4 address if it was a IPv4-mapped IPv6 address
     pub naive_peer_addr: SocketAddr,
     pub converted_peer_ip: IpAddr,
+    pub pending_scrape_id: Option<PendingScrapeId>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
