@@ -13,11 +13,11 @@ of sub-implementations for different protocols:
 [mio]: https://github.com/tokio-rs/mio
 [glommio]: https://github.com/DataDog/glommio
 
-| Name         | Protocol                                       | OS requirements                                                 |
-|--------------|------------------------------------------------|-----------------------------------------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]                          | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
-| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls])     | Linux 5.8+                                                      |
-| aquatic_ws   | [WebTorrent], plain or with TLS ([native-tls]) | Cross-platform                                                  |
+| Name         | Protocol                                   | OS requirements                                                 |
+|--------------|--------------------------------------------|-----------------------------------------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]                      | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
+| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+                                                      |
+| aquatic_ws   | [WebTorrent] with TLS (rustls)             | Linux 5.8+                                                      |
 
 ## Usage
 
@@ -25,8 +25,6 @@ of sub-implementations for different protocols:
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- If you want to run aquatic_ws and are on Linux or BSD, install OpenSSL
-  components necessary for dynamic linking (e.g., `apt-get install libssl-dev`)
 - Clone this git repository and enter it
 
 ### Compiling
@@ -154,25 +152,15 @@ tls_private_key_path = './key.pk8'
 ### aquatic_ws: WebTorrent tracker
 
 Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
-clients, including `wss` protocol support (WebSockets over TLS), with some
-exceptions:
+clients, with some exceptions:
 
+  * Only runs over TLS (wss protocol)
   * Doesn't track of the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 #### TLS
 
-To run over TLS, a pkcs12 file (`.pkx`) is needed. It can be generated from
-Let's Encrypt certificates as follows, assuming you are in the directory where
-they are stored:
-
-```sh
-openssl pkcs12 -export -out identity.pfx -inkey privkey.pem -in cert.pem -certfile fullchain.pem
-```
-
-Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
-and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
-the password in the field `tls_pkcs12_password` and set `use_tls` to true.
+Please see `aquatic_http` TLS section above.
 
 #### Benchmarks
 
@@ -200,6 +188,9 @@ Server responses per second, best result in bold:
 \* Using a VPS with 32 vCPUs. The other measurements were made using a 16 vCPU VPS.
 
 Please refer to `documents/aquatic-ws-load-test-2021-08-18.pdf` for more details.
+
+__Note__: these benchmarks were made with the previous mio-based
+implementation.
 
 ## Load testing
 
