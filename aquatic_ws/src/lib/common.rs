@@ -1,14 +1,15 @@
+use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
+use std::rc::Rc;
 use std::time::Instant;
 
-use aquatic_common::access_list::{AccessList, AccessListArcSwap};
-use crossbeam_channel::{Receiver, Sender};
+use aquatic_common::access_list::AccessList;
+use futures_lite::AsyncBufReadExt;
+use glommio::io::{BufferedFile, StreamReaderBuilder};
+use glommio::yield_if_needed;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
-use log::error;
-use mio::Token;
-use parking_lot::Mutex;
 
 pub use aquatic_common::ValidUntil;
 
@@ -16,19 +17,28 @@ use aquatic_ws_protocol::*;
 
 use crate::config::Config;
 
-pub const LISTENER_TOKEN: Token = Token(0);
-pub const CHANNEL_TOKEN: Token = Token(1);
+pub type TlsConfig = futures_rustls::rustls::ServerConfig;
+
+#[derive(Copy, Clone, Debug)]
+pub struct PendingScrapeId(pub usize);
+
+#[derive(Copy, Clone, Debug)]
+pub struct ConsumerId(pub usize);
+
+#[derive(Clone, Copy, Debug)]
+pub struct ConnectionId(pub usize);
 
 #[derive(Clone, Copy, Debug)]
 pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
-    pub worker_index: usize,
+    pub out_message_consumer_id: ConsumerId,
+    pub connection_id: ConnectionId,
     /// Peer address as received from socket, meaning it wasn't converted to
     /// an IPv4 address if it was a IPv4-mapped IPv6 address
     pub naive_peer_addr: SocketAddr,
     pub converted_peer_ip: IpAddr,
-    pub poll_token: Token,
+    pub pending_scrape_id: Option<PendingScrapeId>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -89,16 +99,12 @@ pub struct TorrentMaps {
 }
 
 impl TorrentMaps {
-    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessList>) {
+    pub fn clean(&mut self, config: &Config, access_list: &AccessList) {
         Self::clean_torrent_map(config, access_list, &mut self.ipv4);
         Self::clean_torrent_map(config, access_list, &mut self.ipv6);
     }
 
-    fn clean_torrent_map(
-        config: &Config,
-        access_list: &Arc<AccessList>,
-        torrent_map: &mut TorrentMap,
-    ) {
+    fn clean_torrent_map(config: &Config, access_list: &AccessList, torrent_map: &mut TorrentMap) {
         let now = Instant::now();
 
         torrent_map.retain(|info_hash, torrent_data| {
@@ -134,40 +140,44 @@ impl TorrentMaps {
     }
 }
 
-#[derive(Clone)]
-pub struct State {
-    pub access_list: Arc<AccessListArcSwap>,
-    pub torrent_maps: Arc<Mutex<TorrentMaps>>,
-}
+pub async fn update_access_list<C: Borrow<Config>>(
+    config: C,
+    access_list: Rc<RefCell<AccessList>>,
+) {
+    if config.borrow().access_list.mode.is_on() {
+        match BufferedFile::open(&config.borrow().access_list.path).await {
+            Ok(file) => {
+                let mut reader = StreamReaderBuilder::new(file).build();
+                let mut new_access_list = AccessList::default();
 
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            access_list: Arc::new(Default::default()),
-            torrent_maps: Arc::new(Mutex::new(TorrentMaps::default())),
-        }
+                loop {
+                    let mut buf = String::with_capacity(42);
+
+                    match reader.read_line(&mut buf).await {
+                        Ok(_) => {
+                            if let Err(err) = new_access_list.insert_from_line(&buf) {
+                                ::log::error!(
+                                    "Couln't parse access list line '{}': {:?}",
+                                    buf,
+                                    err
+                                );
+                            }
+                        }
+                        Err(err) => {
+                            ::log::error!("Couln't read access list line {:?}", err);
+
+                            break;
+                        }
+                    }
+
+                    yield_if_needed().await;
+                }
+
+                *access_list.borrow_mut() = new_access_list;
+            }
+            Err(err) => {
+                ::log::error!("Couldn't open access list file: {:?}", err)
+            }
+        };
     }
 }
-
-pub type InMessageSender = Sender<(ConnectionMeta, InMessage)>;
-pub type InMessageReceiver = Receiver<(ConnectionMeta, InMessage)>;
-pub type OutMessageReceiver = Receiver<(ConnectionMeta, OutMessage)>;
-
-#[derive(Clone)]
-pub struct OutMessageSender(Vec<Sender<(ConnectionMeta, OutMessage)>>);
-
-impl OutMessageSender {
-    pub fn new(senders: Vec<Sender<(ConnectionMeta, OutMessage)>>) -> Self {
-        Self(senders)
-    }
-
-    #[inline]
-    pub fn send(&self, meta: ConnectionMeta, message: OutMessage) {
-        if let Err(err) = self.0[meta.worker_index].send((meta, message)) {
-            error!("OutMessageSender: couldn't send message: {:?}", err);
-        }
-    }
-}
-
-pub type SocketWorkerStatus = Option<Result<(), String>>;
-pub type SocketWorkerStatuses = Arc<Mutex<Vec<SocketWorkerStatus>>>;

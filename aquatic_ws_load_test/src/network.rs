@@ -1,307 +1,208 @@
-use std::io::ErrorKind;
-use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::{
+    cell::RefCell,
+    convert::TryInto,
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
 
-use hashbrown::HashMap;
-use mio::{net::TcpStream, Events, Interest, Poll, Token};
-use rand::{prelude::*, rngs::SmallRng};
-use tungstenite::{handshake::MidHandshake, ClientHandshake, HandshakeError, WebSocket};
+use aquatic_ws_protocol::{InMessage, JsonValue, OfferId, OutMessage, PeerId};
+use async_tungstenite::{WebSocketStream, client_async};
+use futures::{StreamExt, SinkExt};
+use futures_rustls::{TlsConnector, client::TlsStream};
+use glommio::net::TcpStream;
+use glommio::{prelude::*, timer::TimerActionRepeat};
+use rand::{Rng, SeedableRng, prelude::SmallRng};
 
-use crate::common::*;
-use crate::config::*;
-use crate::utils::create_random_request;
+use crate::{common::LoadTestState, config::Config, utils::create_random_request};
 
-// Allow large enum variant WebSocket because it should be very common
-#[allow(clippy::large_enum_variant)]
-pub enum ConnectionState {
-    TcpStream(TcpStream),
-    WebSocket(WebSocket<TcpStream>),
-    MidHandshake(MidHandshake<ClientHandshake<TcpStream>>),
+pub async fn run_socket_thread(
+    config: Config,
+    tls_config: Arc<rustls::ClientConfig>,
+    load_test_state: LoadTestState,
+) -> anyhow::Result<()> {
+    let config = Rc::new(config);
+    let num_active_connections = Rc::new(RefCell::new(0usize));
+
+    TimerActionRepeat::repeat(move || {
+        periodically_open_connections(
+            config.clone(),
+            tls_config.clone(),
+            load_test_state.clone(),
+            num_active_connections.clone(),
+        )
+    });
+
+    futures::future::pending::<bool>().await;
+
+    Ok(())
 }
 
-impl ConnectionState {
-    fn advance(self, config: &Config) -> Option<Self> {
-        match self {
-            Self::TcpStream(stream) => {
-                let req = format!(
-                    "ws://{}:{}",
-                    config.server_address.ip(),
-                    config.server_address.port()
-                );
-
-                match ::tungstenite::client(req, stream) {
-                    Ok((ws, _)) => Some(ConnectionState::WebSocket(ws)),
-                    Err(HandshakeError::Interrupted(handshake)) => {
-                        Some(ConnectionState::MidHandshake(handshake))
-                    }
-                    Err(HandshakeError::Failure(err)) => {
-                        eprintln!("handshake error: {:?}", err);
-
-                        None
-                    }
-                }
+async fn periodically_open_connections(
+    config: Rc<Config>,
+    tls_config: Arc<rustls::ClientConfig>,
+    load_test_state: LoadTestState,
+    num_active_connections: Rc<RefCell<usize>>,
+) -> Option<Duration> {
+    if *num_active_connections.borrow() < config.num_connections {
+        spawn_local(async move {
+            if let Err(err) =
+                Connection::run(config, tls_config, load_test_state, num_active_connections).await
+            {
+                eprintln!("connection creation error: {:?}", err);
             }
-            Self::MidHandshake(handshake) => match handshake.handshake() {
-                Ok((ws, _)) => Some(ConnectionState::WebSocket(ws)),
-                Err(HandshakeError::Interrupted(handshake)) => {
-                    Some(ConnectionState::MidHandshake(handshake))
-                }
-                Err(HandshakeError::Failure(err)) => {
-                    eprintln!("handshake error: {:?}", err);
-
-                    None
-                }
-            },
-            Self::WebSocket(ws) => Some(Self::WebSocket(ws)),
-        }
+        })
+        .detach();
     }
+
+    Some(Duration::from_secs(1))
 }
 
-pub struct Connection {
-    stream: ConnectionState,
-    peer_id: PeerId,
+struct Connection {
+    config: Rc<Config>,
+    load_test_state: LoadTestState,
+    rng: SmallRng,
     can_send: bool,
+    peer_id: PeerId,
     send_answer: Option<(PeerId, OfferId)>,
+    stream: WebSocketStream<TlsStream<TcpStream>>,
 }
 
 impl Connection {
-    pub fn create_and_register(
-        config: &Config,
-        rng: &mut impl Rng,
-        connections: &mut ConnectionMap,
-        poll: &mut Poll,
-        token_counter: &mut usize,
+    async fn run(
+        config: Rc<Config>,
+        tls_config: Arc<rustls::ClientConfig>,
+        load_test_state: LoadTestState,
+        num_active_connections: Rc<RefCell<usize>>,
     ) -> anyhow::Result<()> {
-        let mut stream = TcpStream::connect(config.server_address)?;
+        let mut rng = SmallRng::from_entropy();
+        let peer_id = PeerId(rng.gen());
+        let stream = TcpStream::connect(config.server_address)
+            .await
+            .map_err(|err| anyhow::anyhow!("connect: {:?}", err))?;
+        let stream = TlsConnector::from(tls_config).connect("example.com".try_into().unwrap(), stream).await?;
+        let request = format!(
+            "ws://{}:{}",
+            config.server_address.ip(),
+            config.server_address.port()
+        );
+        let (stream, _) = client_async(request, stream).await?;
 
-        poll.registry()
-            .register(
-                &mut stream,
-                Token(*token_counter),
-                Interest::READABLE | Interest::WRITABLE,
-            )
-            .unwrap();
-
-        let connection = Connection {
-            stream: ConnectionState::TcpStream(stream),
-            peer_id: PeerId(rng.gen()),
-            can_send: false,
+        let mut connection = Connection {
+            config,
+            load_test_state,
+            rng,
+            stream,
+            can_send: true,
+            peer_id,
             send_answer: None,
         };
 
-        connections.insert(*token_counter, connection);
+        *num_active_connections.borrow_mut() += 1;
 
-        *token_counter += 1;
+        println!("run connection");
+
+        if let Err(err) = connection.run_connection_loop().await {
+            eprintln!("connection error: {:?}", err);
+        }
+
+        *num_active_connections.borrow_mut() -= 1;
 
         Ok(())
     }
 
-    pub fn advance(self, config: &Config) -> Option<Self> {
-        if let Some(stream) = self.stream.advance(config) {
-            let can_send = matches!(stream, ConnectionState::WebSocket(_));
+    async fn run_connection_loop(&mut self) -> anyhow::Result<()> {
+        loop {
+            if self.can_send {
+                let request =
+                    create_random_request(&self.config, &self.load_test_state, &mut self.rng, self.peer_id);
 
-            Some(Self {
-                stream,
-                peer_id: self.peer_id,
-                can_send,
-                send_answer: None,
-            })
-        } else {
-            None
+                // If self.send_answer is set and request is announce request, make
+                // the request an offer answer
+                let request = if let InMessage::AnnounceRequest(mut r) = request {
+                    if let Some((peer_id, offer_id)) = self.send_answer {
+                        r.to_peer_id = Some(peer_id);
+                        r.offer_id = Some(offer_id);
+                        r.answer = Some(JsonValue(::serde_json::json!(
+                            {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
+                        )));
+                        r.event = None;
+                        r.offers = None;
+                    }
+
+                    self.send_answer = None;
+
+                    InMessage::AnnounceRequest(r)
+                } else {
+                    request
+                };
+
+                self.stream.send(request.to_ws_message()).await?;
+                self.stream.flush().await?;
+
+                self.load_test_state
+                    .statistics
+                    .requests
+                    .fetch_add(1, Ordering::SeqCst);
+
+                self.can_send = false;
+            }
+
+            self.read_message().await?;
         }
     }
 
-    pub fn read_responses(&mut self, state: &LoadTestState) -> bool {
-        // bool = drop connection
-        if let ConnectionState::WebSocket(ref mut ws) = self.stream {
-            loop {
-                match ws.read_message() {
-                    Ok(message) => match OutMessage::from_ws_message(message) {
-                        Ok(OutMessage::Offer(offer)) => {
-                            state
-                                .statistics
-                                .responses_offer
-                                .fetch_add(1, Ordering::SeqCst);
+    async fn read_message(&mut self) -> anyhow::Result<()> {
+        match OutMessage::from_ws_message(self.stream.next().await.unwrap()?) {
+            Ok(OutMessage::Offer(offer)) => {
+                self.load_test_state
+                    .statistics
+                    .responses_offer
+                    .fetch_add(1, Ordering::SeqCst);
 
-                            self.send_answer = Some((offer.peer_id, offer.offer_id));
+                self.send_answer = Some((offer.peer_id, offer.offer_id));
 
-                            self.can_send = true;
-                        }
-                        Ok(OutMessage::Answer(_)) => {
-                            state
-                                .statistics
-                                .responses_answer
-                                .fetch_add(1, Ordering::SeqCst);
+                self.can_send = true;
+            }
+            Ok(OutMessage::Answer(_)) => {
+                self.load_test_state
+                    .statistics
+                    .responses_answer
+                    .fetch_add(1, Ordering::SeqCst);
 
-                            self.can_send = true;
-                        }
-                        Ok(OutMessage::AnnounceResponse(_)) => {
-                            state
-                                .statistics
-                                .responses_announce
-                                .fetch_add(1, Ordering::SeqCst);
+                self.can_send = true;
+            }
+            Ok(OutMessage::AnnounceResponse(_)) => {
+                self.load_test_state
+                    .statistics
+                    .responses_announce
+                    .fetch_add(1, Ordering::SeqCst);
 
-                            self.can_send = true;
-                        }
-                        Ok(OutMessage::ScrapeResponse(_)) => {
-                            state
-                                .statistics
-                                .responses_scrape
-                                .fetch_add(1, Ordering::SeqCst);
+                self.can_send = true;
+            }
+            Ok(OutMessage::ScrapeResponse(_)) => {
+                self.load_test_state
+                    .statistics
+                    .responses_scrape
+                    .fetch_add(1, Ordering::SeqCst);
 
-                            self.can_send = true;
-                        }
-                        Ok(OutMessage::ErrorResponse(response)) => {
-                            state
-                                .statistics
-                                .responses_error
-                                .fetch_add(1, Ordering::SeqCst);
+                self.can_send = true;
+            }
+            Ok(OutMessage::ErrorResponse(response)) => {
+                self.load_test_state
+                    .statistics
+                    .responses_error
+                    .fetch_add(1, Ordering::SeqCst);
 
-                            eprintln!("received error response: {:?}", response.failure_reason);
+                eprintln!("received error response: {:?}", response.failure_reason);
 
-                            self.can_send = true;
-                        }
-                        Err(err) => {
-                            eprintln!("error deserializing offer: {:?}", err);
-                        }
-                    },
-                    Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
-                        return false;
-                    }
-                    Err(_) => {
-                        return true;
-                    }
-                }
+                self.can_send = true;
+            }
+            Err(err) => {
+                eprintln!("error deserializing offer: {:?}", err);
             }
         }
 
-        false
-    }
-
-    pub fn send_request(
-        &mut self,
-        config: &Config,
-        state: &LoadTestState,
-        rng: &mut impl Rng,
-    ) -> bool {
-        // bool = remove connection
-        if !self.can_send {
-            return false;
-        }
-
-        if let ConnectionState::WebSocket(ref mut ws) = self.stream {
-            let request = create_random_request(&config, &state, rng, self.peer_id);
-
-            // If self.send_answer is set and request is announce request, make
-            // the request an offer answer
-            let request = if let InMessage::AnnounceRequest(mut r) = request {
-                if let Some((peer_id, offer_id)) = self.send_answer {
-                    r.to_peer_id = Some(peer_id);
-                    r.offer_id = Some(offer_id);
-                    r.answer = Some(JsonValue(::serde_json::json!(
-                        {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
-                    )));
-                    r.event = None;
-                    r.offers = None;
-                }
-
-                self.send_answer = None;
-
-                InMessage::AnnounceRequest(r)
-            } else {
-                request
-            };
-
-            match ws.write_message(request.to_ws_message()) {
-                Ok(()) => {
-                    state.statistics.requests.fetch_add(1, Ordering::SeqCst);
-
-                    self.can_send = false;
-
-                    false
-                }
-                Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => false,
-                Err(_) => true,
-            }
-        } else {
-            println!("send request can't send to non-ws stream");
-
-            false
-        }
-    }
-}
-
-pub type ConnectionMap = HashMap<usize, Connection>;
-
-pub fn run_socket_thread(config: &Config, state: LoadTestState) {
-    let timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
-    let create_conn_interval = 2 ^ config.network.connection_creation_interval;
-
-    let mut connections: ConnectionMap = HashMap::with_capacity(config.num_connections);
-    let mut poll = Poll::new().expect("create poll");
-    let mut events = Events::with_capacity(config.network.poll_event_capacity);
-    let mut rng = SmallRng::from_entropy();
-
-    let mut token_counter = 0usize;
-    let mut iter_counter = 0usize;
-
-    let mut drop_keys = Vec::new();
-
-    loop {
-        poll.poll(&mut events, Some(timeout))
-            .expect("failed polling");
-
-        for event in events.iter() {
-            let token = event.token();
-
-            if event.is_readable() {
-                if let Some(connection) = connections.get_mut(&token.0) {
-                    if let ConnectionState::WebSocket(_) = connection.stream {
-                        let drop_connection = connection.read_responses(&state);
-
-                        if drop_connection {
-                            connections.remove(&token.0);
-                        }
-
-                        continue;
-                    }
-                }
-            }
-
-            if let Some(connection) = connections.remove(&token.0) {
-                if let Some(connection) = connection.advance(config) {
-                    connections.insert(token.0, connection);
-                }
-            }
-        }
-
-        for (k, connection) in connections.iter_mut() {
-            let drop_connection = connection.send_request(config, &state, &mut rng);
-
-            if drop_connection {
-                drop_keys.push(*k)
-            }
-        }
-
-        for k in drop_keys.drain(..) {
-            connections.remove(&k);
-        }
-
-        // Slowly create new connections
-        if connections.len() < config.num_connections && iter_counter % create_conn_interval == 0 {
-            let res = Connection::create_and_register(
-                config,
-                &mut rng,
-                &mut connections,
-                &mut poll,
-                &mut token_counter,
-            );
-
-            if let Err(err) = res {
-                eprintln!("create connection error: {}", err);
-            }
-        }
-
-        iter_counter = iter_counter.wrapping_add(1);
+        Ok(())
     }
 }

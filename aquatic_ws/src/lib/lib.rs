@@ -1,176 +1,144 @@
-use std::fs::File;
-use std::io::Read;
-use std::sync::Arc;
-use std::thread::Builder;
-use std::time::Duration;
+use std::{
+    fs::File,
+    io::BufReader,
+    sync::{atomic::AtomicUsize, Arc},
+};
 
-use anyhow::Context;
-use mio::{Poll, Waker};
-use native_tls::{Identity, TlsAcceptor};
-use parking_lot::Mutex;
-use privdrop::PrivDrop;
+use aquatic_common::{access_list::AccessList, privileges::drop_privileges_after_socket_binding};
+use common::TlsConfig;
+use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
-pub mod common;
+use crate::config::Config;
+
+mod common;
 pub mod config;
-pub mod handler;
-pub mod network;
-pub mod tasks;
-
-use common::*;
-use config::Config;
+mod handlers;
+mod network;
 
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 
+const SHARED_CHANNEL_SIZE: usize = 1024;
+
 pub fn run(config: Config) -> anyhow::Result<()> {
-    let state = State::default();
-
-    tasks::update_access_list(&config, &state);
-
-    start_workers(config.clone(), state.clone())?;
-
-    loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
-
-        tasks::update_access_list(&config, &state);
-
-        state
-            .torrent_maps
-            .lock()
-            .clean(&config, &state.access_list.load_full());
+    if config.cpu_pinning.active {
+        core_affinity::set_for_current(core_affinity::CoreId {
+            id: config.cpu_pinning.offset,
+        });
     }
-}
 
-pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
-    let opt_tls_acceptor = create_tls_acceptor(&config)?;
-
-    let (in_message_sender, in_message_receiver) = ::crossbeam_channel::unbounded();
-
-    let mut out_message_senders = Vec::new();
-    let mut wakers = Vec::new();
-
-    let socket_worker_statuses: SocketWorkerStatuses = {
-        let mut statuses = Vec::new();
-
-        for _ in 0..config.socket_workers {
-            statuses.push(None);
-        }
-
-        Arc::new(Mutex::new(statuses))
+    let access_list = if config.access_list.mode.is_on() {
+        AccessList::create_from_path(&config.access_list.path).expect("Load access list")
+    } else {
+        AccessList::default()
     };
 
-    for i in 0..config.socket_workers {
+    let num_peers = config.socket_workers + config.request_workers;
+
+    let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
+    let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
+
+    let num_bound_sockets = Arc::new(AtomicUsize::new(0));
+
+    let tls_config = Arc::new(create_tls_config(&config).unwrap());
+
+    let mut executors = Vec::new();
+
+    for i in 0..(config.socket_workers) {
         let config = config.clone();
-        let state = state.clone();
-        let socket_worker_statuses = socket_worker_statuses.clone();
-        let in_message_sender = in_message_sender.clone();
-        let opt_tls_acceptor = opt_tls_acceptor.clone();
-        let poll = Poll::new()?;
-        let waker = Arc::new(Waker::new(poll.registry(), CHANNEL_TOKEN)?);
+        let tls_config = tls_config.clone();
+        let request_mesh_builder = request_mesh_builder.clone();
+        let response_mesh_builder = response_mesh_builder.clone();
+        let num_bound_sockets = num_bound_sockets.clone();
+        let access_list = access_list.clone();
 
-        let (out_message_sender, out_message_receiver) = ::crossbeam_channel::unbounded();
+        let mut builder = LocalExecutorBuilder::default();
 
-        out_message_senders.push(out_message_sender);
-        wakers.push(waker);
-
-        Builder::new()
-            .name(format!("socket-{:02}", i + 1))
-            .spawn(move || {
-                network::run_socket_worker(
-                    config,
-                    state,
-                    i,
-                    socket_worker_statuses,
-                    poll,
-                    in_message_sender,
-                    out_message_receiver,
-                    opt_tls_acceptor,
-                );
-            })?;
-    }
-
-    // Wait for socket worker statuses. On error from any, quit program.
-    // On success from all, drop privileges if corresponding setting is set
-    // and continue program.
-    loop {
-        ::std::thread::sleep(::std::time::Duration::from_millis(10));
-
-        if let Some(statuses) = socket_worker_statuses.try_lock() {
-            for opt_status in statuses.iter() {
-                if let Some(Err(err)) = opt_status {
-                    return Err(::anyhow::anyhow!(err.to_owned()));
-                }
-            }
-
-            if statuses.iter().all(Option::is_some) {
-                if config.privileges.drop_privileges {
-                    PrivDrop::default()
-                        .chroot(config.privileges.chroot_path.clone())
-                        .user(config.privileges.user.clone())
-                        .apply()
-                        .context("Couldn't drop root privileges")?;
-                }
-
-                break;
-            }
+        if config.cpu_pinning.active {
+            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + i);
         }
+
+        let executor = builder.spawn(|| async move {
+            network::run_socket_worker(
+                config,
+                tls_config,
+                request_mesh_builder,
+                response_mesh_builder,
+                num_bound_sockets,
+                access_list,
+            )
+            .await
+        });
+
+        executors.push(executor);
     }
 
-    let out_message_sender = OutMessageSender::new(out_message_senders);
-
-    for i in 0..config.request_workers {
+    for i in 0..(config.request_workers) {
         let config = config.clone();
-        let state = state.clone();
-        let in_message_receiver = in_message_receiver.clone();
-        let out_message_sender = out_message_sender.clone();
-        let wakers = wakers.clone();
+        let request_mesh_builder = request_mesh_builder.clone();
+        let response_mesh_builder = response_mesh_builder.clone();
+        let access_list = access_list.clone();
 
-        Builder::new()
-            .name(format!("request-{:02}", i + 1))
-            .spawn(move || {
-                handler::run_request_worker(
-                    config,
-                    state,
-                    in_message_receiver,
-                    out_message_sender,
-                    wakers,
-                );
-            })?;
+        let mut builder = LocalExecutorBuilder::default();
+
+        if config.cpu_pinning.active {
+            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + config.socket_workers + i);
+        }
+
+        let executor = builder.spawn(|| async move {
+            handlers::run_request_worker(
+                config,
+                request_mesh_builder,
+                response_mesh_builder,
+                access_list,
+            )
+            .await
+        });
+
+        executors.push(executor);
     }
 
-    if config.statistics.interval != 0 {
-        let state = state.clone();
-        let config = config.clone();
+    drop_privileges_after_socket_binding(
+        &config.privileges,
+        num_bound_sockets,
+        config.socket_workers,
+    )
+    .unwrap();
 
-        Builder::new()
-            .name("statistics".to_string())
-            .spawn(move || loop {
-                ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
-
-                tasks::print_statistics(&state);
-            })
-            .expect("spawn statistics thread");
+    for executor in executors {
+        executor
+            .expect("failed to spawn local executor")
+            .join()
+            .unwrap();
     }
 
     Ok(())
 }
 
-pub fn create_tls_acceptor(config: &Config) -> anyhow::Result<Option<TlsAcceptor>> {
-    if config.network.use_tls {
-        let mut identity_bytes = Vec::new();
-        let mut file = File::open(&config.network.tls_pkcs12_path)
-            .context("Couldn't open pkcs12 identity file")?;
+fn create_tls_config(config: &Config) -> anyhow::Result<TlsConfig> {
+    let certs = {
+        let f = File::open(&config.network.tls_certificate_path)?;
+        let mut f = BufReader::new(f);
 
-        file.read_to_end(&mut identity_bytes)
-            .context("Couldn't read pkcs12 identity file")?;
+        rustls_pemfile::certs(&mut f)?
+            .into_iter()
+            .map(|bytes| futures_rustls::rustls::Certificate(bytes))
+            .collect()
+    };
 
-        let identity = Identity::from_pkcs12(&identity_bytes, &config.network.tls_pkcs12_password)
-            .context("Couldn't parse pkcs12 identity file")?;
+    let private_key = {
+        let f = File::open(&config.network.tls_private_key_path)?;
+        let mut f = BufReader::new(f);
 
-        let acceptor = TlsAcceptor::new(identity)
-            .context("Couldn't create TlsAcceptor from pkcs12 identity")?;
+        rustls_pemfile::pkcs8_private_keys(&mut f)?
+            .first()
+            .map(|bytes| futures_rustls::rustls::PrivateKey(bytes.clone()))
+            .ok_or(anyhow::anyhow!("No private keys in file"))?
+    };
 
-        Ok(Some(acceptor))
-    } else {
-        Ok(None)
-    }
+    let tls_config = futures_rustls::rustls::ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(certs, private_key)?;
+
+    Ok(tls_config)
 }

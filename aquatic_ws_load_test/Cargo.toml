@@ -11,16 +11,19 @@ name = "aquatic_ws_load_test"
 
 [dependencies]
 anyhow = "1"
+async-tungstenite = "0.15"
 aquatic_cli_helpers = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
+futures = "0.3"
+futures-rustls = "0.22"
+glommio = { git = "https://github.com/DataDog/glommio.git", rev = "4e6b14772da2f4325271fbcf12d24cf91ed466e5" }
 hashbrown = { version = "0.11.2", features = ["serde"] }
 mimalloc = { version = "0.1", default-features = false }
-mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
+rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-slab = "0.4"
 tungstenite = "0.15"
 
 [dev-dependencies]

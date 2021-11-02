@@ -1,5 +1,7 @@
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
+use aquatic_common::cpu_pinning::CpuPinningConfig;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::{Deserialize, Serialize};
 
@@ -18,11 +20,10 @@ pub struct Config {
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
-    pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
-    pub statistics: StatisticsConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
+    pub cpu_pinning: CpuPinningConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -37,22 +38,10 @@ pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
     pub ipv6_only: bool,
-    pub use_tls: bool,
-    pub tls_pkcs12_path: String,
-    pub tls_pkcs12_password: String,
-    pub poll_event_capacity: usize,
-    pub poll_timeout_microseconds: u64,
+    pub tls_certificate_path: PathBuf,
+    pub tls_private_key_path: PathBuf,
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct HandlerConfig {
-    /// Maximum number of requests to receive from channel before locking
-    /// mutex and starting work
-    pub max_requests_per_iter: usize,
-    pub channel_recv_timeout_microseconds: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -73,15 +62,6 @@ pub struct CleaningConfig {
     pub interval: u64,
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
-    /// Remove connections that are older than this (seconds)
-    pub max_connection_age: u64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct StatisticsConfig {
-    /// Print statistics this often (seconds). Don't print when set to zero.
-    pub interval: u64,
 }
 
 impl Default for Config {
@@ -92,11 +72,10 @@ impl Default for Config {
             log_level: LogLevel::default(),
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
-            handlers: HandlerConfig::default(),
             cleaning: CleaningConfig::default(),
-            statistics: StatisticsConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
+            cpu_pinning: Default::default(),
         }
     }
 }
@@ -106,11 +85,8 @@ impl Default for NetworkConfig {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             ipv6_only: false,
-            use_tls: false,
-            tls_pkcs12_path: "".into(),
-            tls_pkcs12_password: "".into(),
-            poll_event_capacity: 4096,
-            poll_timeout_microseconds: 200_000,
+            tls_certificate_path: "".into(),
+            tls_private_key_path: "".into(),
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
         }
@@ -120,18 +96,9 @@ impl Default for NetworkConfig {
 impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
-            max_scrape_torrents: 255, // FIXME: what value is reasonable?
+            max_scrape_torrents: 255,
             max_offers: 10,
             peer_announce_interval: 120,
-        }
-    }
-}
-
-impl Default for HandlerConfig {
-    fn default() -> Self {
-        Self {
-            max_requests_per_iter: 10000,
-            channel_recv_timeout_microseconds: 200,
         }
     }
 }
@@ -141,13 +108,6 @@ impl Default for CleaningConfig {
         Self {
             interval: 30,
             max_peer_age: 1800,
-            max_connection_age: 1800,
         }
-    }
-}
-
-impl Default for StatisticsConfig {
-    fn default() -> Self {
-        Self { interval: 0 }
     }
 }
