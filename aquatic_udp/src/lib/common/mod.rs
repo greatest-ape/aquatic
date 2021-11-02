@@ -155,6 +155,8 @@ impl TorrentMaps {
             keep
         });
 
+        torrent.peers.shrink_to_fit();
+
         !torrent.peers.is_empty()
     }
 }
