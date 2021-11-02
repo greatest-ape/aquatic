@@ -1,5 +1,9 @@
 # TODO
 
+* readme
+  * add avx2 env script to readme
+  * document privilige dropping, cpu pinning
+
 * config: fail on unrecognized keys
 
 * access lists:
@@ -35,7 +39,8 @@
     is stopped, which might lead to various issues.
 
 * aquatic_ws
-  * add avx2 env script to readme
+  * load test cpu pinning
+  * test with multiple socket and request workers
   * should it send back error on message parse error, or does that
     just indicate that not enough data has been received yet?
 
