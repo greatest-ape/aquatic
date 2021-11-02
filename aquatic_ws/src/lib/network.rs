@@ -159,11 +159,14 @@ async fn receive_out_messages(
             .borrow()
             .get(channel_out_message.0.connection_id.0)
         {
-            if let Err(err) = reference.out_message_sender.try_send(channel_out_message) {
-                ::log::error!(
-                    "Couldn't send out_message from shared channel to local receiver: {:?}",
-                    err
-                );
+            match reference.out_message_sender.try_send(channel_out_message) {
+                Ok(()) | Err(GlommioError::Closed(_)) => {},
+                Err(err) => {
+                    ::log::error!(
+                        "Couldn't send out_message from shared channel to local receiver: {:?}",
+                        err
+                    );
+                }
             }
         }
     }
