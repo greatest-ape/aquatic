@@ -88,7 +88,9 @@ pub fn run_socket_worker(
         if iter_counter % 32 == 0 {
             let now = Instant::now();
 
-            if last_cleaning + Duration::from_secs(config.cleaning.interval) > now {
+            if last_cleaning + Duration::from_secs(config.cleaning.connection_cleaning_interval)
+                > now
+            {
                 connections.clean();
 
                 last_cleaning = now;

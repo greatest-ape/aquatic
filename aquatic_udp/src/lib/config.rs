@@ -91,12 +91,14 @@ pub struct StatisticsConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
-    /// Update access list and clean torrents this often (seconds)
-    pub interval: u64,
-    /// Remove peers that haven't announced for this long (seconds)
-    pub max_peer_age: u64,
+    /// Clean connections this often (seconds)
+    pub connection_cleaning_interval: u64,
+    /// Clean torrents this often (seconds)
+    pub torrent_cleaning_interval: u64,
     /// Remove connections that are older than this (seconds)
     pub max_connection_age: u64,
+    /// Remove peers that haven't announced for this long (seconds)
+    pub max_peer_age: u64,
 }
 
 impl Default for Config {
@@ -160,9 +162,10 @@ impl Default for StatisticsConfig {
 impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
-            interval: 30,
-            max_peer_age: 60 * 20,
+            connection_cleaning_interval: 60,
+            torrent_cleaning_interval: 60 * 2,
             max_connection_age: 60 * 5,
+            max_peer_age: 60 * 20,
         }
     }
 }

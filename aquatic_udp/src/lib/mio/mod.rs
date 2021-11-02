@@ -141,7 +141,9 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
     .unwrap();
 
     loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+        ::std::thread::sleep(Duration::from_secs(
+            config.cleaning.torrent_cleaning_interval,
+        ));
 
         state.torrents.lock().clean(&config, &state.access_list);
     }

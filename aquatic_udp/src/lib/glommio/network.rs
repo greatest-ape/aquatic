@@ -127,11 +127,11 @@ pub async fn run_socket_worker(
     let pending_scrape_responses = Rc::new(RefCell::new(PendingScrapeResponses::default()));
 
     // Periodically clean pending_scrape_responses
-    TimerActionRepeat::repeat(enclose!((config, pending_scrape_responses) move || {
-        enclose!((config, pending_scrape_responses) move || async move {
+    TimerActionRepeat::repeat(enclose!((pending_scrape_responses) move || {
+        enclose!((pending_scrape_responses) move || async move {
             pending_scrape_responses.borrow_mut().clean();
 
-            Some(Duration::from_secs(config.cleaning.interval))
+            Some(Duration::from_secs(120))
         })()
     }));
 
@@ -201,7 +201,7 @@ async fn read_requests(
         enclose!((config, connections) move || async move {
             connections.borrow_mut().clean();
 
-            Some(Duration::from_secs(config.cleaning.interval))
+            Some(Duration::from_secs(config.cleaning.connection_cleaning_interval))
         })()
     }));
 
