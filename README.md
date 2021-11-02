@@ -13,11 +13,11 @@ of sub-implementations for different protocols:
 [mio]: https://github.com/tokio-rs/mio
 [glommio]: https://github.com/DataDog/glommio
 
-| Name         | Protocol                                   | OS requirements                                                 |
-|--------------|--------------------------------------------|-----------------------------------------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]                      | Cross-platform with [mio] (default) / Linux 5.8+ with [glommio] |
-| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+                                                      |
-| aquatic_ws   | [WebTorrent] with TLS (rustls)             | Linux 5.8+                                                      |
+| Name         | Protocol                                   | OS requirements                                            |
+|--------------|--------------------------------------------|------------------------------------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]                      | Unix-like with [mio] (default) / Linux 5.8+ with [glommio] |
+| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+                                                 |
+| aquatic_ws   | [WebTorrent] with TLS (rustls)             | Linux 5.8+                                                 |
 
 ## Usage
 
@@ -97,6 +97,8 @@ of configuration is:
 mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
 path = '' # Path to text file with newline-delimited hex-encoded info hashes
 ```
+
+The file is read on start and when the program receives `SIGUSR1`.
 
 #### More information
 
