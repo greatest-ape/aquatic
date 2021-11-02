@@ -136,7 +136,9 @@ async fn remove_closed_connections(
         }
     }
 
-    Some(Duration::from_secs(config.cleaning.interval))
+    Some(Duration::from_secs(
+        config.cleaning.torrent_cleaning_interval,
+    ))
 }
 
 async fn receive_responses(

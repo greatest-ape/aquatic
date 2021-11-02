@@ -41,7 +41,7 @@ pub async fn run_request_worker(
         enclose!((config, torrents, access_list) move || async move {
             torrents.borrow_mut().clean(&config, &access_list);
 
-            Some(Duration::from_secs(config.cleaning.interval))
+            Some(Duration::from_secs(config.cleaning.torrent_cleaning_interval))
         })()
     }));
 
