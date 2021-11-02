@@ -106,7 +106,7 @@ async fn handle_request_stream<S>(
 
         for (meta, out_message) in out_messages.drain(..) {
             if let Err(err) =
-                out_message_senders.try_send_to(meta.out_message_consumer_id.0, (meta, out_message))
+                out_message_senders.send_to(meta.out_message_consumer_id.0, (meta, out_message)).await
             {
                 ::log::error!("failed sending out_message to socket worker: {:?}", err)
             }
