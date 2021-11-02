@@ -38,6 +38,7 @@
     is stopped, which might lead to various issues.
 
 * aquatic_ws
+  * ipv6 only flag
   * load test cpu pinning
   * test with multiple socket and request workers
   * should it send back error on message parse error, or does that
