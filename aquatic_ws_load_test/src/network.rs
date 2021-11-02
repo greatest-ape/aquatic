@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use aquatic_ws_protocol::{OfferId, OutMessage, PeerId};
+use aquatic_ws_protocol::{InMessage, JsonValue, OfferId, OutMessage, PeerId};
 use async_tungstenite::{WebSocketStream, client_async};
 use futures::{StreamExt, SinkExt};
 use futures_rustls::{TlsConnector, client::TlsStream};
@@ -115,9 +115,29 @@ impl Connection {
         loop {
             if self.can_send {
                 let request =
-                    create_random_request(&self.config, &self.load_test_state, &mut self.rng, self.peer_id).to_ws_message();
+                    create_random_request(&self.config, &self.load_test_state, &mut self.rng, self.peer_id);
 
-                self.stream.send(request).await?;
+                // If self.send_answer is set and request is announce request, make
+                // the request an offer answer
+                let request = if let InMessage::AnnounceRequest(mut r) = request {
+                    if let Some((peer_id, offer_id)) = self.send_answer {
+                        r.to_peer_id = Some(peer_id);
+                        r.offer_id = Some(offer_id);
+                        r.answer = Some(JsonValue(::serde_json::json!(
+                            {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
+                        )));
+                        r.event = None;
+                        r.offers = None;
+                    }
+
+                    self.send_answer = None;
+
+                    InMessage::AnnounceRequest(r)
+                } else {
+                    request
+                };
+
+                self.stream.send(request.to_ws_message()).await?;
                 self.stream.flush().await?;
 
                 self.load_test_state
