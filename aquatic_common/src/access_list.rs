@@ -75,17 +75,31 @@ impl AccessList {
 }
 
 pub trait AccessListQuery {
-    fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()>;
+    fn update(&self, config: &AccessListConfig);
     fn allows(&self, list_mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool;
 }
 
 pub type AccessListArcSwap = ArcSwap<AccessList>;
 
 impl AccessListQuery for AccessListArcSwap {
-    fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()> {
-        self.store(Arc::new(AccessList::create_from_path(path)?));
-
-        Ok(())
+    fn update(&self, config: &AccessListConfig) {
+        match config.mode {
+            AccessListMode::White | AccessListMode::Black => {
+                match AccessList::create_from_path(&config.path) {
+                    Ok(new) => {
+                        self.store(Arc::new(new));
+                    }
+                    Err(err) => {
+                        ::log::error!("Updating access list failed: {:?}", err);
+                    }
+                }
+            }
+            AccessListMode::Off => {
+                ::log::error!(
+                    "AccessListQuery::update_from_path called, but AccessListMode is Off"
+                );
+            }
+        }
     }
 
     fn allows(&self, mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
