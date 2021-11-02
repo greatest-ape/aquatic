@@ -1,5 +1,12 @@
 # TODO
 
+* config: fail on unrecognized keys
+
+* access lists:
+  * use signals to reload, use arcswap everywhere
+  * use arc-swap Cache?
+  * add CI tests
+
 * aquatic_udp
   * CI for both implementations
   * glommio
@@ -27,16 +34,10 @@
     where only part of request is read, but that part is valid, and reading
     is stopped, which might lead to various issues.
 
-* access lists:
-  * use arc-swap Cache?
-  * add CI tests
-
-* aquatic_ws: should it send back error on message parse error, or does that
-  just indicate that not enough data has been received yet?
-
-* Consider turning on safety and override flags in mimalloc, mostly for
-  simd-json. It might be faster to just stop using simd-json if I consider
-  it insecure, which it maybe isn't.
+* aquatic_ws
+  * add avx2 env script to readme
+  * should it send back error on message parse error, or does that
+    just indicate that not enough data has been received yet?
 
 ## General
 * extract response peers: extract "one extra" to compensate for removal,
