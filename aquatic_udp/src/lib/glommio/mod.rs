@@ -1,6 +1,6 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
-use aquatic_common::access_list::AccessListQuery;
+use aquatic_common::access_list::update_access_list;
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use glommio::channels::channel_mesh::MeshBuilder;
 use glommio::prelude::*;
@@ -26,7 +26,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let state = State::default();
 
-    update_access_list(&config, &state)?;
+    update_access_list(&config.access_list, &state.access_list)?;
 
     let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
 
@@ -40,7 +40,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     for signal in &mut signals {
         match signal {
             SIGUSR1 => {
-                let _ = update_access_list(&config, &state);
+                let _ = update_access_list(&config.access_list, &state.access_list);
             }
             _ => unreachable!(),
         }
@@ -124,23 +124,6 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
             .expect("failed to spawn local executor")
             .join()
             .unwrap();
-    }
-
-    Ok(())
-}
-
-fn update_access_list(config: &Config, state: &State) -> anyhow::Result<()> {
-    if config.access_list.mode.is_on() {
-        match state.access_list.update(&config.access_list) {
-            Ok(()) => {
-                ::log::info!("Access list updated")
-            }
-            Err(err) => {
-                ::log::error!("Updating access list failed: {:#}", err);
-
-                return Err(err);
-            }
-        }
     }
 
     Ok(())

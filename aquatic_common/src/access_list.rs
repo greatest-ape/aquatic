@@ -107,6 +107,26 @@ pub fn create_access_list_cache(arc_swap: &Arc<AccessListArcSwap>) -> AccessList
     Cache::from(Arc::clone(arc_swap))
 }
 
+pub fn update_access_list(
+    config: &AccessListConfig,
+    access_list: &Arc<AccessListArcSwap>,
+) -> anyhow::Result<()> {
+    if config.mode.is_on() {
+        match access_list.update(config) {
+            Ok(()) => {
+                ::log::info!("Access list updated")
+            }
+            Err(err) => {
+                ::log::error!("Updating access list failed: {:#}", err);
+
+                return Err(err);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn parse_info_hash(line: &str) -> anyhow::Result<[u8; 20]> {
     let mut bytes = [0u8; 20];
 
