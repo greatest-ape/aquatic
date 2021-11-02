@@ -1,9 +1,6 @@
+use std::sync::{atomic::AtomicUsize, Arc};
 use std::thread::Builder;
 use std::time::Duration;
-use std::{
-    ops::Deref,
-    sync::{atomic::AtomicUsize, Arc},
-};
 
 use anyhow::Context;
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
@@ -146,10 +143,7 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
     loop {
         ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
 
-        state
-            .torrents
-            .lock()
-            .clean(&config, state.access_list.load_full().deref());
+        state.torrents.lock().clean(&config, &state.access_list);
     }
 }
 

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
-use arc_swap::ArcSwap;
+use arc_swap::{ArcSwap, Cache};
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +85,7 @@ pub trait AccessListQuery {
 }
 
 pub type AccessListArcSwap = ArcSwap<AccessList>;
+pub type AccessListCache = Cache<Arc<AccessListArcSwap>, Arc<AccessList>>;
 
 impl AccessListQuery for AccessListArcSwap {
     fn update(&self, config: &AccessListConfig) -> anyhow::Result<()> {
@@ -100,6 +101,10 @@ impl AccessListQuery for AccessListArcSwap {
             AccessListMode::Off => true,
         }
     }
+}
+
+pub fn create_access_list_cache(arc_swap: &Arc<AccessListArcSwap>) -> AccessListCache {
+    Cache::from(Arc::clone(arc_swap))
 }
 
 fn parse_info_hash(line: &str) -> anyhow::Result<[u8; 20]> {

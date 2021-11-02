@@ -1,8 +1,9 @@
-use std::borrow::Borrow;
 use std::hash::Hash;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::Arc;
 use std::time::Instant;
 
+use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 
@@ -107,19 +108,24 @@ pub struct TorrentMaps {
 
 impl TorrentMaps {
     /// Remove disallowed and inactive torrents
-    pub fn clean<T: Borrow<AccessList>>(&mut self, config: &Config, access_list: T) {
+    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
         let now = Instant::now();
 
+        let mut access_list_cache = create_access_list_cache(access_list);
         let access_list_mode = config.access_list.mode;
 
         self.ipv4.retain(|info_hash, torrent| {
-            access_list.borrow().allows(access_list_mode, &info_hash.0)
+            access_list_cache
+                .load()
+                .allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv4.shrink_to_fit();
 
         self.ipv6.retain(|info_hash, torrent| {
-            access_list.borrow().allows(access_list_mode, &info_hash.0)
+            access_list_cache
+                .load()
+                .allows(access_list_mode, &info_hash.0)
                 && Self::clean_torrent_and_peers(now, torrent)
         });
         self.ipv6.shrink_to_fit();

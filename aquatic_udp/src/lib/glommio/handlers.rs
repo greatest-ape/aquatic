@@ -14,28 +14,25 @@ use crate::common::handlers::handle_announce_request;
 use crate::common::handlers::*;
 use crate::common::*;
 use crate::config::Config;
-use crate::glommio::common::update_access_list;
+
+use super::common::State;
 
 pub async fn run_request_worker(
     config: Config,
+    state: State,
     request_mesh_builder: MeshBuilder<(usize, ConnectedRequest, SocketAddr), Partial>,
     response_mesh_builder: MeshBuilder<(ConnectedResponse, SocketAddr), Partial>,
-    access_list: AccessList,
 ) {
     let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
     let (response_senders, _) = response_mesh_builder.join(Role::Producer).await.unwrap();
-
     let response_senders = Rc::new(response_senders);
 
     let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
-    let access_list = Rc::new(RefCell::new(access_list));
 
-    // Periodically clean torrents and update access list
-    TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
-        enclose!((config, torrents, access_list) move || async move {
-            update_access_list(config.clone(), access_list.clone()).await;
-
-            torrents.borrow_mut().clean(&config, &*access_list.borrow());
+    // Periodically clean torrents
+    TimerActionRepeat::repeat(enclose!((config, torrents, state) move || {
+        enclose!((config, torrents, state) move || async move {
+            torrents.borrow_mut().clean(&config, &state.access_list);
 
             Some(Duration::from_secs(config.cleaning.interval))
         })()
