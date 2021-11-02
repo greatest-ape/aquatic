@@ -19,23 +19,22 @@
       containing TransactionId and BTreeMap<usize, InfoHash>, and same for
       response
 
-* aquatic_http glommio:
+* aquatic_http:
   * ipv6 only flag
   * optimize?
     * get_peer_addr only once (takes 1.2% of runtime)
     * queue response: allocating takes 2.8% of runtime
   * clean out connections regularly
-    * timeout inside of task for "it took to long to receive request, send response"?
-    * handle panicked/cancelled tasks
+    * Rc<RefCell<ValidUntil>> which get set on successful request parsing and
+      successful response sending. Clone kept in connection slab which gets cleaned
+      periodically (= cancel tasks). Means that task handle will need to be stored in slab.
+      Config vars kill_idle_connections: bool, max_idle_connection_time. Remove keepalive.
+    * handle panicked/cancelled tasks?
+  * load test: use futures-rustls
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
   * Scrape: should stats with only zeroes be sent back for non-registered info hashes?
     Relevant for mio implementation too.
-  * Don't return read request immediately. Set it as self.read_request
-    and continue looping to wait for any new input. Then check after
-    read_tls is finished. This might prevent issues when using plain HTTP
-    where only part of request is read, but that part is valid, and reading
-    is stopped, which might lead to various issues.
 
 * aquatic_ws
   * ipv6 only flag
@@ -44,7 +43,8 @@
   * should it send back error on message parse error, or does that
     just indicate that not enough data has been received yet?
 
-## General
+## Less important
+
 * extract response peers: extract "one extra" to compensate for removal,
   of sender if present in selection? maybe make criterion benchmark,
   optimize
@@ -52,15 +52,6 @@
 ## aquatic_http_load_test
 * how handle large number of peers for "popular" torrents in keepalive mode?
   maybe it is ok
-* multiple workers combined with closing connections immediately in tracker
-  results in very few responses, why?
-* why is cpu usage in load test client so much higher than in aquatic_http
-  and in opentracker (when closing connections immediately in tracker)
-* maybe check performance against other well-known implementations than
-  opentracker (which hopefully do keep-alive)
-* try creating sockets with different ports (and also local ips if setting
-  enabled), then converting them to mio tcp streams? (so that so_reuseport
-  can distribute them to different workers)
 
 ## aquatic_http
 * test torrent transfer with real clients
@@ -72,67 +63,18 @@
 ## aquatic_ws_load_test
 * very small amount of connections means very small number of peers per
   torrents, so tracker handling of large number is not really assessed
-* too many responses received with aquatic_ws?
-* wt-tracker: why lots of responses with no (new) requests?
-* count number of announce requests sent, total number of offers sent,
-  and answers sent. compare these with responses received. same for
-  scrape requests I suppose.
-
-## aquatic_ws
-* websocket_max_frame_size should be at least something like 64 * 1024,
-  maybe put it and message size at 128k just to be sure
-* test transfer, specifically ipv6/ipv4 mapping
-* is 'key' sent in announce request? if so, maybe handle it like in
-  aquatic_http (including ip uniqueness part of peer map key)
 
 ## aquatic_udp
-* handle errors similarily to aquatic_ws, including errors in socket workers
-  and using log crate
 * use key from request as part of peer map key like in aquatic_http? need to
   check protocol specification
 
 # Not important
 
 ## General
-* mio oneshot setting: could it be beneficial? I think not, I think it is
-  only useful when there are multiple references to a fd, which shouldn't
-  be the case?
-* peer extractor: extract one extra, remove peer if same as sender, otherwise
-  just remove one?
-* ctrl-c handlers
 * have main thread wait for any of the threads returning, quit
   if that is the since since it means a panic occured
 
-## aquatic_http
-* array buffer for EstablishedConnection.send_response? there is a lot of
-  allocating and deallocating now. Doesn't seem to help performance a lot.
-* request parsing:
-  * smartstring: maybe use for keys? maybe use less? needs benchmarking
-* use fastrand instead of rand? (also for ws and udp then I guess because of
-  shared function)
-* use smartstring for failure response reason?
-* log more info for all log modes (function location etc)? also for aquatic_ws
-* Support supportcrypto/requirecrypto keys? Official extension according to
-  https://wiki.theory.org/index.php/BitTorrentSpecification#Connection_Obfuscation.
-  More info: http://wiki.vuze.com/w/Message_Stream_Encryption. The tricky part
-  is finding supportcrypto peers (and even better requirecrypto peers) to send
-  back to requirecrypto peers. Doesn't really work according to reference in
-  https://en.wikipedia.org/wiki/BitTorrent_protocol_encryption
-
 ## aquatic_ws
-* use enum as return type for handshake machine
-* copyless for vec pushes in request handler, instead of stack and then heap?
-* config
-  * send/recv buffer size?
-  * tcp backlog?
-  * some config.network fields are actually used in handler. maybe they should
-    be checked while parsing? not completely clear
-* "close connection" message from handler on peer_id and socket_addr mismatch?
-  Probably not really necessary. If it is an honest mistake, peer will just
-  keep announcing and after a few minutes, the peer in the map will be cleaned
-  out and everything will start working
-* stack-allocated vectors for announce request offers and scrape request info
-  hashes?
 * write new version of extract_response_peers which checks for equality with
   peer sending request? It could return an arrayvec or smallvec by the way
   (but then the size needs to be adjusted together with the corresponding
@@ -141,18 +83,8 @@
 ## aquatic_udp
 * Does it really make sense to include peer address in peer map key? I have
   to think about why I included it in the first place.
-* if socket workers panic while binding, don't sit around and wait for them
-  in privdrop function. Maybe wait some maximum amount of time?
-* No overflow on instant + duration arithmetic now, hopefully? Possibly,
-  checked_add should be used.
-* extract_response_peers
-    * Cleaner code
-    * Stack-allocated vector?
-* Performance
-    * mialloc good?
 
 ## aquatic_udp_protocol
-* Tests with good known byte sequences (requests and responses)
 * Don't do endian conversion where unnecessary, such as for connection id and
   transaction id?
 
