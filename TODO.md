@@ -3,6 +3,8 @@
 * readme
   * document privilige dropping, cpu pinning
 
+* socket_recv_size and ipv6_only in glommio implementations
+
 * config: fail on unrecognized keys
 
 * access lists:
@@ -13,14 +15,12 @@
 * aquatic_udp
   * CI for both implementations
   * glommio
-    * ipv6 only flag
     * consider sending local responses immediately
     * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
       containing TransactionId and BTreeMap<usize, InfoHash>, and same for
       response
 
 * aquatic_http:
-  * ipv6 only flag
   * optimize?
     * get_peer_addr only once (takes 1.2% of runtime)
     * queue response: allocating takes 2.8% of runtime
@@ -37,7 +37,6 @@
     Relevant for mio implementation too.
 
 * aquatic_ws
-  * ipv6 only flag
   * load test cpu pinning
   * test with multiple socket and request workers
   * should it send back error on message parse error, or does that
