@@ -7,7 +7,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
-use aquatic_common::access_list::AccessListQuery;
+use aquatic_common::access_list::create_access_list_cache;
 use crossbeam_channel::{Receiver, Sender};
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
@@ -149,6 +149,8 @@ fn read_requests(
     let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let access_list_mode = config.access_list.mode;
 
+    let mut access_list_cache = create_access_list_cache(&state.access_list);
+
     loop {
         match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
@@ -176,8 +178,8 @@ fn read_requests(
                     }
                     Ok(Request::Announce(request)) => {
                         if connections.contains(request.connection_id, src) {
-                            if state
-                                .access_list
+                            if access_list_cache
+                                .load()
                                 .allows(access_list_mode, &request.info_hash.0)
                             {
                                 if let Err(err) = request_sender

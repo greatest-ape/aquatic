@@ -110,9 +110,9 @@ impl TorrentMaps {
     /// Remove disallowed and inactive torrents
     pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
         let now = Instant::now();
+        let access_list_mode = config.access_list.mode;
 
         let mut access_list_cache = create_access_list_cache(access_list);
-        let access_list_mode = config.access_list.mode;
 
         self.ipv4.retain(|info_hash, torrent| {
             access_list_cache
