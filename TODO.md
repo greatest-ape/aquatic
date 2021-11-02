@@ -10,6 +10,7 @@
 * CI
   * test both aquatic_udp implementations
   * test access lists?
+  * cargo-deny
 
 * aquatic_udp
   * glommio
