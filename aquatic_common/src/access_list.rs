@@ -128,4 +128,37 @@ mod tests {
         assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".into()).is_err());
         assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".into()).is_err());
     }
+
+    #[test]
+    fn test_cache_allows() {
+        let mut access_list = AccessList::default();
+
+        let a = parse_info_hash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let b = parse_info_hash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
+        let c = parse_info_hash("cccccccccccccccccccccccccccccccccccccccc").unwrap();
+
+        access_list.0.insert(a);
+        access_list.0.insert(b);
+
+        let access_list = Arc::new(ArcSwap::new(Arc::new(access_list)));
+
+        let mut access_list_cache = Cache::new(Arc::clone(&access_list));
+
+        assert!(access_list_cache.load().allows(AccessListMode::White, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::White, &b));
+        assert!(!access_list_cache.load().allows(AccessListMode::White, &c));
+
+        assert!(!access_list_cache.load().allows(AccessListMode::Black, &a));
+        assert!(!access_list_cache.load().allows(AccessListMode::Black, &b));
+        assert!(access_list_cache.load().allows(AccessListMode::Black, &c));
+
+        assert!(access_list_cache.load().allows(AccessListMode::Off, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::Off, &b));
+        assert!(access_list_cache.load().allows(AccessListMode::Off, &c));
+
+        access_list.store(Arc::new(AccessList::default()));
+
+        assert!(access_list_cache.load().allows(AccessListMode::Black, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::Black, &b));
+    }
 }
