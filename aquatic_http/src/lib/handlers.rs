@@ -12,7 +12,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use aquatic_common::access_list::AccessList;
 use futures_lite::{Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::timer::TimerActionRepeat;
@@ -25,9 +24,9 @@ use crate::config::Config;
 
 pub async fn run_request_worker(
     config: Config,
+    state: State,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     response_mesh_builder: MeshBuilder<ChannelResponse, Partial>,
-    access_list: AccessList,
 ) {
     let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
     let (response_senders, _) = response_mesh_builder.join(Role::Producer).await.unwrap();
@@ -35,14 +34,12 @@ pub async fn run_request_worker(
     let response_senders = Rc::new(response_senders);
 
     let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
-    let access_list = Rc::new(RefCell::new(access_list));
+    let access_list = state.access_list;
 
-    // Periodically clean torrents and update access list
+    // Periodically clean torrents
     TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
         enclose!((config, torrents, access_list) move || async move {
-            update_access_list(&config, access_list.clone()).await;
-
-            torrents.borrow_mut().clean(&config, &*access_list.borrow());
+            torrents.borrow_mut().clean(&config, &access_list);
 
             Some(Duration::from_secs(config.cleaning.interval))
         })()
