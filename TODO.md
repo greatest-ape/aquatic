@@ -1,7 +1,6 @@
 # TODO
 
 * readme
-  * add avx2 env script to readme
   * document privilige dropping, cpu pinning
 
 * config: fail on unrecognized keys

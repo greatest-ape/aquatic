@@ -42,6 +42,11 @@ of sub-implementations for different protocols:
 Compile the implementations that you are interested in:
 
 ```sh
+# Tell Rust to enable support for all CPU extensions present on current CPU
+# except for those relating to AVX-512. This is necessary for aquatic_ws and
+# recommended for the other implementations.
+. ./scripts/env-native-cpu-without-avx-512
+
 cargo build --release -p aquatic_udp
 cargo build --release -p aquatic_udp --features "with-glommio" --no-default-features
 cargo build --release -p aquatic_http
