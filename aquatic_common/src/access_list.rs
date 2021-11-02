@@ -3,6 +3,7 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::Context;
 use arc_swap::ArcSwap;
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
@@ -59,7 +60,11 @@ impl AccessList {
         let mut new_list = Self::default();
 
         for line in reader.lines() {
-            new_list.insert_from_line(&line?)?;
+            let line = line?;
+
+            new_list
+                .insert_from_line(&line)
+                .with_context(|| format!("Invalid line in access list: {}", line))?;
         }
 
         Ok(new_list)
@@ -75,15 +80,15 @@ impl AccessList {
 }
 
 pub trait AccessListQuery {
-    fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()>;
+    fn update(&self, config: &AccessListConfig) -> anyhow::Result<()>;
     fn allows(&self, list_mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool;
 }
 
 pub type AccessListArcSwap = ArcSwap<AccessList>;
 
 impl AccessListQuery for AccessListArcSwap {
-    fn update_from_path(&self, path: &PathBuf) -> anyhow::Result<()> {
-        self.store(Arc::new(AccessList::create_from_path(path)?));
+    fn update(&self, config: &AccessListConfig) -> anyhow::Result<()> {
+        self.store(Arc::new(AccessList::create_from_path(&config.path)?));
 
         Ok(())
     }

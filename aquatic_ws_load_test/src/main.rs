@@ -97,7 +97,6 @@ fn create_tls_config() -> anyhow::Result<Arc<rustls::ClientConfig>> {
     Ok(Arc::new(config))
 }
 
-
 fn monitor_statistics(state: LoadTestState, config: &Config) {
     let start_time = Instant::now();
     let mut report_avg_response_vec: Vec<f64> = Vec::new();

@@ -9,14 +9,16 @@ use anyhow::Context;
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use crossbeam_channel::unbounded;
 
+use aquatic_common::access_list::AccessListQuery;
+use signal_hook::consts::SIGUSR1;
+use signal_hook::iterator::Signals;
+
+use crate::config::Config;
+
 pub mod common;
 pub mod handlers;
 pub mod network;
 pub mod tasks;
-
-use aquatic_common::access_list::{AccessListArcSwap, AccessListMode, AccessListQuery};
-
-use crate::config::Config;
 
 use common::State;
 
@@ -29,36 +31,38 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let state = State::default();
 
-    update_access_list(&config, &state.access_list);
+    update_access_list(&config, &state)?;
+
+    let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
+
+    {
+        let config = config.clone();
+        let state = state.clone();
+
+        ::std::thread::spawn(move || run_inner(config, state));
+    }
+
+    for signal in &mut signals {
+        match signal {
+            SIGUSR1 => {
+                let _ = update_access_list(&config, &state);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(())
+}
+
+pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
+    if config.cpu_pinning.active {
+        core_affinity::set_for_current(core_affinity::CoreId {
+            id: config.cpu_pinning.offset,
+        });
+    }
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
-    start_workers(config.clone(), state.clone(), num_bound_sockets.clone())?;
-
-    drop_privileges_after_socket_binding(
-        &config.privileges,
-        num_bound_sockets,
-        config.socket_workers,
-    )
-    .unwrap();
-
-    loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
-
-        update_access_list(&config, &state.access_list);
-
-        state
-            .torrents
-            .lock()
-            .clean(&config, state.access_list.load_full().deref());
-    }
-}
-
-pub fn start_workers(
-    config: Config,
-    state: State,
-    num_bound_sockets: Arc<AtomicUsize>,
-) -> ::anyhow::Result<()> {
     let (request_sender, request_receiver) = unbounded();
     let (response_sender, response_receiver) = unbounded();
 
@@ -132,16 +136,36 @@ pub fn start_workers(
             .with_context(|| "spawn statistics worker")?;
     }
 
-    Ok(())
+    drop_privileges_after_socket_binding(
+        &config.privileges,
+        num_bound_sockets,
+        config.socket_workers,
+    )
+    .unwrap();
+
+    loop {
+        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+
+        state
+            .torrents
+            .lock()
+            .clean(&config, state.access_list.load_full().deref());
+    }
 }
 
-pub fn update_access_list(config: &Config, access_list: &Arc<AccessListArcSwap>) {
-    match config.access_list.mode {
-        AccessListMode::White | AccessListMode::Black => {
-            if let Err(err) = access_list.update_from_path(&config.access_list.path) {
-                ::log::error!("Update access list from path: {:?}", err);
+fn update_access_list(config: &Config, state: &State) -> anyhow::Result<()> {
+    if config.access_list.mode.is_on() {
+        match state.access_list.update(&config.access_list) {
+            Ok(()) => {
+                ::log::info!("Access list updated")
+            }
+            Err(err) => {
+                ::log::error!("Updating access list failed: {:#}", err);
+
+                return Err(err);
             }
         }
-        AccessListMode::Off => {}
     }
+
+    Ok(())
 }

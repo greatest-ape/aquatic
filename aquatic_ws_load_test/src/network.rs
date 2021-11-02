@@ -7,12 +7,12 @@ use std::{
 };
 
 use aquatic_ws_protocol::{InMessage, JsonValue, OfferId, OutMessage, PeerId};
-use async_tungstenite::{WebSocketStream, client_async};
-use futures::{StreamExt, SinkExt};
-use futures_rustls::{TlsConnector, client::TlsStream};
+use async_tungstenite::{client_async, WebSocketStream};
+use futures::{SinkExt, StreamExt};
+use futures_rustls::{client::TlsStream, TlsConnector};
 use glommio::net::TcpStream;
 use glommio::{prelude::*, timer::TimerActionRepeat};
-use rand::{Rng, SeedableRng, prelude::SmallRng};
+use rand::{prelude::SmallRng, Rng, SeedableRng};
 
 use crate::{common::LoadTestState, config::Config, utils::create_random_request};
 
@@ -80,7 +80,9 @@ impl Connection {
         let stream = TcpStream::connect(config.server_address)
             .await
             .map_err(|err| anyhow::anyhow!("connect: {:?}", err))?;
-        let stream = TlsConnector::from(tls_config).connect("example.com".try_into().unwrap(), stream).await?;
+        let stream = TlsConnector::from(tls_config)
+            .connect("example.com".try_into().unwrap(), stream)
+            .await?;
         let request = format!(
             "ws://{}:{}",
             config.server_address.ip(),
@@ -114,8 +116,12 @@ impl Connection {
     async fn run_connection_loop(&mut self) -> anyhow::Result<()> {
         loop {
             if self.can_send {
-                let request =
-                    create_random_request(&self.config, &self.load_test_state, &mut self.rng, self.peer_id);
+                let request = create_random_request(
+                    &self.config,
+                    &self.load_test_state,
+                    &mut self.rng,
+                    self.peer_id,
+                );
 
                 // If self.send_answer is set and request is announce request, make
                 // the request an offer answer

@@ -171,8 +171,8 @@ paths in the configuration file, e.g.:
 ```toml
 [network]
 address = '0.0.0.0:3000'
-tls_certificate_path = './cert.crt'
-tls_private_key_path = './key.pk8'
+tls_certificate_path = './cert.pem'
+tls_private_key_path = './key.pem'
 ```
 
 ### aquatic_ws: WebTorrent tracker
