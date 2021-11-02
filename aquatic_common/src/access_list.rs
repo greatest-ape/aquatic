@@ -3,6 +3,7 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::Context;
 use arc_swap::ArcSwap;
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
@@ -59,7 +60,11 @@ impl AccessList {
         let mut new_list = Self::default();
 
         for line in reader.lines() {
-            new_list.insert_from_line(&line?)?;
+            let line = line?;
+
+            new_list
+                .insert_from_line(&line)
+                .with_context(|| format!("Invalid line in access list: {}", line))?;
         }
 
         Ok(new_list)
@@ -75,31 +80,17 @@ impl AccessList {
 }
 
 pub trait AccessListQuery {
-    fn update(&self, config: &AccessListConfig);
+    fn update(&self, config: &AccessListConfig) -> anyhow::Result<()>;
     fn allows(&self, list_mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool;
 }
 
 pub type AccessListArcSwap = ArcSwap<AccessList>;
 
 impl AccessListQuery for AccessListArcSwap {
-    fn update(&self, config: &AccessListConfig) {
-        match config.mode {
-            AccessListMode::White | AccessListMode::Black => {
-                match AccessList::create_from_path(&config.path) {
-                    Ok(new) => {
-                        self.store(Arc::new(new));
-                    }
-                    Err(err) => {
-                        ::log::error!("Updating access list failed: {:?}", err);
-                    }
-                }
-            }
-            AccessListMode::Off => {
-                ::log::error!(
-                    "AccessListQuery::update_from_path called, but AccessListMode is Off"
-                );
-            }
-        }
+    fn update(&self, config: &AccessListConfig) -> anyhow::Result<()> {
+        self.store(Arc::new(AccessList::create_from_path(&config.path)?));
+
+        Ok(())
     }
 
     fn allows(&self, mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {

@@ -10,7 +10,7 @@ use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use crossbeam_channel::unbounded;
 
 use aquatic_common::access_list::AccessListQuery;
-use signal_hook::consts::SIGHUP;
+use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
 
 use crate::config::Config;
@@ -29,9 +29,11 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         });
     }
 
-    let mut signals = Signals::new(::std::iter::once(SIGHUP))?;
-
     let state = State::default();
+
+    update_access_list(&config, &state)?;
+
+    let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
 
     {
         let config = config.clone();
@@ -42,10 +44,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     for signal in &mut signals {
         match signal {
-            SIGHUP => {
-                ::log::info!("Updating access list");
-
-                state.access_list.update(&config.access_list);
+            SIGUSR1 => {
+                let _ = update_access_list(&config, &state);
             }
             _ => unreachable!(),
         }
@@ -60,8 +60,6 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
             id: config.cpu_pinning.offset,
         });
     }
-
-    state.access_list.update(&config.access_list);
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
@@ -153,4 +151,21 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
             .lock()
             .clean(&config, state.access_list.load_full().deref());
     }
+}
+
+fn update_access_list(config: &Config, state: &State) -> anyhow::Result<()> {
+    if config.access_list.mode.is_on() {
+        match state.access_list.update(&config.access_list) {
+            Ok(()) => {
+                ::log::info!("Access list updated")
+            }
+            Err(err) => {
+                ::log::error!("Updating access list failed: {:#}", err);
+
+                return Err(err);
+            }
+        }
+    }
+
+    Ok(())
 }
