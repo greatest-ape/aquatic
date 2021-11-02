@@ -17,7 +17,7 @@ use futures_lite::StreamExt;
 use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
-use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
+use glommio::channels::local_channel::{LocalReceiver, LocalSender, new_unbounded};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
 use glommio::timer::TimerActionRepeat;
@@ -96,7 +96,7 @@ pub async fn run_socket_worker(
         match stream {
             Ok(stream) => {
                 let (out_message_sender, out_message_receiver) =
-                    new_bounded(config.request_workers + 1);
+                    new_unbounded();
                 let out_message_sender = Rc::new(out_message_sender);
 
                 let key = RefCell::borrow_mut(&connection_slab).insert(ConnectionReference {
