@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
-use arc_swap::ArcSwap;
+use arc_swap::{ArcSwap, Cache};
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +85,7 @@ pub trait AccessListQuery {
 }
 
 pub type AccessListArcSwap = ArcSwap<AccessList>;
+pub type AccessListCache = Cache<Arc<AccessListArcSwap>, Arc<AccessList>>;
 
 impl AccessListQuery for AccessListArcSwap {
     fn update(&self, config: &AccessListConfig) -> anyhow::Result<()> {
@@ -100,6 +101,30 @@ impl AccessListQuery for AccessListArcSwap {
             AccessListMode::Off => true,
         }
     }
+}
+
+pub fn create_access_list_cache(arc_swap: &Arc<AccessListArcSwap>) -> AccessListCache {
+    Cache::from(Arc::clone(arc_swap))
+}
+
+pub fn update_access_list(
+    config: &AccessListConfig,
+    access_list: &Arc<AccessListArcSwap>,
+) -> anyhow::Result<()> {
+    if config.mode.is_on() {
+        match access_list.update(config) {
+            Ok(()) => {
+                ::log::info!("Access list updated")
+            }
+            Err(err) => {
+                ::log::error!("Updating access list failed: {:#}", err);
+
+                return Err(err);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn parse_info_hash(line: &str) -> anyhow::Result<[u8; 20]> {
@@ -122,5 +147,38 @@ mod tests {
         assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".into()).is_err());
         assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".into()).is_err());
         assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".into()).is_err());
+    }
+
+    #[test]
+    fn test_cache_allows() {
+        let mut access_list = AccessList::default();
+
+        let a = parse_info_hash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let b = parse_info_hash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
+        let c = parse_info_hash("cccccccccccccccccccccccccccccccccccccccc").unwrap();
+
+        access_list.0.insert(a);
+        access_list.0.insert(b);
+
+        let access_list = Arc::new(ArcSwap::new(Arc::new(access_list)));
+
+        let mut access_list_cache = Cache::new(Arc::clone(&access_list));
+
+        assert!(access_list_cache.load().allows(AccessListMode::White, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::White, &b));
+        assert!(!access_list_cache.load().allows(AccessListMode::White, &c));
+
+        assert!(!access_list_cache.load().allows(AccessListMode::Black, &a));
+        assert!(!access_list_cache.load().allows(AccessListMode::Black, &b));
+        assert!(access_list_cache.load().allows(AccessListMode::Black, &c));
+
+        assert!(access_list_cache.load().allows(AccessListMode::Off, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::Off, &b));
+        assert!(access_list_cache.load().allows(AccessListMode::Off, &c));
+
+        access_list.store(Arc::new(AccessList::default()));
+
+        assert!(access_list_cache.load().allows(AccessListMode::Black, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::Black, &b));
     }
 }

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use aquatic_common::access_list::AccessList;
+use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
@@ -40,14 +40,14 @@ struct ConnectionReference {
 
 pub async fn run_socket_worker(
     config: Config,
+    state: State,
     tls_config: Arc<TlsConfig>,
     in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
-    access_list: AccessList,
 ) {
     let config = Rc::new(config);
-    let access_list = Rc::new(RefCell::new(access_list));
+    let access_list = state.access_list;
 
     let listener = TcpListener::bind(config.network.address).expect("bind socket");
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
@@ -61,15 +61,6 @@ pub async fn run_socket_worker(
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
     let connections_to_remove = Rc::new(RefCell::new(Vec::new()));
-
-    // Periodically update access list
-    TimerActionRepeat::repeat(enclose!((config, access_list) move || {
-        enclose!((config, access_list) move || async move {
-            update_access_list(config.clone(), access_list.clone()).await;
-
-            Some(Duration::from_secs(config.cleaning.interval))
-        })()
-    }));
 
     // Periodically remove closed connections
     TimerActionRepeat::repeat(
@@ -146,7 +137,9 @@ async fn remove_closed_connections(
         }
     }
 
-    Some(Duration::from_secs(config.cleaning.interval))
+    Some(Duration::from_secs(
+        config.cleaning.torrent_cleaning_interval,
+    ))
 }
 
 async fn receive_out_messages(
@@ -176,7 +169,7 @@ struct Connection;
 impl Connection {
     async fn run(
         config: Rc<Config>,
-        access_list: Rc<RefCell<AccessList>>,
+        access_list: Arc<AccessListArcSwap>,
         in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
         out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
         out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
@@ -201,11 +194,12 @@ impl Connection {
         let (ws_out, ws_in) = futures::StreamExt::split(stream);
 
         let pending_scrape_slab = Rc::new(RefCell::new(Slab::new()));
+        let access_list_cache = create_access_list_cache(&access_list);
 
         let reader_handle = spawn_local(enclose!((pending_scrape_slab) async move {
             let mut reader = ConnectionReader {
                 config,
-                access_list,
+                access_list_cache,
                 in_message_senders,
                 out_message_sender,
                 pending_scrape_slab,
@@ -237,7 +231,7 @@ impl Connection {
 
 struct ConnectionReader {
     config: Rc<Config>,
-    access_list: Rc<RefCell<AccessList>>,
+    access_list_cache: AccessListCache,
     in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
     out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
@@ -275,8 +269,8 @@ impl ConnectionReader {
                 let info_hash = announce_request.info_hash;
 
                 if self
-                    .access_list
-                    .borrow()
+                    .access_list_cache
+                    .load()
                     .allows(self.config.access_list.mode, &info_hash.0)
                 {
                     let in_message = InMessage::AnnounceRequest(announce_request);

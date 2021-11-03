@@ -59,7 +59,7 @@ pub struct ProtocolConfig {
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
-    pub interval: u64,
+    pub torrent_cleaning_interval: u64,
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
 }
@@ -106,7 +106,7 @@ impl Default for ProtocolConfig {
 impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
-            interval: 30,
+            torrent_cleaning_interval: 30,
             max_peer_age: 1800,
         }
     }

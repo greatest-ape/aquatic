@@ -112,6 +112,7 @@ dependencies = [
  "rand",
  "rustls-pemfile",
  "serde",
+ "signal-hook",
  "slab",
  "smartstring",
 ]
@@ -258,6 +259,7 @@ dependencies = [
  "rand",
  "rustls-pemfile",
  "serde",
+ "signal-hook",
  "slab",
  "tungstenite",
 ]

@@ -1,13 +1,8 @@
-use std::borrow::Borrow;
-use std::cell::RefCell;
 use std::net::{IpAddr, SocketAddr};
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Instant;
 
-use aquatic_common::access_list::AccessList;
-use futures_lite::AsyncBufReadExt;
-use glommio::io::{BufferedFile, StreamReaderBuilder};
-use glommio::yield_if_needed;
+use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 
@@ -99,16 +94,25 @@ pub struct TorrentMaps {
 }
 
 impl TorrentMaps {
-    pub fn clean(&mut self, config: &Config, access_list: &AccessList) {
-        Self::clean_torrent_map(config, access_list, &mut self.ipv4);
-        Self::clean_torrent_map(config, access_list, &mut self.ipv6);
+    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
+        let mut access_list_cache = create_access_list_cache(access_list);
+
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4);
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6);
     }
 
-    fn clean_torrent_map(config: &Config, access_list: &AccessList, torrent_map: &mut TorrentMap) {
+    fn clean_torrent_map(
+        config: &Config,
+        access_list_cache: &mut AccessListCache,
+        torrent_map: &mut TorrentMap,
+    ) {
         let now = Instant::now();
 
         torrent_map.retain(|info_hash, torrent_data| {
-            if !access_list.allows(config.access_list.mode, &info_hash.0) {
+            if !access_list_cache
+                .load()
+                .allows(config.access_list.mode, &info_hash.0)
+            {
                 return false;
             }
 
@@ -140,44 +144,7 @@ impl TorrentMaps {
     }
 }
 
-pub async fn update_access_list<C: Borrow<Config>>(
-    config: C,
-    access_list: Rc<RefCell<AccessList>>,
-) {
-    if config.borrow().access_list.mode.is_on() {
-        match BufferedFile::open(&config.borrow().access_list.path).await {
-            Ok(file) => {
-                let mut reader = StreamReaderBuilder::new(file).build();
-                let mut new_access_list = AccessList::default();
-
-                loop {
-                    let mut buf = String::with_capacity(42);
-
-                    match reader.read_line(&mut buf).await {
-                        Ok(_) => {
-                            if let Err(err) = new_access_list.insert_from_line(&buf) {
-                                ::log::error!(
-                                    "Couln't parse access list line '{}': {:?}",
-                                    buf,
-                                    err
-                                );
-                            }
-                        }
-                        Err(err) => {
-                            ::log::error!("Couln't read access list line {:?}", err);
-
-                            break;
-                        }
-                    }
-
-                    yield_if_needed().await;
-                }
-
-                *access_list.borrow_mut() = new_access_list;
-            }
-            Err(err) => {
-                ::log::error!("Couldn't open access list file: {:?}", err)
-            }
-        };
-    }
+#[derive(Default, Clone)]
+pub struct State {
+    pub access_list: Arc<AccessListArcSwap>,
 }

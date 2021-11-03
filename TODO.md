@@ -1,19 +1,18 @@
 # TODO
 
 * readme
-  * document privilige dropping, cpu pinning
+  * document privilege dropping and cpu pinning
 
 * socket_recv_size and ipv6_only in glommio implementations
 
 * config: fail on unrecognized keys
 
-* access lists:
-  * use signals to reload, use arcswap everywhere
-  * use arc-swap Cache?
-  * add CI tests
+* CI
+  * test both aquatic_udp implementations
+  * test access lists?
+  * cargo-deny
 
 * aquatic_udp
-  * CI for both implementations
   * glommio
     * consider sending local responses immediately
     * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
@@ -21,26 +20,22 @@
       response
 
 * aquatic_http:
-  * optimize?
-    * get_peer_addr only once (takes 1.2% of runtime)
-    * queue response: allocating takes 2.8% of runtime
   * clean out connections regularly
     * Rc<RefCell<ValidUntil>> which get set on successful request parsing and
       successful response sending. Clone kept in connection slab which gets cleaned
       periodically (= cancel tasks). Means that task handle will need to be stored in slab.
       Config vars kill_idle_connections: bool, max_idle_connection_time. Remove keepalive.
     * handle panicked/cancelled tasks?
-  * load test: use futures-rustls
+  * optimize?
+    * get_peer_addr only once (takes 1.2% of runtime)
+    * queue response: allocating takes 2.8% of runtime
+  * use futures-rustls for load test
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
-  * Scrape: should stats with only zeroes be sent back for non-registered info hashes?
-    Relevant for mio implementation too.
 
 * aquatic_ws
   * load test cpu pinning
   * test with multiple socket and request workers
-  * should it send back error on message parse error, or does that
-    just indicate that not enough data has been received yet?
 
 ## Less important
 
@@ -92,30 +87,7 @@
 
 # Don't do
 
-## General - profile-guided optimization
-
-Doesn't seem to improve performance, possibly because I only got it to compile
-with thin LTO which could have impacted performance. Running non-pgo version
-without AVX-512 seems to be the fastest, although the presence of a ctrl-c handler
-(meaning the addition of a thread) might have worsed performance in pgo version
-(unlikely).
-
-Benchmarks of aquatic_udp with and without PGO. On hetzer 16x vCPU. 8 workers
-just like best results in last benchmark, multiple client ips=true:
-
-### target-cpu=native (probably with avx512 since such features are listed in /proc/cpuinfo), all with thin lto
-*   With PGO on aquatic_udp: 370k, without 363k responses per second
-*   With PGO on both aquatic_udp and aquatic_udp_load_test: 368k
-
-### with target-cpu=skylake, all with thin lto
-*   with pgo on aquatic_udp: 400k
-*   with no pgo: 394k
-
-### checkout master (no pgo, no thin lto, no ctrlc handler)
-
-* target-cpu=native: 394k
-* target-cpu=skylake: 439k
-* no target-cpu set: 388k
+* general: PGO didn't seem to help way back
 
 ## aquatic_http
 * request from path:
@@ -126,24 +98,7 @@ just like best results in last benchmark, multiple client ips=true:
     there. then iter over space newlines/just take relevant data. Not faster
     than httparse and a lot worse
 
-## aquatic_http / aquatic_ws
-* Shared state for HTTP with and without TLS. Peers who announce over TLS
-  should be able to expect that someone snooping on the connection can't
-  connect them to a info hash. If someone receives their IP in a response
-  while announcing without TLS, this expectation would be broken.
-
-## aquatic_udp
-* Other HashMap hashers (such as SeaHash): seemingly not worthwhile, see
-  `https://github.com/tkaitchuck/aHash`
-* `sendmmsg`: can't send to multiple socket addresses, so doesn't help
-* Config behind Arc in state: it is likely better to be able to pass it around
-  without state
-* Responses: make vectors iterator references so we dont have run .collect().
-  Doesn't work since it means conversion to bytes must be done while holding
-  readable reference to entry in torrent map, hurting concurrency.
-
 ## aquatic_udp_protocol
 * Use `bytes` crate: seems to worsen performance somewhat
 * Zerocopy (https://docs.rs/zerocopy/0.3.0/zerocopy/index.html) for requests
   and responses? Doesn't work on Vec etc
-* New array buffer each time in response_to_bytes: doesn't help performance

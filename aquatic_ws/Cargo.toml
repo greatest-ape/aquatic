@@ -35,6 +35,7 @@ privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
 rustls-pemfile = "0.2"
 serde = { version = "1", features = ["derive"] }
+signal-hook = { version = "0.3" }
 slab = "0.4"
 tungstenite = "0.15"
 

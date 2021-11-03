@@ -1,15 +1,12 @@
+use std::sync::{atomic::AtomicUsize, Arc};
 use std::thread::Builder;
 use std::time::Duration;
-use std::{
-    ops::Deref,
-    sync::{atomic::AtomicUsize, Arc},
-};
 
 use anyhow::Context;
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use crossbeam_channel::unbounded;
 
-use aquatic_common::access_list::AccessListQuery;
+use aquatic_common::access_list::update_access_list;
 use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
 
@@ -31,7 +28,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let state = State::default();
 
-    update_access_list(&config, &state)?;
+    update_access_list(&config.access_list, &state.access_list)?;
 
     let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
 
@@ -45,7 +42,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     for signal in &mut signals {
         match signal {
             SIGUSR1 => {
-                let _ = update_access_list(&config, &state);
+                let _ = update_access_list(&config.access_list, &state.access_list);
             }
             _ => unreachable!(),
         }
@@ -144,28 +141,10 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
     .unwrap();
 
     loop {
-        ::std::thread::sleep(Duration::from_secs(config.cleaning.interval));
+        ::std::thread::sleep(Duration::from_secs(
+            config.cleaning.torrent_cleaning_interval,
+        ));
 
-        state
-            .torrents
-            .lock()
-            .clean(&config, state.access_list.load_full().deref());
+        state.torrents.lock().clean(&config, &state.access_list);
     }
-}
-
-fn update_access_list(config: &Config, state: &State) -> anyhow::Result<()> {
-    if config.access_list.mode.is_on() {
-        match state.access_list.update(&config.access_list) {
-            Ok(()) => {
-                ::log::info!("Access list updated")
-            }
-            Err(err) => {
-                ::log::error!("Updating access list failed: {:#}", err);
-
-                return Err(err);
-            }
-        }
-    }
-
-    Ok(())
 }

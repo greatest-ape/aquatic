@@ -1,11 +1,15 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
-use aquatic_common::access_list::AccessList;
+use aquatic_common::access_list::update_access_list;
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use glommio::channels::channel_mesh::MeshBuilder;
 use glommio::prelude::*;
+use signal_hook::consts::SIGUSR1;
+use signal_hook::iterator::Signals;
 
 use crate::config::Config;
+
+use self::common::State;
 
 mod common;
 pub mod handlers;
@@ -13,18 +17,44 @@ pub mod network;
 
 pub const SHARED_CHANNEL_SIZE: usize = 4096;
 
-pub fn run(config: Config) -> anyhow::Result<()> {
+pub fn run(config: Config) -> ::anyhow::Result<()> {
     if config.cpu_pinning.active {
         core_affinity::set_for_current(core_affinity::CoreId {
             id: config.cpu_pinning.offset,
         });
     }
 
-    let access_list = if config.access_list.mode.is_on() {
-        AccessList::create_from_path(&config.access_list.path).expect("Load access list")
-    } else {
-        AccessList::default()
-    };
+    let state = State::default();
+
+    update_access_list(&config.access_list, &state.access_list)?;
+
+    let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
+
+    {
+        let config = config.clone();
+        let state = state.clone();
+
+        ::std::thread::spawn(move || run_inner(config, state));
+    }
+
+    for signal in &mut signals {
+        match signal {
+            SIGUSR1 => {
+                let _ = update_access_list(&config.access_list, &state.access_list);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(())
+}
+
+pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
+    if config.cpu_pinning.active {
+        core_affinity::set_for_current(core_affinity::CoreId {
+            id: config.cpu_pinning.offset,
+        });
+    }
 
     let num_peers = config.socket_workers + config.request_workers;
 
@@ -37,10 +67,10 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     for i in 0..(config.socket_workers) {
         let config = config.clone();
+        let state = state.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
         let num_bound_sockets = num_bound_sockets.clone();
-        let access_list = access_list.clone();
 
         let mut builder = LocalExecutorBuilder::default();
 
@@ -51,10 +81,10 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         let executor = builder.spawn(|| async move {
             network::run_socket_worker(
                 config,
+                state,
                 request_mesh_builder,
                 response_mesh_builder,
                 num_bound_sockets,
-                access_list,
             )
             .await
         });
@@ -64,9 +94,9 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     for i in 0..(config.request_workers) {
         let config = config.clone();
+        let state = state.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
-        let access_list = access_list.clone();
 
         let mut builder = LocalExecutorBuilder::default();
 
@@ -75,13 +105,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         }
 
         let executor = builder.spawn(|| async move {
-            handlers::run_request_worker(
-                config,
-                request_mesh_builder,
-                response_mesh_builder,
-                access_list,
-            )
-            .await
+            handlers::run_request_worker(config, state, request_mesh_builder, response_mesh_builder)
+                .await
         });
 
         executors.push(executor);
