@@ -52,6 +52,8 @@ pub fn run_socket_worker(
 
     let timeout = Duration::from_millis(50);
 
+    let cleaning_duration = Duration::from_secs(config.cleaning.connection_cleaning_interval);
+
     let mut iter_counter = 0usize;
     let mut last_cleaning = Instant::now();
 
@@ -88,9 +90,7 @@ pub fn run_socket_worker(
         if iter_counter % 32 == 0 {
             let now = Instant::now();
 
-            if last_cleaning + Duration::from_secs(config.cleaning.connection_cleaning_interval)
-                > now
-            {
+            if now > last_cleaning + cleaning_duration {
                 connections.clean();
 
                 last_cleaning = now;
