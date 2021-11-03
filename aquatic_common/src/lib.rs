@@ -1,12 +1,14 @@
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
-use indexmap::IndexMap;
+use ahash::RandomState;
 use rand::Rng;
 
 pub mod access_list;
 pub mod cpu_pinning;
 pub mod privileges;
+
+pub type AHashIndexMap<K, V> = indexmap_amortized::IndexMap<K, V, RandomState>;
 
 /// Peer or connection valid until this instant
 ///
@@ -32,7 +34,7 @@ impl ValidUntil {
 #[inline]
 pub fn extract_response_peers<K, V, R, F>(
     rng: &mut impl Rng,
-    peer_map: &IndexMap<K, V>,
+    peer_map: &AHashIndexMap<K, V>,
     max_num_peers_to_take: usize,
     sender_peer_map_key: K,
     peer_conversion_function: F,

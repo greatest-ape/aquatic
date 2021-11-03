@@ -10,6 +10,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::create_access_list_cache;
+use aquatic_common::AHashIndexMap;
 use futures_lite::{Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_unbounded, LocalSender};
@@ -17,7 +18,6 @@ use glommio::enclose;
 use glommio::net::UdpSocket;
 use glommio::prelude::*;
 use glommio::timer::TimerActionRepeat;
-use hashbrown::HashMap;
 use rand::prelude::{Rng, SeedableRng, StdRng};
 
 use aquatic_udp_protocol::{IpVersion, Request, Response};
@@ -38,7 +38,7 @@ struct PendingScrapeResponse {
 }
 
 #[derive(Default)]
-struct PendingScrapeResponses(HashMap<TransactionId, PendingScrapeResponse>);
+struct PendingScrapeResponses(AHashIndexMap<TransactionId, PendingScrapeResponse>);
 
 impl PendingScrapeResponses {
     fn prepare(
@@ -266,8 +266,10 @@ async fn read_requests(
                         info_hashes,
                     })) => {
                         if connections.borrow().contains(connection_id, src) {
-                            let mut consumer_requests: HashMap<usize, (ScrapeRequest, Vec<usize>)> =
-                                HashMap::new();
+                            let mut consumer_requests: AHashIndexMap<
+                                usize,
+                                (ScrapeRequest, Vec<usize>),
+                            > = Default::default();
 
                             for (i, info_hash) in info_hashes.into_iter().enumerate() {
                                 let (req, indices) = consumer_requests

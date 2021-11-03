@@ -3,9 +3,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
+use aquatic_common::AHashIndexMap;
 use either::Either;
-use hashbrown::HashMap;
-use indexmap::IndexMap;
 use smartstring::{LazyCompact, SmartString};
 
 pub use aquatic_common::{convert_ipv4_mapped_ipv6, ValidUntil};
@@ -141,7 +140,7 @@ pub struct PeerMapKey<I: Ip> {
     pub ip_or_key: Either<I, SmartString<LazyCompact>>,
 }
 
-pub type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
+pub type PeerMap<I> = AHashIndexMap<PeerMapKey<I>, Peer<I>>;
 
 pub struct TorrentData<I: Ip> {
     pub peers: PeerMap<I>,
@@ -153,14 +152,14 @@ impl<I: Ip> Default for TorrentData<I> {
     #[inline]
     fn default() -> Self {
         Self {
-            peers: IndexMap::new(),
+            peers: Default::default(),
             num_seeders: 0,
             num_leechers: 0,
         }
     }
 }
 
-pub type TorrentMap<I> = HashMap<InfoHash, TorrentData<I>>;
+pub type TorrentMap<I> = AHashIndexMap<InfoHash, TorrentData<I>>;
 
 #[derive(Default)]
 pub struct TorrentMaps {

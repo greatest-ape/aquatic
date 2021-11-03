@@ -199,7 +199,6 @@ mod tests {
     use std::collections::HashSet;
     use std::net::Ipv4Addr;
 
-    use indexmap::IndexMap;
     use quickcheck::{quickcheck, TestResult};
     use rand::thread_rng;
 
@@ -229,7 +228,7 @@ mod tests {
             let gen_num_peers = data.0 as u32;
             let req_num_peers = data.1 as usize;
 
-            let mut peer_map: PeerMap<Ipv4Addr> = IndexMap::with_capacity(gen_num_peers as usize);
+            let mut peer_map: PeerMap<Ipv4Addr> = Default::default();
 
             let mut opt_sender_key = None;
             let mut opt_sender_peer = None;

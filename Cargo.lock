@@ -74,11 +74,12 @@ dependencies = [
 name = "aquatic_common"
 version = "0.1.0"
 dependencies = [
+ "ahash 0.7.6",
  "anyhow",
  "arc-swap",
  "hashbrown 0.11.2",
  "hex",
- "indexmap",
+ "indexmap-amortized",
  "log",
  "privdrop",
  "rand",
@@ -99,8 +100,6 @@ dependencies = [
  "futures-lite",
  "futures-rustls",
  "glommio",
- "hashbrown 0.11.2",
- "indexmap",
  "itoa",
  "log",
  "memchr",
@@ -171,10 +170,8 @@ dependencies = [
  "crossbeam-channel",
  "futures-lite",
  "glommio",
- "hashbrown 0.11.2",
  "hex",
  "histogram",
- "indexmap",
  "log",
  "mimalloc",
  "mio",
@@ -250,7 +247,6 @@ dependencies = [
  "futures-rustls",
  "glommio",
  "hashbrown 0.11.2",
- "indexmap",
  "log",
  "mimalloc",
  "privdrop",
@@ -329,6 +325,12 @@ dependencies = [
  "pin-project-lite",
  "tungstenite",
 ]
+
+[[package]]
+name = "atone"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a8a5a5e2e3b1e128ec3783765c91c1f392172c1fffc90fd1b96a13bb18e0dd6"
 
 [[package]]
 name = "atty"
@@ -928,6 +930,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "griddle"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e46a17d0c5d05b045e3814403914aeeb952aa9832f47b1d7ab123ab3d1660454"
+dependencies = [
+ "hashbrown 0.9.1",
+]
+
+[[package]]
 name = "half"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -952,6 +963,12 @@ dependencies = [
  "ahash 0.3.8",
  "autocfg",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
 name = "hashbrown"
@@ -1013,13 +1030,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "indexmap"
-version = "1.7.0"
+name = "indexmap-amortized"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
+checksum = "81b5a05ffb45214e51fdd40c1f773ab57c74d2a7b41cfadc7ea443acf0359df1"
 dependencies = [
+ "atone",
  "autocfg",
- "hashbrown 0.11.2",
+ "griddle",
 ]
 
 [[package]]
