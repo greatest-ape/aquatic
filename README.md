@@ -51,6 +51,7 @@ cargo build --release -p aquatic_udp
 cargo build --release -p aquatic_udp --features "with-glommio" --no-default-features
 cargo build --release -p aquatic_http
 cargo build --release -p aquatic_ws
+cargo build --release -p aquatic_ws --features "with-glommio" --no-default-features
 ```
 
 ### Running
