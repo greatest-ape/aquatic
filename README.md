@@ -186,6 +186,10 @@ clients, with some exceptions:
   * Doesn't track of the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
+The current glommio-based implementation currently has large performance
+regressions compared to [the previous mio-based implementation](https://github.com/greatest-ape/aquatic/tree/30fa96a7f43eb7568b7df1e1fdb6e1885f3b4f58).
+Use it instead if you want maximum performance now.
+
 #### TLS
 
 Please see `aquatic_http` TLS section above.
