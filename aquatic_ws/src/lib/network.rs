@@ -378,11 +378,9 @@ struct ConnectionWriter {
 impl ConnectionWriter {
     async fn run_out_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
-            let (meta, out_message) = self
-                .out_message_receiver
-                .recv()
-                .await
-                .expect("wait_for_out_message: can't receive out_message, sender is closed");
+            let (meta, out_message) = self.out_message_receiver.recv().await.ok_or_else(|| {
+                anyhow::anyhow!("ConnectionWriter couldn't receive message, sender is closed")
+            })?;
 
             if meta.naive_peer_addr != self.peer_addr {
                 return Err(anyhow::anyhow!("peer addresses didn't match"));
