@@ -83,6 +83,8 @@ pub fn run_request_worker(
             );
         }
 
+        ::std::mem::drop(torrent_map_guard);
+
         for (meta, out_message) in out_messages.drain(..) {
             wake_socket_workers[meta.out_message_consumer_id.0] = true;
             out_message_sender.send(meta, out_message);
