@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+#[cfg(feature = "with-glommio")]
 use std::path::PathBuf;
 
 use aquatic_common::cpu_pinning::CpuPinningConfig;
@@ -20,10 +21,14 @@ pub struct Config {
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
+    #[cfg(feature = "with-mio")]
+    pub handlers: HandlerConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
     pub cpu_pinning: CpuPinningConfig,
+    #[cfg(feature = "with-mio")]
+    pub statistics: StatisticsConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -38,10 +43,24 @@ pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
     pub ipv6_only: bool,
-    pub tls_certificate_path: PathBuf,
-    pub tls_private_key_path: PathBuf,
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
+
+    #[cfg(feature = "with-glommio")]
+    pub tls_certificate_path: PathBuf,
+    #[cfg(feature = "with-glommio")]
+    pub tls_private_key_path: PathBuf,
+
+    #[cfg(feature = "with-mio")]
+    pub use_tls: bool,
+    #[cfg(feature = "with-mio")]
+    pub tls_pkcs12_path: String,
+    #[cfg(feature = "with-mio")]
+    pub tls_pkcs12_password: String,
+    #[cfg(feature = "with-mio")]
+    pub poll_event_capacity: usize,
+    #[cfg(feature = "with-mio")]
+    pub poll_timeout_microseconds: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -55,6 +74,16 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: usize,
 }
 
+#[cfg(feature = "with-mio")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HandlerConfig {
+    /// Maximum number of requests to receive from channel before locking
+    /// mutex and starting work
+    pub max_requests_per_iter: usize,
+    pub channel_recv_timeout_microseconds: u64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
@@ -62,6 +91,18 @@ pub struct CleaningConfig {
     pub torrent_cleaning_interval: u64,
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
+
+    /// Remove connections that are older than this (seconds)
+    #[cfg(feature = "with-mio")]
+    pub max_connection_age: u64,
+}
+
+#[cfg(feature = "with-mio")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StatisticsConfig {
+    /// Print statistics this often (seconds). Don't print when set to zero.
+    pub interval: u64,
 }
 
 impl Default for Config {
@@ -72,10 +113,14 @@ impl Default for Config {
             log_level: LogLevel::default(),
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
+            #[cfg(feature = "with-mio")]
+            handlers: Default::default(),
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
             cpu_pinning: Default::default(),
+            #[cfg(feature = "with-mio")]
+            statistics: Default::default(),
         }
     }
 }
@@ -85,10 +130,24 @@ impl Default for NetworkConfig {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             ipv6_only: false,
-            tls_certificate_path: "".into(),
-            tls_private_key_path: "".into(),
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
+
+            #[cfg(feature = "with-glommio")]
+            tls_certificate_path: "".into(),
+            #[cfg(feature = "with-glommio")]
+            tls_private_key_path: "".into(),
+
+            #[cfg(feature = "with-mio")]
+            use_tls: false,
+            #[cfg(feature = "with-mio")]
+            tls_pkcs12_path: "".into(),
+            #[cfg(feature = "with-mio")]
+            tls_pkcs12_password: "".into(),
+            #[cfg(feature = "with-mio")]
+            poll_event_capacity: 4096,
+            #[cfg(feature = "with-mio")]
+            poll_timeout_microseconds: 200_000,
         }
     }
 }
@@ -103,11 +162,31 @@ impl Default for ProtocolConfig {
     }
 }
 
+#[cfg(feature = "with-mio")]
+impl Default for HandlerConfig {
+    fn default() -> Self {
+        Self {
+            max_requests_per_iter: 10000,
+            channel_recv_timeout_microseconds: 200,
+        }
+    }
+}
+
 impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             torrent_cleaning_interval: 30,
             max_peer_age: 1800,
+
+            #[cfg(feature = "with-mio")]
+            max_connection_age: 1800,
         }
+    }
+}
+
+#[cfg(feature = "with-mio")]
+impl Default for StatisticsConfig {
+    fn default() -> Self {
+        Self { interval: 0 }
     }
 }

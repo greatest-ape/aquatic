@@ -1,3 +1,5 @@
+pub mod handlers;
+
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Instant;
@@ -10,8 +12,6 @@ pub use aquatic_common::ValidUntil;
 use aquatic_ws_protocol::*;
 
 use crate::config::Config;
-
-pub type TlsConfig = futures_rustls::rustls::ServerConfig;
 
 #[derive(Copy, Clone, Debug)]
 pub struct PendingScrapeId(pub usize);
@@ -141,9 +141,4 @@ impl TorrentMaps {
 
         torrent_map.shrink_to_fit();
     }
-}
-
-#[derive(Default, Clone)]
-pub struct State {
-    pub access_list: Arc<AccessListArcSwap>,
 }

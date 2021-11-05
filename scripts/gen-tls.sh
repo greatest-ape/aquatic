@@ -14,3 +14,5 @@ sudo cp cert.crt /usr/local/share/ca-certificates/snakeoil.crt
 sudo update-ca-certificates
 
 openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8
+
+# openssl pkcs12 -export -passout "pass:p" -out identity.pfx -inkey key.pem -in cert.crt

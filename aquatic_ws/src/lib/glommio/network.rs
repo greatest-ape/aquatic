@@ -27,6 +27,8 @@ use slab::Slab;
 
 use crate::config::Config;
 
+use crate::common::*;
+
 use super::common::*;
 
 struct PendingScrapeResponse {
