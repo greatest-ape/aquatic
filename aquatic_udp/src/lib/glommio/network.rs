@@ -240,15 +240,15 @@ async fn read_requests(
                                 let request_consumer_index =
                                     calculate_request_consumer_index(&config, request.info_hash);
 
-                                if let Err(err) = request_senders.try_send_to(
+                                if let Err(err) = request_senders.send_to(
                                     request_consumer_index,
                                     (
                                         response_consumer_index,
                                         ConnectedRequest::Announce(request),
                                         src,
                                     ),
-                                ) {
-                                    ::log::warn!("request_sender.try_send failed: {:?}", err)
+                                ).await {
+                                    ::log::error!("request_sender.try_send failed: {:?}", err)
                                 }
                             } else {
                                 let response = Response::Error(ErrorResponse {
@@ -300,11 +300,11 @@ async fn read_requests(
                                     original_indices,
                                 };
 
-                                if let Err(err) = request_senders.try_send_to(
+                                if let Err(err) = request_senders.send_to(
                                     consumer_index,
                                     (response_consumer_index, request, src),
-                                ) {
-                                    ::log::warn!("request_sender.try_send failed: {:?}", err)
+                                ).await {
+                                    ::log::error!("request_sender.send failed: {:?}", err)
                                 }
                             }
                         }

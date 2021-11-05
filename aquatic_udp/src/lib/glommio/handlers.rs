@@ -105,8 +105,8 @@ async fn handle_request_stream<S>(
 
         ::log::debug!("preparing to send response to channel: {:?}", response);
 
-        if let Err(err) = response_senders.try_send_to(producer_index, (response, src)) {
-            ::log::warn!("response_sender.try_send: {:?}", err);
+        if let Err(err) = response_senders.send_to(producer_index, (response, src)).await {
+            ::log::error!("response_sender.send: {:?}", err);
         }
 
         yield_if_needed().await;
