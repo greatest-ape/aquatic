@@ -38,6 +38,14 @@ signal-hook = { version = "0.3" }
 slab = "0.4"
 tungstenite = "0.15"
 
+
+crossbeam-channel = "0.5"
+histogram = "0.6"
+mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"] }
+native-tls = "0.2"
+parking_lot = "0.11"
+socket2 = { version = "0.4.1", features = ["all"] }
+
 [dev-dependencies]
 quickcheck = "1.0"
 quickcheck_macros = "1.0"

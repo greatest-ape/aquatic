@@ -1,3 +1,5 @@
+pub mod handlers;
+
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Instant;
@@ -141,9 +143,4 @@ impl TorrentMaps {
 
         torrent_map.shrink_to_fit();
     }
-}
-
-#[derive(Default, Clone)]
-pub struct State {
-    pub access_list: Arc<AccessListArcSwap>,
 }

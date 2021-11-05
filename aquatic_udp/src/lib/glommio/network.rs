@@ -240,14 +240,17 @@ async fn read_requests(
                                 let request_consumer_index =
                                     calculate_request_consumer_index(&config, request.info_hash);
 
-                                if let Err(err) = request_senders.send_to(
-                                    request_consumer_index,
-                                    (
-                                        response_consumer_index,
-                                        ConnectedRequest::Announce(request),
-                                        src,
-                                    ),
-                                ).await {
+                                if let Err(err) = request_senders
+                                    .send_to(
+                                        request_consumer_index,
+                                        (
+                                            response_consumer_index,
+                                            ConnectedRequest::Announce(request),
+                                            src,
+                                        ),
+                                    )
+                                    .await
+                                {
                                     ::log::error!("request_sender.try_send failed: {:?}", err)
                                 }
                             } else {
@@ -300,10 +303,13 @@ async fn read_requests(
                                     original_indices,
                                 };
 
-                                if let Err(err) = request_senders.send_to(
-                                    consumer_index,
-                                    (response_consumer_index, request, src),
-                                ).await {
+                                if let Err(err) = request_senders
+                                    .send_to(
+                                        consumer_index,
+                                        (response_consumer_index, request, src),
+                                    )
+                                    .await
+                                {
                                     ::log::error!("request_sender.send failed: {:?}", err)
                                 }
                             }

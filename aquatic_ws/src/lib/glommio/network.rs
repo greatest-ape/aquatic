@@ -27,7 +27,9 @@ use slab::Slab;
 
 use crate::config::Config;
 
-use super::common::*;
+use crate::common::*;
+
+use super::common::State;
 
 struct PendingScrapeResponse {
     pending_worker_out_messages: usize,
