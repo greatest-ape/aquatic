@@ -11,11 +11,12 @@ repository = "https://github.com/greatest-ape/aquatic"
 name = "aquatic_common"
 
 [dependencies]
+ahash = "0.7"
 anyhow = "1"
 arc-swap = "1"
 hashbrown = "0.11.2"
 hex = "0.4"
-indexmap = "1"
+indexmap-amortized = "1"
 log = "0.4"
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }

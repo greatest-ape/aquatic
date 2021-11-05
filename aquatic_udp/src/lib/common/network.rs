@@ -1,11 +1,11 @@
 use std::{net::SocketAddr, time::Instant};
 
+use aquatic_common::AHashIndexMap;
 pub use aquatic_common::{access_list::AccessList, ValidUntil};
 pub use aquatic_udp_protocol::*;
-use hashbrown::HashMap;
 
 #[derive(Default)]
-pub struct ConnectionMap(HashMap<(ConnectionId, SocketAddr), ValidUntil>);
+pub struct ConnectionMap(AHashIndexMap<(ConnectionId, SocketAddr), ValidUntil>);
 
 impl ConnectionMap {
     pub fn insert(

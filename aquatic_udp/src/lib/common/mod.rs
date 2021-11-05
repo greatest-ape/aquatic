@@ -4,8 +4,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap};
-use hashbrown::HashMap;
-use indexmap::IndexMap;
+use aquatic_common::AHashIndexMap;
 
 pub use aquatic_common::{access_list::AccessList, ValidUntil};
 pub use aquatic_udp_protocol::*;
@@ -80,7 +79,7 @@ pub struct PeerMapKey<I: Ip> {
     pub peer_id: PeerId,
 }
 
-pub type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
+pub type PeerMap<I> = AHashIndexMap<PeerMapKey<I>, Peer<I>>;
 
 pub struct TorrentData<I: Ip> {
     pub peers: PeerMap<I>,
@@ -91,14 +90,14 @@ pub struct TorrentData<I: Ip> {
 impl<I: Ip> Default for TorrentData<I> {
     fn default() -> Self {
         Self {
-            peers: IndexMap::new(),
+            peers: Default::default(),
             num_seeders: 0,
             num_leechers: 0,
         }
     }
 }
 
-pub type TorrentMap<I> = HashMap<InfoHash, TorrentData<I>>;
+pub type TorrentMap<I> = AHashIndexMap<InfoHash, TorrentData<I>>;
 
 #[derive(Default)]
 pub struct TorrentMaps {
