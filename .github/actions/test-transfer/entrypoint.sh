@@ -51,6 +51,7 @@ openssl ecparam -genkey -name prime256v1 -out key.pem
 openssl req -new -sha256 -key key.pem -out csr.csr -subj "/C=GB/ST=Test/L=Test/O=Test/OU=Test/CN=example.com"
 openssl req -x509 -sha256 -nodes -days 365 -key key.pem -in csr.csr -out cert.crt
 openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8 # rustls
+openssl pkcs12 -export -passout "pass:p" -out identity.pfx -inkey key.pem -in cert.crt
 
 $SUDO cp cert.crt /usr/local/share/ca-certificates/snakeoil.crt
 $SUDO update-ca-certificates
@@ -69,7 +70,6 @@ echo "log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3001'
-use_tls = true
 tls_certificate_path = './cert.crt'
 tls_private_key_path = './key.pk8'
 " > tls.toml
@@ -83,8 +83,15 @@ echo "log_level = 'trace'
 
 [network]
 address = '127.0.0.1:3002'
+
+# glommio
 tls_certificate_path = './cert.crt'
 tls_private_key_path = './key.pk8'
+
+# mio
+use_tls = true
+tls_pkcs12_path = './identity.pfx'
+tls_pkcs12_password = 'p'
 " > ws.toml
 ./target/debug/aquatic ws -c ws.toml > "$HOME/wss.log" 2>&1 &
 
