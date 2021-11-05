@@ -29,7 +29,7 @@ use crate::config::Config;
 
 use crate::common::*;
 
-use super::common::State;
+use super::common::*;
 
 struct PendingScrapeResponse {
     pending_worker_out_messages: usize,

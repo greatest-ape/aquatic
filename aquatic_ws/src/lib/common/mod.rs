@@ -13,8 +13,6 @@ use aquatic_ws_protocol::*;
 
 use crate::config::Config;
 
-pub type TlsConfig = futures_rustls::rustls::ServerConfig;
-
 #[derive(Copy, Clone, Debug)]
 pub struct PendingScrapeId(pub usize);
 
