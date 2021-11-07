@@ -241,7 +241,6 @@ dependencies = [
  "aquatic_ws_protocol",
  "async-tungstenite",
  "cfg-if",
- "core_affinity",
  "crossbeam-channel",
  "either",
  "futures",
