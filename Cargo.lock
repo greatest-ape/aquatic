@@ -272,6 +272,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
+ "aquatic_common",
  "aquatic_ws_protocol",
  "async-tungstenite",
  "futures",
