@@ -2,8 +2,8 @@
 
 . ./scripts/env-native-cpu-without-avx-512
 
-if [[ -z $1 ]]; then
-    echo "Usage: $0 [mio|glommio]"
+if [ "$1" != "mio" ] && [ "$1" != "glommio" ]; then
+    echo "Usage: $0 [mio|glommio] [ARGS]"
 else
     if [ "$1" = "mio" ]; then
         cargo run --release --bin aquatic_ws -- "${@:2}"
