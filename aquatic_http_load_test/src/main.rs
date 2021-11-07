@@ -72,8 +72,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
         if config.cpu_pinning.active {
             builder = builder.pin_to_cpu(
-                WorkerIndex::SocketWorker(i)
-                    .get_cpu_index(&config.cpu_pinning, config.num_workers),
+                WorkerIndex::SocketWorker(i).get_cpu_index(&config.cpu_pinning, config.num_workers),
             );
         }
 
