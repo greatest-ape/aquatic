@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::{atomic::AtomicUsize, Arc};
 
+use aquatic_common::cpu_pinning::CpuPinningConfig;
 use hashbrown::HashMap;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -27,7 +28,7 @@ pub struct Config {
     pub duration: usize,
     pub network: NetworkConfig,
     pub handler: HandlerConfig,
-    pub core_affinity: CoreAffinityConfig,
+    pub cpu_pinning: CpuPinningConfig,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -97,13 +98,6 @@ pub struct HandlerConfig {
     pub additional_request_factor: f64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CoreAffinityConfig {
-    /// Set core affinities, descending from last core
-    pub set_affinities: bool,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -113,7 +107,7 @@ impl Default for Config {
             duration: 0,
             network: NetworkConfig::default(),
             handler: HandlerConfig::default(),
-            core_affinity: CoreAffinityConfig::default(),
+            cpu_pinning: CpuPinningConfig::default_for_load_test(),
         }
     }
 }
@@ -191,12 +185,4 @@ pub struct SocketWorkerLocalStatistics {
     pub responses_announce: usize,
     pub responses_scrape: usize,
     pub responses_error: usize,
-}
-
-impl Default for CoreAffinityConfig {
-    fn default() -> Self {
-        Self {
-            set_affinities: false,
-        }
-    }
 }

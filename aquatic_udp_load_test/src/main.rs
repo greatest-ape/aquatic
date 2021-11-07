@@ -3,6 +3,7 @@ use std::sync::{atomic::Ordering, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use crossbeam_channel::unbounded;
 use hashbrown::HashMap;
 use parking_lot::Mutex;
@@ -33,15 +34,6 @@ pub fn main() {
 impl aquatic_cli_helpers::Config for Config {}
 
 fn run(config: Config) -> ::anyhow::Result<()> {
-    let affinity_max = core_affinity::get_core_ids()
-        .map(|ids| ids.iter().map(|id| id.id).max())
-        .flatten()
-        .unwrap_or(0);
-
-    if config.core_affinity.set_affinities {
-        core_affinity::set_for_current(core_affinity::CoreId { id: affinity_max });
-    }
-
     if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape
         == 0
     {
@@ -49,6 +41,12 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     println!("Starting client with config: {:#?}", config);
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.num_socket_workers as usize,
+        WorkerIndex::Other,
+    );
 
     let mut info_hashes = Vec::with_capacity(config.handler.number_of_torrents);
 
@@ -101,11 +99,11 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
 
         thread::spawn(move || {
-            if config.core_affinity.set_affinities {
-                core_affinity::set_for_current(core_affinity::CoreId {
-                    id: affinity_max - 1 - i as usize,
-                });
-            }
+            pin_current_if_configured_to(
+                &config.cpu_pinning,
+                config.num_socket_workers as usize,
+                WorkerIndex::SocketWorker(i as usize),
+            );
 
             run_socket_thread(state, response_sender, receiver, &config, addr, thread_id)
         });
@@ -118,11 +116,11 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let response_receiver = response_receiver.clone();
 
         thread::spawn(move || {
-            if config.core_affinity.set_affinities {
-                core_affinity::set_for_current(core_affinity::CoreId {
-                    id: affinity_max - config.num_socket_workers as usize - 1 - i as usize,
-                });
-            }
+            pin_current_if_configured_to(
+                &config.cpu_pinning,
+                config.num_socket_workers as usize,
+                WorkerIndex::RequestWorker(i as usize),
+            );
             run_handler_thread(&config, state, pareto, request_senders, response_receiver)
         });
     }

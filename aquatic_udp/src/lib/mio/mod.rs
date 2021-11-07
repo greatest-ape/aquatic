@@ -3,6 +3,7 @@ use std::thread::Builder;
 use std::time::Duration;
 
 use anyhow::Context;
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use crossbeam_channel::unbounded;
 
@@ -20,11 +21,11 @@ pub mod tasks;
 use common::State;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.cpu_pinning.active {
-        core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.cpu_pinning.offset,
-        });
-    }
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     let state = State::default();
 
@@ -52,11 +53,11 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 }
 
 pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
-    if config.cpu_pinning.active {
-        core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.cpu_pinning.offset,
-        });
-    }
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
@@ -72,11 +73,11 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
         Builder::new()
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
-                if config.cpu_pinning.active {
-                    core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.cpu_pinning.offset + 1 + i,
-                    });
-                }
+                pin_current_if_configured_to(
+                    &config.cpu_pinning,
+                    config.socket_workers,
+                    WorkerIndex::RequestWorker(i),
+                );
 
                 handlers::run_request_worker(state, config, request_receiver, response_sender)
             })
@@ -93,11 +94,11 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
-                if config.cpu_pinning.active {
-                    core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.cpu_pinning.offset + 1 + config.request_workers + i,
-                    });
-                }
+                pin_current_if_configured_to(
+                    &config.cpu_pinning,
+                    config.socket_workers,
+                    WorkerIndex::SocketWorker(i),
+                );
 
                 network::run_socket_worker(
                     state,
@@ -118,11 +119,11 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
         Builder::new()
             .name("statistics-collector".to_string())
             .spawn(move || {
-                if config.cpu_pinning.active {
-                    core_affinity::set_for_current(core_affinity::CoreId {
-                        id: config.cpu_pinning.offset,
-                    });
-                }
+                pin_current_if_configured_to(
+                    &config.cpu_pinning,
+                    config.socket_workers,
+                    WorkerIndex::Other,
+                );
 
                 loop {
                     ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
