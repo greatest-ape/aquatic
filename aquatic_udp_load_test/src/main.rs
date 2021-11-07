@@ -46,12 +46,6 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     println!("Starting client with config: {:#?}", config);
 
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.num_socket_workers as usize,
-        WorkerIndex::Other,
-    );
-
     let mut info_hashes = Vec::with_capacity(config.handler.number_of_torrents);
 
     for _ in 0..config.handler.number_of_torrents {
@@ -137,6 +131,12 @@ fn run(config: Config) -> ::anyhow::Result<()> {
             .send(request)
             .expect("bootstrap: add initial request to request queue");
     }
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.num_socket_workers as usize,
+        WorkerIndex::Other,
+    );
 
     monitor_statistics(state, &config);
 
