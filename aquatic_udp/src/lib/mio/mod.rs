@@ -21,12 +21,6 @@ pub mod tasks;
 use common::State;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        WorkerIndex::Other,
-    );
-
     let state = State::default();
 
     update_access_list(&config.access_list, &state.access_list)?;
@@ -39,6 +33,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         ::std::thread::spawn(move || run_inner(config, state));
     }
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     for signal in &mut signals {
         match signal {
@@ -53,12 +53,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 }
 
 pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        WorkerIndex::Other,
-    );
-
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
     let (request_sender, request_receiver) = unbounded();
@@ -140,6 +134,12 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
         config.socket_workers,
     )
     .unwrap();
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     loop {
         ::std::thread::sleep(Duration::from_secs(

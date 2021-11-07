@@ -22,15 +22,15 @@ use common::*;
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 
 pub fn run(config: Config, state: State) -> anyhow::Result<()> {
+    start_workers(config.clone(), state.clone()).expect("couldn't start workers");
+
+    // TODO: privdrop here instead
+
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,
         WorkerIndex::Other,
     );
-
-    start_workers(config.clone(), state.clone()).expect("couldn't start workers");
-
-    // TODO: privdrop here instead
 
     loop {
         ::std::thread::sleep(Duration::from_secs(

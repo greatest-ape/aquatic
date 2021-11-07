@@ -34,12 +34,6 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     println!("Starting client with config: {:#?}", config);
 
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.num_workers as usize,
-        WorkerIndex::Other,
-    );
-
     let mut info_hashes = Vec::with_capacity(config.torrents.number_of_torrents);
 
     let mut rng = SmallRng::from_entropy();
@@ -63,20 +57,24 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let tls_config = tls_config.clone();
         let state = state.clone();
 
-        let mut builder = LocalExecutorBuilder::default();
+        LocalExecutorBuilder::default()
+            .spawn(move || async move {
+                pin_current_if_configured_to(
+                    &config.cpu_pinning,
+                    config.num_workers,
+                    WorkerIndex::SocketWorker(i),
+                );
 
-        if config.cpu_pinning.active {
-            builder = builder.pin_to_cpu(
-                WorkerIndex::SocketWorker(i).get_cpu_index(&config.cpu_pinning, config.num_workers),
-            );
-        }
-
-        builder
-            .spawn(|| async move {
                 run_socket_thread(config, tls_config, state).await.unwrap();
             })
             .unwrap();
     }
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.num_workers as usize,
+        WorkerIndex::Other,
+    );
 
     monitor_statistics(state, &config);
 

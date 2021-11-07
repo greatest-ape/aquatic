@@ -17,12 +17,6 @@ pub mod mio;
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        WorkerIndex::Other,
-    );
-
     cfg_if!(
         if #[cfg(feature = "with-glommio")] {
             let state = glommio::common::State::default();
@@ -47,6 +41,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             }
         );
     }
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     for signal in &mut signals {
         match signal {
