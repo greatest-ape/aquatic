@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::{atomic::AtomicUsize, Arc};
 
+use aquatic_cli_helpers::LogLevel;
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use hashbrown::HashMap;
 use parking_lot::Mutex;
@@ -16,6 +17,7 @@ pub struct ThreadId(pub u8);
 pub struct Config {
     /// Server address
     pub server_address: SocketAddr,
+    pub log_level: LogLevel,
     /// Number of sockets and socket worker threads
     ///
     /// Sockets will bind to one port each, and with
@@ -102,6 +104,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
+            log_level: LogLevel::Error,
             num_socket_workers: 1,
             num_request_workers: 1,
             duration: 0,

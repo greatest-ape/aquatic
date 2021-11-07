@@ -31,7 +31,11 @@ pub fn main() {
     )
 }
 
-impl aquatic_cli_helpers::Config for Config {}
+impl aquatic_cli_helpers::Config for Config {
+    fn get_log_level(&self) -> Option<aquatic_cli_helpers::LogLevel> {
+        Some(self.log_level)
+    }
+}
 
 fn run(config: Config) -> ::anyhow::Result<()> {
     if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape
