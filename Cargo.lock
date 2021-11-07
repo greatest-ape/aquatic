@@ -96,7 +96,6 @@ dependencies = [
  "aquatic_common",
  "aquatic_http_protocol",
  "cfg-if",
- "core_affinity",
  "either",
  "futures-lite",
  "futures-rustls",
@@ -123,6 +122,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
+ "aquatic_common",
  "aquatic_http_protocol",
  "futures-lite",
  "glommio",

@@ -1,18 +1,26 @@
 use std::net::SocketAddr;
 
+use aquatic_cli_helpers::LogLevel;
+use aquatic_common::cpu_pinning::CpuPinningConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub server_address: SocketAddr,
-    pub num_workers: u8,
+    pub log_level: LogLevel,
+    pub num_workers: usize,
     pub num_connections: usize,
     pub duration: usize,
     pub torrents: TorrentConfig,
+    pub cpu_pinning: CpuPinningConfig,
 }
 
-impl aquatic_cli_helpers::Config for Config {}
+impl aquatic_cli_helpers::Config for Config {
+    fn get_log_level(&self) -> Option<LogLevel> {
+        Some(self.log_level)
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -36,10 +44,12 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
+            log_level: LogLevel::Error,
             num_workers: 1,
             num_connections: 8,
             duration: 0,
             torrents: TorrentConfig::default(),
+            cpu_pinning: CpuPinningConfig::default_for_load_test(),
         }
     }
 }

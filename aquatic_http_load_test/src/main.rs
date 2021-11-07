@@ -3,6 +3,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use ::glommio::LocalExecutorBuilder;
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use rand::prelude::*;
 use rand_distr::Pareto;
 
@@ -36,6 +37,12 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     println!("Starting client with config: {:#?}", config);
 
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.num_workers as usize,
+        WorkerIndex::Other,
+    );
+
     let mut info_hashes = Vec::with_capacity(config.torrents.number_of_torrents);
 
     let mut rng = SmallRng::from_entropy();
@@ -56,12 +63,21 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     let tls_config = create_tls_config().unwrap();
 
-    for _ in 0..config.num_workers {
+    for i in 0..config.num_workers {
         let config = config.clone();
         let tls_config = tls_config.clone();
         let state = state.clone();
 
-        LocalExecutorBuilder::default()
+        let mut builder = LocalExecutorBuilder::default();
+
+        if config.cpu_pinning.active {
+            builder = builder.pin_to_cpu(
+                WorkerIndex::SocketWorker(i)
+                    .get_cpu_index(&config.cpu_pinning, config.num_workers),
+            );
+        }
+
+        builder
             .spawn(|| async move {
                 run_socket_thread(config, tls_config, state).await.unwrap();
             })

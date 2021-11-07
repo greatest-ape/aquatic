@@ -5,7 +5,9 @@ use std::{
 };
 
 use aquatic_common::{
-    access_list::update_access_list, privileges::drop_privileges_after_socket_binding,
+    access_list::update_access_list,
+    cpu_pinning::{pin_current_if_configured_to, WorkerIndex},
+    privileges::drop_privileges_after_socket_binding,
 };
 use common::{State, TlsConfig};
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
@@ -23,11 +25,11 @@ pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
 const SHARED_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.cpu_pinning.active {
-        core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.cpu_pinning.offset,
-        });
-    }
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     let state = State::default();
 
@@ -55,11 +57,11 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 }
 
 pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
-    if config.cpu_pinning.active {
-        core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.cpu_pinning.offset,
-        });
-    }
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     let num_peers = config.socket_workers + config.request_workers;
 
@@ -83,7 +85,10 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let mut builder = LocalExecutorBuilder::default();
 
         if config.cpu_pinning.active {
-            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + i);
+            builder = builder.pin_to_cpu(
+                WorkerIndex::SocketWorker(i)
+                    .get_cpu_index(&config.cpu_pinning, config.socket_workers),
+            );
         }
 
         let executor = builder.spawn(|| async move {
@@ -110,7 +115,10 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let mut builder = LocalExecutorBuilder::default();
 
         if config.cpu_pinning.active {
-            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + config.socket_workers + i);
+            builder = builder.pin_to_cpu(
+                WorkerIndex::RequestWorker(i)
+                    .get_cpu_index(&config.cpu_pinning, config.socket_workers),
+            );
         }
 
         let executor = builder.spawn(|| async move {
