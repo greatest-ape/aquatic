@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 use std::sync::{atomic::AtomicUsize, Arc};
 
+use aquatic_cli_helpers::LogLevel;
+use aquatic_common::cpu_pinning::CpuPinningConfig;
 use hashbrown::HashMap;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -15,6 +17,7 @@ pub struct ThreadId(pub u8);
 pub struct Config {
     /// Server address
     pub server_address: SocketAddr,
+    pub log_level: LogLevel,
     /// Number of sockets and socket worker threads
     ///
     /// Sockets will bind to one port each, and with
@@ -27,7 +30,7 @@ pub struct Config {
     pub duration: usize,
     pub network: NetworkConfig,
     pub handler: HandlerConfig,
-    pub core_affinity: CoreAffinityConfig,
+    pub cpu_pinning: CpuPinningConfig,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -97,23 +100,17 @@ pub struct HandlerConfig {
     pub additional_request_factor: f64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CoreAffinityConfig {
-    /// Set core affinities, descending from last core
-    pub set_affinities: bool,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
+            log_level: LogLevel::Error,
             num_socket_workers: 1,
             num_request_workers: 1,
             duration: 0,
             network: NetworkConfig::default(),
             handler: HandlerConfig::default(),
-            core_affinity: CoreAffinityConfig::default(),
+            cpu_pinning: CpuPinningConfig::default_for_load_test(),
         }
     }
 }
@@ -191,12 +188,4 @@ pub struct SocketWorkerLocalStatistics {
     pub responses_announce: usize,
     pub responses_scrape: usize,
     pub responses_error: usize,
-}
-
-impl Default for CoreAffinityConfig {
-    fn default() -> Self {
-        Self {
-            set_affinities: false,
-        }
-    }
 }

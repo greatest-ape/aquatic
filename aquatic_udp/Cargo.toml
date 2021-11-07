@@ -25,7 +25,6 @@ aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
 cfg-if = "1"
-core_affinity = "0.5"
 hex = "0.4"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }

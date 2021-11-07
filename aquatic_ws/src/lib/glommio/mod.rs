@@ -9,7 +9,10 @@ use std::{
 };
 
 use crate::config::Config;
-use aquatic_common::privileges::drop_privileges_after_socket_binding;
+use aquatic_common::{
+    cpu_pinning::{pin_current_if_configured_to, WorkerIndex},
+    privileges::drop_privileges_after_socket_binding,
+};
 
 use self::common::*;
 
@@ -18,12 +21,6 @@ use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 const SHARED_CHANNEL_SIZE: usize = 1024;
 
 pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
-    if config.cpu_pinning.active {
-        core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.cpu_pinning.offset,
-        });
-    }
-
     let num_peers = config.socket_workers + config.request_workers;
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
@@ -43,13 +40,13 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let response_mesh_builder = response_mesh_builder.clone();
         let num_bound_sockets = num_bound_sockets.clone();
 
-        let mut builder = LocalExecutorBuilder::default();
+        let executor = LocalExecutorBuilder::default().spawn(move || async move {
+            pin_current_if_configured_to(
+                &config.cpu_pinning,
+                config.socket_workers,
+                WorkerIndex::SocketWorker(i),
+            );
 
-        if config.cpu_pinning.active {
-            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + i);
-        }
-
-        let executor = builder.spawn(|| async move {
             network::run_socket_worker(
                 config,
                 state,
@@ -70,13 +67,13 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
 
-        let mut builder = LocalExecutorBuilder::default();
+        let executor = LocalExecutorBuilder::default().spawn(move || async move {
+            pin_current_if_configured_to(
+                &config.cpu_pinning,
+                config.socket_workers,
+                WorkerIndex::RequestWorker(i),
+            );
 
-        if config.cpu_pinning.active {
-            builder = builder.pin_to_cpu(config.cpu_pinning.offset + 1 + config.socket_workers + i);
-        }
-
-        let executor = builder.spawn(|| async move {
             handlers::run_request_worker(config, state, request_mesh_builder, response_mesh_builder)
                 .await
         });
@@ -90,6 +87,12 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         config.socket_workers,
     )
     .unwrap();
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     for executor in executors {
         executor

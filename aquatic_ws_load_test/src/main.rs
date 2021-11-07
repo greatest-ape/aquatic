@@ -2,6 +2,7 @@ use std::sync::{atomic::Ordering, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use glommio::LocalExecutorBuilder;
 use rand::prelude::*;
 use rand_distr::Pareto;
@@ -51,17 +52,29 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     let tls_config = create_tls_config().unwrap();
 
-    for _ in 0..config.num_workers {
+    for i in 0..config.num_workers {
         let config = config.clone();
         let tls_config = tls_config.clone();
         let state = state.clone();
 
         LocalExecutorBuilder::default()
-            .spawn(|| async move {
+            .spawn(move || async move {
+                pin_current_if_configured_to(
+                    &config.cpu_pinning,
+                    config.num_workers,
+                    WorkerIndex::SocketWorker(i),
+                );
+
                 run_socket_thread(config, tls_config, state).await.unwrap();
             })
             .unwrap();
     }
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.num_workers as usize,
+        WorkerIndex::Other,
+    );
 
     monitor_statistics(state, &config);
 

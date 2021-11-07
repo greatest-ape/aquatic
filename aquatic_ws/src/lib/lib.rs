@@ -1,4 +1,7 @@
-use aquatic_common::access_list::update_access_list;
+use aquatic_common::{
+    access_list::update_access_list,
+    cpu_pinning::{pin_current_if_configured_to, WorkerIndex},
+};
 use cfg_if::cfg_if;
 use signal_hook::{consts::SIGUSR1, iterator::Signals};
 
@@ -14,12 +17,6 @@ pub mod mio;
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.cpu_pinning.active {
-        core_affinity::set_for_current(core_affinity::CoreId {
-            id: config.cpu_pinning.offset,
-        });
-    }
-
     cfg_if!(
         if #[cfg(feature = "with-glommio")] {
             let state = glommio::common::State::default();
@@ -44,6 +41,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             }
         );
     }
+
+    pin_current_if_configured_to(
+        &config.cpu_pinning,
+        config.socket_workers,
+        WorkerIndex::Other,
+    );
 
     for signal in &mut signals {
         match signal {
