@@ -67,9 +67,9 @@ Begin by generating configuration files. They differ between protocols.
 Make adjustments to the files. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
-Both `aquatic_http` and `aquatic_ws` requires configuring a TLS certificate
-file as well as a private key file to run. More information is available
-in the `aquatic_http` subsection of this document.
+`aquatic_http` requires configuring a TLS certificate file as well as a
+private key file to run. More information is available in the
+corresponding subsection of this document.
 
 Once done, run the tracker:
 
@@ -122,27 +122,6 @@ except that it:
 Supports IPv4 and IPv6 (BitTorrent UDP protocol doesn't support IPv6 very well,
 however.)
 
-For optimal performance, enable setting of core affinities in configuration.
-
-#### Benchmarks
-
-[opentracker]: http://erdgeist.org/arts/software/opentracker/
-
-Server responses per second, best result in bold:
-
-| workers | aquatic   | [opentracker] |
-|---------|-----------|---------------|
-| 1       | n/a       | __232k__      |
-| 2       | __309k__  | 293k          |
-| 3       | __597k__  | 397k          |
-| 4       | __603k__  | 481k          |
-| 6       | __757k__  | 587k          |
-| 8       | __850k__  | 431k          |
-| 10      | __826k__  | 165k          |
-| 16      | __785k__  | 139k          |
-
-Please refer to `documents/aquatic-udp-load-test-2021-08-19.pdf` for more details.
-
 #### Alternative implementation using io_uring
 
 [io_uring]: https://en.wikipedia.org/wiki/Io_uring
@@ -150,7 +129,12 @@ Please refer to `documents/aquatic-udp-load-test-2021-08-19.pdf` for more detail
 
 There is an alternative implementation that utilizes [io_uring] by running on
 [glommio]. It only runs on Linux and requires a recent kernel (version 5.8 or later).
-In some cases, it performs even better than the cross-platform implementation.
+
+#### Performance
+
+![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-08.png)
+
+More details are available [here](./documents/aquatic-udp-load-test-2021-11-08.pdf).
 
 ### aquatic_http: HTTP BitTorrent tracker
 
