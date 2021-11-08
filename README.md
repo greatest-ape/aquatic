@@ -67,9 +67,9 @@ Begin by generating configuration files. They differ between protocols.
 Make adjustments to the files. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
-Both `aquatic_http` and `aquatic_ws` requires configuring a TLS certificate
-file as well as a private key file to run. More information is available
-in the `aquatic_http` subsection of this document.
+`aquatic_http` requires configuring a TLS certificate file as well as a
+private key file to run. More information is available in the
+corresponding subsection of this document.
 
 Once done, run the tracker:
 
@@ -122,8 +122,6 @@ except that it:
 Supports IPv4 and IPv6 (BitTorrent UDP protocol doesn't support IPv6 very well,
 however.)
 
-For optimal performance, enable setting of core affinities in configuration.
-
 #### Alternative implementation using io_uring
 
 [io_uring]: https://en.wikipedia.org/wiki/Io_uring
@@ -132,7 +130,7 @@ For optimal performance, enable setting of core affinities in configuration.
 There is an alternative implementation that utilizes [io_uring] by running on
 [glommio]. It only runs on Linux and requires a recent kernel (version 5.8 or later).
 
-#### Benchmarks
+#### Performance
 
 ![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-08.png)
 
