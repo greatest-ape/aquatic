@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use aquatic_cli_helpers::LogLevel;
+#[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use hashbrown::HashMap;
 use parking_lot::Mutex;
@@ -30,6 +31,7 @@ pub struct Config {
     pub duration: usize,
     pub network: NetworkConfig,
     pub handler: HandlerConfig,
+    #[cfg(feature = "cpu-pinning")]
     pub cpu_pinning: CpuPinningConfig,
 }
 
@@ -110,6 +112,7 @@ impl Default for Config {
             duration: 0,
             network: NetworkConfig::default(),
             handler: HandlerConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
             cpu_pinning: CpuPinningConfig::default_for_load_test(),
         }
     }

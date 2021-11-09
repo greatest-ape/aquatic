@@ -15,6 +15,9 @@ path = "src/lib/lib.rs"
 name = "aquatic_http"
 path = "src/bin/main.rs"
 
+[features]
+cpu-pinning = ["aquatic_common/cpu-pinning"]
+
 [dependencies]
 anyhow = "1"
 aquatic_cli_helpers = "0.1.0"

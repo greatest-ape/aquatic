@@ -2,6 +2,7 @@ use std::sync::{atomic::Ordering, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use glommio::LocalExecutorBuilder;
 use rand::prelude::*;
@@ -59,6 +60,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
         LocalExecutorBuilder::default()
             .spawn(move || async move {
+                #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.num_workers,
@@ -70,6 +72,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
             .unwrap();
     }
 
+    #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.num_workers as usize,

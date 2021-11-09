@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 
-use aquatic_common::cpu_pinning::CpuPinningConfig;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +25,8 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
-    pub cpu_pinning: CpuPinningConfig,
+    #[cfg(feature = "cpu-pinning")]
+    pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -116,7 +116,8 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            cpu_pinning: CpuPinningConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: Default::default(),
         }
     }
 }
