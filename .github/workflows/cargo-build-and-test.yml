@@ -10,12 +10,30 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-test-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: cargo build --verbose --workspace --all-targets
+      run: |
+        cargo build --verbose -p aquatic_udp --features "cpu-pinning"
+        cargo build --verbose -p aquatic_udp --features "with-glommio cpu-pinning" --no-default-features
+
+        cargo build --verbose -p aquatic_http --features "cpu-pinning"
+
+        cargo build --verbose -p aquatic_ws --features "cpu-pinning"
+        cargo build --verbose -p aquatic_ws --features "with-glommio cpu-pinning" --no-default-features
     - name: Run tests
       run: cargo test --verbose --workspace --all-targets
+
+
+  build-other:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: |
+        cargo build --verbose -p aquatic_udp
+        cargo build --verbose -p aquatic_ws
