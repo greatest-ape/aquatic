@@ -1,9 +1,6 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::io::Cursor;
-use std::marker::PhantomData;
-use std::net::{IpAddr, SocketAddr};
-use std::os::unix::prelude::AsRawFd;
+use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -20,21 +17,18 @@ use glommio::enclose;
 use glommio::net::UdpSocket;
 use glommio::prelude::*;
 use glommio::timer::TimerActionRepeat;
-use nix::sys::socket::{sendmmsg, ControlMessage, InetAddr, MsgFlags, SendMmsgData};
-use nix::sys::uio::IoVec;
 use rand::prelude::{Rng, SeedableRng, StdRng};
 
-use aquatic_udp_protocol::{IpVersion, Request, Response};
+use aquatic_udp_protocol::{Request, Response};
 
 use super::common::State;
 
 use crate::common::handlers::*;
-use crate::common::network::ConnectionMap;
+use crate::common::network::{ConnectionMap, ResponseSender};
 use crate::common::*;
 use crate::config::Config;
 
 const PENDING_SCRAPE_MAX_WAIT: u64 = 30;
-const MAX_RESPONSES_PER_SYSCALL: usize = 32;
 
 struct PendingScrapeResponse {
     pending_worker_responses: usize,
@@ -165,9 +159,9 @@ pub async fn run_socket_worker(
         .detach();
     }
 
-    let response_sender = Rc::new(RefCell::new(ResponseSender::new(socket)));
+    let response_sender = Rc::new(RefCell::new(ResponseSender::default()));
 
-    queue_responses_for_sending(response_sender, local_receiver.stream()).await;
+    queue_responses_for_sending(socket, response_sender, local_receiver.stream()).await;
 }
 
 async fn read_requests(
@@ -385,6 +379,7 @@ async fn handle_shared_responses<S>(
 }
 
 async fn queue_responses_for_sending<'a, S>(
+    socket: Rc<UdpSocket>,
     response_sender: Rc<RefCell<ResponseSender>>,
     mut stream: S,
 ) where
@@ -393,99 +388,12 @@ async fn queue_responses_for_sending<'a, S>(
     while let Some((response, addr)) = stream.next().await {
         response_sender
             .borrow_mut()
-            .queue_and_maybe_send_response(response, addr);
+            .queue_and_maybe_send_response::<UdpSocket>(&socket, response, addr);
 
         yield_if_needed().await;
     }
 }
 
-struct ResponseSender {
-    socket: Rc<UdpSocket>,
-    response_buffers: [[u8; MAX_PACKET_SIZE]; MAX_RESPONSES_PER_SYSCALL],
-    response_lengths: [usize; MAX_RESPONSES_PER_SYSCALL],
-    recepients: [Option<nix::sys::socket::SockAddr>; MAX_RESPONSES_PER_SYSCALL],
-    response_index: usize,
-}
-
-impl ResponseSender {
-    fn new(socket: Rc<UdpSocket>) -> Self {
-        Self {
-            socket,
-            response_buffers: [[0u8; MAX_PACKET_SIZE]; MAX_RESPONSES_PER_SYSCALL],
-            response_lengths: [0usize; MAX_RESPONSES_PER_SYSCALL],
-            recepients: [None; MAX_RESPONSES_PER_SYSCALL],
-            response_index: 0,
-        }
-    }
-
-    fn queue_and_maybe_send_response(&mut self, response: Response, addr: SocketAddr) {
-        let mut buf = Cursor::new(&mut self.response_buffers[self.response_index][..]);
-
-        response
-            .write(&mut buf, ip_version_from_ip(addr.ip()))
-            .expect("write response");
-
-        self.response_lengths[self.response_index] = buf.position() as usize;
-        self.recepients[self.response_index] = Some(Self::convert_socket_addr(&addr));
-
-        if self.response_index == MAX_RESPONSES_PER_SYSCALL - 1 {
-            self.force_send();
-        } else {
-            self.response_index += 1;
-        }
-    }
-
-    // TODO: call with timer with user-configurable interval
-    fn force_send(&mut self) {
-        let control_messages: [ControlMessage; 0] = [];
-        let num_to_send = self.response_index + 1;
-
-        let mut io_vectors = Vec::with_capacity(num_to_send);
-
-        for i in 0..num_to_send {
-            let iov = [IoVec::from_slice(
-                &self.response_buffers[i][..self.response_lengths[i]],
-            )];
-
-            io_vectors.push(iov);
-        }
-
-        let mut messages = Vec::with_capacity(num_to_send);
-
-        for i in 0..num_to_send {
-            let message = SendMmsgData {
-                iov: &io_vectors[i],
-                cmsgs: &control_messages[..],
-                addr: self.recepients[i],
-                _lt: PhantomData::default(),
-            };
-
-            messages.push(message);
-        }
-
-        let res = sendmmsg(self.socket.as_raw_fd(), &messages, MsgFlags::MSG_DONTWAIT);
-
-        self.response_index = 0;
-    }
-
-    fn convert_socket_addr(addr: &SocketAddr) -> nix::sys::socket::SockAddr {
-        nix::sys::socket::SockAddr::Inet(InetAddr::from_std(addr))
-    }
-}
-
 fn calculate_request_consumer_index(config: &Config, info_hash: InfoHash) -> usize {
     (info_hash.0[0] as usize) % config.request_workers
-}
-
-fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
-    match ip {
-        IpAddr::V4(_) => IpVersion::IPv4,
-        IpAddr::V6(ip) => {
-            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments() {
-                IpVersion::IPv4
-            } else {
-                IpVersion::IPv6
-            }
-        }
-    }
 }
