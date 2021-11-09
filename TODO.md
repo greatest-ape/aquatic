@@ -1,14 +1,23 @@
 # TODO
 
+* feature-gate cpu pinning on supported OS-es
+
 * readme
   * document privilege dropping and cpu pinning
+  * document access list log output levels and that it exits program
+    on start if parsing fails
 
-* socket_recv_size and ipv6_only in glommio implementations
+* config
+  * add flag to print parsed config when starting
+  * fail on unrecognized keys
 
-* config: fail on unrecognized keys
+* implement socket_recv_size and ipv6_only in glommio implementations
 
 * CI
-  * test both aquatic_udp implementations
+  * run build and check on multiple OSes
+    * Linux: all implementations
+    * FreeBSD, macOS (?): mio implementations
+  * file transfer CI for all implementations
   * test access lists?
   * cargo-deny
 
@@ -18,6 +27,8 @@
     * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
       containing TransactionId and BTreeMap<usize, InfoHash>, and same for
       response
+  * mio
+    * stagger connection cleaning intervals?
 
 * aquatic_http:
   * clean out connections regularly
@@ -32,10 +43,6 @@
   * use futures-rustls for load test
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
-
-* aquatic_ws
-  * load test cpu pinning
-  * test with multiple socket and request workers
 
 ## Less important
 
