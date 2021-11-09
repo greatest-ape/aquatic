@@ -1,7 +1,5 @@
 # TODO
 
-* feature-gate cpu pinning on supported OS-es
-
 * readme
   * document privilege dropping and cpu pinning
   * document access list log output levels and that it exits program
@@ -14,9 +12,6 @@
 * implement socket_recv_size and ipv6_only in glommio implementations
 
 * CI
-  * run build and check on multiple OSes
-    * Linux: all implementations
-    * FreeBSD, macOS (?): mio implementations
   * file transfer CI for all implementations
   * test access lists?
   * cargo-deny
@@ -43,6 +38,9 @@
   * use futures-rustls for load test
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
+
+* http and ws load tests
+  * add config key 'connection_open_interval_ms', default to 1000
 
 ## Less important
 
