@@ -178,6 +178,7 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_udp_protocol",
+ "array-init",
  "cfg-if",
  "crossbeam-channel",
  "futures-lite",
@@ -187,6 +188,7 @@ dependencies = [
  "log",
  "mimalloc",
  "mio",
+ "nix",
  "parking_lot",
  "quickcheck",
  "quickcheck_macros",
@@ -322,6 +324,12 @@ name = "arc-swap"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6df5aef5c5830360ce5218cecb8f018af3438af5686ae945094affc86fdec63"
+
+[[package]]
+name = "array-init"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6945cc5422176fc5e602e590c2878d2c2acd9a4fe20a4baa7c28022521698ec6"
 
 [[package]]
 name = "arrayvec"

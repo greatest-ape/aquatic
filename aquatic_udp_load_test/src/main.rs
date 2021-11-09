@@ -123,13 +123,15 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         });
     }
 
-    // Bootstrap request cycle by adding a request to each request channel
+    // Bootstrap request cycle by adding a few requests to each request channel
     for sender in request_senders.iter() {
-        let request = create_connect_request(generate_transaction_id(&mut thread_rng()));
+        for _ in 0..32 {
+            let request = create_connect_request(generate_transaction_id(&mut thread_rng()));
 
-        sender
-            .send(request)
-            .expect("bootstrap: add initial request to request queue");
+            sender
+                .send(request)
+                .expect("bootstrap: add initial request to request queue");
+        }
     }
 
     pin_current_if_configured_to(
