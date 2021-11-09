@@ -148,6 +148,17 @@ pub async fn run_socket_worker(
     )
     .detach();
 
+    let response_sender = Rc::new(RefCell::new(ResponseSender::default()));
+
+    // Periodically force sending of pending responses
+    TimerActionRepeat::repeat(enclose!((config, socket, response_sender) move || {
+        enclose!((config, socket, response_sender) move || async move {
+            response_sender.borrow_mut().force_send(socket.as_ref());
+
+            Some(Duration::from_millis(config.network.response_buffer_max_pending_time_ms))
+        })()
+    }));
+
     for (_, receiver) in response_receivers.streams().into_iter() {
         spawn_local(
             enclose!((local_sender, pending_scrape_responses) handle_shared_responses(
@@ -158,8 +169,6 @@ pub async fn run_socket_worker(
         )
         .detach();
     }
-
-    let response_sender = Rc::new(RefCell::new(ResponseSender::default()));
 
     queue_responses_for_sending(socket, response_sender, local_receiver.stream()).await;
 }

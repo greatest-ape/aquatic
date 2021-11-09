@@ -57,6 +57,8 @@ pub struct NetworkConfig {
     pub socket_recv_buffer_size: usize,
     #[cfg(feature = "with-mio")]
     pub poll_event_capacity: usize,
+    #[cfg(feature = "with-glommio")]
+    pub response_buffer_max_pending_time_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -128,6 +130,8 @@ impl Default for NetworkConfig {
             socket_recv_buffer_size: 4096 * 128,
             #[cfg(feature = "with-mio")]
             poll_event_capacity: 4096,
+            #[cfg(feature = "with-glommio")]
+            response_buffer_max_pending_time_ms: 100,
         }
     }
 }

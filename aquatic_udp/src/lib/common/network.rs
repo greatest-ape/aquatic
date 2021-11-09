@@ -78,8 +78,7 @@ impl ResponseSender {
         }
     }
 
-    // TODO: call with timer with user-configurable interval
-    fn force_send<S: AsRawFd>(&mut self, socket: &S) {
+    pub fn force_send<S: AsRawFd>(&mut self, socket: &S) {
         let control_messages: [ControlMessage; 0] = [];
         let num_to_send = self.response_index + 1;
 
