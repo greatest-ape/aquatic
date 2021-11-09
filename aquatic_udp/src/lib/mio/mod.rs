@@ -3,6 +3,7 @@ use std::thread::Builder;
 use std::time::Duration;
 
 use anyhow::Context;
+#[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
 use crossbeam_channel::unbounded;
@@ -34,6 +35,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         ::std::thread::spawn(move || run_inner(config, state));
     }
 
+    #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,
@@ -67,6 +69,7 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
         Builder::new()
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
+                #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
@@ -88,6 +91,7 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
+                #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
@@ -113,6 +117,7 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
         Builder::new()
             .name("statistics-collector".to_string())
             .spawn(move || {
+                #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
@@ -135,6 +140,7 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
     )
     .unwrap();
 
+    #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,

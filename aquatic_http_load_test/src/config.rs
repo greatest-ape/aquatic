@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
 use aquatic_cli_helpers::LogLevel;
-use aquatic_common::cpu_pinning::CpuPinningConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -13,7 +12,8 @@ pub struct Config {
     pub num_connections: usize,
     pub duration: usize,
     pub torrents: TorrentConfig,
-    pub cpu_pinning: CpuPinningConfig,
+    #[cfg(feature = "cpu-pinning")]
+    pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -49,7 +49,8 @@ impl Default for Config {
             num_connections: 8,
             duration: 0,
             torrents: TorrentConfig::default(),
-            cpu_pinning: CpuPinningConfig::default_for_load_test(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig::default_for_load_test(),
         }
     }
 }

@@ -9,6 +9,9 @@ repository = "https://github.com/greatest-ape/aquatic"
 [[bin]]
 name = "aquatic_ws_load_test"
 
+[features]
+cpu-pinning = ["aquatic_common/cpu-pinning"]
+
 [dependencies]
 anyhow = "1"
 async-tungstenite = "0.15"

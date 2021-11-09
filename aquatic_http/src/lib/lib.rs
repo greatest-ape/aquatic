@@ -3,12 +3,12 @@ use std::{
     io::BufReader,
     sync::{atomic::AtomicUsize, Arc},
 };
-
 use aquatic_common::{
     access_list::update_access_list,
-    cpu_pinning::{pin_current_if_configured_to, WorkerIndex},
     privileges::drop_privileges_after_socket_binding,
 };
+#[cfg(feature = "cpu-pinning")]
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use common::{State, TlsConfig};
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 use signal_hook::{consts::SIGUSR1, iterator::Signals};
@@ -38,6 +38,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         ::std::thread::spawn(move || run_inner(config, state));
     }
 
+    #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,
@@ -77,6 +78,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let num_bound_sockets = num_bound_sockets.clone();
 
         let executor = LocalExecutorBuilder::default().spawn(move || async move {
+            #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
                 config.socket_workers,
@@ -104,6 +106,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let response_mesh_builder = response_mesh_builder.clone();
 
         let executor = LocalExecutorBuilder::default().spawn(move || async move {
+            #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
                 config.socket_workers,
@@ -124,6 +127,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
     )
     .unwrap();
 
+    #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,

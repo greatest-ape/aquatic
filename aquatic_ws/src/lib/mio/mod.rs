@@ -5,6 +5,7 @@ use std::thread::Builder;
 use std::time::Duration;
 
 use anyhow::Context;
+#[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use histogram::Histogram;
 use mio::{Poll, Waker};
@@ -26,6 +27,7 @@ pub fn run(config: Config, state: State) -> anyhow::Result<()> {
 
     // TODO: privdrop here instead
 
+    #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,
@@ -76,6 +78,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
+                #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
@@ -134,6 +137,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         Builder::new()
             .name(format!("request-{:02}", i + 1))
             .spawn(move || {
+                #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
@@ -157,6 +161,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         Builder::new()
             .name("statistics".to_string())
             .spawn(move || {
+                #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,

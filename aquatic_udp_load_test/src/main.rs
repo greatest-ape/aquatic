@@ -3,6 +3,7 @@ use std::sync::{atomic::Ordering, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use crossbeam_channel::unbounded;
 use hashbrown::HashMap;
@@ -97,6 +98,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
 
         thread::spawn(move || {
+            #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
                 config.num_socket_workers as usize,
@@ -114,6 +116,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let response_receiver = response_receiver.clone();
 
         thread::spawn(move || {
+            #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
                 config.num_socket_workers as usize,
@@ -132,6 +135,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
             .expect("bootstrap: add initial request to request queue");
     }
 
+    #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.num_socket_workers as usize,
