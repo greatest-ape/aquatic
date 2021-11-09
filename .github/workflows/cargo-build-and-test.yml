@@ -28,7 +28,7 @@ jobs:
       run: cargo test --verbose --workspace --all-targets
 
 
-  build-other:
+  build-macos:
     runs-on: macos-latest
     timeout-minutes: 10
     steps:
