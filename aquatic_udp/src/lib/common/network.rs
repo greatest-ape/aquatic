@@ -37,20 +37,29 @@ impl ConnectionMap {
     }
 }
 
+#[derive(Clone, Copy)]
+struct PreparedResponse {
+    buffer: [u8; MAX_PACKET_SIZE],
+    len: usize,
+    addr: nix::sys::socket::SockAddr,
+}
+
 pub struct ResponseSender {
-    response_buffers: [[u8; MAX_PACKET_SIZE]; MAX_RESPONSES_PER_SYSCALL],
-    response_lengths: [usize; MAX_RESPONSES_PER_SYSCALL],
-    recepients: [Option<nix::sys::socket::SockAddr>; MAX_RESPONSES_PER_SYSCALL],
-    response_index: usize,
+    responses: [PreparedResponse; MAX_RESPONSES_PER_SYSCALL],
+    num_to_send: usize,
 }
 
 impl Default for ResponseSender {
     fn default() -> Self {
+        let empty = PreparedResponse {
+            buffer: [0u8; MAX_PACKET_SIZE],
+            len: 0,
+            addr: convert_socket_addr(&SocketAddr::V4(::std::net::SocketAddrV4::new(::std::net::Ipv4Addr::UNSPECIFIED, 0))),
+        };
+
         Self {
-            response_buffers: [[0u8; MAX_PACKET_SIZE]; MAX_RESPONSES_PER_SYSCALL],
-            response_lengths: [0usize; MAX_RESPONSES_PER_SYSCALL],
-            recepients: [None; MAX_RESPONSES_PER_SYSCALL],
-            response_index: 0,
+            responses: [empty; MAX_RESPONSES_PER_SYSCALL],
+            num_to_send: 0,
         }
     }
 }
@@ -62,43 +71,48 @@ impl ResponseSender {
         response: Response,
         addr: SocketAddr,
     ) {
-        let mut buf = Cursor::new(&mut self.response_buffers[self.response_index][..]);
+        let prepared_response = &mut self.responses[self.num_to_send];
+
+        let mut cursor = Cursor::new(&mut prepared_response.buffer[..]);
 
         response
-            .write(&mut buf, ip_version_from_ip(addr.ip()))
+            .write(&mut cursor, ip_version_from_ip(addr.ip()))
             .expect("write response");
+        
+        prepared_response.len = cursor.position() as usize;
+        prepared_response.addr = convert_socket_addr(&addr);
 
-        self.response_lengths[self.response_index] = buf.position() as usize;
-        self.recepients[self.response_index] = Some(Self::convert_socket_addr(&addr));
+        self.num_to_send += 1;
 
-        if self.response_index == MAX_RESPONSES_PER_SYSCALL - 1 {
-            self.force_send(socket);
-        } else {
-            self.response_index += 1;
+        if self.num_to_send == MAX_RESPONSES_PER_SYSCALL {
+            self.flush(socket);
         }
     }
 
-    pub fn force_send<S: AsRawFd>(&mut self, socket: &S) {
+    pub fn flush<S: AsRawFd>(&mut self, socket: &S) {
+        if self.num_to_send == 0 {
+            return;
+        }
+
         let control_messages: [ControlMessage; 0] = [];
-        let num_to_send = self.response_index + 1;
 
-        let mut io_vectors = Vec::with_capacity(num_to_send);
+        let mut io_vectors = Vec::with_capacity(self.num_to_send);
 
-        for i in 0..num_to_send {
+        for i in 0..self.num_to_send {
             let iov = [IoVec::from_slice(
-                &self.response_buffers[i][..self.response_lengths[i]],
+                &self.responses[i].buffer[..self.responses[i].len],
             )];
 
             io_vectors.push(iov);
         }
 
-        let mut messages = Vec::with_capacity(num_to_send);
+        let mut messages = Vec::with_capacity(self.num_to_send);
 
-        for i in 0..num_to_send {
+        for i in 0..self.num_to_send {
             let message = SendMmsgData {
                 iov: &io_vectors[i],
                 cmsgs: &control_messages[..],
-                addr: self.recepients[i],
+                addr: Some(self.responses[i].addr),
                 _lt: PhantomData::default(),
             };
 
@@ -112,12 +126,12 @@ impl ResponseSender {
             }
         }
 
-        self.response_index = 0;
+        self.num_to_send = 0;
     }
+}
 
-    fn convert_socket_addr(addr: &SocketAddr) -> nix::sys::socket::SockAddr {
-        nix::sys::socket::SockAddr::Inet(InetAddr::from_std(addr))
-    }
+fn convert_socket_addr(addr: &SocketAddr) -> nix::sys::socket::SockAddr {
+    nix::sys::socket::SockAddr::Inet(InetAddr::from_std(addr))
 }
 
 fn ip_version_from_ip(ip: IpAddr) -> IpVersion {

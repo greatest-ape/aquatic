@@ -104,9 +104,6 @@ pub async fn run_socket_worker(
     response_mesh_builder: MeshBuilder<(ConnectedResponse, SocketAddr), Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
-    let (local_sender, local_receiver) = new_unbounded();
-    let local_sender = Rc::new(local_sender);
-
     let mut socket = UdpSocket::bind(config.network.address).unwrap();
 
     let recv_buffer_size = config.network.socket_recv_buffer_size;
@@ -124,7 +121,11 @@ pub async fn run_socket_worker(
 
     let response_consumer_index = response_receivers.consumer_id().unwrap();
 
+    let (local_sender, local_receiver) = new_unbounded();
+    let local_sender = Rc::new(local_sender);
+
     let pending_scrape_responses = Rc::new(RefCell::new(PendingScrapeResponses::default()));
+    let response_sender = Rc::new(RefCell::new(ResponseSender::default()));
 
     // Periodically clean pending_scrape_responses
     TimerActionRepeat::repeat(enclose!((pending_scrape_responses) move || {
@@ -132,6 +133,15 @@ pub async fn run_socket_worker(
             pending_scrape_responses.borrow_mut().clean();
 
             Some(Duration::from_secs(120))
+        })()
+    }));
+
+    // Periodically force sending of pending responses
+    TimerActionRepeat::repeat(enclose!((config, socket, response_sender) move || {
+        enclose!((config, socket, response_sender) move || async move {
+            response_sender.borrow_mut().flush(socket.as_ref());
+
+            Some(Duration::from_millis(config.network.response_buffer_max_pending_time_ms))
         })()
     }));
 
@@ -148,17 +158,6 @@ pub async fn run_socket_worker(
     )
     .detach();
 
-    let response_sender = Rc::new(RefCell::new(ResponseSender::default()));
-
-    // Periodically force sending of pending responses
-    TimerActionRepeat::repeat(enclose!((config, socket, response_sender) move || {
-        enclose!((config, socket, response_sender) move || async move {
-            response_sender.borrow_mut().force_send(socket.as_ref());
-
-            Some(Duration::from_millis(config.network.response_buffer_max_pending_time_ms))
-        })()
-    }));
-
     for (_, receiver) in response_receivers.streams().into_iter() {
         spawn_local(
             enclose!((local_sender, pending_scrape_responses) handle_shared_responses(
@@ -170,7 +169,13 @@ pub async fn run_socket_worker(
         .detach();
     }
 
-    queue_responses_for_sending(socket, response_sender, local_receiver.stream()).await;
+    while let Some((response, addr)) = local_receiver.stream().next().await {
+        response_sender
+            .borrow_mut()
+            .queue_and_maybe_send_response::<UdpSocket>(&socket, response, addr);
+
+        yield_if_needed().await;
+    }
 }
 
 async fn read_requests(
@@ -382,22 +387,6 @@ async fn handle_shared_responses<S>(
         if let Some((response, addr)) = opt_response {
             local_sender.send((response, addr)).await;
         }
-
-        yield_if_needed().await;
-    }
-}
-
-async fn queue_responses_for_sending<'a, S>(
-    socket: Rc<UdpSocket>,
-    response_sender: Rc<RefCell<ResponseSender>>,
-    mut stream: S,
-) where
-    S: Stream<Item = (Response, SocketAddr)> + ::std::marker::Unpin,
-{
-    while let Some((response, addr)) = stream.next().await {
-        response_sender
-            .borrow_mut()
-            .queue_and_maybe_send_response::<UdpSocket>(&socket, response, addr);
 
         yield_if_needed().await;
     }

@@ -131,7 +131,7 @@ impl Default for NetworkConfig {
             #[cfg(feature = "with-mio")]
             poll_event_capacity: 4096,
             #[cfg(feature = "with-glommio")]
-            response_buffer_max_pending_time_ms: 100,
+            response_buffer_max_pending_time_ms: 500,
         }
     }
 }
