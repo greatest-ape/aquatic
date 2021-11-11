@@ -9,7 +9,13 @@ pub struct Config {
     pub server_address: SocketAddr,
     pub log_level: LogLevel,
     pub num_workers: usize,
+    /// Maximum number of connections to keep open
     pub num_connections: usize,
+    /// How often to check if num_connections connections are open, and
+    /// open a new one otherwise. A value of 0 means that connections are
+    /// opened as quickly as possible, which is useful when the tracker
+    /// doesn't keep connections alive.
+    pub connection_creation_interval_ms: u64,
     pub duration: usize,
     pub torrents: TorrentConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -46,7 +52,8 @@ impl Default for Config {
             server_address: "127.0.0.1:3000".parse().unwrap(),
             log_level: LogLevel::Error,
             num_workers: 1,
-            num_connections: 8,
+            num_connections: 128,
+            connection_creation_interval_ms: 10,
             duration: 0,
             torrents: TorrentConfig::default(),
             #[cfg(feature = "cpu-pinning")]

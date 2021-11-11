@@ -139,6 +139,7 @@ dependencies = [
  "futures-lite",
  "glommio",
  "hashbrown 0.11.2",
+ "log",
  "mimalloc",
  "quickcheck",
  "quickcheck_macros",
