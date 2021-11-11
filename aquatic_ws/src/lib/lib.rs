@@ -1,6 +1,6 @@
+use aquatic_common::access_list::update_access_list;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use aquatic_common::access_list::update_access_list;
 use cfg_if::cfg_if;
 use signal_hook::{consts::SIGUSR1, iterator::Signals};
 

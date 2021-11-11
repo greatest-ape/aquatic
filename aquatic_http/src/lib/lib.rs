@@ -1,17 +1,16 @@
+#[cfg(feature = "cpu-pinning")]
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
+use aquatic_common::{
+    access_list::update_access_list, privileges::drop_privileges_after_socket_binding,
+};
+use common::{State, TlsConfig};
+use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
+use signal_hook::{consts::SIGUSR1, iterator::Signals};
 use std::{
     fs::File,
     io::BufReader,
     sync::{atomic::AtomicUsize, Arc},
 };
-use aquatic_common::{
-    access_list::update_access_list,
-    privileges::drop_privileges_after_socket_binding,
-};
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use common::{State, TlsConfig};
-use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
-use signal_hook::{consts::SIGUSR1, iterator::Signals};
 
 use crate::config::Config;
 
