@@ -76,7 +76,9 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let response_mesh_builder = response_mesh_builder.clone();
         let num_bound_sockets = num_bound_sockets.clone();
 
-        let executor = LocalExecutorBuilder::default().spawn(move || async move {
+        let builder = LocalExecutorBuilder::default().name("socket");
+
+        let executor = builder.spawn(move || async move {
             #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
@@ -104,7 +106,9 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
 
-        let executor = LocalExecutorBuilder::default().spawn(move || async move {
+        let builder = LocalExecutorBuilder::default().name("request");
+
+        let executor = builder.spawn(move || async move {
             #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
