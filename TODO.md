@@ -39,8 +39,9 @@
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
 
-* http and ws load tests
-  * add config key 'connection_open_interval_ms', default to 1000
+* aquatic_ws
+  * glommio
+    * fix memory leak / huge growth
 
 ## Less important
 
