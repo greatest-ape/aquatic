@@ -24,14 +24,36 @@ pub async fn run_socket_thread(
     let config = Rc::new(config);
     let num_active_connections = Rc::new(RefCell::new(0usize));
 
-    TimerActionRepeat::repeat(move || {
-        periodically_open_connections(
-            config.clone(),
-            tls_config.clone(),
-            load_test_state.clone(),
-            num_active_connections.clone(),
-        )
-    });
+    let interval = config.connection_creation_interval_ms;
+
+    if interval == 0 {
+        loop {
+            if *num_active_connections.borrow() < config.num_connections {
+                if let Err(err) = Connection::run(
+                    config.clone(),
+                    tls_config.clone(),
+                    load_test_state.clone(),
+                    num_active_connections.clone(),
+                )
+                .await
+                {
+                    ::log::error!("connection creation error: {:?}", err);
+                }
+            }
+        }
+    } else {
+        let interval = Duration::from_millis(interval);
+
+        TimerActionRepeat::repeat(move || {
+            periodically_open_connections(
+                config.clone(),
+                interval,
+                tls_config.clone(),
+                load_test_state.clone(),
+                num_active_connections.clone(),
+            )
+        });
+    }
 
     futures_lite::future::pending::<bool>().await;
 
@@ -40,6 +62,7 @@ pub async fn run_socket_thread(
 
 async fn periodically_open_connections(
     config: Rc<Config>,
+    interval: Duration,
     tls_config: Arc<rustls::ClientConfig>,
     load_test_state: LoadTestState,
     num_active_connections: Rc<RefCell<usize>>,
@@ -49,13 +72,13 @@ async fn periodically_open_connections(
             if let Err(err) =
                 Connection::run(config, tls_config, load_test_state, num_active_connections).await
             {
-                eprintln!("connection creation error: {:?}", err);
+                ::log::error!("connection creation error: {:?}", err);
             }
         })
         .detach();
     }
 
-    Some(Duration::from_secs(1))
+    Some(interval)
 }
 
 struct Connection {
@@ -97,10 +120,8 @@ impl Connection {
 
         *num_active_connections.borrow_mut() += 1;
 
-        println!("run connection");
-
         if let Err(err) = connection.run_connection_loop().await {
-            eprintln!("connection error: {:?}", err);
+            ::log::info!("connection error: {:?}", err);
         }
 
         *num_active_connections.borrow_mut() -= 1;

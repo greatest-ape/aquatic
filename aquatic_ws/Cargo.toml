@@ -18,7 +18,7 @@ path = "src/bin/main.rs"
 [features]
 default = ["with-mio"]
 cpu-pinning = ["aquatic_common/cpu-pinning"]
-with-glommio = ["async-tungstenite", "futures-lite", "futures", "futures-rustls", "glommio", "rustls-pemfile"]
+with-glommio = ["cpu-pinning", "async-tungstenite", "futures-lite", "futures", "futures-rustls", "glommio", "rustls-pemfile"]
 with-mio = ["crossbeam-channel", "histogram", "mio", "native-tls", "parking_lot", "socket2"]
 
 [dependencies]

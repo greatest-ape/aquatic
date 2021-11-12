@@ -17,7 +17,7 @@ name = "aquatic_udp"
 [features]
 default = ["with-mio"]
 cpu-pinning = ["aquatic_common/cpu-pinning"]
-with-glommio = ["glommio", "futures-lite"]
+with-glommio = ["cpu-pinning", "glommio", "futures-lite"]
 with-mio = ["crossbeam-channel", "histogram", "mio", "socket2"]
 
 [dependencies]

@@ -1,17 +1,16 @@
+#[cfg(feature = "cpu-pinning")]
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
+use aquatic_common::{
+    access_list::update_access_list, privileges::drop_privileges_after_socket_binding,
+};
+use common::{State, TlsConfig};
+use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
+use signal_hook::{consts::SIGUSR1, iterator::Signals};
 use std::{
     fs::File,
     io::BufReader,
     sync::{atomic::AtomicUsize, Arc},
 };
-use aquatic_common::{
-    access_list::update_access_list,
-    privileges::drop_privileges_after_socket_binding,
-};
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use common::{State, TlsConfig};
-use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
-use signal_hook::{consts::SIGUSR1, iterator::Signals};
 
 use crate::config::Config;
 
@@ -77,7 +76,9 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let response_mesh_builder = response_mesh_builder.clone();
         let num_bound_sockets = num_bound_sockets.clone();
 
-        let executor = LocalExecutorBuilder::default().spawn(move || async move {
+        let builder = LocalExecutorBuilder::default().name("socket");
+
+        let executor = builder.spawn(move || async move {
             #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
@@ -105,7 +106,9 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
 
-        let executor = LocalExecutorBuilder::default().spawn(move || async move {
+        let builder = LocalExecutorBuilder::default().name("request");
+
+        let executor = builder.spawn(move || async move {
             #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
