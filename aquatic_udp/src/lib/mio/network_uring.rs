@@ -27,9 +27,9 @@ use crate::config::Config;
 
 use super::common::*;
 
-const RING_SIZE: usize = 1024;
-const MAX_RECV_EVENTS: usize = RING_SIZE / 2;
-const MAX_SEND_EVENTS: usize = RING_SIZE / 2;
+const RING_SIZE: usize = 8;
+const MAX_RECV_EVENTS: usize = 1;
+const MAX_SEND_EVENTS: usize = RING_SIZE - MAX_RECV_EVENTS;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Event {
@@ -157,6 +157,7 @@ pub fn run_socket_worker(
     let mut send_entries = Slab::with_capacity(MAX_SEND_EVENTS);
 
     let mut ring = io_uring::IoUring::new(RING_SIZE as u32).unwrap();
+
     let (submitter, mut sq, mut cq) = ring.split();
 
     submitter.register_files(&[socket.as_raw_fd()]).unwrap();
@@ -222,7 +223,7 @@ pub fn run_socket_worker(
             queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs, &mut msghdrs, response, src);
         }
 
-        if local_responses.is_empty() {
+        let wait_for_num = if local_responses.is_empty() {
             for _ in 0..(MAX_RECV_EVENTS - recv_entries.len()) {
                 let user_data = UserData {
                     event: Event::RecvMsg,
@@ -239,12 +240,16 @@ pub fn run_socket_worker(
                     sq.push(&entry).unwrap();
                 }
             }
-        }
+
+            send_entries.len() + recv_entries.len()
+        } else {
+            send_entries.len()
+        };
 
         sq.sync();
         cq.sync();
 
-        submitter.submit_and_wait(send_entries.len()).unwrap();
+        submitter.submit_and_wait(wait_for_num).unwrap();
 
         sq.sync();
         cq.sync();
