@@ -29,9 +29,9 @@ use crate::config::Config;
 
 use super::common::*;
 
-const RING_SIZE: usize = 256;
-const MAX_RECV_EVENTS: usize = 128;
-const MAX_SEND_EVENTS: usize = 128;
+const RING_SIZE: usize = 1024;
+const MAX_RECV_EVENTS: usize = RING_SIZE / 2;
+const MAX_SEND_EVENTS: usize = RING_SIZE / 2;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Event {
@@ -42,7 +42,20 @@ enum Event {
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct UserData {
     event: Event,
-    index: usize,
+    slab_key: usize,
+}
+
+impl UserData {
+    fn get_buffer_index(&self) -> usize {
+        match self.event {
+            Event::RecvMsg => {
+                self.slab_key
+            }
+            Event::SendMsg => {
+                self.slab_key + MAX_RECV_EVENTS
+            }
+        }
+    }
 }
 
 impl From<u64> for UserData {
@@ -59,14 +72,14 @@ impl From<u64> for UserData {
 
         UserData {
             event,
-            index: n as usize,
+            slab_key: n as usize,
         }
     }
 }
 
 impl Into<u64> for UserData {
     fn into(self) -> u64 {
-        let mut out = self.index as u64;
+        let mut out = self.slab_key as u64;
 
         let bytes = bytemuck::bytes_of_mut(&mut out);
 
@@ -146,43 +159,16 @@ pub fn run_socket_worker(
 
     let fd = Fd(socket.as_raw_fd());
 
-    let mut ring = io_uring::IoUring::new(256).unwrap();
+    let mut ring = io_uring::IoUring::new(RING_SIZE as u32).unwrap();
     let (submitter, mut sq, mut cq) = ring.split();
-    
-    for _ in 0..MAX_RECV_EVENTS {
-        let i = recv_events.insert(());
-
-        let buf_ptr: *mut msghdr = &mut msghdrs[i];
-
-        let user_data = UserData {
-            event: Event::RecvMsg,
-            index: i,
-        };
-
-        // FIXME: set nonblocking flag
-
-        let entry = io_uring::opcode::RecvMsg::new(fd, buf_ptr).build().user_data(user_data.into());
-
-        unsafe {
-            sq.push(&entry).unwrap();
-        }
-    }
 
     loop {
-        sq.sync();
-        cq.sync();
-
-        submitter.submit_and_wait(1).unwrap();
-
-        sq.sync();
-        cq.sync();
-
         while let Some(entry) = cq.next() {
             let user_data: UserData = entry.user_data().into();
 
             match user_data.event {
                 Event::RecvMsg => {
-                    recv_events.remove(user_data.index);
+                    recv_events.remove(user_data.slab_key);
 
                     let result = entry.result();
 
@@ -191,16 +177,16 @@ pub fn run_socket_worker(
                     } else if result == 0 {
                         ::log::info!("recvmsg error: 0 bytes read");
                     } else {
-                        let i = user_data.index;
-                        let amt = result as usize;
+                        let buffer_index = user_data.get_buffer_index();
+                        let buffer_len = result as usize;
 
                         let src = SocketAddrV4::new(
-                            Ipv4Addr::from(sockaddrs[i].sin_addr.s_addr),
-                            sockaddrs[i].sin_port,
+                            Ipv4Addr::from(u32::from_be(sockaddrs[buffer_index].sin_addr.s_addr)),
+                            sockaddrs[buffer_index].sin_port,
                         );
 
                         let res_request =
-                            Request::from_bytes(&buffers[i][..amt], config.protocol.max_scrape_torrents);
+                            Request::from_bytes(&buffers[buffer_index][..buffer_len], config.protocol.max_scrape_torrents);
 
                         handle_request(
                             &config,
@@ -215,7 +201,7 @@ pub fn run_socket_worker(
                     }
                 }
                 Event::SendMsg => {
-                    send_events.remove(user_data.index - MAX_RECV_EVENTS);
+                    send_events.remove(user_data.slab_key);
 
                     if entry.result() < 0 {
                         ::log::info!("recvmsg error: {:#}", ::std::io::Error::from_raw_os_error(-entry.result()));
@@ -236,18 +222,18 @@ pub fn run_socket_worker(
                 break; // FIXME
             }
 
-            let i = send_events.insert(()) + MAX_RECV_EVENTS;
-
             let user_data = UserData {
                 event: Event::SendMsg,
-                index: i,
+                slab_key: send_events.insert(()),
             };
 
-            let mut cursor = Cursor::new(&mut buffers[i][..]);
+            let buffer_index = user_data.get_buffer_index();
+
+            let mut cursor = Cursor::new(&mut buffers[buffer_index][..]);
 
             match response.write(&mut cursor, ip_version_from_ip(src.ip())) {
                 Ok(()) => {
-                    iovs[i].iov_len = cursor.position() as usize;
+                    iovs[buffer_index].iov_len = cursor.position() as usize;
 
                     let src = if let SocketAddr::V4(src) = src {
                         src
@@ -255,15 +241,15 @@ pub fn run_socket_worker(
                         continue;
                     };
 
-                    sockaddrs[i].sin_addr.s_addr = (*src.ip()).into();
-                    sockaddrs[i].sin_port = src.port();
+                    sockaddrs[buffer_index].sin_addr.s_addr = u32::to_be((*src.ip()).into());
+                    sockaddrs[buffer_index].sin_port = src.port();
                 }
                 Err(err) => {
                     ::log::error!("Response::write error: {:?}", err);
                 }
             }
 
-            let buf_ptr: *mut msghdr = &mut msghdrs[i];
+            let buf_ptr: *mut msghdr = &mut msghdrs[buffer_index];
 
             let entry = io_uring::opcode::SendMsg::new(fd, buf_ptr).build().user_data(user_data.into());
 
@@ -273,14 +259,14 @@ pub fn run_socket_worker(
         }
 
         for _ in 0..(MAX_RECV_EVENTS - recv_events.len()) {
-            let i = recv_events.insert(());
-
-            let buf_ptr: *mut msghdr = &mut msghdrs[i];
-
             let user_data = UserData {
                 event: Event::RecvMsg,
-                index: i,
+                slab_key: recv_events.insert(()),
             };
+
+            let buffer_index = user_data.get_buffer_index();
+
+            let buf_ptr: *mut msghdr = &mut msghdrs[buffer_index];
 
             let entry = io_uring::opcode::RecvMsg::new(fd, buf_ptr).build().user_data(user_data.into());
 
@@ -288,6 +274,14 @@ pub fn run_socket_worker(
                 sq.push(&entry).unwrap();
             }
         }
+
+        sq.sync();
+        cq.sync();
+
+        submitter.submit_and_wait(send_events.len() + 1).unwrap();
+
+        sq.sync();
+        cq.sync();
 
         if iter_counter % 32 == 0 {
             let now = Instant::now();
@@ -422,67 +416,6 @@ fn handle_request(
 
 }
 
-#[inline]
-fn send_responses(
-    state: &State,
-    config: &Config,
-    socket: &mut UdpSocket,
-    buffer: &mut [u8],
-    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
-    local_responses: Drain<(Response, SocketAddr)>,
-) {
-    let mut responses_sent: usize = 0;
-    let mut bytes_sent: usize = 0;
-
-    let mut cursor = Cursor::new(buffer);
-
-    let response_iterator = local_responses.into_iter().chain(
-        response_receiver
-            .try_iter()
-            .map(|(response, addr)| (response.into(), addr)),
-    );
-
-    for (response, src) in response_iterator {
-        cursor.set_position(0);
-
-        let ip_version = ip_version_from_ip(src.ip());
-
-        match response.write(&mut cursor, ip_version) {
-            Ok(()) => {
-                let amt = cursor.position() as usize;
-
-                match socket.send_to(&cursor.get_ref()[..amt], src) {
-                    Ok(amt) => {
-                        responses_sent += 1;
-                        bytes_sent += amt;
-                    }
-                    Err(err) => {
-                        if err.kind() == ErrorKind::WouldBlock {
-                            break;
-                        }
-
-                        ::log::info!("send_to error: {}", err);
-                    }
-                }
-            }
-            Err(err) => {
-                ::log::error!("Response::write error: {:?}", err);
-            }
-        }
-    }
-
-    if config.statistics.interval != 0 {
-        state
-            .statistics
-            .responses_sent
-            .fetch_add(responses_sent, Ordering::SeqCst);
-        state
-            .statistics
-            .bytes_sent
-            .fetch_add(bytes_sent, Ordering::SeqCst);
-    }
-}
-
 fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
     match ip {
         IpAddr::V4(_) => IpVersion::IPv4,
@@ -515,11 +448,11 @@ mod tests {
 
     impl quickcheck::Arbitrary for UserData {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            let index: u32 = Arbitrary::arbitrary(g);
+            let slab_key: u32 = Arbitrary::arbitrary(g);
 
             Self {
                 event: Arbitrary::arbitrary(g),
-                index: index as usize,
+                slab_key: slab_key as usize,
             }
         }
     }
