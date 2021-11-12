@@ -1,0 +1,534 @@
+use std::io::{Cursor, ErrorKind};
+use std::mem::size_of_val;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::os::unix::prelude::{AsRawFd};
+use std::ptr::{null, null_mut};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+use std::time::{Duration, Instant};
+use std::vec::Drain;
+
+use aquatic_common::access_list::create_access_list_cache;
+use crossbeam_channel::{Receiver, Sender};
+use io_uring::types::Fd;
+use libc::{c_void, in_addr, iovec, msghdr, sockaddr, sockaddr_in};
+use mio::net::UdpSocket;
+use mio::{Events, Interest, Poll, Token};
+use rand::prelude::{Rng, SeedableRng, StdRng};
+use slab::Slab;
+use socket2::{Domain, Protocol, Socket, Type};
+
+use aquatic_udp_protocol::{IpVersion, Request, Response};
+
+use crate::common::handlers::*;
+use crate::common::network::ConnectionMap;
+use crate::common::*;
+use crate::config::Config;
+
+use super::common::*;
+
+const RING_SIZE: usize = 256;
+const MAX_RECV_EVENTS: usize = 128;
+const MAX_SEND_EVENTS: usize = 128;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Event {
+    RecvMsg,
+    SendMsg,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct UserData {
+    event: Event,
+    index: usize,
+}
+
+impl From<u64> for UserData {
+    fn from(mut n: u64) -> UserData {
+        let bytes = bytemuck::bytes_of_mut(&mut n);
+
+        let event = match bytes[7] {
+            0 => Event::RecvMsg,
+            1 => Event::SendMsg,
+            _ => unreachable!(),
+        };
+
+        bytes[7] = 0;
+
+        UserData {
+            event,
+            index: n as usize,
+        }
+    }
+}
+
+impl Into<u64> for UserData {
+    fn into(self) -> u64 {
+        let mut out = self.index as u64;
+
+        let bytes = bytemuck::bytes_of_mut(&mut out);
+
+        bytes[7] = match self.event {
+            Event::RecvMsg => 0,
+            Event::SendMsg => 1,
+        };
+
+        out
+    }
+}
+
+pub fn run_socket_worker(
+    state: State,
+    config: Config,
+    token_num: usize,
+    request_sender: Sender<(ConnectedRequest, SocketAddr)>,
+    response_receiver: Receiver<(ConnectedResponse, SocketAddr)>,
+    num_bound_sockets: Arc<AtomicUsize>,
+) {
+    let mut rng = StdRng::from_entropy();
+
+    let socket = create_socket(&config);
+
+    num_bound_sockets.fetch_add(1, Ordering::SeqCst);
+
+    let mut connections = ConnectionMap::default();
+    let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
+
+    let cleaning_duration = Duration::from_secs(config.cleaning.connection_cleaning_interval);
+
+    let mut iter_counter = 0usize;
+    let mut last_cleaning = Instant::now();
+
+    let mut buffers: Vec<[u8; MAX_PACKET_SIZE]> = (0..RING_SIZE).map(|_| {
+        [0; MAX_PACKET_SIZE]
+    }).collect();
+
+    let mut sockaddrs: Vec<sockaddr_in> = (0..RING_SIZE).map(|i| {
+        sockaddr_in {
+            sin_addr: in_addr {
+                s_addr: 0,
+            },
+            sin_port: 0,
+            sin_family: 0,
+            sin_zero: Default::default(),
+        }
+    }).collect();
+
+    let mut iovs: Vec<iovec> = (0..RING_SIZE).map(|i| {
+        let iov_base = buffers[i].as_mut_ptr() as *mut c_void;
+        let iov_len = MAX_PACKET_SIZE;
+
+        iovec {
+            iov_base,
+            iov_len,
+        }
+    }).collect();
+
+    let mut msghdrs: Vec<msghdr> = (0..RING_SIZE).map(|i| {
+        let msg_iov: *mut iovec = &mut iovs[i];
+        let msg_name: *mut sockaddr_in = &mut sockaddrs[i];
+
+        msghdr {
+            msg_name: msg_name as *mut c_void,
+            msg_namelen: size_of_val(&sockaddrs[i]) as u32,
+            msg_iov,
+            msg_iovlen: 1,
+            msg_control: null_mut(),
+            msg_controllen: 0,
+            msg_flags: 0,
+        }
+    }).collect();
+
+    let mut recv_events = Slab::with_capacity(MAX_RECV_EVENTS);
+    let mut send_events = Slab::with_capacity(MAX_SEND_EVENTS);
+
+    let fd = Fd(socket.as_raw_fd());
+
+    let mut ring = io_uring::IoUring::new(256).unwrap();
+    let (submitter, mut sq, mut cq) = ring.split();
+    
+    for _ in 0..MAX_RECV_EVENTS {
+        let i = recv_events.insert(());
+
+        let buf_ptr: *mut msghdr = &mut msghdrs[i];
+
+        let user_data = UserData {
+            event: Event::RecvMsg,
+            index: i,
+        };
+
+        // FIXME: set nonblocking flag
+
+        let entry = io_uring::opcode::RecvMsg::new(fd, buf_ptr).build().user_data(user_data.into());
+
+        unsafe {
+            sq.push(&entry).unwrap();
+        }
+    }
+
+    loop {
+        sq.sync();
+        cq.sync();
+
+        submitter.submit_and_wait(1).unwrap();
+
+        sq.sync();
+        cq.sync();
+
+        while let Some(entry) = cq.next() {
+            let user_data: UserData = entry.user_data().into();
+
+            match user_data.event {
+                Event::RecvMsg => {
+                    recv_events.remove(user_data.index);
+
+                    let result = entry.result();
+
+                    if result < 0 {
+                        ::log::info!("recvmsg error {}: {:#}", result, ::std::io::Error::from_raw_os_error(-result));
+                    } else if result == 0 {
+                        ::log::info!("recvmsg error: 0 bytes read");
+                    } else {
+                        let i = user_data.index;
+                        let amt = result as usize;
+
+                        let src = SocketAddrV4::new(
+                            Ipv4Addr::from(sockaddrs[i].sin_addr.s_addr),
+                            sockaddrs[i].sin_port,
+                        );
+
+                        let res_request =
+                            Request::from_bytes(&buffers[i][..amt], config.protocol.max_scrape_torrents);
+
+                        handle_request(
+                            &config,
+                            &state,
+                            &mut connections,
+                            &mut rng,
+                            &request_sender,
+                            &mut local_responses,
+                            res_request,
+                            SocketAddr::V4(src),
+                        );
+                    }
+                }
+                Event::SendMsg => {
+                    send_events.remove(user_data.index - MAX_RECV_EVENTS);
+
+                    if entry.result() < 0 {
+                        ::log::info!("recvmsg error: {:#}", ::std::io::Error::from_raw_os_error(-entry.result()));
+                    }
+                }
+            }
+        }
+
+        let response_iterator = local_responses.drain(..).chain(
+            response_receiver
+                .try_iter()
+                .map(|(response, addr)| (response.into(), addr)),
+        );
+
+        for (response, src) in response_iterator {
+            if send_events.len() == MAX_SEND_EVENTS {
+                ::log::warn!("send event slab is full");
+                break; // FIXME
+            }
+
+            let i = send_events.insert(()) + MAX_RECV_EVENTS;
+
+            let user_data = UserData {
+                event: Event::SendMsg,
+                index: i,
+            };
+
+            let mut cursor = Cursor::new(&mut buffers[i][..]);
+
+            match response.write(&mut cursor, ip_version_from_ip(src.ip())) {
+                Ok(()) => {
+                    iovs[i].iov_len = cursor.position() as usize;
+
+                    let src = if let SocketAddr::V4(src) = src {
+                        src
+                    } else {
+                        continue;
+                    };
+
+                    sockaddrs[i].sin_addr.s_addr = (*src.ip()).into();
+                    sockaddrs[i].sin_port = src.port();
+                }
+                Err(err) => {
+                    ::log::error!("Response::write error: {:?}", err);
+                }
+            }
+
+            let buf_ptr: *mut msghdr = &mut msghdrs[i];
+
+            let entry = io_uring::opcode::SendMsg::new(fd, buf_ptr).build().user_data(user_data.into());
+
+            unsafe {
+                sq.push(&entry).unwrap();
+            }
+        }
+
+        for _ in 0..(MAX_RECV_EVENTS - recv_events.len()) {
+            let i = recv_events.insert(());
+
+            let buf_ptr: *mut msghdr = &mut msghdrs[i];
+
+            let user_data = UserData {
+                event: Event::RecvMsg,
+                index: i,
+            };
+
+            let entry = io_uring::opcode::RecvMsg::new(fd, buf_ptr).build().user_data(user_data.into());
+
+            unsafe {
+                sq.push(&entry).unwrap();
+            }
+        }
+
+        if iter_counter % 32 == 0 {
+            let now = Instant::now();
+
+            if now > last_cleaning + cleaning_duration {
+                connections.clean();
+
+                last_cleaning = now;
+            }
+        }
+
+        iter_counter = iter_counter.wrapping_add(1);
+    }
+}
+
+fn create_socket(config: &Config) -> ::std::net::UdpSocket {
+    let socket = if config.network.address.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
+    } else {
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
+    }
+    .expect("create socket");
+
+    socket.set_reuse_port(true).expect("socket: set reuse port");
+
+    socket
+        .set_nonblocking(true)
+        .expect("socket: set nonblocking");
+
+    socket
+        .bind(&config.network.address.into())
+        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", config.network.address, err));
+
+    let recv_buffer_size = config.network.socket_recv_buffer_size;
+
+    if recv_buffer_size != 0 {
+        if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size) {
+            ::log::error!(
+                "socket: failed setting recv buffer to {}: {:?}",
+                recv_buffer_size,
+                err
+            );
+        }
+    }
+
+    socket.into()
+}
+
+#[inline]
+fn handle_request(
+    config: &Config,
+    state: &State,
+    connections: &mut ConnectionMap,
+    rng: &mut StdRng,
+    request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
+    local_responses: &mut Vec<(Response, SocketAddr)>,
+    res_request: Result<Request, RequestParseError>,
+    src: SocketAddr,
+) {
+
+    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
+    let access_list_mode = config.access_list.mode;
+
+    let mut access_list_cache = create_access_list_cache(&state.access_list);
+
+    match res_request {
+        Ok(Request::Connect(request)) => {
+            let connection_id = ConnectionId(rng.gen());
+
+            connections.insert(connection_id, src, valid_until);
+
+            let response = Response::Connect(ConnectResponse {
+                connection_id,
+                transaction_id: request.transaction_id,
+            });
+
+            local_responses.push((response, src))
+        }
+        Ok(Request::Announce(request)) => {
+            if connections.contains(request.connection_id, src) {
+                if access_list_cache
+                    .load()
+                    .allows(access_list_mode, &request.info_hash.0)
+                {
+                    if let Err(err) = request_sender
+                        .try_send((ConnectedRequest::Announce(request), src))
+                    {
+                        ::log::warn!("request_sender.try_send failed: {:?}", err)
+                    }
+                } else {
+                    let response = Response::Error(ErrorResponse {
+                        transaction_id: request.transaction_id,
+                        message: "Info hash not allowed".into(),
+                    });
+
+                    local_responses.push((response, src))
+                }
+            }
+        }
+        Ok(Request::Scrape(request)) => {
+            if connections.contains(request.connection_id, src) {
+                let request = ConnectedRequest::Scrape {
+                    request,
+                    original_indices: Vec::new(),
+                };
+
+                if let Err(err) = request_sender.try_send((request, src)) {
+                    ::log::warn!("request_sender.try_send failed: {:?}", err)
+                }
+            }
+        }
+        Err(err) => {
+            ::log::debug!("Request::from_bytes error: {:?}", err);
+
+            if let RequestParseError::Sendable {
+                connection_id,
+                transaction_id,
+                err,
+            } = err
+            {
+                if connections.contains(connection_id, src) {
+                    let response = ErrorResponse {
+                        transaction_id,
+                        message: err.right_or("Parse error").into(),
+                    };
+
+                    local_responses.push((response.into(), src));
+                }
+            }
+        }
+    }
+
+}
+
+#[inline]
+fn send_responses(
+    state: &State,
+    config: &Config,
+    socket: &mut UdpSocket,
+    buffer: &mut [u8],
+    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
+    local_responses: Drain<(Response, SocketAddr)>,
+) {
+    let mut responses_sent: usize = 0;
+    let mut bytes_sent: usize = 0;
+
+    let mut cursor = Cursor::new(buffer);
+
+    let response_iterator = local_responses.into_iter().chain(
+        response_receiver
+            .try_iter()
+            .map(|(response, addr)| (response.into(), addr)),
+    );
+
+    for (response, src) in response_iterator {
+        cursor.set_position(0);
+
+        let ip_version = ip_version_from_ip(src.ip());
+
+        match response.write(&mut cursor, ip_version) {
+            Ok(()) => {
+                let amt = cursor.position() as usize;
+
+                match socket.send_to(&cursor.get_ref()[..amt], src) {
+                    Ok(amt) => {
+                        responses_sent += 1;
+                        bytes_sent += amt;
+                    }
+                    Err(err) => {
+                        if err.kind() == ErrorKind::WouldBlock {
+                            break;
+                        }
+
+                        ::log::info!("send_to error: {}", err);
+                    }
+                }
+            }
+            Err(err) => {
+                ::log::error!("Response::write error: {:?}", err);
+            }
+        }
+    }
+
+    if config.statistics.interval != 0 {
+        state
+            .statistics
+            .responses_sent
+            .fetch_add(responses_sent, Ordering::SeqCst);
+        state
+            .statistics
+            .bytes_sent
+            .fetch_add(bytes_sent, Ordering::SeqCst);
+    }
+}
+
+fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
+    match ip {
+        IpAddr::V4(_) => IpVersion::IPv4,
+        IpAddr::V6(ip) => {
+            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments() {
+                IpVersion::IPv4
+            } else {
+                IpVersion::IPv6
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quickcheck::Arbitrary;
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    impl quickcheck::Arbitrary for Event {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            if bool::arbitrary(g) {
+                Event::RecvMsg
+            } else {
+                Event::SendMsg
+            }
+        }
+    }
+
+    impl quickcheck::Arbitrary for UserData {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let index: u32 = Arbitrary::arbitrary(g);
+
+            Self {
+                event: Arbitrary::arbitrary(g),
+                index: index as usize,
+            }
+        }
+    }
+
+    #[quickcheck]
+    fn test_user_data_identity(a: UserData) -> bool {
+        let n: u64 = a.into();
+        let b = UserData::from(n);
+
+        a == b
+    }
+}

@@ -17,6 +17,7 @@ use crate::config::Config;
 pub mod common;
 pub mod handlers;
 pub mod network;
+pub mod network_uring;
 pub mod tasks;
 
 use common::State;
@@ -98,7 +99,7 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
                     WorkerIndex::SocketWorker(i),
                 );
 
-                network::run_socket_worker(
+                network_uring::run_socket_worker(
                     state,
                     config,
                     i,
