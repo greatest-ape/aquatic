@@ -179,12 +179,15 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_udp_protocol",
+ "bytemuck",
  "cfg-if",
  "crossbeam-channel",
  "futures-lite",
  "glommio",
  "hex",
  "histogram",
+ "io-uring",
+ "libc",
  "log",
  "mimalloc",
  "mio",
@@ -194,6 +197,7 @@ dependencies = [
  "rand",
  "serde",
  "signal-hook",
+ "slab",
  "socket2 0.4.2",
 ]
 
@@ -445,6 +449,12 @@ name = "bumpalo"
 version = "3.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9df67f7bf9ef8498769f994239c45613ef0c5899415fb58e9add412d2c1a538"
+
+[[package]]
+name = "bytemuck"
+version = "1.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72957246c41db82b8ef88a5486143830adeb8227ef9837740bdec67724cf2c5b"
 
 [[package]]
 name = "byteorder"
@@ -1128,6 +1138,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb4ed164b4cf1c6bd6e18c097490331a0e58fbb0f39e8f6b5ac7f168006511cd"
 dependencies = [
  "memoffset 0.5.6",
+]
+
+[[package]]
+name = "io-uring"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d75829ed9377bab6c90039fe47b9d84caceb4b5063266142e21bcce6550cda8"
+dependencies = [
+ "bitflags",
+ "libc",
 ]
 
 [[package]]
