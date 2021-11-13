@@ -27,9 +27,10 @@ use crate::config::Config;
 
 use super::common::*;
 
-const RING_SIZE: usize = 8;
+const RING_SIZE: usize = 4;
 const MAX_RECV_EVENTS: usize = 1;
-const MAX_SEND_EVENTS: usize = RING_SIZE - MAX_RECV_EVENTS;
+const MAX_SEND_EVENTS: usize = 2;
+const NUM_BUFFERS: usize = MAX_RECV_EVENTS + MAX_SEND_EVENTS;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Event {
@@ -113,11 +114,9 @@ pub fn run_socket_worker(
     let mut iter_counter = 0usize;
     let mut last_cleaning = Instant::now();
 
-    let mut buffers: Vec<[u8; MAX_PACKET_SIZE]> = (0..RING_SIZE).map(|_| {
-        [0; MAX_PACKET_SIZE]
-    }).collect();
+    let mut buffers = [[0; MAX_PACKET_SIZE]; NUM_BUFFERS];
 
-    let mut sockaddrs: Vec<sockaddr_in> = (0..RING_SIZE).map(|i| {
+    let mut sockaddrs_ipv4 = [
         sockaddr_in {
             sin_addr: in_addr {
                 s_addr: 0,
@@ -126,7 +125,8 @@ pub fn run_socket_worker(
             sin_family: 0,
             sin_zero: Default::default(),
         }
-    }).collect();
+        ; NUM_BUFFERS
+    ];
 
     let mut iovs: Vec<iovec> = (0..RING_SIZE).map(|i| {
         let iov_base = buffers[i].as_mut_ptr() as *mut c_void;
@@ -140,11 +140,11 @@ pub fn run_socket_worker(
 
     let mut msghdrs: Vec<msghdr> = (0..RING_SIZE).map(|i| {
         let msg_iov: *mut iovec = &mut iovs[i];
-        let msg_name: *mut sockaddr_in = &mut sockaddrs[i];
+        let msg_name: *mut sockaddr_in = &mut sockaddrs_ipv4[i];
 
         msghdr {
             msg_name: msg_name as *mut c_void,
-            msg_namelen: size_of_val(&sockaddrs[i]) as u32,
+            msg_namelen: size_of_val(&sockaddrs_ipv4[i]) as u32,
             msg_iov,
             msg_iovlen: 1,
             msg_control: null_mut(),
@@ -183,8 +183,8 @@ pub fn run_socket_worker(
                         let buffer_len = result as usize;
 
                         let src = SocketAddrV4::new(
-                            Ipv4Addr::from(u32::from_be(sockaddrs[buffer_index].sin_addr.s_addr)),
-                            u16::from_be(sockaddrs[buffer_index].sin_port),
+                            Ipv4Addr::from(u32::from_be(sockaddrs_ipv4[buffer_index].sin_addr.s_addr)),
+                            u16::from_be(sockaddrs_ipv4[buffer_index].sin_port),
                         );
 
                         let res_request =
@@ -220,7 +220,7 @@ pub fn run_socket_worker(
         let num_responses_to_queue = (MAX_SEND_EVENTS - send_entries.len()).min(local_responses.len());
         
         for (response, src) in local_responses.drain(..num_responses_to_queue) {
-            queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs, &mut msghdrs, response, src);
+            queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs_ipv4, &mut msghdrs, response, src);
         }
 
         let wait_for_num = if local_responses.is_empty() {
