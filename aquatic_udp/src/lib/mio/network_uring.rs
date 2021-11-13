@@ -252,6 +252,7 @@ pub fn run_socket_worker(
         }
 
         if !timeout_set {
+            // Setup timer to occasionally check if there are pending responses
             let user_data = UserData::Timeout;
 
             let timespec_ptr: *const Timespec = &timeout;
