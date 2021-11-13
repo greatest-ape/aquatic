@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use aquatic_common::access_list::{AccessListCache, create_access_list_cache};
 use crossbeam_channel::{Receiver, Sender};
 use io_uring::SubmissionQueue;
-use io_uring::types::Fixed;
+use io_uring::types::{Fixed, Timespec};
 use libc::{c_void, in_addr, iovec, msghdr, sockaddr_in};
 use rand::prelude::{Rng, SeedableRng, StdRng};
 use slab::Slab;
@@ -27,15 +27,16 @@ use crate::config::Config;
 
 use super::common::*;
 
-const RING_SIZE: usize = 4;
+const RING_SIZE: usize = 8;
 const MAX_RECV_EVENTS: usize = 1;
-const MAX_SEND_EVENTS: usize = 2;
+const MAX_SEND_EVENTS: usize = 6;
 const NUM_BUFFERS: usize = MAX_RECV_EVENTS + MAX_SEND_EVENTS;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Event {
     RecvMsg,
     SendMsg,
+    Timeout,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -53,6 +54,9 @@ impl UserData {
             Event::SendMsg => {
                 self.slab_key + MAX_RECV_EVENTS
             }
+            Event::Timeout => {
+                unreachable!()
+            }
         }
     }
 }
@@ -64,6 +68,7 @@ impl From<u64> for UserData {
         let event = match bytes[7] {
             0 => Event::RecvMsg,
             1 => Event::SendMsg,
+            2 => Event::Timeout,
             _ => unreachable!(),
         };
 
@@ -85,6 +90,7 @@ impl Into<u64> for UserData {
         bytes[7] = match self.event {
             Event::RecvMsg => 0,
             Event::SendMsg => 1,
+            Event::Timeout => 2,
         };
 
         out
@@ -128,7 +134,7 @@ pub fn run_socket_worker(
         ; NUM_BUFFERS
     ];
 
-    let mut iovs: Vec<iovec> = (0..RING_SIZE).map(|i| {
+    let mut iovs: Vec<iovec> = (0..NUM_BUFFERS).map(|i| {
         let iov_base = buffers[i].as_mut_ptr() as *mut c_void;
         let iov_len = MAX_PACKET_SIZE;
 
@@ -138,7 +144,7 @@ pub fn run_socket_worker(
         }
     }).collect();
 
-    let mut msghdrs: Vec<msghdr> = (0..RING_SIZE).map(|i| {
+    let mut msghdrs: Vec<msghdr> = (0..NUM_BUFFERS).map(|i| {
         let msg_iov: *mut iovec = &mut iovs[i];
         let msg_name: *mut sockaddr_in = &mut sockaddrs_ipv4[i];
 
@@ -152,6 +158,9 @@ pub fn run_socket_worker(
             msg_flags: 0,
         }
     }).collect();
+
+    let timeout = Timespec::new().nsec(100_000_000);
+    let mut timeout_set = false;
 
     let mut recv_entries = Slab::with_capacity(MAX_RECV_EVENTS);
     let mut send_entries = Slab::with_capacity(MAX_SEND_EVENTS);
@@ -210,8 +219,47 @@ pub fn run_socket_worker(
                         ::log::info!("recvmsg error: {:#}", ::std::io::Error::from_raw_os_error(-entry.result()));
                     }
                 }
+                Event::Timeout => {
+                    timeout_set = false;
+                }
             }
         }
+
+        for _ in 0..(MAX_RECV_EVENTS - recv_entries.len()) {
+            let user_data = UserData {
+                event: Event::RecvMsg,
+                slab_key: recv_entries.insert(()),
+            };
+
+            let buffer_index = user_data.get_buffer_index();
+
+            let buf_ptr: *mut msghdr = &mut msghdrs[buffer_index];
+
+            let entry = io_uring::opcode::RecvMsg::new(fd, buf_ptr).build().user_data(user_data.into());
+
+            unsafe {
+                sq.push(&entry).unwrap();
+            }
+        }
+
+        if !timeout_set {
+            let user_data = UserData {
+                event: Event::Timeout,
+                slab_key: 0,
+            };
+
+            let timespec_ptr: *const Timespec = &timeout;
+
+            let entry = io_uring::opcode::Timeout::new(timespec_ptr).build().user_data(user_data.into());
+
+            unsafe {
+                sq.push(&entry).unwrap();
+            }
+
+            timeout_set = true;
+        }
+
+        sq.sync();
 
         local_responses.extend(response_receiver
             .try_iter()
@@ -223,37 +271,6 @@ pub fn run_socket_worker(
             queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs_ipv4, &mut msghdrs, response, src);
         }
 
-        let wait_for_num = if local_responses.is_empty() {
-            for _ in 0..(MAX_RECV_EVENTS - recv_entries.len()) {
-                let user_data = UserData {
-                    event: Event::RecvMsg,
-                    slab_key: recv_entries.insert(()),
-                };
-
-                let buffer_index = user_data.get_buffer_index();
-
-                let buf_ptr: *mut msghdr = &mut msghdrs[buffer_index];
-
-                let entry = io_uring::opcode::RecvMsg::new(fd, buf_ptr).build().user_data(user_data.into());
-
-                unsafe {
-                    sq.push(&entry).unwrap();
-                }
-            }
-
-            send_entries.len() + recv_entries.len()
-        } else {
-            send_entries.len()
-        };
-
-        sq.sync();
-        cq.sync();
-
-        submitter.submit_and_wait(wait_for_num).unwrap();
-
-        sq.sync();
-        cq.sync();
-
         if iter_counter % 32 == 0 {
             let now = Instant::now();
 
@@ -263,6 +280,15 @@ pub fn run_socket_worker(
                 last_cleaning = now;
             }
         }
+
+        sq.sync();
+
+        let wait_for_num = send_entries.len() + recv_entries.len();
+
+        submitter.submit_and_wait(wait_for_num).unwrap();
+
+        sq.sync();
+        cq.sync();
 
         iter_counter = iter_counter.wrapping_add(1);
     }
