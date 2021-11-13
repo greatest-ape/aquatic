@@ -27,9 +27,9 @@ use crate::config::Config;
 
 use super::common::*;
 
-const RING_SIZE: usize = 8;
+const RING_SIZE: usize = 128;
 const MAX_RECV_EVENTS: usize = 1;
-const MAX_SEND_EVENTS: usize = 6;
+const MAX_SEND_EVENTS: usize = RING_SIZE - MAX_RECV_EVENTS - 1;
 const NUM_BUFFERS: usize = MAX_RECV_EVENTS + MAX_SEND_EVENTS;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -120,7 +120,7 @@ pub fn run_socket_worker(
     let mut iter_counter = 0usize;
     let mut last_cleaning = Instant::now();
 
-    let mut buffers = [[0; MAX_PACKET_SIZE]; NUM_BUFFERS];
+    let mut buffers: Vec<[u8; MAX_PACKET_SIZE]> = (0..NUM_BUFFERS).map(|_| [0; MAX_PACKET_SIZE]).collect();
 
     let mut sockaddrs_ipv4 = [
         sockaddr_in {
@@ -159,7 +159,7 @@ pub fn run_socket_worker(
         }
     }).collect();
 
-    let timeout = Timespec::new().nsec(100_000_000);
+    let timeout = Timespec::new().nsec(500_000_000);
     let mut timeout_set = false;
 
     let mut recv_entries = Slab::with_capacity(MAX_RECV_EVENTS);
@@ -242,6 +242,8 @@ pub fn run_socket_worker(
             }
         }
 
+        sq.sync();
+
         if !timeout_set {
             let user_data = UserData {
                 event: Event::Timeout,
@@ -259,17 +261,17 @@ pub fn run_socket_worker(
             timeout_set = true;
         }
 
-        sq.sync();
-
         local_responses.extend(response_receiver
             .try_iter()
             .map(|(response, addr)| (response.into(), addr)));
         
         let num_responses_to_queue = (MAX_SEND_EVENTS - send_entries.len()).min(local_responses.len());
         
-        for (response, src) in local_responses.drain(..num_responses_to_queue) {
+        for (response, src) in local_responses.drain(local_responses.len() - num_responses_to_queue..) {
             queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs_ipv4, &mut msghdrs, response, src);
         }
+
+        sq.sync();
 
         if iter_counter % 32 == 0 {
             let now = Instant::now();
@@ -281,9 +283,11 @@ pub fn run_socket_worker(
             }
         }
 
-        sq.sync();
-
-        let wait_for_num = send_entries.len() + recv_entries.len();
+        let wait_for_num = if local_responses.is_empty() {
+            send_entries.len() + recv_entries.len()
+        } else {
+            send_entries.len()
+        };
 
         submitter.submit_and_wait(wait_for_num).unwrap();
 
