@@ -242,8 +242,6 @@ pub fn run_socket_worker(
             }
         }
 
-        sq.sync();
-
         if !timeout_set {
             let user_data = UserData {
                 event: Event::Timeout,
@@ -261,17 +259,15 @@ pub fn run_socket_worker(
             timeout_set = true;
         }
 
-        local_responses.extend(response_receiver
-            .try_iter()
-            .map(|(response, addr)| (response.into(), addr)));
-        
-        let num_responses_to_queue = (MAX_SEND_EVENTS - send_entries.len()).min(local_responses.len());
-        
-        for (response, src) in local_responses.drain(local_responses.len() - num_responses_to_queue..) {
-            queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs_ipv4, &mut msghdrs, response, src);
+        let num_local_to_queue = (MAX_SEND_EVENTS - send_entries.len()).min(local_responses.len());
+
+        for (response, addr) in local_responses.drain(local_responses.len() - num_local_to_queue..) {
+            queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs_ipv4, &mut msghdrs, response, addr);
         }
 
-        sq.sync();
+        for (response, addr) in response_receiver.try_iter().take(MAX_SEND_EVENTS - send_entries.len()) {
+            queue_response(&mut sq, fd, &mut send_entries, &mut buffers, &mut iovs, &mut sockaddrs_ipv4, &mut msghdrs, response.into(), addr);
+        }
 
         if iter_counter % 32 == 0 {
             let now = Instant::now();
@@ -283,11 +279,15 @@ pub fn run_socket_worker(
             }
         }
 
-        let wait_for_num = if local_responses.is_empty() {
+        let all_responses_sent = local_responses.is_empty() & response_receiver.is_empty();
+
+        let wait_for_num = if all_responses_sent {
             send_entries.len() + recv_entries.len()
         } else {
             send_entries.len()
         };
+
+        sq.sync();
 
         submitter.submit_and_wait(wait_for_num).unwrap();
 
