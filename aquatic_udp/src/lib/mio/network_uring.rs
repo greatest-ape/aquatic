@@ -33,28 +33,26 @@ const MAX_SEND_EVENTS: usize = RING_SIZE - MAX_RECV_EVENTS - 1;
 const NUM_BUFFERS: usize = MAX_RECV_EVENTS + MAX_SEND_EVENTS;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Event {
-    RecvMsg,
-    SendMsg,
+enum UserData {
+    RecvMsg {
+        slab_key: usize,
+    },
+    SendMsg {
+        slab_key: usize,
+    },
     Timeout,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct UserData {
-    event: Event,
-    slab_key: usize,
 }
 
 impl UserData {
     fn get_buffer_index(&self) -> usize {
-        match self.event {
-            Event::RecvMsg => {
-                self.slab_key
+        match self {
+            Self::RecvMsg { slab_key } => {
+                *slab_key
             }
-            Event::SendMsg => {
-                self.slab_key + MAX_RECV_EVENTS
+            Self::SendMsg { slab_key } => {
+                slab_key + MAX_RECV_EVENTS
             }
-            Event::Timeout => {
+            Self::Timeout => {
                 unreachable!()
             }
         }
@@ -65,35 +63,48 @@ impl From<u64> for UserData {
     fn from(mut n: u64) -> UserData {
         let bytes = bytemuck::bytes_of_mut(&mut n);
 
-        let event = match bytes[7] {
-            0 => Event::RecvMsg,
-            1 => Event::SendMsg,
-            2 => Event::Timeout,
-            _ => unreachable!(),
-        };
+        let t = bytes[7];
 
         bytes[7] = 0;
 
-        UserData {
-            event,
-            slab_key: n as usize,
+        match t {
+            0 => Self::RecvMsg {
+                slab_key: n as usize,
+            },
+            1 => Self::SendMsg {
+                slab_key: n as usize,
+            },
+            2 => Self::Timeout,
+            _ => unreachable!(),
         }
     }
 }
 
 impl Into<u64> for UserData {
     fn into(self) -> u64 {
-        let mut out = self.slab_key as u64;
+        match self {
+            Self::RecvMsg { slab_key } => {
+                let mut out = slab_key as u64;
 
-        let bytes = bytemuck::bytes_of_mut(&mut out);
+                bytemuck::bytes_of_mut(&mut out)[7] = 0;
 
-        bytes[7] = match self.event {
-            Event::RecvMsg => 0,
-            Event::SendMsg => 1,
-            Event::Timeout => 2,
-        };
+                out
+            }
+            Self::SendMsg { slab_key } => {
+                let mut out = slab_key as u64;
 
-        out
+                bytemuck::bytes_of_mut(&mut out)[7] = 1;
+
+                out
+            }
+            Self::Timeout => {
+                let mut out = 0u64;
+
+                bytemuck::bytes_of_mut(&mut out)[7] = 2;
+
+                out
+            }
+        }
     }
 }
 
@@ -177,9 +188,9 @@ pub fn run_socket_worker(
         while let Some(entry) = cq.next() {
             let user_data: UserData = entry.user_data().into();
 
-            match user_data.event {
-                Event::RecvMsg => {
-                    recv_entries.remove(user_data.slab_key);
+            match user_data {
+                UserData::RecvMsg { slab_key } => {
+                    recv_entries.remove(slab_key);
 
                     let result = entry.result();
 
@@ -212,24 +223,22 @@ pub fn run_socket_worker(
                         );
                     }
                 }
-                Event::SendMsg => {
-                    send_entries.remove(user_data.slab_key);
+                UserData::SendMsg { slab_key } => {
+                    send_entries.remove(slab_key);
 
                     if entry.result() < 0 {
                         ::log::info!("recvmsg error: {:#}", ::std::io::Error::from_raw_os_error(-entry.result()));
                     }
                 }
-                Event::Timeout => {
+                UserData::Timeout => {
                     timeout_set = false;
                 }
             }
         }
 
         for _ in 0..(MAX_RECV_EVENTS - recv_entries.len()) {
-            let user_data = UserData {
-                event: Event::RecvMsg,
-                slab_key: recv_entries.insert(()),
-            };
+            let slab_key = recv_entries.insert(());
+            let user_data = UserData::RecvMsg { slab_key };
 
             let buffer_index = user_data.get_buffer_index();
 
@@ -243,10 +252,7 @@ pub fn run_socket_worker(
         }
 
         if !timeout_set {
-            let user_data = UserData {
-                event: Event::Timeout,
-                slab_key: 0,
-            };
+            let user_data = UserData::Timeout;
 
             let timespec_ptr: *const Timespec = &timeout;
 
@@ -309,10 +315,8 @@ fn queue_response(
     response: Response,
     src: SocketAddr,
 ) {
-    let user_data = UserData {
-        event: Event::SendMsg,
-        slab_key: send_events.insert(()),
-    };
+    let slab_key = send_events.insert(());
+    let user_data = UserData::SendMsg { slab_key };
 
     let buffer_index = user_data.get_buffer_index();
 
@@ -483,23 +487,26 @@ mod tests {
 
     use super::*;
 
-    impl quickcheck::Arbitrary for Event {
-        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            if bool::arbitrary(g) {
-                Event::RecvMsg
-            } else {
-                Event::SendMsg
-            }
-        }
-    }
-
     impl quickcheck::Arbitrary for UserData {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            let slab_key: u32 = Arbitrary::arbitrary(g);
+            match (bool::arbitrary(g), bool::arbitrary(g)) {
+                (false, b) => {
+                    let slab_key: u32 = Arbitrary::arbitrary(g);
+                    let slab_key = slab_key as usize;
 
-            Self {
-                event: Arbitrary::arbitrary(g),
-                slab_key: slab_key as usize,
+                    if b {
+                        UserData::RecvMsg {
+                            slab_key
+                        }
+                    } else {
+                        UserData::SendMsg {
+                            slab_key
+                        }
+                    }
+                }
+                _ => {
+                    UserData::Timeout
+                }
             }
         }
     }
