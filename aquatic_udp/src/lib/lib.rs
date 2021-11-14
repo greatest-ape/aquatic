@@ -4,7 +4,7 @@ pub mod common;
 pub mod config;
 #[cfg(all(feature = "with-glommio", target_os = "linux"))]
 pub mod glommio;
-#[cfg(feature = "with-mio")]
+#[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
 pub mod other;
 
 use config::Config;
