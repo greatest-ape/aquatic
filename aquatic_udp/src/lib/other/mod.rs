@@ -16,7 +16,9 @@ use crate::config::Config;
 
 pub mod common;
 pub mod handlers;
+#[cfg(feature = "with-mio")]
 pub mod network_mio;
+#[cfg(feature = "with-io-uring")]
 pub mod network_uring;
 pub mod tasks;
 
@@ -107,8 +109,8 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
                             request_sender,
                             response_receiver,
                             num_bound_sockets,
-                        )
-                    } else if #[cfg(feature = "with-mio")] {
+                        );
+                    } else {
                         network_mio::run_socket_worker(
                             state,
                             config,
@@ -116,9 +118,9 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
                             request_sender,
                             response_receiver,
                             num_bound_sockets,
-                        )
+                        );
                     }
-                )
+                );
             })
             .with_context(|| "spawn socket worker")?;
     }
