@@ -20,12 +20,10 @@
   * uring
     * ValidUntil periodic update
     * statistics
-    * ipv6_only
     * shared config keys such as poll interval
   * mio
     * stagger connection cleaning intervals?
     * ipv4-mapped addresses
-    * ipv6_only
   * glommio
     * consider sending local responses immediately
     * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
