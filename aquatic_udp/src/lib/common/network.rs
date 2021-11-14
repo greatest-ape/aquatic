@@ -42,14 +42,14 @@ pub fn handle_request(
     request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
     local_responses: &mut Vec<(Response, SocketAddr)>,
     valid_until: ValidUntil,
-    res_request: Result<Request, RequestParseError>,
+    res_request: Option<Request>,
     src: SocketAddr,
 ) {
     let access_list_mode = config.access_list.mode;
 
     match res_request {
-        Ok(Request::Connect(request)) => {
-            let connection_id = ConnectionId(rng.gen());
+        Some(Request::Connect(request)) => {
+            let connection_id = ConnectionId(rng.gen::<i64>().into());
 
             connections.insert(connection_id, src, valid_until);
 
@@ -60,7 +60,7 @@ pub fn handle_request(
 
             local_responses.push((response, src))
         }
-        Ok(Request::Announce(request)) => {
+        Some(Request::Announce(request)) => {
             if connections.contains(request.connection_id, src) {
                 if access_list_cache
                     .load()
@@ -81,8 +81,8 @@ pub fn handle_request(
                 }
             }
         }
-        Ok(Request::Scrape(request)) => {
-            if connections.contains(request.connection_id, src) {
+        Some(Request::Scrape(request)) => {
+            if connections.contains(request.fixed.connection_id, src) {
                 let request = ConnectedRequest::Scrape {
                     request,
                     original_indices: Vec::new(),
@@ -93,24 +93,8 @@ pub fn handle_request(
                 }
             }
         }
-        Err(err) => {
-            ::log::debug!("Request::from_bytes error: {:?}", err);
-
-            if let RequestParseError::Sendable {
-                connection_id,
-                transaction_id,
-                err,
-            } = err
-            {
-                if connections.contains(connection_id, src) {
-                    let response = ErrorResponse {
-                        transaction_id,
-                        message: err.right_or("Parse error").into(),
-                    };
-
-                    local_responses.push((response.into(), src));
-                }
-            }
+        None => {
+            ::log::debug!("Request::from_bytes error");
         }
     }
 }

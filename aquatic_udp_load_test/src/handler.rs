@@ -170,7 +170,7 @@ fn process_response(
             rng,
             info_hashes,
             torrent_peers,
-            r.transaction_id,
+            r.fixed.transaction_id,
         ),
         Response::Scrape(r) => if_torrent_peer_move_and_create_random_request(
             config,
@@ -257,24 +257,25 @@ fn create_announce_request(
 ) -> Request {
     let (event, bytes_left) = {
         if rng.gen_bool(config.handler.peer_seeder_probability) {
-            (AnnounceEvent::Completed, NumberOfBytes(0))
+            (AnnounceEvent::Completed, NumberOfBytes(0.into()))
         } else {
-            (AnnounceEvent::Started, NumberOfBytes(50))
+            (AnnounceEvent::Started, NumberOfBytes(50.into()))
         }
     };
 
     (AnnounceRequest {
         connection_id: torrent_peer.connection_id,
+        action: AnnounceAction::new(),
         transaction_id,
         info_hash: torrent_peer.info_hash,
         peer_id: torrent_peer.peer_id,
-        bytes_downloaded: NumberOfBytes(50),
-        bytes_uploaded: NumberOfBytes(50),
+        bytes_downloaded: NumberOfBytes(50.into()),
+        bytes_uploaded: NumberOfBytes(50.into()),
         bytes_left,
-        event,
-        ip_address: None,
-        key: PeerKey(12345),
-        peers_wanted: NumberOfPeers(100),
+        event: event.into(),
+        ip_address: [0; 4],
+        key: PeerKey(12345.into()),
+        peers_wanted: NumberOfPeers(100.into()),
         port: torrent_peer.port,
     })
     .into()
@@ -294,8 +295,11 @@ fn create_scrape_request(
     }
 
     (ScrapeRequest {
-        connection_id: torrent_peer.connection_id,
-        transaction_id,
+        fixed: ScrapeRequestFixed {
+            connection_id: torrent_peer.connection_id,
+            action: ScrapeAction::new(),
+            transaction_id,
+        },
         info_hashes: scape_hashes,
     })
     .into()

@@ -29,7 +29,7 @@ pub fn create_torrent_peer(
         scrape_hash_indeces,
         connection_id,
         peer_id: generate_peer_id(),
-        port: Port(rand::random()),
+        port: Port(rand::random::<u16>().into()),
     }
 }
 
@@ -53,11 +53,15 @@ pub fn generate_info_hash() -> InfoHash {
 }
 
 pub fn generate_transaction_id(rng: &mut impl Rng) -> TransactionId {
-    TransactionId(rng.gen())
+    TransactionId(rng.gen::<i32>().into())
 }
 
 pub fn create_connect_request(transaction_id: TransactionId) -> Request {
-    (ConnectRequest { transaction_id }).into()
+    (ConnectRequest {
+        transaction_id,
+        action: ConnectAction::new(),
+    })
+    .into()
 }
 
 // Don't use SmallRng here for now

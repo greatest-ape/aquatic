@@ -141,7 +141,8 @@ fn handle_announce_request_inner<I: Ip>(
         peer_id: request.peer_id,
     };
 
-    let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
+    let peer_status =
+        PeerStatus::from_event_and_bytes_left(request.event.into(), request.bytes_left);
 
     let peer = Peer {
         ip_address: peer_ip,
@@ -176,7 +177,7 @@ fn handle_announce_request_inner<I: Ip>(
         _ => {}
     }
 
-    let max_num_peers_to_take = calc_max_num_peers_to_take(config, request.peers_wanted.0);
+    let max_num_peers_to_take = calc_max_num_peers_to_take(config, request.peers_wanted.0.get());
 
     let response_peers = extract_response_peers(
         rng,
@@ -187,10 +188,12 @@ fn handle_announce_request_inner<I: Ip>(
     );
 
     AnnounceResponse {
-        transaction_id: request.transaction_id,
-        announce_interval: AnnounceInterval(config.protocol.peer_announce_interval),
-        leechers: NumberOfPeers(torrent_data.num_leechers as i32),
-        seeders: NumberOfPeers(torrent_data.num_seeders as i32),
+        fixed: AnnounceResponseFixed {
+            transaction_id: request.transaction_id,
+            announce_interval: AnnounceInterval(config.protocol.peer_announce_interval.into()),
+            leechers: NumberOfPeers((torrent_data.num_leechers as i32).into()),
+            seeders: NumberOfPeers((torrent_data.num_seeders as i32).into()),
+        },
         peers: response_peers,
     }
 }
@@ -212,7 +215,7 @@ pub fn handle_scrape_request(
     src: SocketAddr,
     request: ScrapeRequest,
 ) -> ScrapeResponse {
-    const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
+    let empty_stats = create_torrent_scrape_statistics(0, 0);
 
     let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(request.info_hashes.len());
 
@@ -226,7 +229,7 @@ pub fn handle_scrape_request(
                     torrent_data.num_leechers as i32,
                 ));
             } else {
-                stats.push(EMPTY_STATS);
+                stats.push(empty_stats);
             }
         }
     } else {
@@ -237,23 +240,23 @@ pub fn handle_scrape_request(
                     torrent_data.num_leechers as i32,
                 ));
             } else {
-                stats.push(EMPTY_STATS);
+                stats.push(empty_stats);
             }
         }
     }
 
     ScrapeResponse {
-        transaction_id: request.transaction_id,
+        transaction_id: request.fixed.transaction_id,
         torrent_stats: stats,
     }
 }
 
 #[inline(always)]
-const fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
+fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
     TorrentScrapeStatistics {
-        seeders: NumberOfPeers(seeders),
-        completed: NumberOfDownloads(0), // No implementation planned
-        leechers: NumberOfPeers(leechers),
+        seeders: NumberOfPeers(seeders.into()),
+        completed: NumberOfDownloads(0.into()), // No implementation planned
+        leechers: NumberOfPeers(leechers.into()),
     }
 }
 
@@ -277,7 +280,7 @@ mod tests {
         };
         let value = Peer {
             ip_address,
-            port: Port(1),
+            port: Port(1.into()),
             status: PeerStatus::Leeching,
             valid_until: ValidUntil::new(0),
         };

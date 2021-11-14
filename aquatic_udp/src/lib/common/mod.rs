@@ -78,7 +78,7 @@ impl PeerStatus {
     pub fn from_event_and_bytes_left(event: AnnounceEvent, bytes_left: NumberOfBytes) -> Self {
         if event == AnnounceEvent::Stopped {
             Self::Stopped
-        } else if bytes_left.0 == 0 {
+        } else if bytes_left.0.get() == 0 {
             Self::Seeding
         } else {
             Self::Leeching
@@ -242,17 +242,23 @@ mod tests {
 
         let f = PeerStatus::from_event_and_bytes_left;
 
-        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(0)));
-        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(1)));
+        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(0.into())));
+        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(1.into())));
 
-        assert_eq!(Seeding, f(AnnounceEvent::Started, NumberOfBytes(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::Started, NumberOfBytes(1)));
+        assert_eq!(Seeding, f(AnnounceEvent::Started, NumberOfBytes(0.into())));
+        assert_eq!(Leeching, f(AnnounceEvent::Started, NumberOfBytes(1.into())));
 
-        assert_eq!(Seeding, f(AnnounceEvent::Completed, NumberOfBytes(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::Completed, NumberOfBytes(1)));
+        assert_eq!(
+            Seeding,
+            f(AnnounceEvent::Completed, NumberOfBytes(0.into()))
+        );
+        assert_eq!(
+            Leeching,
+            f(AnnounceEvent::Completed, NumberOfBytes(1.into()))
+        );
 
-        assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes(1)));
+        assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes(0.into())));
+        assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes(1.into())));
     }
 
     // Assumes that announce response with maximum amount of ipv6 peers will
@@ -265,16 +271,18 @@ mod tests {
 
         let peers = ::std::iter::repeat(ResponsePeer {
             ip_address: IpAddr::V6(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1)),
-            port: Port(1),
+            port: Port(1.into()),
         })
         .take(config.protocol.max_response_peers)
         .collect();
 
         let response = Response::Announce(AnnounceResponse {
-            transaction_id: TransactionId(1),
-            announce_interval: AnnounceInterval(1),
-            seeders: NumberOfPeers(1),
-            leechers: NumberOfPeers(1),
+            fixed: AnnounceResponseFixed {
+                transaction_id: TransactionId(1.into()),
+                announce_interval: AnnounceInterval(1.into()),
+                seeders: NumberOfPeers(1.into()),
+                leechers: NumberOfPeers(1.into()),
+            },
             peers,
         });
 

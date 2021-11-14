@@ -124,7 +124,7 @@ fn read_requests(
 
                 bytes_received += amt;
 
-                if res_request.is_ok() {
+                if res_request.is_some() {
                     requests_received += 1;
                 }
 

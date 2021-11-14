@@ -10,6 +10,7 @@ repository = "https://github.com/greatest-ape/aquatic"
 [dependencies]
 byteorder = "1"
 either = "1"
+zerocopy = "0.6"
 
 [dev-dependencies]
 quickcheck = "1.0"

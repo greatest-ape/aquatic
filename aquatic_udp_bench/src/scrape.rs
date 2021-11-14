@@ -56,7 +56,7 @@ pub fn bench_scrape_handler(
                 num_responses += 1;
 
                 if let Some(stat) = response.torrent_stats.last() {
-                    dummy ^= stat.leechers.0;
+                    dummy ^= stat.leechers.0.get();
                 }
             }
         }
@@ -68,7 +68,7 @@ pub fn bench_scrape_handler(
                 num_responses += 1;
 
                 if let Some(stat) = response.torrent_stats.last() {
-                    dummy ^= stat.leechers.0;
+                    dummy ^= stat.leechers.0.get();
                 }
             }
         }
@@ -104,8 +104,11 @@ pub fn create_requests(
         }
 
         let request = ScrapeRequest {
-            connection_id: ConnectionId(0),
-            transaction_id: TransactionId(rng.gen()),
+            fixed: ScrapeRequestFixed {
+                connection_id: ConnectionId(0.into()),
+                action: ScrapeAction::new(),
+                transaction_id: TransactionId(rng.gen::<i32>().into()),
+            },
             info_hashes: request_info_hashes,
         };
 

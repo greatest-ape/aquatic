@@ -1,9 +1,8 @@
 use std::convert::TryInto;
-use std::io::{self, Cursor, Read, Write};
-use std::net::Ipv4Addr;
+use std::io::{self, Write};
+use std::mem::size_of;
 
-use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
-use either::Either;
+use zerocopy::{AsBytes, FromBytes, NetworkEndian, Unaligned, I32, I64};
 
 use super::common::*;
 
@@ -11,99 +10,77 @@ const PROTOCOL_IDENTIFIER: i64 = 4_497_486_125_440;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum AnnounceEvent {
+    Completed,
     Started,
     Stopped,
-    Completed,
     None,
 }
 
-impl AnnounceEvent {
-    #[inline]
-    pub fn from_i32(i: i32) -> Self {
-        match i {
-            1 => Self::Completed,
-            2 => Self::Started,
-            3 => Self::Stopped,
-            _ => Self::None,
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(transparent)]
+pub struct AnnounceEventContainer(I32<NetworkEndian>);
+
+impl Into<AnnounceEvent> for AnnounceEventContainer {
+    fn into(self) -> AnnounceEvent {
+        match self.0.get() {
+            1 => AnnounceEvent::Completed,
+            2 => AnnounceEvent::Started,
+            3 => AnnounceEvent::Stopped,
+            _ => AnnounceEvent::None,
         }
     }
+}
 
-    #[inline]
-    pub fn to_i32(&self) -> i32 {
-        match self {
-            AnnounceEvent::None => 0,
+impl Into<AnnounceEventContainer> for AnnounceEvent {
+    fn into(self) -> AnnounceEventContainer {
+        let n = match self {
             AnnounceEvent::Completed => 1,
             AnnounceEvent::Started => 2,
             AnnounceEvent::Stopped => 3,
-        }
+            AnnounceEvent::None => 0,
+        };
+
+        AnnounceEventContainer(n.into())
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
 pub struct ConnectRequest {
+    pub action: ConnectAction,
     pub transaction_id: TransactionId,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
 pub struct AnnounceRequest {
     pub connection_id: ConnectionId,
+    pub action: AnnounceAction,
     pub transaction_id: TransactionId,
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
     pub bytes_downloaded: NumberOfBytes,
-    pub bytes_uploaded: NumberOfBytes,
     pub bytes_left: NumberOfBytes,
-    pub event: AnnounceEvent,
-    pub ip_address: Option<Ipv4Addr>,
+    pub bytes_uploaded: NumberOfBytes,
+    pub event: AnnounceEventContainer,
+    pub ip_address: [u8; 4],
     pub key: PeerKey,
     pub peers_wanted: NumberOfPeers,
     pub port: Port,
 }
 
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
+pub struct ScrapeRequestFixed {
+    pub connection_id: ConnectionId,
+    pub action: ScrapeAction,
+    pub transaction_id: TransactionId,
+}
+
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ScrapeRequest {
-    pub connection_id: ConnectionId,
-    pub transaction_id: TransactionId,
+    pub fixed: ScrapeRequestFixed,
     pub info_hashes: Vec<InfoHash>,
-}
-
-#[derive(Debug)]
-pub enum RequestParseError {
-    Sendable {
-        connection_id: ConnectionId,
-        transaction_id: TransactionId,
-        err: Either<io::Error, &'static str>,
-    },
-    Unsendable {
-        err: Either<io::Error, &'static str>,
-    },
-}
-
-impl RequestParseError {
-    pub fn sendable_io(err: io::Error, connection_id: i64, transaction_id: i32) -> Self {
-        Self::Sendable {
-            connection_id: ConnectionId(connection_id),
-            transaction_id: TransactionId(transaction_id),
-            err: Either::Left(err),
-        }
-    }
-    pub fn sendable_text(text: &'static str, connection_id: i64, transaction_id: i32) -> Self {
-        Self::Sendable {
-            connection_id: ConnectionId(connection_id),
-            transaction_id: TransactionId(transaction_id),
-            err: Either::Right(text),
-        }
-    }
-    pub fn unsendable_io(err: io::Error) -> Self {
-        Self::Unsendable {
-            err: Either::Left(err),
-        }
-    }
-    pub fn unsendable_text(text: &'static str) -> Self {
-        Self::Unsendable {
-            err: Either::Right(text),
-        }
-    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -135,36 +112,16 @@ impl Request {
     pub fn write(self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
             Request::Connect(r) => {
-                bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER)?;
-                bytes.write_i32::<NetworkEndian>(0)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
-            }
+                let protocol_identifier: I64<NetworkEndian> = PROTOCOL_IDENTIFIER.into();
+                bytes.write(protocol_identifier.as_bytes())?;
 
+                bytes.write(r.as_bytes())?;
+            }
             Request::Announce(r) => {
-                bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
-                bytes.write_i32::<NetworkEndian>(1)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
-
-                bytes.write_all(&r.info_hash.0)?;
-                bytes.write_all(&r.peer_id.0)?;
-
-                bytes.write_i64::<NetworkEndian>(r.bytes_downloaded.0)?;
-                bytes.write_i64::<NetworkEndian>(r.bytes_left.0)?;
-                bytes.write_i64::<NetworkEndian>(r.bytes_uploaded.0)?;
-
-                bytes.write_i32::<NetworkEndian>(r.event.to_i32())?;
-
-                bytes.write_all(&r.ip_address.map_or([0; 4], |ip| ip.octets()))?;
-
-                bytes.write_u32::<NetworkEndian>(r.key.0)?;
-                bytes.write_i32::<NetworkEndian>(r.peers_wanted.0)?;
-                bytes.write_u16::<NetworkEndian>(r.port.0)?;
+                bytes.write(r.as_bytes())?;
             }
-
             Request::Scrape(r) => {
-                bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
-                bytes.write_i32::<NetworkEndian>(2)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
+                bytes.write(r.fixed.as_bytes())?;
 
                 for info_hash in r.info_hashes {
                     bytes.write_all(&info_hash.0)?;
@@ -175,121 +132,28 @@ impl Request {
         Ok(())
     }
 
-    pub fn from_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
-        let mut cursor = Cursor::new(bytes);
+    pub fn from_bytes(mut bytes: &[u8], max_scrape_torrents: u8) -> Option<Self> {
+        let first_8_bytes: I64<NetworkEndian> = FromBytes::read_from_prefix(bytes)?;
+        let action: I32<NetworkEndian> = FromBytes::read_from_prefix(&bytes[8..])?;
 
-        let connection_id = cursor
-            .read_i64::<NetworkEndian>()
-            .map_err(RequestParseError::unsendable_io)?;
-        let action = cursor
-            .read_i32::<NetworkEndian>()
-            .map_err(RequestParseError::unsendable_io)?;
-        let transaction_id = cursor
-            .read_i32::<NetworkEndian>()
-            .map_err(RequestParseError::unsendable_io)?;
-
-        match action {
-            // Connect
-            0 => {
-                if connection_id == PROTOCOL_IDENTIFIER {
-                    Ok((ConnectRequest {
-                        transaction_id: TransactionId(transaction_id),
-                    })
-                    .into())
-                } else {
-                    Err(RequestParseError::unsendable_text(
-                        "Protocol identifier missing",
-                    ))
-                }
+        match action.get() {
+            0 if first_8_bytes.get() == PROTOCOL_IDENTIFIER => {
+                ConnectRequest::read_from(&bytes[8..]).map(|r| r.into())
             }
-
-            // Announce
-            1 => {
-                let mut info_hash = [0; 20];
-                let mut peer_id = [0; 20];
-                let mut ip = [0; 4];
-
-                cursor.read_exact(&mut info_hash).map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-                cursor.read_exact(&mut peer_id).map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-
-                let bytes_downloaded = cursor.read_i64::<NetworkEndian>().map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-                let bytes_left = cursor.read_i64::<NetworkEndian>().map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-                let bytes_uploaded = cursor.read_i64::<NetworkEndian>().map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-                let event = cursor.read_i32::<NetworkEndian>().map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-
-                cursor.read_exact(&mut ip).map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-
-                let key = cursor.read_u32::<NetworkEndian>().map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-                let peers_wanted = cursor.read_i32::<NetworkEndian>().map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-                let port = cursor.read_u16::<NetworkEndian>().map_err(|err| {
-                    RequestParseError::sendable_io(err, connection_id, transaction_id)
-                })?;
-
-                let opt_ip = if ip == [0; 4] {
-                    None
-                } else {
-                    Some(Ipv4Addr::from(ip))
-                };
-
-                Ok((AnnounceRequest {
-                    connection_id: ConnectionId(connection_id),
-                    transaction_id: TransactionId(transaction_id),
-                    info_hash: InfoHash(info_hash),
-                    peer_id: PeerId(peer_id),
-                    bytes_downloaded: NumberOfBytes(bytes_downloaded),
-                    bytes_uploaded: NumberOfBytes(bytes_uploaded),
-                    bytes_left: NumberOfBytes(bytes_left),
-                    event: AnnounceEvent::from_i32(event),
-                    ip_address: opt_ip,
-                    key: PeerKey(key),
-                    peers_wanted: NumberOfPeers(peers_wanted),
-                    port: Port(port),
-                })
-                .into())
-            }
-
-            // Scrape
+            1 => AnnounceRequest::read_from(bytes).map(|r| r.into()),
             2 => {
-                let position = cursor.position() as usize;
-                let inner = cursor.into_inner();
+                let fixed = ScrapeRequestFixed::read_from_prefix(bytes)?;
+                bytes = &bytes[size_of::<ScrapeRequestFixed>()..];
 
-                let info_hashes = (&inner[position..])
+                let info_hashes = bytes
                     .chunks_exact(20)
                     .take(max_scrape_torrents as usize)
                     .map(|chunk| InfoHash(chunk.try_into().unwrap()))
                     .collect();
 
-                Ok((ScrapeRequest {
-                    connection_id: ConnectionId(connection_id),
-                    transaction_id: TransactionId(transaction_id),
-                    info_hashes,
-                })
-                .into())
+                Some((ScrapeRequest { fixed, info_hashes }).into())
             }
-
-            _ => Err(RequestParseError::sendable_text(
-                "Invalid action",
-                connection_id,
-                transaction_id,
-            )),
+            _ => None,
         }
     }
 }
@@ -300,21 +164,24 @@ mod tests {
 
     use super::*;
 
-    impl quickcheck::Arbitrary for AnnounceEvent {
+    impl quickcheck::Arbitrary for AnnounceEventContainer {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            match (bool::arbitrary(g), bool::arbitrary(g)) {
-                (false, false) => Self::Started,
-                (true, false) => Self::Started,
-                (false, true) => Self::Completed,
-                (true, true) => Self::None,
-            }
+            let event = match (bool::arbitrary(g), bool::arbitrary(g)) {
+                (false, false) => AnnounceEvent::Started,
+                (true, false) => AnnounceEvent::Started,
+                (false, true) => AnnounceEvent::Completed,
+                (true, true) => AnnounceEvent::None,
+            };
+
+            event.into()
         }
     }
 
     impl quickcheck::Arbitrary for ConnectRequest {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                transaction_id: TransactionId(i32::arbitrary(g)),
+                action: ConnectAction::new(),
+                transaction_id: TransactionId(i32::arbitrary(g).into()),
             }
         }
     }
@@ -322,18 +189,19 @@ mod tests {
     impl quickcheck::Arbitrary for AnnounceRequest {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                connection_id: ConnectionId(i64::arbitrary(g)),
-                transaction_id: TransactionId(i32::arbitrary(g)),
+                connection_id: ConnectionId(i64::arbitrary(g).into()),
+                action: AnnounceAction::new(),
+                transaction_id: TransactionId(i32::arbitrary(g).into()),
                 info_hash: InfoHash::arbitrary(g),
                 peer_id: PeerId::arbitrary(g),
-                bytes_downloaded: NumberOfBytes(i64::arbitrary(g)),
-                bytes_uploaded: NumberOfBytes(i64::arbitrary(g)),
-                bytes_left: NumberOfBytes(i64::arbitrary(g)),
-                event: AnnounceEvent::arbitrary(g),
-                ip_address: None,
-                key: PeerKey(u32::arbitrary(g)),
-                peers_wanted: NumberOfPeers(i32::arbitrary(g)),
-                port: Port(u16::arbitrary(g)),
+                bytes_downloaded: NumberOfBytes(i64::arbitrary(g).into()),
+                bytes_uploaded: NumberOfBytes(i64::arbitrary(g).into()),
+                bytes_left: NumberOfBytes(i64::arbitrary(g).into()),
+                event: AnnounceEventContainer::arbitrary(g),
+                ip_address: [0; 4],
+                key: PeerKey(u32::arbitrary(g).into()),
+                peers_wanted: NumberOfPeers(i32::arbitrary(g).into()),
+                port: Port(u16::arbitrary(g).into()),
             }
         }
     }
@@ -345,8 +213,11 @@ mod tests {
                 .collect();
 
             Self {
-                connection_id: ConnectionId(i64::arbitrary(g)),
-                transaction_id: TransactionId(i32::arbitrary(g)),
+                fixed: ScrapeRequestFixed {
+                    connection_id: ConnectionId(i64::arbitrary(g).into()),
+                    action: ScrapeAction::new(),
+                    transaction_id: TransactionId(i32::arbitrary(g).into()),
+                },
                 info_hashes,
             }
         }

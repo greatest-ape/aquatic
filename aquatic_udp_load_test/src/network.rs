@@ -127,7 +127,7 @@ fn read_responses(
 ) {
     while let Ok(amt) = socket.recv(buffer) {
         match Response::from_bytes(&buffer[0..amt]) {
-            Ok(response) => {
+            Some(response) => {
                 match response {
                     Response::Announce(ref r) => {
                         ls.responses_announce += 1;
@@ -146,8 +146,8 @@ fn read_responses(
 
                 responses.push((thread_id, response))
             }
-            Err(err) => {
-                eprintln!("Received invalid response: {:#?}", err);
+            None => {
+                eprintln!("Received invalid response");
             }
         }
     }
