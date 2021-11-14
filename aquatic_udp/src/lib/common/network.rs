@@ -123,6 +123,10 @@ pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     }
     .expect("create socket");
 
+    if config.network.only_ipv6 {
+        socket.set_only_v6(true).expect("socket: set only ipv6");
+    }
+
     socket.set_reuse_port(true).expect("socket: set reuse port");
 
     socket

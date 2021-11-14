@@ -38,6 +38,7 @@ impl aquatic_cli_helpers::Config for Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    pub only_ipv6: bool,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
@@ -120,6 +121,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
+            only_ipv6: false,
             socket_recv_buffer_size: 4096 * 128,
             #[cfg(feature = "with-mio")]
             poll_event_capacity: 4096,
