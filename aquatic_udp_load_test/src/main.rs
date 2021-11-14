@@ -72,24 +72,17 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let (sender, receiver) = unbounded();
         let port = config.network.first_port + (i as u16);
 
-        let addr = if config.network.multiple_client_ips {
-            let ip = if config.network.ipv6_client {
-                // FIXME: test ipv6
-                Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1 + i as u16).into()
-            } else {
-                Ipv4Addr::new(127, 0, 0, 1 + i).into()
-            };
-
-            SocketAddr::new(ip, port)
+        let ip = if config.server_address.is_ipv6() {
+            Ipv6Addr::LOCALHOST.into()
         } else {
-            let ip = if config.network.ipv6_client {
-                Ipv6Addr::LOCALHOST.into()
+            if config.network.multiple_client_ipv4s {
+                Ipv4Addr::new(127, 0, 0, 1 + i).into()
             } else {
                 Ipv4Addr::LOCALHOST.into()
-            };
-
-            SocketAddr::new(ip, port)
+            }
         };
+
+        let addr = SocketAddr::new(ip, port);
 
         request_senders.push(sender);
 

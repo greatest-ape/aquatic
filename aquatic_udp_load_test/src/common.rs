@@ -17,12 +17,12 @@ pub struct ThreadId(pub u8);
 #[serde(default)]
 pub struct Config {
     /// Server address
+    ///
+    /// If you want to send IPv4 requests to a IPv4+IPv6 tracker, put an IPv4
+    /// address here.
     pub server_address: SocketAddr,
     pub log_level: LogLevel,
     /// Number of sockets and socket worker threads
-    ///
-    /// Sockets will bind to one port each, and with
-    /// multiple_client_ips = true, additionally to one IP each.
     pub num_socket_workers: u8,
     /// Number of workers generating requests from responses, as well as
     /// requests not connected to previous ones.
@@ -38,15 +38,14 @@ pub struct Config {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
-    /// True means bind to one localhost IP per socket. On macOS, this by
-    /// default causes all server responses to go to one socket worker.
-    /// Default option ("true") can cause issues on macOS.
+    /// True means bind to one localhost IP per socket.
     ///
     /// The point of multiple IPs is to possibly cause a better distribution
-    /// of requests to servers with SO_REUSEPORT option.
-    pub multiple_client_ips: bool,
-    /// Use Ipv6 only
-    pub ipv6_client: bool,
+    /// of requests to servers with SO_REUSEPORT option, but it doesn't
+    /// necessarily help.
+    ///
+    /// Setting this to true can cause issues on macOS.
+    pub multiple_client_ipv4s: bool,
     /// Number of first client port
     pub first_port: u16,
     /// Socket worker poll timeout in microseconds
@@ -121,8 +120,7 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            multiple_client_ips: true,
-            ipv6_client: false,
+            multiple_client_ipv4s: false,
             first_port: 45_000,
             poll_timeout: 276,
             poll_event_capacity: 2_877,
