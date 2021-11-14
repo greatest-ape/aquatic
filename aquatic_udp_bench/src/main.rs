@@ -15,8 +15,8 @@ use std::time::Duration;
 use aquatic_cli_helpers::run_app_with_cli_and_config;
 use aquatic_udp::common::*;
 use aquatic_udp::config::Config;
-use aquatic_udp::mio::common::*;
-use aquatic_udp::mio::handlers;
+use aquatic_udp::other::common::*;
+use aquatic_udp::other::handlers;
 
 use config::BenchConfig;
 

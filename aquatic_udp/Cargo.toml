@@ -18,7 +18,8 @@ name = "aquatic_udp"
 default = ["with-mio"]
 cpu-pinning = ["aquatic_common/cpu-pinning"]
 with-glommio = ["cpu-pinning", "glommio", "futures-lite"]
-with-mio = ["crossbeam-channel", "histogram", "mio", "socket2", "io-uring", "libc", "bytemuck"]
+with-mio = ["crossbeam-channel", "histogram", "mio", "socket2"]
+with-io-uring = ["crossbeam-channel", "histogram", "socket2", "io-uring", "libc", "bytemuck"]
 
 [dependencies]
 anyhow = "1"
@@ -35,11 +36,15 @@ serde = { version = "1", features = ["derive"] }
 slab = "0.4"
 signal-hook = { version = "0.3" }
 
-# mio
+# mio / io-uring
 crossbeam-channel = { version = "0.5", optional = true }
 histogram = { version = "0.6", optional = true }
-mio = { version = "0.7", features = ["udp", "os-poll", "os-util"], optional = true }
 socket2 = { version = "0.4.1", features = ["all"], optional = true }
+
+# mio
+mio = { version = "0.7", features = ["udp", "os-poll", "os-util"], optional = true }
+
+# io-uring
 io-uring = { version = "0.5", optional = true }
 libc = { version = "0.2", optional = true }
 bytemuck = { version = "1", optional = true }

@@ -5,7 +5,7 @@ pub mod config;
 #[cfg(all(feature = "with-glommio", target_os = "linux"))]
 pub mod glommio;
 #[cfg(feature = "with-mio")]
-pub mod mio;
+pub mod other;
 
 use config::Config;
 
@@ -16,7 +16,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         if #[cfg(all(feature = "with-glommio", target_os = "linux"))] {
             glommio::run(config)
         } else {
-            mio::run(config)
+            other::run(config)
         }
     }
 }

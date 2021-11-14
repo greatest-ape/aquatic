@@ -1,6 +1,6 @@
 use std::io::Cursor;
 use std::mem::size_of;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
 use std::os::unix::prelude::AsRawFd;
 use std::ptr::null_mut;
 use std::sync::{
@@ -13,7 +13,9 @@ use aquatic_common::access_list::{create_access_list_cache, AccessListCache};
 use crossbeam_channel::{Receiver, Sender};
 use io_uring::types::{Fixed, Timespec};
 use io_uring::SubmissionQueue;
-use libc::{AF_INET, AF_INET6, c_void, in6_addr, in_addr, iovec, msghdr, sockaddr_in, sockaddr_in6};
+use libc::{
+    c_void, in6_addr, in_addr, iovec, msghdr, sockaddr_in, sockaddr_in6, AF_INET, AF_INET6,
+};
 use rand::prelude::{Rng, SeedableRng, StdRng};
 use slab::Slab;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -103,7 +105,6 @@ impl Into<u64> for UserData {
 pub fn run_socket_worker(
     state: State,
     config: Config,
-    token_num: usize,
     request_sender: Sender<(ConnectedRequest, SocketAddr)>,
     response_receiver: Receiver<(ConnectedResponse, SocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
