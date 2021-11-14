@@ -13,6 +13,7 @@ name = "aquatic_udp_bench"
 anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_udp = "0.1.0"
+aquatic_udp_protocol = "0.1.0"
 crossbeam-channel = "0.5"
 indicatif = "0.16.2"
 mimalloc = { version = "0.1", default-features = false }

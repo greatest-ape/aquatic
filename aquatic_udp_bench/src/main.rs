@@ -7,6 +7,7 @@
 //! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
+use aquatic_udp::handlers::run_request_worker;
 use crossbeam_channel::unbounded;
 use num_format::{Locale, ToFormattedString};
 use rand::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
@@ -15,8 +16,7 @@ use std::time::Duration;
 use aquatic_cli_helpers::run_app_with_cli_and_config;
 use aquatic_udp::common::*;
 use aquatic_udp::config::Config;
-use aquatic_udp::other::common::*;
-use aquatic_udp::other::handlers;
+use aquatic_udp_protocol::*;
 
 use config::BenchConfig;
 
@@ -52,7 +52,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
         let response_sender = response_sender.clone();
 
         ::std::thread::spawn(move || {
-            handlers::run_request_worker(state, config, request_receiver, response_sender)
+            run_request_worker(state, config, request_receiver, response_sender)
         });
     }
 

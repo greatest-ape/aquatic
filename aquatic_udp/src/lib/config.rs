@@ -18,9 +18,7 @@ pub struct Config {
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
-    #[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
     pub handlers: HandlerConfig,
-    #[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
@@ -70,7 +68,6 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: i32,
 }
 
-#[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
@@ -80,7 +77,6 @@ pub struct HandlerConfig {
     pub channel_recv_timeout_microseconds: u64,
 }
 
-#[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
@@ -109,9 +105,7 @@ impl Default for Config {
             log_level: LogLevel::Error,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
-            #[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
             handlers: HandlerConfig::default(),
-            #[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
@@ -143,7 +137,6 @@ impl Default for ProtocolConfig {
     }
 }
 
-#[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
@@ -153,7 +146,6 @@ impl Default for HandlerConfig {
     }
 }
 
-#[cfg(any(feature = "with-mio", feature = "with-io-uring"))]
 impl Default for StatisticsConfig {
     fn default() -> Self {
         Self { interval: 0 }

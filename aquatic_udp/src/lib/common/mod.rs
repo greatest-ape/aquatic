@@ -1,20 +1,51 @@
 use std::hash::Hash;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Instant;
 
+use parking_lot::Mutex;
+use socket2::{Domain, Protocol, Socket, Type};
+
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap};
 use aquatic_common::AHashIndexMap;
-
-pub use aquatic_common::{access_list::AccessList, ValidUntil};
-pub use aquatic_udp_protocol::*;
+use aquatic_common::ValidUntil;
+use aquatic_udp_protocol::*;
 
 use crate::config::Config;
 
-pub mod handlers;
 pub mod network;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
+
+#[derive(Debug)]
+pub enum ConnectedRequest {
+    Announce(AnnounceRequest),
+    Scrape {
+        request: ScrapeRequest,
+        /// Currently only used by glommio implementation
+        original_indices: Vec<usize>,
+    },
+}
+
+#[derive(Debug)]
+pub enum ConnectedResponse {
+    Announce(AnnounceResponse),
+    Scrape {
+        response: ScrapeResponse,
+        /// Currently only used by glommio implementation
+        original_indices: Vec<usize>,
+    },
+}
+
+impl Into<Response> for ConnectedResponse {
+    fn into(self) -> Response {
+        match self {
+            Self::Announce(response) => Response::Announce(response),
+            Self::Scrape { response, .. } => Response::Scrape(response),
+        }
+    }
+}
 
 pub trait Ip: Hash + PartialEq + Eq + Clone + Copy {
     fn ip_addr(self) -> IpAddr;
@@ -157,6 +188,43 @@ impl TorrentMaps {
         torrent.peers.shrink_to_fit();
 
         !torrent.peers.is_empty()
+    }
+}
+
+#[derive(Default)]
+pub struct Statistics {
+    pub requests_received: AtomicUsize,
+    pub responses_sent: AtomicUsize,
+    pub bytes_received: AtomicUsize,
+    pub bytes_sent: AtomicUsize,
+}
+
+#[derive(Clone)]
+pub struct State {
+    pub access_list: Arc<AccessListArcSwap>,
+    pub torrents: Arc<Mutex<TorrentMaps>>,
+    pub statistics: Arc<Statistics>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            access_list: Arc::new(AccessListArcSwap::default()),
+            torrents: Arc::new(Mutex::new(TorrentMaps::default())),
+            statistics: Arc::new(Statistics::default()),
+        }
+    }
+}
+pub fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
+    match ip {
+        IpAddr::V4(_) => IpVersion::IPv4,
+        IpAddr::V6(ip) => {
+            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments() {
+                IpVersion::IPv4
+            } else {
+                IpVersion::IPv6
+            }
+        }
     }
 }
 
