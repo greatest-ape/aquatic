@@ -17,18 +17,17 @@
   * cargo-deny
 
 * aquatic_udp
+  * shard torrent state
+    * old note that might be useful:
+      * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
+        containing TransactionId and BTreeMap<usize, InfoHash>, and same for
+        response
   * uring
     * ValidUntil periodic update
     * statistics
     * shared config keys such as poll interval
   * mio
     * stagger connection cleaning intervals?
-    * ipv4-mapped addresses
-  * glommio
-    * consider sending local responses immediately
-    * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
-      containing TransactionId and BTreeMap<usize, InfoHash>, and same for
-      response
 
 * aquatic_http:
   * clean out connections regularly
