@@ -79,7 +79,7 @@ pub fn run_request_worker(
                     peer_valid_until,
                 );
 
-                (ConnectedResponse::Announce(response), src)
+                (response, src)
             }));
 
             responses.extend(scrape_requests.drain(..).map(|(request, src)| {
@@ -107,8 +107,8 @@ pub fn handle_announce_request(
     request: AnnounceRequest,
     src: SocketAddr,
     peer_valid_until: ValidUntil,
-) -> AnnounceResponse {
-    match convert_ipv4_mapped_ipv6(src.ip()) {
+) -> ConnectedResponse {
+    match src.ip() {
         IpAddr::V4(ip) => handle_announce_request_inner(
             config,
             rng,
@@ -116,7 +116,8 @@ pub fn handle_announce_request(
             request,
             ip,
             peer_valid_until,
-        ),
+        )
+        .into(),
         IpAddr::V6(ip) => handle_announce_request_inner(
             config,
             rng,
@@ -124,7 +125,8 @@ pub fn handle_announce_request(
             request,
             ip,
             peer_valid_until,
-        ),
+        )
+        .into(),
     }
 }
 
@@ -135,7 +137,7 @@ fn handle_announce_request_inner<I: Ip>(
     request: AnnounceRequest,
     peer_ip: I,
     peer_valid_until: ValidUntil,
-) -> AnnounceResponse {
+) -> ProtocolAnnounceResponse<I> {
     let peer_key = PeerMapKey {
         ip: peer_ip,
         peer_id: request.peer_id,
@@ -186,7 +188,7 @@ fn handle_announce_request_inner<I: Ip>(
         Peer::to_response_peer,
     );
 
-    AnnounceResponse {
+    ProtocolAnnounceResponse {
         transaction_id: request.transaction_id,
         announce_interval: AnnounceInterval(config.protocol.peer_announce_interval),
         leechers: NumberOfPeers(torrent_data.num_leechers as i32),

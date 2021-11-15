@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum IpVersion {
@@ -37,8 +37,14 @@ pub struct PeerId(pub [u8; 20]);
 pub struct PeerKey(pub u32);
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct ResponsePeer {
-    pub ip_address: IpAddr,
+pub struct ResponsePeerIpv4 {
+    pub ip_address: Ipv4Addr,
+    pub port: Port,
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub struct ResponsePeerIpv6 {
+    pub ip_address: Ipv6Addr,
     pub port: Port,
 }
 
@@ -80,11 +86,21 @@ impl quickcheck::Arbitrary for PeerId {
 }
 
 #[cfg(test)]
-impl quickcheck::Arbitrary for ResponsePeer {
+impl quickcheck::Arbitrary for ResponsePeerIpv4 {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
-            ip_address: ::std::net::IpAddr::arbitrary(g),
-            port: Port(u16::arbitrary(g)),
+            ip_address: quickcheck::Arbitrary::arbitrary(g),
+            port: Port(u16::arbitrary(g).into()),
+        }
+    }
+}
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for ResponsePeerIpv6 {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self {
+            ip_address: quickcheck::Arbitrary::arbitrary(g),
+            port: Port(u16::arbitrary(g).into()),
         }
     }
 }

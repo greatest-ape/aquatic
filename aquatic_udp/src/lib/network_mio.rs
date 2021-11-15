@@ -1,5 +1,5 @@
 use std::io::{Cursor, ErrorKind};
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -128,6 +128,22 @@ fn read_requests(
                     requests_received += 1;
                 }
 
+                let src = match src {
+                    SocketAddr::V6(src) => {
+                        match src.ip().octets() {
+                            // Convert IPv4-mapped address (available in std but nightly-only)
+                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, a, b, c, d] => {
+                                SocketAddr::V4(SocketAddrV4::new(
+                                    Ipv4Addr::new(a, b, c, d),
+                                    src.port(),
+                                ))
+                            }
+                            _ => src.into(),
+                        }
+                    }
+                    src => src,
+                };
+
                 handle_request(
                     config,
                     connections,
@@ -182,16 +198,31 @@ fn send_responses(
             .map(|(response, addr)| (response.into(), addr)),
     );
 
-    for (response, src) in response_iterator {
+    for (response, addr) in response_iterator {
         cursor.set_position(0);
 
-        let ip_version = ip_version_from_ip(src.ip());
+        let addr = if config.network.address.is_ipv4() {
+            if let SocketAddr::V4(addr) = addr {
+                SocketAddr::V4(addr)
+            } else {
+                unreachable!()
+            }
+        } else {
+            match addr {
+                SocketAddr::V4(addr) => {
+                    let ip = addr.ip().to_ipv6_mapped();
 
-        match response.write(&mut cursor, ip_version) {
+                    SocketAddr::V6(SocketAddrV6::new(ip, addr.port(), 0, 0))
+                }
+                addr => addr,
+            }
+        };
+
+        match response.write(&mut cursor) {
             Ok(()) => {
                 let amt = cursor.position() as usize;
 
-                match socket.send_to(&cursor.get_ref()[..amt], src) {
+                match socket.send_to(&cursor.get_ref()[..amt], addr) {
                     Ok(amt) => {
                         responses_sent += 1;
                         bytes_sent += amt;

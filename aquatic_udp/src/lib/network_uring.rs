@@ -215,7 +215,7 @@ pub fn run_socket_worker(
                         let buffer_index = user_data.get_buffer_index();
                         let buffer_len = result as usize;
 
-                        let addr = if config.network.address.is_ipv4() {
+                        let src = if config.network.address.is_ipv4() {
                             SocketAddr::V4(SocketAddrV4::new(
                                 Ipv4Addr::from(u32::from_be(
                                     sockaddrs_ipv4[buffer_index].sin_addr.s_addr,
@@ -258,7 +258,7 @@ pub fn run_socket_worker(
                             &mut local_responses,
                             valid_until,
                             res_request,
-                            addr,
+                            src,
                         );
                     }
                 }
@@ -397,7 +397,7 @@ fn queue_response(
 
     let mut cursor = Cursor::new(&mut buffers[buffer_index][..]);
 
-    match response.write(&mut cursor, ip_version_from_ip(addr.ip())) {
+    match response.write(&mut cursor) {
         Ok(()) => {
             iovs[buffer_index].iov_len = cursor.position() as usize;
 
