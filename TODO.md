@@ -17,13 +17,13 @@
   * cargo-deny
 
 * aquatic_udp
+  * do ip mapping in socket worker, not in request worker
   * uring
     * ValidUntil periodic update
     * statistics
     * shared config keys such as poll interval
   * mio
     * stagger connection cleaning intervals?
-    * ipv4-mapped addresses
   * glommio
     * consider sending local responses immediately
     * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
