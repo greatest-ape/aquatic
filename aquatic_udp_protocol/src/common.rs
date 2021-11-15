@@ -1,12 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub enum IpVersion {
-    IPv4,
-    IPv6,
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct AnnounceInterval(pub i32);
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -46,17 +40,6 @@ pub struct ResponsePeerIpv4 {
 pub struct ResponsePeerIpv6 {
     pub ip_address: Ipv6Addr,
     pub port: Port,
-}
-
-#[cfg(test)]
-impl quickcheck::Arbitrary for IpVersion {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        if bool::arbitrary(g) {
-            IpVersion::IPv4
-        } else {
-            IpVersion::IPv6
-        }
-    }
 }
 
 #[cfg(test)]
