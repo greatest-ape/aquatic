@@ -1,4 +1,3 @@
-use std::io::Cursor;
 use std::mem::size_of;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
 use std::os::unix::prelude::AsRawFd;
@@ -20,7 +19,7 @@ use libc::{
 use rand::prelude::{SeedableRng, StdRng};
 use slab::Slab;
 
-use aquatic_udp_protocol::{Request, Response};
+use aquatic_udp_protocol::*;
 
 use crate::common::network::ConnectionMap;
 use crate::common::network::*;
@@ -28,9 +27,8 @@ use crate::common::*;
 use crate::config::Config;
 
 const RING_SIZE: usize = 128;
-const MAX_RECV_EVENTS: usize = 1;
-const MAX_SEND_EVENTS: usize = RING_SIZE - MAX_RECV_EVENTS - 1;
-const NUM_BUFFERS: usize = MAX_RECV_EVENTS + MAX_SEND_EVENTS;
+const MAX_RECV_ENTRIES: usize = 1;
+const MAX_SEND_ENTRIES: usize = RING_SIZE - MAX_RECV_ENTRIES - 1;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum UserData {
@@ -43,7 +41,7 @@ impl UserData {
     fn get_buffer_index(&self) -> usize {
         match self {
             Self::RecvMsg { slab_key } => *slab_key,
-            Self::SendMsg { slab_key } => slab_key + MAX_RECV_EVENTS,
+            Self::SendMsg { slab_key } => *slab_key,
             Self::Timeout => {
                 unreachable!()
             }
@@ -117,36 +115,38 @@ pub fn run_socket_worker(
     let mut access_list_cache = create_access_list_cache(&state.access_list);
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
-    let mut buffers: Vec<[u8; MAX_PACKET_SIZE]> =
-        (0..NUM_BUFFERS).map(|_| [0; MAX_PACKET_SIZE]).collect();
+    // Setup recv buffers
 
-    let mut sockaddrs_ipv4 = [sockaddr_in {
+    let mut recv_buffers: Vec<[u8; MAX_PACKET_SIZE]> =
+        (0..MAX_RECV_ENTRIES).map(|_| [0; MAX_PACKET_SIZE]).collect();
+
+    let mut recv_sockaddrs_ipv4 = [sockaddr_in {
         sin_addr: in_addr { s_addr: 0 },
         sin_port: 0,
         sin_family: AF_INET as u16,
         sin_zero: Default::default(),
-    }; NUM_BUFFERS];
+    }; MAX_RECV_ENTRIES];
 
-    let mut sockaddrs_ipv6 = [sockaddr_in6 {
+    let mut recv_sockaddrs_ipv6 = [sockaddr_in6 {
         sin6_addr: in6_addr { s6_addr: [0; 16] },
         sin6_port: 0,
         sin6_family: AF_INET6 as u16,
         sin6_flowinfo: 0,
         sin6_scope_id: 0,
-    }; NUM_BUFFERS];
+    }; MAX_RECV_ENTRIES];
 
-    let mut iovs: Vec<iovec> = (0..NUM_BUFFERS)
+    let mut recv_iovs: Vec<iovec> = (0..MAX_RECV_ENTRIES)
         .map(|i| {
-            let iov_base = buffers[i].as_mut_ptr() as *mut c_void;
+            let iov_base = recv_buffers[i].as_mut_ptr() as *mut c_void;
             let iov_len = MAX_PACKET_SIZE;
 
             iovec { iov_base, iov_len }
         })
         .collect();
 
-    let mut msghdrs: Vec<msghdr> = (0..NUM_BUFFERS)
+    let mut recv_msghdrs: Vec<msghdr> = (0..MAX_RECV_ENTRIES)
         .map(|i| {
-            let msg_iov: *mut iovec = &mut iovs[i];
+            let msg_iov: *mut iovec = &mut recv_iovs[i];
 
             let mut msghdr = msghdr {
                 msg_name: null_mut(),
@@ -159,12 +159,12 @@ pub fn run_socket_worker(
             };
 
             if config.network.address.is_ipv4() {
-                let ptr: *mut sockaddr_in = &mut sockaddrs_ipv4[i];
+                let ptr: *mut sockaddr_in = &mut recv_sockaddrs_ipv4[i];
 
                 msghdr.msg_name = ptr as *mut c_void;
                 msghdr.msg_namelen = size_of::<sockaddr_in>() as u32;
             } else {
-                let ptr: *mut sockaddr_in6 = &mut sockaddrs_ipv6[i];
+                let ptr: *mut sockaddr_in6 = &mut recv_sockaddrs_ipv6[i];
 
                 msghdr.msg_name = ptr as *mut c_void;
                 msghdr.msg_namelen = size_of::<sockaddr_in6>() as u32;
@@ -174,11 +174,84 @@ pub fn run_socket_worker(
         })
         .collect();
 
+    // Setup send buffers
+
+    let mut send_buffers_connect: Vec<ConnectResponse> =
+        (0..MAX_SEND_ENTRIES).map(|_| ConnectResponse::new_zeroed()).collect();
+
+    let mut send_buffers_announce_ipv4: Vec<AnnounceResponseIpv4> =
+        (0..MAX_SEND_ENTRIES).map(|_| AnnounceResponseIpv4::new_zeroed()).collect();
+
+    let mut send_buffers_announce_ipv6: Vec<AnnounceResponseIpv6> =
+        (0..MAX_SEND_ENTRIES).map(|_| AnnounceResponseIpv6::new_zeroed()).collect();
+
+    let mut send_buffers_scrape: Vec<ScrapeResponse> =
+        (0..MAX_SEND_ENTRIES).map(|_| ScrapeResponse::new_zeroed()).collect();
+
+    let mut send_buffers_error: Vec<ErrorResponse> =
+        (0..MAX_SEND_ENTRIES).map(|_| ErrorResponse::new_zeroed()).collect();
+
+    let mut send_sockaddrs_ipv4 = [sockaddr_in {
+        sin_addr: in_addr { s_addr: 0 },
+        sin_port: 0,
+        sin_family: AF_INET as u16,
+        sin_zero: Default::default(),
+    }; MAX_SEND_ENTRIES];
+
+    let mut send_sockaddrs_ipv6 = [sockaddr_in6 {
+        sin6_addr: in6_addr { s6_addr: [0; 16] },
+        sin6_port: 0,
+        sin6_family: AF_INET6 as u16,
+        sin6_flowinfo: 0,
+        sin6_scope_id: 0,
+    }; MAX_SEND_ENTRIES];
+
+    let mut send_iovs: Vec<[iovec; 2]> = (0..MAX_SEND_ENTRIES)
+        .map(|_| {
+            [
+                iovec { iov_base: null_mut(), iov_len: 0 },
+                iovec { iov_base: null_mut(), iov_len: 0 },
+            ]
+        })
+        .collect();
+
+    let mut send_msghdrs: Vec<msghdr> = (0..MAX_SEND_ENTRIES)
+        .map(|i| {
+            let msg_iov: *mut iovec = &mut send_iovs[i][0];
+
+            let mut msghdr = msghdr {
+                msg_name: null_mut(),
+                msg_namelen: 0,
+                msg_iov,
+                msg_iovlen: 2,
+                msg_control: null_mut(),
+                msg_controllen: 0,
+                msg_flags: 0,
+            };
+
+            if config.network.address.is_ipv4() {
+                let ptr: *mut sockaddr_in = &mut send_sockaddrs_ipv4[i];
+
+                msghdr.msg_name = ptr as *mut c_void;
+                msghdr.msg_namelen = size_of::<sockaddr_in>() as u32;
+            } else {
+                let ptr: *mut sockaddr_in6 = &mut send_sockaddrs_ipv6[i];
+
+                msghdr.msg_name = ptr as *mut c_void;
+                msghdr.msg_namelen = size_of::<sockaddr_in6>() as u32;
+            }
+
+            msghdr
+        })
+        .collect();
+    
+    // Setup ring and loop
+
     let timeout = Timespec::new().nsec(500_000_000);
     let mut timeout_set = false;
 
-    let mut recv_entries = Slab::with_capacity(MAX_RECV_EVENTS);
-    let mut send_entries = Slab::with_capacity(MAX_SEND_EVENTS);
+    let mut recv_entries = Slab::with_capacity(MAX_RECV_ENTRIES);
+    let mut send_entries = Slab::with_capacity(MAX_SEND_ENTRIES);
 
     let mut ring = io_uring::IoUring::new(RING_SIZE as u32).unwrap();
 
@@ -218,13 +291,13 @@ pub fn run_socket_worker(
                         let addr = if config.network.address.is_ipv4() {
                             SocketAddr::V4(SocketAddrV4::new(
                                 Ipv4Addr::from(u32::from_be(
-                                    sockaddrs_ipv4[buffer_index].sin_addr.s_addr,
+                                    recv_sockaddrs_ipv4[buffer_index].sin_addr.s_addr,
                                 )),
-                                u16::from_be(sockaddrs_ipv4[buffer_index].sin_port),
+                                u16::from_be(recv_sockaddrs_ipv4[buffer_index].sin_port),
                             ))
                         } else {
-                            let mut octets = sockaddrs_ipv6[buffer_index].sin6_addr.s6_addr;
-                            let port = u16::from_be(sockaddrs_ipv6[buffer_index].sin6_port);
+                            let mut octets = recv_sockaddrs_ipv6[buffer_index].sin6_addr.s6_addr;
+                            let port = u16::from_be(recv_sockaddrs_ipv6[buffer_index].sin6_port);
 
                             for byte in octets.iter_mut() {
                                 *byte = u8::from_be(*byte);
@@ -242,7 +315,7 @@ pub fn run_socket_worker(
                         };
 
                         let res_request = Request::from_bytes(
-                            &buffers[buffer_index][..buffer_len],
+                            &recv_buffers[buffer_index][..buffer_len],
                             config.protocol.max_scrape_torrents,
                         );
 
@@ -278,11 +351,11 @@ pub fn run_socket_worker(
             }
         }
 
-        for _ in 0..(MAX_RECV_EVENTS - recv_entries.len()) {
+        for _ in 0..(MAX_RECV_ENTRIES - recv_entries.len()) {
             let slab_key = recv_entries.insert(());
             let user_data = UserData::RecvMsg { slab_key };
 
-            let msghdr_ptr: *mut msghdr = &mut msghdrs[user_data.get_buffer_index()];
+            let msghdr_ptr: *mut msghdr = &mut recv_msghdrs[user_data.get_buffer_index()];
 
             let entry = io_uring::opcode::RecvMsg::new(fd, msghdr_ptr)
                 .build()
@@ -310,7 +383,7 @@ pub fn run_socket_worker(
             timeout_set = true;
         }
 
-        let num_local_to_queue = (MAX_SEND_EVENTS - send_entries.len()).min(local_responses.len());
+        let num_local_to_queue = (MAX_SEND_ENTRIES - send_entries.len()).min(local_responses.len());
 
         for (response, addr) in local_responses.drain(local_responses.len() - num_local_to_queue..)
         {
@@ -319,11 +392,15 @@ pub fn run_socket_worker(
                 &mut sq,
                 fd,
                 &mut send_entries,
-                &mut buffers,
-                &mut iovs,
-                &mut sockaddrs_ipv4,
-                &mut sockaddrs_ipv6,
-                &mut msghdrs,
+                &mut send_buffers_connect,
+                &mut send_buffers_announce_ipv4,
+                &mut send_buffers_announce_ipv6,
+                &mut send_buffers_scrape,
+                &mut send_buffers_error,
+                &mut send_iovs,
+                &mut send_sockaddrs_ipv4,
+                &mut send_sockaddrs_ipv6,
+                &mut send_msghdrs,
                 response,
                 addr,
             );
@@ -331,18 +408,22 @@ pub fn run_socket_worker(
 
         for (response, addr) in response_receiver
             .try_iter()
-            .take(MAX_SEND_EVENTS - send_entries.len())
+            .take(MAX_SEND_ENTRIES - send_entries.len())
         {
             queue_response(
                 &config,
                 &mut sq,
                 fd,
                 &mut send_entries,
-                &mut buffers,
-                &mut iovs,
-                &mut sockaddrs_ipv4,
-                &mut sockaddrs_ipv6,
-                &mut msghdrs,
+                &mut send_buffers_connect,
+                &mut send_buffers_announce_ipv4,
+                &mut send_buffers_announce_ipv6,
+                &mut send_buffers_scrape,
+                &mut send_buffers_error,
+                &mut send_iovs,
+                &mut send_sockaddrs_ipv4,
+                &mut send_sockaddrs_ipv6,
+                &mut send_msghdrs,
                 response.into(),
                 addr,
             );
@@ -382,8 +463,12 @@ fn queue_response(
     sq: &mut SubmissionQueue,
     fd: Fixed,
     send_entries: &mut Slab<()>,
-    buffers: &mut [[u8; MAX_PACKET_SIZE]],
-    iovs: &mut [iovec],
+    buffers_connect: &mut [ConnectResponse],
+    buffers_announce_ipv4: &mut [AnnounceResponseIpv4],
+    buffers_announce_ipv6: &mut [AnnounceResponseIpv6],
+    buffers_scrape: &mut [ScrapeResponse],
+    buffers_error: &mut [ErrorResponse],
+    iovs: &mut [[iovec; 2]],
     sockaddrs_ipv4: &mut [sockaddr_in],
     sockaddrs_ipv6: &mut [sockaddr_in6],
     msghdrs: &mut [msghdr],
@@ -395,42 +480,124 @@ fn queue_response(
 
     let buffer_index = user_data.get_buffer_index();
 
-    let mut cursor = Cursor::new(&mut buffers[buffer_index][..]);
+    match response {
+        Response::Connect(r) => {
+            let buf = &mut buffers_connect[buffer_index];
 
-    match response.write(&mut cursor) {
-        Ok(()) => {
-            iovs[buffer_index].iov_len = cursor.position() as usize;
+            *buf = r;
 
-            if config.network.address.is_ipv4() {
-                let addr = if let SocketAddr::V4(addr) = addr {
-                    addr
-                } else {
-                    unreachable!();
-                };
+            let buf: *mut ConnectResponse = buf;
+            let len = size_of::<ConnectResponse>();
 
-                sockaddrs_ipv4[buffer_index].sin_addr.s_addr = u32::to_be((*addr.ip()).into());
-                sockaddrs_ipv4[buffer_index].sin_port = u16::to_be(addr.port());
-            } else {
-                let mut octets = match addr {
-                    SocketAddr::V4(addr) => addr.ip().to_ipv6_mapped().octets(),
-                    SocketAddr::V6(addr) => addr.ip().octets(),
-                };
+            iovs[buffer_index][0].iov_base = buf as *mut c_void;
+            iovs[buffer_index][0].iov_len = len;
 
-                for byte in octets.iter_mut() {
-                    *byte = byte.to_be();
-                }
+            iovs[buffer_index][1].iov_base = null_mut();
+            iovs[buffer_index][1].iov_len = 0;
+        }
+        Response::AnnounceIpv4(r) => {
+            let buf = &mut buffers_announce_ipv4[buffer_index];
 
-                sockaddrs_ipv6[buffer_index].sin6_addr.s6_addr = octets;
-                sockaddrs_ipv6[buffer_index].sin6_port = u16::to_be(addr.port());
+            *buf = r;
+
+            {
+                let ptr: *mut AnnounceResponseIpv4Fixed = &mut buf.fixed;
+                let len = size_of::<AnnounceResponseIpv4Fixed>();
+
+                iovs[buffer_index][0].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][0].iov_len = len;
+            }
+            {
+                let ptr: *mut ResponsePeerIpv4 = buf.peers.as_mut_ptr();
+                let len = size_of::<ResponsePeerIpv4>() * buf.peers.len();
+
+                iovs[buffer_index][1].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][1].iov_len = len;
             }
         }
-        Err(err) => {
-            ::log::error!("Response::write error: {:?}", err);
+        Response::AnnounceIpv6(r) => {
+            let buf = &mut buffers_announce_ipv6[buffer_index];
 
-            send_entries.remove(slab_key);
+            *buf = r;
 
-            return;
+            {
+                let ptr: *mut AnnounceResponseIpv6Fixed = &mut buf.fixed;
+                let len = size_of::<AnnounceResponseIpv6Fixed>();
+
+                iovs[buffer_index][0].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][0].iov_len = len;
+            }
+            {
+                let ptr: *mut ResponsePeerIpv6 = buf.peers.as_mut_ptr();
+                let len = size_of::<ResponsePeerIpv6>() * buf.peers.len();
+
+                iovs[buffer_index][1].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][1].iov_len = len;
+            }
         }
+        Response::Scrape(r) => {
+            let buf = &mut buffers_scrape[buffer_index];
+
+            *buf = r;
+
+            {
+                let ptr: *mut ScrapeResponseFixed = &mut buf.fixed;
+                let len = size_of::<ScrapeResponseFixed>();
+
+                iovs[buffer_index][0].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][0].iov_len = len;
+            }
+            {
+                let ptr: *mut TorrentScrapeStatistics = buf.torrent_stats.as_mut_ptr();
+                let len = size_of::<TorrentScrapeStatistics>() * buf.torrent_stats.len();
+
+                iovs[buffer_index][1].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][1].iov_len = len;
+            }
+        }
+        Response::Error(r) => {
+            let buf = &mut buffers_error[buffer_index];
+
+            *buf = r;
+
+            {
+                let ptr: *mut ErrorResponseFixed = &mut buf.fixed;
+                let len = size_of::<ErrorResponseFixed>();
+
+                iovs[buffer_index][0].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][0].iov_len = len;
+            }
+            {
+                let ptr: *mut u8 = buf.message.as_mut_ptr();
+                let len = buf.message.len();
+
+                iovs[buffer_index][1].iov_base = ptr as *mut c_void;
+                iovs[buffer_index][1].iov_len = len;
+            }
+        }
+    }
+
+    if config.network.address.is_ipv4() {
+        let addr = if let SocketAddr::V4(addr) = addr {
+            addr
+        } else {
+            unreachable!();
+        };
+
+        sockaddrs_ipv4[buffer_index].sin_addr.s_addr = u32::to_be((*addr.ip()).into());
+        sockaddrs_ipv4[buffer_index].sin_port = u16::to_be(addr.port());
+    } else {
+        let mut octets = match addr {
+            SocketAddr::V4(addr) => addr.ip().to_ipv6_mapped().octets(),
+            SocketAddr::V6(addr) => addr.ip().octets(),
+        };
+
+        for byte in octets.iter_mut() {
+            *byte = byte.to_be();
+        }
+
+        sockaddrs_ipv6[buffer_index].sin6_addr.s6_addr = octets;
+        sockaddrs_ipv6[buffer_index].sin6_port = u16::to_be(addr.port());
     }
 
     let msghdr_ptr: *mut msghdr = &mut msghdrs[buffer_index];

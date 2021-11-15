@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::io::{self, Write};
 use std::mem::size_of;
 
@@ -20,6 +19,12 @@ pub struct ConnectResponse {
     pub action: ConnectAction,
     pub connection_id: ConnectionId,
     pub transaction_id: TransactionId,
+}
+
+impl ConnectResponse {
+    pub fn new_zeroed() -> Self {
+        FromBytes::new_zeroed()
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
@@ -48,10 +53,28 @@ pub struct AnnounceResponseIpv4 {
     pub peers: Vec<ResponsePeerIpv4>,
 }
 
+impl AnnounceResponseIpv4 {
+    pub fn new_zeroed() -> Self {
+        Self {
+            fixed: FromBytes::new_zeroed(),
+            peers: Vec::new(),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct AnnounceResponseIpv6 {
     pub fixed: AnnounceResponseIpv6Fixed,
     pub peers: Vec<ResponsePeerIpv6>,
+}
+
+impl AnnounceResponseIpv6 {
+    pub fn new_zeroed() -> Self {
+        Self {
+            fixed: FromBytes::new_zeroed(),
+            peers: Vec::new(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
@@ -67,6 +90,15 @@ pub struct ScrapeResponse {
     pub torrent_stats: Vec<TorrentScrapeStatistics>,
 }
 
+impl ScrapeResponse {
+    pub fn new_zeroed() -> Self {
+        Self {
+            fixed: FromBytes::new_zeroed(),
+            torrent_stats: Vec::new(),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
 #[repr(C)]
 pub struct ErrorResponseFixed {
@@ -77,7 +109,16 @@ pub struct ErrorResponseFixed {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ErrorResponse {
     pub fixed: ErrorResponseFixed,
-    pub message: Cow<'static, str>,
+    pub message: String,
+}
+
+impl ErrorResponse {
+    pub fn new_zeroed() -> Self {
+        Self {
+            fixed: FromBytes::new_zeroed(),
+            message: "".into(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
