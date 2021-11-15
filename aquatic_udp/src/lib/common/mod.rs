@@ -269,18 +269,6 @@ impl Default for State {
         }
     }
 }
-pub fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
-    match ip {
-        IpAddr::V4(_) => IpVersion::IPv4,
-        IpAddr::V6(ip) => {
-            if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments() {
-                IpVersion::IPv4
-            } else {
-                IpVersion::IPv6
-            }
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
