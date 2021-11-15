@@ -176,20 +176,8 @@ pub fn run_socket_worker(
 
     // Setup send buffers
 
-    let mut send_buffers_connect: Vec<ConnectResponse> =
-        (0..MAX_SEND_ENTRIES).map(|_| ConnectResponse::new_zeroed()).collect();
-
-    let mut send_buffers_announce_ipv4: Vec<AnnounceResponseIpv4> =
-        (0..MAX_SEND_ENTRIES).map(|_| AnnounceResponseIpv4::new_zeroed()).collect();
-
-    let mut send_buffers_announce_ipv6: Vec<AnnounceResponseIpv6> =
-        (0..MAX_SEND_ENTRIES).map(|_| AnnounceResponseIpv6::new_zeroed()).collect();
-
-    let mut send_buffers_scrape: Vec<ScrapeResponse> =
-        (0..MAX_SEND_ENTRIES).map(|_| ScrapeResponse::new_zeroed()).collect();
-
-    let mut send_buffers_error: Vec<ErrorResponse> =
-        (0..MAX_SEND_ENTRIES).map(|_| ErrorResponse::new_zeroed()).collect();
+    let mut send_buffers: Vec<Response> =
+        (0..MAX_SEND_ENTRIES).map(|_| Response::Connect(ConnectResponse::new_zeroed())).collect();
 
     let mut send_sockaddrs_ipv4 = [sockaddr_in {
         sin_addr: in_addr { s_addr: 0 },
@@ -392,11 +380,7 @@ pub fn run_socket_worker(
                 &mut sq,
                 fd,
                 &mut send_entries,
-                &mut send_buffers_connect,
-                &mut send_buffers_announce_ipv4,
-                &mut send_buffers_announce_ipv6,
-                &mut send_buffers_scrape,
-                &mut send_buffers_error,
+                &mut send_buffers,
                 &mut send_iovs,
                 &mut send_sockaddrs_ipv4,
                 &mut send_sockaddrs_ipv6,
@@ -415,11 +399,7 @@ pub fn run_socket_worker(
                 &mut sq,
                 fd,
                 &mut send_entries,
-                &mut send_buffers_connect,
-                &mut send_buffers_announce_ipv4,
-                &mut send_buffers_announce_ipv6,
-                &mut send_buffers_scrape,
-                &mut send_buffers_error,
+                &mut send_buffers,
                 &mut send_iovs,
                 &mut send_sockaddrs_ipv4,
                 &mut send_sockaddrs_ipv6,
@@ -463,11 +443,7 @@ fn queue_response(
     sq: &mut SubmissionQueue,
     fd: Fixed,
     send_entries: &mut Slab<()>,
-    buffers_connect: &mut [ConnectResponse],
-    buffers_announce_ipv4: &mut [AnnounceResponseIpv4],
-    buffers_announce_ipv6: &mut [AnnounceResponseIpv6],
-    buffers_scrape: &mut [ScrapeResponse],
-    buffers_error: &mut [ErrorResponse],
+    send_buffers: &mut [Response],
     iovs: &mut [[iovec; 2]],
     sockaddrs_ipv4: &mut [sockaddr_in],
     sockaddrs_ipv6: &mut [sockaddr_in6],
@@ -480,96 +456,78 @@ fn queue_response(
 
     let buffer_index = user_data.get_buffer_index();
 
-    match response {
+    send_buffers[buffer_index] = response;
+
+    match &mut send_buffers[buffer_index] {
         Response::Connect(r) => {
-            let buf = &mut buffers_connect[buffer_index];
-
-            *buf = r;
-
-            let buf: *mut ConnectResponse = buf;
+            let ptr: *mut ConnectResponse = r;
             let len = size_of::<ConnectResponse>();
 
-            iovs[buffer_index][0].iov_base = buf as *mut c_void;
+            iovs[buffer_index][0].iov_base = ptr as *mut c_void;
             iovs[buffer_index][0].iov_len = len;
 
             iovs[buffer_index][1].iov_base = null_mut();
             iovs[buffer_index][1].iov_len = 0;
         }
         Response::AnnounceIpv4(r) => {
-            let buf = &mut buffers_announce_ipv4[buffer_index];
-
-            *buf = r;
-
             {
-                let ptr: *mut AnnounceResponseIpv4Fixed = &mut buf.fixed;
+                let ptr: *mut AnnounceResponseIpv4Fixed = &mut r.fixed;
                 let len = size_of::<AnnounceResponseIpv4Fixed>();
 
                 iovs[buffer_index][0].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][0].iov_len = len;
             }
             {
-                let ptr: *mut ResponsePeerIpv4 = buf.peers.as_mut_ptr();
-                let len = size_of::<ResponsePeerIpv4>() * buf.peers.len();
+                let ptr: *mut ResponsePeerIpv4 = r.peers.as_mut_ptr();
+                let len = size_of::<ResponsePeerIpv4>() * r.peers.len();
 
                 iovs[buffer_index][1].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][1].iov_len = len;
             }
         }
         Response::AnnounceIpv6(r) => {
-            let buf = &mut buffers_announce_ipv6[buffer_index];
-
-            *buf = r;
-
             {
-                let ptr: *mut AnnounceResponseIpv6Fixed = &mut buf.fixed;
+                let ptr: *mut AnnounceResponseIpv6Fixed = &mut r.fixed;
                 let len = size_of::<AnnounceResponseIpv6Fixed>();
 
                 iovs[buffer_index][0].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][0].iov_len = len;
             }
             {
-                let ptr: *mut ResponsePeerIpv6 = buf.peers.as_mut_ptr();
-                let len = size_of::<ResponsePeerIpv6>() * buf.peers.len();
+                let ptr: *mut ResponsePeerIpv6 = r.peers.as_mut_ptr();
+                let len = size_of::<ResponsePeerIpv6>() * r.peers.len();
 
                 iovs[buffer_index][1].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][1].iov_len = len;
             }
         }
         Response::Scrape(r) => {
-            let buf = &mut buffers_scrape[buffer_index];
-
-            *buf = r;
-
             {
-                let ptr: *mut ScrapeResponseFixed = &mut buf.fixed;
+                let ptr: *mut ScrapeResponseFixed = &mut r.fixed;
                 let len = size_of::<ScrapeResponseFixed>();
 
                 iovs[buffer_index][0].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][0].iov_len = len;
             }
             {
-                let ptr: *mut TorrentScrapeStatistics = buf.torrent_stats.as_mut_ptr();
-                let len = size_of::<TorrentScrapeStatistics>() * buf.torrent_stats.len();
+                let ptr: *mut TorrentScrapeStatistics = r.torrent_stats.as_mut_ptr();
+                let len = size_of::<TorrentScrapeStatistics>() * r.torrent_stats.len();
 
                 iovs[buffer_index][1].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][1].iov_len = len;
             }
         }
         Response::Error(r) => {
-            let buf = &mut buffers_error[buffer_index];
-
-            *buf = r;
-
             {
-                let ptr: *mut ErrorResponseFixed = &mut buf.fixed;
+                let ptr: *mut ErrorResponseFixed = &mut r.fixed;
                 let len = size_of::<ErrorResponseFixed>();
 
                 iovs[buffer_index][0].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][0].iov_len = len;
             }
             {
-                let ptr: *mut u8 = buf.message.as_mut_ptr();
-                let len = buf.message.len();
+                let ptr: *mut u8 = r.message.as_mut_ptr();
+                let len = r.message.len();
 
                 iovs[buffer_index][1].iov_base = ptr as *mut c_void;
                 iovs[buffer_index][1].iov_len = len;
