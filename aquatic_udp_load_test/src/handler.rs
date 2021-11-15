@@ -165,7 +165,14 @@ fn process_response(
 
             Some(request)
         }
-        Response::Announce(r) => if_torrent_peer_move_and_create_random_request(
+        Response::AnnounceIpv4(r) => if_torrent_peer_move_and_create_random_request(
+            config,
+            rng,
+            info_hashes,
+            torrent_peers,
+            r.transaction_id,
+        ),
+        Response::AnnounceIpv6(r) => if_torrent_peer_move_and_create_random_request(
             config,
             rng,
             info_hashes,

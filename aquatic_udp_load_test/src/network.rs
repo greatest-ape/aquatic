@@ -129,7 +129,11 @@ fn read_responses(
         match Response::from_bytes(&buffer[0..amt]) {
             Ok(response) => {
                 match response {
-                    Response::Announce(ref r) => {
+                    Response::AnnounceIpv4(ref r) => {
+                        ls.responses_announce += 1;
+                        ls.response_peers += r.peers.len();
+                    }
+                    Response::AnnounceIpv6(ref r) => {
                         ls.responses_announce += 1;
                         ls.response_peers += r.peers.len();
                     }
