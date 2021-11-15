@@ -158,13 +158,7 @@ impl<I: Ip> Peer<I> {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub struct PeerMapKey<I: Ip> {
-    pub ip: I,
-    pub peer_id: PeerId,
-}
-
-pub type PeerMap<I> = AHashIndexMap<PeerMapKey<I>, Peer<I>>;
+pub type PeerMap<I> = AHashIndexMap<PeerId, Peer<I>>;
 
 pub struct TorrentData<I: Ip> {
     pub peers: PeerMap<I>,

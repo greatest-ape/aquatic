@@ -138,11 +138,6 @@ fn handle_announce_request_inner<I: Ip>(
     peer_ip: I,
     peer_valid_until: ValidUntil,
 ) -> ProtocolAnnounceResponse<I> {
-    let peer_key = PeerMapKey {
-        ip: peer_ip,
-        peer_id: request.peer_id,
-    };
-
     let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
 
     let peer = Peer {
@@ -158,14 +153,14 @@ fn handle_announce_request_inner<I: Ip>(
         PeerStatus::Leeching => {
             torrent_data.num_leechers += 1;
 
-            torrent_data.peers.insert(peer_key, peer)
+            torrent_data.peers.insert(request.peer_id, peer)
         }
         PeerStatus::Seeding => {
             torrent_data.num_seeders += 1;
 
-            torrent_data.peers.insert(peer_key, peer)
+            torrent_data.peers.insert(request.peer_id, peer)
         }
-        PeerStatus::Stopped => torrent_data.peers.remove(&peer_key),
+        PeerStatus::Stopped => torrent_data.peers.remove(&request.peer_id),
     };
 
     match opt_removed_peer.map(|peer| peer.status) {
@@ -184,7 +179,7 @@ fn handle_announce_request_inner<I: Ip>(
         rng,
         &torrent_data.peers,
         max_num_peers_to_take,
-        peer_key,
+        request.peer_id,
         Peer::to_response_peer,
     );
 
@@ -269,22 +264,20 @@ mod tests {
 
     use super::*;
 
-    fn gen_peer_map_key_and_value(i: u32) -> (PeerMapKey<Ipv4Addr>, Peer<Ipv4Addr>) {
-        let ip_address = Ipv4Addr::from(i.to_be_bytes());
-        let peer_id = PeerId([0; 20]);
+    fn gen_peer_id(i: u32) -> PeerId {
+        let mut peer_id = PeerId([0; 20]);
 
-        let key = PeerMapKey {
-            ip: ip_address,
-            peer_id,
-        };
-        let value = Peer {
-            ip_address,
+        peer_id.0[0..4].copy_from_slice(&i.to_ne_bytes());
+
+        peer_id
+    }
+    fn gen_peer(i: u32) -> Peer<Ipv4Addr> {
+        Peer {
+            ip_address: Ipv4Addr::from(i.to_be_bytes()),
             port: Port(1),
             status: PeerStatus::Leeching,
             valid_until: ValidUntil::new(0),
-        };
-
-        (key, value)
+        }
     }
 
     #[test]
@@ -299,7 +292,8 @@ mod tests {
             let mut opt_sender_peer = None;
 
             for i in 0..gen_num_peers {
-                let (key, value) = gen_peer_map_key_and_value((i << 16) + i);
+                let key = gen_peer_id(i);
+                let value = gen_peer((i << 16) + i);
 
                 if i == 0 {
                     opt_sender_key = Some(key);
@@ -315,7 +309,7 @@ mod tests {
                 &mut rng,
                 &peer_map,
                 req_num_peers,
-                opt_sender_key.unwrap_or_else(|| gen_peer_map_key_and_value(1).0),
+                opt_sender_key.unwrap_or_else(|| gen_peer_id(1)),
                 Peer::to_response_peer,
             );
 
