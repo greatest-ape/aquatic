@@ -1,8 +1,6 @@
 use std::borrow::Cow;
-use std::convert::TryInto;
 use std::io::{self, Write};
 use std::mem::size_of;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use zerocopy::{AsBytes, FromBytes, NetworkEndian, Unaligned, I32};
 
@@ -19,13 +17,25 @@ pub struct TorrentScrapeStatistics {
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
 #[repr(C)]
 pub struct ConnectResponse {
+    pub action: ConnectAction,
     pub connection_id: ConnectionId,
     pub transaction_id: TransactionId,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
 #[repr(C)]
-pub struct AnnounceResponseFixed {
+pub struct AnnounceResponseIpv4Fixed {
+    pub action: AnnounceAction,
+    pub transaction_id: TransactionId,
+    pub announce_interval: AnnounceInterval,
+    pub leechers: NumberOfPeers,
+    pub seeders: NumberOfPeers,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
+pub struct AnnounceResponseIpv6Fixed {
+    pub action: AnnounceIpv6Action,
     pub transaction_id: TransactionId,
     pub announce_interval: AnnounceInterval,
     pub leechers: NumberOfPeers,
@@ -33,27 +43,48 @@ pub struct AnnounceResponseFixed {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct AnnounceResponse {
-    pub fixed: AnnounceResponseFixed,
-    pub peers: Vec<ResponsePeer>,
+pub struct AnnounceResponseIpv4 {
+    pub fixed: AnnounceResponseIpv4Fixed,
+    pub peers: Vec<ResponsePeerIpv4>,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct AnnounceResponseIpv6 {
+    pub fixed: AnnounceResponseIpv6Fixed,
+    pub peers: Vec<ResponsePeerIpv6>,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
+pub struct ScrapeResponseFixed {
+    pub action: ScrapeAction,
+    pub transaction_id: TransactionId,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ScrapeResponse {
-    pub transaction_id: TransactionId,
+    pub fixed: ScrapeResponseFixed,
     pub torrent_stats: Vec<TorrentScrapeStatistics>,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
+pub struct ErrorResponseFixed {
+    pub action: ErrorAction,
+    pub transaction_id: TransactionId,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ErrorResponse {
-    pub transaction_id: TransactionId,
+    pub fixed: ErrorResponseFixed,
     pub message: Cow<'static, str>,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Response {
     Connect(ConnectResponse),
-    Announce(AnnounceResponse),
+    AnnounceIpv4(AnnounceResponseIpv4),
+    AnnounceIpv6(AnnounceResponseIpv6),
     Scrape(ScrapeResponse),
     Error(ErrorResponse),
 }
@@ -64,9 +95,15 @@ impl From<ConnectResponse> for Response {
     }
 }
 
-impl From<AnnounceResponse> for Response {
-    fn from(r: AnnounceResponse) -> Self {
-        Self::Announce(r)
+impl From<AnnounceResponseIpv4> for Response {
+    fn from(r: AnnounceResponseIpv4) -> Self {
+        Self::AnnounceIpv4(r)
+    }
+}
+
+impl From<AnnounceResponseIpv6> for Response {
+    fn from(r: AnnounceResponseIpv6) -> Self {
+        Self::AnnounceIpv6(r)
     }
 }
 
@@ -90,60 +127,35 @@ impl Response {
     /// addresses. Clients seem not to support it very well, but due to a lack
     /// of alternative solutions, it is implemented here.
     #[inline]
-    pub fn write(self, bytes: &mut impl Write, ip_version: IpVersion) -> Result<(), io::Error> {
+    pub fn write(self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
             Response::Connect(r) => {
-                let action = ConnectAction::new();
-                bytes.write(action.as_bytes())?;
-
                 bytes.write(r.as_bytes())?;
             }
-            Response::Announce(r) => {
-                if ip_version == IpVersion::IPv4 {
-                    let action = AnnounceAction::new();
-                    bytes.write(action.as_bytes())?;
+            Response::AnnounceIpv4(r) => {
+                bytes.write(r.fixed.as_bytes())?;
 
-                    bytes.write(r.fixed.as_bytes())?;
+                for peer in r.peers {
+                    bytes.write(peer.as_bytes())?;
+                }
+            }
+            Response::AnnounceIpv6(r) => {
+                bytes.write(r.fixed.as_bytes())?;
 
-                    // Silently ignore peers with wrong IP version
-                    for peer in r.peers {
-                        if let IpAddr::V4(ip) = peer.ip_address {
-                            bytes.write_all(&ip.octets())?;
-                            bytes.write(peer.port.as_bytes())?;
-                        }
-                    }
-                } else {
-                    let action = AnnounceIpv6Action::new();
-                    bytes.write(action.as_bytes())?;
-
-                    bytes.write(r.fixed.as_bytes())?;
-
-                    // Silently ignore peers with wrong IP version
-                    for peer in r.peers {
-                        if let IpAddr::V6(ip) = peer.ip_address {
-                            bytes.write_all(&ip.octets())?;
-                            bytes.write(peer.port.as_bytes())?;
-                        }
-                    }
+                for peer in r.peers {
+                    bytes.write(peer.as_bytes())?;
                 }
             }
             Response::Scrape(r) => {
-                let action = ScrapeAction::new();
-                bytes.write(action.as_bytes())?;
-
-                bytes.write(r.transaction_id.as_bytes())?;
+                bytes.write(r.fixed.as_bytes())?;
 
                 for torrent_stat in r.torrent_stats {
                     bytes.write(torrent_stat.as_bytes())?;
                 }
             }
             Response::Error(r) => {
-                let action = ErrorAction::new();
-                bytes.write(action.as_bytes())?;
-
-                bytes.write(r.transaction_id.as_bytes())?;
-
-                bytes.write_all(r.message.as_bytes())?;
+                bytes.write(r.fixed.as_bytes())?;
+                bytes.write(r.message.as_bytes())?;
             }
         }
 
@@ -153,33 +165,26 @@ impl Response {
     #[inline]
     pub fn from_bytes(mut bytes: &[u8]) -> Option<Self> {
         let action: I32<NetworkEndian> = FromBytes::read_from_prefix(bytes)?;
-        bytes = &bytes[size_of::<i32>()..];
 
         match action.get() {
             // Connect
             0 => ConnectResponse::read_from(bytes).map(|r| r.into()),
             // Announce
             1 => {
-                let fixed = AnnounceResponseFixed::read_from_prefix(bytes)?;
-                bytes = &bytes[size_of::<AnnounceResponseFixed>()..];
+                let fixed = AnnounceResponseIpv4Fixed::read_from_prefix(bytes)?;
+                bytes = &bytes[size_of::<AnnounceResponseIpv4Fixed>()..];
 
                 let peers = bytes[..]
                     .chunks_exact(6)
-                    .map(|chunk| {
-                        let ip_bytes: [u8; 4] = (&chunk[..4]).try_into().unwrap();
-                        let ip_address = IpAddr::V4(Ipv4Addr::from(ip_bytes));
-                        let port = Port::read_from(&chunk[4..]).unwrap();
-
-                        ResponsePeer { ip_address, port }
-                    })
+                    .map(|chunk| ResponsePeerIpv4::read_from(chunk).unwrap())
                     .collect();
 
-                Some((AnnounceResponse { fixed, peers }).into())
+                Some((AnnounceResponseIpv4 { fixed, peers }).into())
             }
             // Scrape
             2 => {
-                let transaction_id = TransactionId::read_from_prefix(bytes)?;
-                bytes = &bytes[size_of::<TransactionId>()..];
+                let fixed = ScrapeResponseFixed::read_from_prefix(bytes)?;
+                bytes = &bytes[size_of::<ScrapeResponseFixed>()..];
 
                 let torrent_stats = bytes
                     .chunks_exact(12)
@@ -188,7 +193,7 @@ impl Response {
 
                 Some(
                     (ScrapeResponse {
-                        transaction_id,
+                        fixed,
                         torrent_stats,
                     })
                     .into(),
@@ -196,12 +201,12 @@ impl Response {
             }
             // Error
             3 => {
-                let transaction_id = TransactionId::read_from_prefix(bytes)?;
-                bytes = &bytes[size_of::<TransactionId>()..];
+                let fixed = ErrorResponseFixed::read_from_prefix(bytes)?;
+                bytes = &bytes[size_of::<ErrorResponseFixed>()..];
 
                 Some(
                     (ErrorResponse {
-                        transaction_id,
+                        fixed,
                         message: String::from_utf8_lossy(&bytes).into_owned().into(),
                     })
                     .into(),
@@ -209,21 +214,15 @@ impl Response {
             }
             // IPv6 announce
             4 => {
-                let fixed = AnnounceResponseFixed::read_from_prefix(bytes)?;
-                bytes = &bytes[size_of::<AnnounceResponseFixed>()..];
+                let fixed = AnnounceResponseIpv6Fixed::read_from_prefix(bytes)?;
+                bytes = &bytes[size_of::<AnnounceResponseIpv6Fixed>()..];
 
                 let peers = bytes
                     .chunks_exact(18)
-                    .map(|chunk| {
-                        let ip_bytes: [u8; 16] = (&chunk[..16]).try_into().unwrap();
-                        let ip_address = IpAddr::V6(Ipv6Addr::from(ip_bytes));
-                        let port = Port::read_from(&chunk[16..]).unwrap();
-
-                        ResponsePeer { ip_address, port }
-                    })
+                    .map(|chunk| ResponsePeerIpv6::read_from(chunk).unwrap())
                     .collect();
 
-                Some((AnnounceResponse { fixed, peers }).into())
+                Some((AnnounceResponseIpv6 { fixed, peers }).into())
             }
             _ => None,
         }
@@ -249,20 +248,41 @@ mod tests {
     impl quickcheck::Arbitrary for ConnectResponse {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
+                action: ConnectAction::new(),
                 connection_id: ConnectionId(i64::arbitrary(g).into()),
                 transaction_id: TransactionId(i32::arbitrary(g).into()),
             }
         }
     }
 
-    impl quickcheck::Arbitrary for AnnounceResponse {
+    impl quickcheck::Arbitrary for AnnounceResponseIpv4 {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let peers = (0..u8::arbitrary(g))
-                .map(|_| ResponsePeer::arbitrary(g))
+                .map(|_| ResponsePeerIpv4::arbitrary(g))
                 .collect();
 
             Self {
-                fixed: AnnounceResponseFixed {
+                fixed: AnnounceResponseIpv4Fixed {
+                    action: AnnounceAction::new(),
+                    transaction_id: TransactionId(i32::arbitrary(g).into()),
+                    announce_interval: AnnounceInterval(i32::arbitrary(g).into()),
+                    leechers: NumberOfPeers(i32::arbitrary(g).into()),
+                    seeders: NumberOfPeers(i32::arbitrary(g).into()),
+                },
+                peers,
+            }
+        }
+    }
+
+    impl quickcheck::Arbitrary for AnnounceResponseIpv6 {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let peers = (0..u8::arbitrary(g))
+                .map(|_| ResponsePeerIpv6::arbitrary(g))
+                .collect();
+
+            Self {
+                fixed: AnnounceResponseIpv6Fixed {
+                    action: AnnounceIpv6Action::new(),
                     transaction_id: TransactionId(i32::arbitrary(g).into()),
                     announce_interval: AnnounceInterval(i32::arbitrary(g).into()),
                     leechers: NumberOfPeers(i32::arbitrary(g).into()),
@@ -280,16 +300,19 @@ mod tests {
                 .collect();
 
             Self {
-                transaction_id: TransactionId(i32::arbitrary(g).into()),
+                fixed: ScrapeResponseFixed {
+                    action: ScrapeAction::new(),
+                    transaction_id: TransactionId(i32::arbitrary(g).into()),
+                },
                 torrent_stats,
             }
         }
     }
 
-    fn same_after_conversion(response: Response, ip_version: IpVersion) -> bool {
+    fn same_after_conversion(response: Response) -> bool {
         let mut buf = Vec::new();
 
-        response.clone().write(&mut buf, ip_version).unwrap();
+        response.clone().write(&mut buf).unwrap();
         let r2 = Response::from_bytes(&buf[..]).unwrap();
 
         let success = response == r2;
@@ -303,24 +326,21 @@ mod tests {
 
     #[quickcheck]
     fn test_connect_response_convert_identity(response: ConnectResponse) -> bool {
-        same_after_conversion(response.into(), IpVersion::IPv4)
+        same_after_conversion(response.into())
     }
 
     #[quickcheck]
-    fn test_announce_response_convert_identity(data: (AnnounceResponse, IpVersion)) -> bool {
-        let mut r = data.0;
+    fn test_announce_response_ipv4_convert_identity(response: AnnounceResponseIpv4) -> bool {
+        same_after_conversion(response.into())
+    }
 
-        if data.1 == IpVersion::IPv4 {
-            r.peers.retain(|peer| peer.ip_address.is_ipv4());
-        } else {
-            r.peers.retain(|peer| peer.ip_address.is_ipv6());
-        }
-
-        same_after_conversion(r.into(), data.1)
+    #[quickcheck]
+    fn test_announce_response_ipv6_convert_identity(response: AnnounceResponseIpv6) -> bool {
+        same_after_conversion(response.into())
     }
 
     #[quickcheck]
     fn test_scrape_response_convert_identity(response: ScrapeResponse) -> bool {
-        same_after_conversion(response.into(), IpVersion::IPv4)
+        same_after_conversion(response.into())
     }
 }

@@ -54,6 +54,7 @@ pub fn handle_request(
             connections.insert(connection_id, src, valid_until);
 
             let response = Response::Connect(ConnectResponse {
+                action: ConnectAction::new(),
                 connection_id,
                 transaction_id: request.transaction_id,
             });
@@ -73,7 +74,10 @@ pub fn handle_request(
                     }
                 } else {
                     let response = Response::Error(ErrorResponse {
-                        transaction_id: request.transaction_id,
+                        fixed: ErrorResponseFixed {
+                            action: ErrorAction::new(),
+                            transaction_id: request.transaction_id,
+                        },
                         message: "Info hash not allowed".into(),
                     });
 

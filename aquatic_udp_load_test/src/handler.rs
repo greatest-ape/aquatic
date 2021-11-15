@@ -165,7 +165,14 @@ fn process_response(
 
             Some(request)
         }
-        Response::Announce(r) => if_torrent_peer_move_and_create_random_request(
+        Response::AnnounceIpv4(r) => if_torrent_peer_move_and_create_random_request(
+            config,
+            rng,
+            info_hashes,
+            torrent_peers,
+            r.fixed.transaction_id,
+        ),
+        Response::AnnounceIpv6(r) => if_torrent_peer_move_and_create_random_request(
             config,
             rng,
             info_hashes,
@@ -177,7 +184,7 @@ fn process_response(
             rng,
             info_hashes,
             torrent_peers,
-            r.transaction_id,
+            r.fixed.transaction_id,
         ),
         Response::Error(r) => {
             if !r.message.to_lowercase().contains("connection") {
@@ -187,7 +194,7 @@ fn process_response(
                 );
             }
 
-            if let Some(torrent_peer) = torrent_peers.remove(&r.transaction_id) {
+            if let Some(torrent_peer) = torrent_peers.remove(&r.fixed.transaction_id) {
                 let new_transaction_id = generate_transaction_id(rng);
 
                 torrent_peers.insert(new_transaction_id, torrent_peer);

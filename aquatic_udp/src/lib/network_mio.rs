@@ -185,9 +185,7 @@ fn send_responses(
     for (response, src) in response_iterator {
         cursor.set_position(0);
 
-        let ip_version = ip_version_from_ip(src.ip());
-
-        match response.write(&mut cursor, ip_version) {
+        match response.write(&mut cursor) {
             Ok(()) => {
                 let amt = cursor.position() as usize;
 

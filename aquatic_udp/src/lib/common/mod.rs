@@ -18,35 +18,6 @@ pub mod network;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
 
-#[derive(Debug)]
-pub enum ConnectedRequest {
-    Announce(AnnounceRequest),
-    Scrape {
-        request: ScrapeRequest,
-        /// Currently only used by glommio implementation
-        original_indices: Vec<usize>,
-    },
-}
-
-#[derive(Debug)]
-pub enum ConnectedResponse {
-    Announce(AnnounceResponse),
-    Scrape {
-        response: ScrapeResponse,
-        /// Currently only used by glommio implementation
-        original_indices: Vec<usize>,
-    },
-}
-
-impl Into<Response> for ConnectedResponse {
-    fn into(self) -> Response {
-        match self {
-            Self::Announce(response) => Response::Announce(response),
-            Self::Scrape { response, .. } => Response::Scrape(response),
-        }
-    }
-}
-
 pub trait Ip: Hash + PartialEq + Eq + Clone + Copy {
     fn ip_addr(self) -> IpAddr;
 }
@@ -60,6 +31,95 @@ impl Ip for Ipv4Addr {
 impl Ip for Ipv6Addr {
     fn ip_addr(self) -> IpAddr {
         IpAddr::V6(self)
+    }
+}
+
+#[derive(Debug)]
+pub enum ConnectedRequest {
+    Announce(AnnounceRequest),
+    Scrape {
+        request: ScrapeRequest,
+        // FIXME
+        original_indices: Vec<usize>,
+    },
+}
+
+#[derive(Debug)]
+pub enum ConnectedResponse {
+    AnnounceIpv4(AnnounceResponseIpv4),
+    AnnounceIpv6(AnnounceResponseIpv6),
+    Scrape {
+        response: ScrapeResponse,
+        /// Currently only used by glommio implementation
+        original_indices: Vec<usize>,
+    },
+}
+
+impl Into<Response> for ConnectedResponse {
+    fn into(self) -> Response {
+        match self {
+            Self::AnnounceIpv4(response) => Response::AnnounceIpv4(response),
+            Self::AnnounceIpv6(response) => Response::AnnounceIpv6(response),
+            Self::Scrape { response, .. } => Response::Scrape(response),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ProtocolResponsePeer<I> {
+    pub ip_address: I,
+    pub port: Port,
+}
+
+pub struct ProtocolAnnounceResponse<I> {
+    pub transaction_id: TransactionId,
+    pub announce_interval: AnnounceInterval,
+    pub leechers: NumberOfPeers,
+    pub seeders: NumberOfPeers,
+    pub peers: Vec<ProtocolResponsePeer<I>>,
+}
+
+impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv4Addr> {
+    fn into(self) -> ConnectedResponse {
+        ConnectedResponse::AnnounceIpv4(AnnounceResponseIpv4 {
+            fixed: AnnounceResponseIpv4Fixed {
+                action: AnnounceAction::new(),
+                transaction_id: self.transaction_id,
+                announce_interval: self.announce_interval,
+                leechers: self.leechers,
+                seeders: self.seeders,
+            },
+            peers: self
+                .peers
+                .into_iter()
+                .map(|peer| ResponsePeerIpv4 {
+                    ip_address: peer.ip_address.octets(),
+                    port: peer.port,
+                })
+                .collect(),
+        })
+    }
+}
+
+impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv6Addr> {
+    fn into(self) -> ConnectedResponse {
+        ConnectedResponse::AnnounceIpv6(AnnounceResponseIpv6 {
+            fixed: AnnounceResponseIpv6Fixed {
+                action: AnnounceIpv6Action::new(),
+                transaction_id: self.transaction_id,
+                announce_interval: self.announce_interval,
+                leechers: self.leechers,
+                seeders: self.seeders,
+            },
+            peers: self
+                .peers
+                .into_iter()
+                .map(|peer| ResponsePeerIpv6 {
+                    ip_address: peer.ip_address.octets(),
+                    port: peer.port,
+                })
+                .collect(),
+        })
     }
 }
 
@@ -96,9 +156,9 @@ pub struct Peer<I: Ip> {
 
 impl<I: Ip> Peer<I> {
     #[inline(always)]
-    pub fn to_response_peer(&self) -> ResponsePeer {
-        ResponsePeer {
-            ip_address: self.ip_address.ip_addr(),
+    pub fn to_response_peer(&self) -> ProtocolResponsePeer<I> {
+        ProtocolResponsePeer {
+            ip_address: self.ip_address,
             port: self.port,
         }
     }
@@ -230,8 +290,6 @@ pub fn ip_version_from_ip(ip: IpAddr) -> IpVersion {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, Ipv6Addr};
-
     use crate::{common::MAX_PACKET_SIZE, config::Config};
 
     #[test]
@@ -269,15 +327,16 @@ mod tests {
 
         let config = Config::default();
 
-        let peers = ::std::iter::repeat(ResponsePeer {
-            ip_address: IpAddr::V6(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1)),
+        let peers = ::std::iter::repeat(ResponsePeerIpv6 {
+            ip_address: [1; 16],
             port: Port(1.into()),
         })
         .take(config.protocol.max_response_peers)
         .collect();
 
-        let response = Response::Announce(AnnounceResponse {
-            fixed: AnnounceResponseFixed {
+        let response = Response::AnnounceIpv6(AnnounceResponseIpv6 {
+            fixed: AnnounceResponseIpv6Fixed {
+                action: AnnounceIpv6Action::new(),
                 transaction_id: TransactionId(1.into()),
                 announce_interval: AnnounceInterval(1.into()),
                 seeders: NumberOfPeers(1.into()),
@@ -288,7 +347,7 @@ mod tests {
 
         let mut buf = Vec::new();
 
-        response.write(&mut buf, IpVersion::IPv6).unwrap();
+        response.write(&mut buf).unwrap();
 
         println!("Buffer len: {}", buf.len());
 

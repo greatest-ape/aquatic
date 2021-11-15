@@ -397,7 +397,7 @@ fn queue_response(
 
     let mut cursor = Cursor::new(&mut buffers[buffer_index][..]);
 
-    match response.write(&mut cursor, ip_version_from_ip(addr.ip())) {
+    match response.write(&mut cursor) {
         Ok(()) => {
             iovs[buffer_index].iov_len = cursor.position() as usize;
 

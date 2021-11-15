@@ -1,4 +1,3 @@
-use std::net::IpAddr;
 use zerocopy::{AsBytes, FromBytes, NetworkEndian, Unaligned, I32, I64, U16, U32};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -49,9 +48,17 @@ pub struct PeerId(pub [u8; 20]);
 #[repr(transparent)]
 pub struct PeerKey(pub U32<NetworkEndian>);
 
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct ResponsePeer {
-    pub ip_address: IpAddr,
+#[derive(Hash, PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
+pub struct ResponsePeerIpv4 {
+    pub ip_address: [u8; 4],
+    pub port: Port,
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, Unaligned)]
+#[repr(C)]
+pub struct ResponsePeerIpv6 {
+    pub ip_address: [u8; 16],
     pub port: Port,
 }
 
@@ -143,10 +150,20 @@ impl quickcheck::Arbitrary for PeerId {
 }
 
 #[cfg(test)]
-impl quickcheck::Arbitrary for ResponsePeer {
+impl quickcheck::Arbitrary for ResponsePeerIpv4 {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
-            ip_address: ::std::net::IpAddr::arbitrary(g),
+            ip_address: ::std::net::Ipv4Addr::arbitrary(g).octets(),
+            port: Port(u16::arbitrary(g).into()),
+        }
+    }
+}
+
+#[cfg(test)]
+impl quickcheck::Arbitrary for ResponsePeerIpv6 {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self {
+            ip_address: ::std::net::Ipv6Addr::arbitrary(g).octets(),
             port: Port(u16::arbitrary(g).into()),
         }
     }
