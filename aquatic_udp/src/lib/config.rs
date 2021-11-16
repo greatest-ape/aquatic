@@ -72,9 +72,6 @@ pub struct ProtocolConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
-    /// Maximum number of requests to receive from channel before locking
-    /// mutex and starting work
-    pub max_requests_per_iter: usize,
     pub channel_recv_timeout_ms: u64,
 }
 
@@ -142,7 +139,6 @@ impl Default for ProtocolConfig {
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
-            max_requests_per_iter: 10000,
             channel_recv_timeout_ms: 100,
         }
     }
