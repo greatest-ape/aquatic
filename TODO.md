@@ -23,8 +23,6 @@
       without sharding. io_uring impl is slightly behind or slighly ahead of mio, but
       nothing justifying code complexity and unsafety
   * clean torrent map in workers, remove it from shared state
-  * consider rewriting load test to just have one worker type. Connection state
-    should/could be divided by socket worker anyway?
   * mio
     * stagger connection cleaning intervals?
   * uring

@@ -5,7 +5,6 @@ use aquatic_cli_helpers::LogLevel;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use hashbrown::HashMap;
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use aquatic_udp_protocol::*;
@@ -22,11 +21,7 @@ pub struct Config {
     /// address here.
     pub server_address: SocketAddr,
     pub log_level: LogLevel,
-    /// Number of sockets and socket worker threads
-    pub num_socket_workers: u8,
-    /// Number of workers generating requests from responses, as well as
-    /// requests not connected to previous ones.
-    pub num_request_workers: usize,
+    pub workers: u8,
     /// Run duration (quit and generate report after this many seconds)
     pub duration: usize,
     pub network: NetworkConfig,
@@ -75,8 +70,6 @@ pub struct HandlerConfig {
     pub number_of_torrents: usize,
     /// Maximum number of torrents to ask about in scrape requests
     pub scrape_max_torrents: usize,
-    /// Handler: max number of responses to collect for before processing
-    pub max_responses_per_iter: usize,
     /// Probability that a generated request is a connect request as part
     /// of sum of the various weight arguments.
     pub weight_connect: usize,
@@ -86,8 +79,6 @@ pub struct HandlerConfig {
     /// Probability that a generated request is a scrape request, as part
     /// of sum of the various weight arguments.
     pub weight_scrape: usize,
-    /// Handler: max microseconds to wait for single response from channel
-    pub channel_timeout: u64,
     /// Pareto shape
     ///
     /// Fake peers choose torrents according to Pareto distribution.
@@ -105,8 +96,7 @@ impl Default for Config {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
             log_level: LogLevel::Error,
-            num_socket_workers: 1,
-            num_request_workers: 1,
+            workers: 1,
             duration: 0,
             network: NetworkConfig::default(),
             handler: HandlerConfig::default(),
@@ -138,8 +128,6 @@ impl Default for HandlerConfig {
             weight_announce: 1,
             weight_scrape: 1,
             additional_request_factor: 0.4,
-            max_responses_per_iter: 10_000,
-            channel_timeout: 200,
             torrent_selection_pareto_shape: 2.0,
         }
     }
@@ -168,9 +156,9 @@ pub struct Statistics {
 
 #[derive(Clone)]
 pub struct LoadTestState {
-    pub torrent_peers: Arc<Mutex<TorrentPeerMap>>,
     pub info_hashes: Arc<Vec<InfoHash>>,
     pub statistics: Arc<Statistics>,
+    pub responses: Arc<AtomicUsize>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]

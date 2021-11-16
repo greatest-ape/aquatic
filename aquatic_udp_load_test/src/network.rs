@@ -1,15 +1,16 @@
-use std::io::Cursor;
+use std::{io::Cursor, vec::Drain};
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use crossbeam_channel::{Receiver, Sender};
 use mio::{net::UdpSocket, Events, Interest, Poll, Token};
+use rand::{SeedableRng, prelude::SmallRng, thread_rng};
+use rand_distr::Pareto;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::*;
 
-use crate::common::*;
+use crate::{common::*, handler::{process_response}, utils::*};
 
 const MAX_PACKET_SIZE: usize = 4096;
 
@@ -45,16 +46,18 @@ pub fn create_socket(config: &Config, addr: SocketAddr) -> ::std::net::UdpSocket
     socket.into()
 }
 
-pub fn run_socket_thread(
+pub fn run_worker_thread(
     state: LoadTestState,
-    response_channel_sender: Sender<(ThreadId, Response)>,
-    request_receiver: Receiver<Request>,
+    pareto: Pareto<f64>,
     config: &Config,
     addr: SocketAddr,
     thread_id: ThreadId,
 ) {
     let mut socket = UdpSocket::from_std(create_socket(config, addr));
     let mut buffer = [0u8; MAX_PACKET_SIZE];
+
+    let mut rng = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
+    let mut torrent_peers = TorrentPeerMap::default();
 
     let token = Token(thread_id.0 as usize);
     let interests = Interest::READABLE;
@@ -70,6 +73,10 @@ pub fn run_socket_thread(
 
     let mut local_state = SocketWorkerLocalStatistics::default();
     let mut responses = Vec::new();
+    let mut requests = Vec::new();
+
+    // Bootstrap request cycle by adding a request
+    requests.push(create_connect_request(generate_transaction_id(&mut thread_rng())));
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -78,52 +85,56 @@ pub fn run_socket_thread(
         for event in events.iter() {
             if (event.token() == token) & event.is_readable() {
                 read_responses(
-                    thread_id,
                     &socket,
                     &mut buffer,
                     &mut local_state,
                     &mut responses,
                 );
-
-                for r in responses.drain(..) {
-                    response_channel_sender.send(r).unwrap_or_else(|err| {
-                        panic!(
-                            "add response to channel in socket worker {}: {:?}",
-                            thread_id.0, err
-                        )
-                    });
-                }
-
-                poll.registry()
-                    .reregister(&mut socket, token, interests)
-                    .unwrap();
             }
+        }
 
-            send_requests(
-                &state,
-                &mut socket,
-                &mut buffer,
-                &request_receiver,
-                &mut local_state,
-            );
+        let total_responses = responses.len() + if thread_id.0 == 0 {
+            state.responses.fetch_and(0, Ordering::SeqCst)
+        } else {
+            state.responses.fetch_add(responses.len(), Ordering::SeqCst)
+        };
+
+        // Somewhat dubious heuristic for deciding how fast to create
+        // and send additional requests
+        let num_additional_to_send = {
+            let n = total_responses as f64 / (config.workers as f64 * 4.0);
+
+            (n * config.handler.additional_request_factor) as usize + 10
+        };
+
+        for _ in 0..num_additional_to_send {
+            requests.push(create_connect_request(generate_transaction_id(&mut rng)));
+        }
+
+        for response in responses.drain(..) {
+            let opt_request =
+                process_response(&mut rng, pareto, &state.info_hashes, &config, &mut torrent_peers, response);
+
+            if let Some(new_request) = opt_request {
+                requests.push(new_request);
+            }
         }
 
         send_requests(
             &state,
             &mut socket,
             &mut buffer,
-            &request_receiver,
             &mut local_state,
+            requests.drain(..),
         );
     }
 }
 
 fn read_responses(
-    thread_id: ThreadId,
     socket: &UdpSocket,
     buffer: &mut [u8],
     ls: &mut SocketWorkerLocalStatistics,
-    responses: &mut Vec<(ThreadId, Response)>,
+    responses: &mut Vec<Response>,
 ) {
     while let Ok(amt) = socket.recv(buffer) {
         match Response::from_bytes(&buffer[0..amt]) {
@@ -148,7 +159,7 @@ fn read_responses(
                     }
                 }
 
-                responses.push((thread_id, response))
+                responses.push(response)
             }
             Err(err) => {
                 eprintln!("Received invalid response: {:#?}", err);
@@ -161,12 +172,12 @@ fn send_requests(
     state: &LoadTestState,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    receiver: &Receiver<Request>,
     statistics: &mut SocketWorkerLocalStatistics,
+    requests: Drain<Request>,
 ) {
     let mut cursor = Cursor::new(buffer);
 
-    while let Ok(request) = receiver.try_recv() {
+    for request in requests {
         cursor.set_position(0);
 
         if let Err(err) = request.write(&mut cursor) {
