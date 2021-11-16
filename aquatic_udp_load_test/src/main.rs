@@ -51,7 +51,6 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     let state = LoadTestState {
         info_hashes: Arc::new(info_hashes),
         statistics: Arc::new(Statistics::default()),
-        responses: Default::default(),
     };
 
     let pareto = Pareto::new(1.0, config.handler.torrent_selection_pareto_shape).unwrap();

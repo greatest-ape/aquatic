@@ -85,10 +85,6 @@ pub struct HandlerConfig {
     pub torrent_selection_pareto_shape: f64,
     /// Probability that a generated peer is a seeder
     pub peer_seeder_probability: f64,
-    /// Part of additional request creation calculation, meaning requests
-    /// which are not dependent on previous responses from server. Higher
-    /// means more.
-    pub additional_request_factor: f64,
 }
 
 impl Default for Config {
@@ -125,9 +121,8 @@ impl Default for HandlerConfig {
             peer_seeder_probability: 0.25,
             scrape_max_torrents: 50,
             weight_connect: 0,
-            weight_announce: 1,
+            weight_announce: 5,
             weight_scrape: 1,
-            additional_request_factor: 0.4,
             torrent_selection_pareto_shape: 2.0,
         }
     }
@@ -158,7 +153,6 @@ pub struct Statistics {
 pub struct LoadTestState {
     pub info_hashes: Arc<Vec<InfoHash>>,
     pub statistics: Arc<Statistics>,
-    pub responses: Arc<AtomicUsize>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
