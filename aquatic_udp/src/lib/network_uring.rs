@@ -316,8 +316,7 @@ pub fn run_socket_worker(
             let num_to_queue = (space_in_send_queue).min(local_responses.len());
             let drain_from_index = local_responses.len() - num_to_queue;
 
-            for (response, addr) in local_responses.drain(drain_from_index..)
-            {
+            for (response, addr) in local_responses.drain(drain_from_index..) {
                 queue_response(
                     &config,
                     &mut sq,
