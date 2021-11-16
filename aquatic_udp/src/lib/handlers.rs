@@ -22,7 +22,7 @@ pub fn run_request_worker(
     let mut torrents = TorrentMaps::default();
     let mut small_rng = SmallRng::from_entropy();
 
-    let timeout = Duration::from_micros(config.handlers.channel_recv_timeout_microseconds);
+    let timeout = Duration::from_millis(config.handlers.channel_recv_timeout_ms);
 
     loop {
         if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
