@@ -40,9 +40,8 @@ pub struct Config {
 pub struct NetworkConfig {
     /// True means bind to one localhost IP per socket.
     ///
-    /// The point of multiple IPs is to possibly cause a better distribution
-    /// of requests to servers with SO_REUSEPORT option, but it doesn't
-    /// necessarily help.
+    /// The point of multiple IPs is to cause a better distribution
+    /// of requests to servers with SO_REUSEPORT option.
     ///
     /// Setting this to true can cause issues on macOS.
     pub multiple_client_ipv4s: bool,
@@ -120,7 +119,7 @@ impl Default for Config {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            multiple_client_ipv4s: false,
+            multiple_client_ipv4s: true,
             first_port: 45_000,
             poll_timeout: 276,
             poll_event_capacity: 2_877,
