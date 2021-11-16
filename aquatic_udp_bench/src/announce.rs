@@ -7,7 +7,6 @@ use rand::Rng;
 use rand_distr::Pareto;
 
 use aquatic_udp::common::*;
-use aquatic_udp::config::Config;
 use aquatic_udp_protocol::*;
 
 use crate::common::*;
@@ -15,7 +14,6 @@ use crate::config::BenchConfig;
 
 pub fn bench_announce_handler(
     bench_config: &BenchConfig,
-    aquatic_config: &Config,
     request_sender: &Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
     response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     rng: &mut impl Rng,
@@ -23,7 +21,7 @@ pub fn bench_announce_handler(
 ) -> (usize, Duration) {
     let requests = create_requests(rng, info_hashes, bench_config.num_announce_requests);
 
-    let p = aquatic_config.handlers.max_requests_per_iter * bench_config.num_threads;
+    let p = 10_000 * bench_config.num_threads; // FIXME: adjust to sharded workers
     let mut num_responses = 0usize;
 
     let mut dummy: u16 = rng.gen();

@@ -59,7 +59,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     let a = announce::bench_announce_handler(
         &bench_config,
-        &aquatic_config,
         &request_sender,
         &response_receiver,
         &mut rng,
@@ -68,7 +67,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     let s = scrape::bench_scrape_handler(
         &bench_config,
-        &aquatic_config,
         &request_sender,
         &response_receiver,
         &mut rng,
