@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crossbeam_channel::Sender;
 use parking_lot::Mutex;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -35,34 +37,28 @@ impl Ip for Ipv6Addr {
 }
 
 #[derive(Debug)]
+pub struct PendingScrapeRequest {
+    pub transaction_id: TransactionId,
+    pub info_hashes: BTreeMap<usize, InfoHash>,
+}
+
+#[derive(Debug)]
+pub struct PendingScrapeResponse {
+    pub transaction_id: TransactionId,
+    pub torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
+}
+
+#[derive(Debug)]
 pub enum ConnectedRequest {
     Announce(AnnounceRequest),
-    Scrape {
-        request: ScrapeRequest,
-        /// Currently only used by glommio implementation
-        original_indices: Vec<usize>,
-    },
+    Scrape(PendingScrapeRequest),
 }
 
 #[derive(Debug)]
 pub enum ConnectedResponse {
     AnnounceIpv4(AnnounceResponseIpv4),
     AnnounceIpv6(AnnounceResponseIpv6),
-    Scrape {
-        response: ScrapeResponse,
-        /// Currently only used by glommio implementation
-        original_indices: Vec<usize>,
-    },
-}
-
-impl Into<Response> for ConnectedResponse {
-    fn into(self) -> Response {
-        match self {
-            Self::AnnounceIpv4(response) => Response::AnnounceIpv4(response),
-            Self::AnnounceIpv6(response) => Response::AnnounceIpv6(response),
-            Self::Scrape { response, .. } => Response::Scrape(response),
-        }
-    }
+    Scrape(PendingScrapeResponse),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -114,6 +110,64 @@ impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv6Addr> {
                 })
                 .collect(),
         })
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SocketWorkerIndex(pub usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct RequestWorkerIndex(pub usize);
+
+impl RequestWorkerIndex {
+    fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
+        Self(info_hash.0[0] as usize % config.request_workers)
+    }
+}
+
+pub struct ConnectedRequestSender {
+    index: SocketWorkerIndex,
+    senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>>,
+}
+
+impl ConnectedRequestSender {
+    pub fn new(
+        index: SocketWorkerIndex,
+        senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>>,
+    ) -> Self {
+        Self { index, senders }
+    }
+
+    pub fn try_send_to(
+        &self,
+        index: RequestWorkerIndex,
+        request: ConnectedRequest,
+        addr: SocketAddr,
+    ) {
+        if let Err(err) = self.senders[index.0].try_send((self.index, request, addr)) {
+            ::log::warn!("request_sender.try_send failed: {:?}", err)
+        }
+    }
+}
+
+pub struct ConnectedResponseSender {
+    senders: Vec<Sender<(ConnectedResponse, SocketAddr)>>,
+}
+
+impl ConnectedResponseSender {
+    pub fn new(senders: Vec<Sender<(ConnectedResponse, SocketAddr)>>) -> Self {
+        Self { senders }
+    }
+
+    pub fn try_send_to(
+        &self,
+        index: SocketWorkerIndex,
+        response: ConnectedResponse,
+        addr: SocketAddr,
+    ) {
+        if let Err(err) = self.senders[index.0].try_send((response, addr)) {
+            ::log::warn!("request_sender.try_send failed: {:?}", err)
+        }
     }
 }
 

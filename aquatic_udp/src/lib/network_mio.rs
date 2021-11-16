@@ -9,7 +9,7 @@ use std::vec::Drain;
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::ValidUntil;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
 use rand::prelude::{SeedableRng, StdRng};
@@ -24,7 +24,7 @@ pub fn run_socket_worker(
     state: State,
     config: Config,
     token_num: usize,
-    request_sender: Sender<(ConnectedRequest, SocketAddr)>,
+    request_sender: ConnectedRequestSender,
     response_receiver: Receiver<(ConnectedResponse, SocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
@@ -44,6 +44,7 @@ pub fn run_socket_worker(
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut connections = ConnectionMap::default();
+    let mut pending_scrape_responses = PendingScrapeResponseMap::default();
 
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
@@ -66,6 +67,7 @@ pub fn run_socket_worker(
                     &config,
                     &state,
                     &mut connections,
+                    &mut pending_scrape_responses,
                     &mut rng,
                     &mut socket,
                     &mut buffer,
@@ -81,6 +83,7 @@ pub fn run_socket_worker(
             &mut socket,
             &mut buffer,
             &response_receiver,
+            &mut pending_scrape_responses,
             local_responses.drain(..),
         );
 
@@ -103,10 +106,11 @@ fn read_requests(
     config: &Config,
     state: &State,
     connections: &mut ConnectionMap,
+    pending_scrape_responses: &mut PendingScrapeResponseMap,
     rng: &mut StdRng,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
+    request_sender: &ConnectedRequestSender,
     local_responses: &mut Vec<(Response, SocketAddr)>,
 ) {
     let mut requests_received: usize = 0;
@@ -147,6 +151,7 @@ fn read_requests(
                 handle_request(
                     config,
                     connections,
+                    pending_scrape_responses,
                     &mut access_list_cache,
                     rng,
                     request_sender,
@@ -185,60 +190,41 @@ fn send_responses(
     socket: &mut UdpSocket,
     buffer: &mut [u8],
     response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
+    pending_scrape_responses: &mut PendingScrapeResponseMap,
     local_responses: Drain<(Response, SocketAddr)>,
 ) {
     let mut responses_sent: usize = 0;
     let mut bytes_sent: usize = 0;
 
-    let mut cursor = Cursor::new(buffer);
+    for (response, addr) in local_responses {
+        send_response(
+            config,
+            socket,
+            buffer,
+            &mut responses_sent,
+            &mut bytes_sent,
+            response,
+            addr,
+        );
+    }
 
-    let response_iterator = local_responses.into_iter().chain(
-        response_receiver
-            .try_iter()
-            .map(|(response, addr)| (response.into(), addr)),
-    );
-
-    for (response, addr) in response_iterator {
-        cursor.set_position(0);
-
-        let addr = if config.network.address.is_ipv4() {
-            if let SocketAddr::V4(addr) = addr {
-                SocketAddr::V4(addr)
-            } else {
-                unreachable!()
-            }
-        } else {
-            match addr {
-                SocketAddr::V4(addr) => {
-                    let ip = addr.ip().to_ipv6_mapped();
-
-                    SocketAddr::V6(SocketAddrV6::new(ip, addr.port(), 0, 0))
-                }
-                addr => addr,
-            }
+    for (response, addr) in response_receiver.try_iter() {
+        let opt_response = match response {
+            ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r),
+            ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
+            ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
         };
 
-        match response.write(&mut cursor) {
-            Ok(()) => {
-                let amt = cursor.position() as usize;
-
-                match socket.send_to(&cursor.get_ref()[..amt], addr) {
-                    Ok(amt) => {
-                        responses_sent += 1;
-                        bytes_sent += amt;
-                    }
-                    Err(err) => {
-                        if err.kind() == ErrorKind::WouldBlock {
-                            break;
-                        }
-
-                        ::log::info!("send_to error: {}", err);
-                    }
-                }
-            }
-            Err(err) => {
-                ::log::error!("Response::write error: {:?}", err);
-            }
+        if let Some(response) = opt_response {
+            send_response(
+                config,
+                socket,
+                buffer,
+                &mut responses_sent,
+                &mut bytes_sent,
+                response,
+                addr,
+            );
         }
     }
 
@@ -251,5 +237,53 @@ fn send_responses(
             .statistics
             .bytes_sent
             .fetch_add(bytes_sent, Ordering::SeqCst);
+    }
+}
+
+fn send_response(
+    config: &Config,
+    socket: &mut UdpSocket,
+    buffer: &mut [u8],
+    responses_sent: &mut usize,
+    bytes_sent: &mut usize,
+    response: Response,
+    addr: SocketAddr,
+) {
+    let mut cursor = Cursor::new(buffer);
+
+    let addr = if config.network.address.is_ipv4() {
+        if let SocketAddr::V4(addr) = addr {
+            SocketAddr::V4(addr)
+        } else {
+            unreachable!()
+        }
+    } else {
+        match addr {
+            SocketAddr::V4(addr) => {
+                let ip = addr.ip().to_ipv6_mapped();
+
+                SocketAddr::V6(SocketAddrV6::new(ip, addr.port(), 0, 0))
+            }
+            addr => addr,
+        }
+    };
+
+    match response.write(&mut cursor) {
+        Ok(()) => {
+            let amt = cursor.position() as usize;
+
+            match socket.send_to(&cursor.get_ref()[..amt], addr) {
+                Ok(amt) => {
+                    *responses_sent += 1;
+                    *bytes_sent += amt;
+                }
+                Err(err) => {
+                    ::log::info!("send_to error: {}", err);
+                }
+            }
+        }
+        Err(err) => {
+            ::log::error!("Response::write error: {:?}", err);
+        }
     }
 }

@@ -1,12 +1,12 @@
+use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use aquatic_common::ValidUntil;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Receiver;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_common::extract_response_peers;
 
 use aquatic_udp_protocol::*;
@@ -15,88 +15,37 @@ use crate::common::*;
 use crate::config::Config;
 
 pub fn run_request_worker(
-    state: State,
     config: Config,
-    request_receiver: Receiver<(ConnectedRequest, SocketAddr)>,
-    response_sender: Sender<(ConnectedResponse, SocketAddr)>,
+    request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
+    response_sender: ConnectedResponseSender,
 ) {
-    let mut announce_requests: Vec<(AnnounceRequest, SocketAddr)> = Vec::new();
-    let mut scrape_requests: Vec<(ScrapeRequest, SocketAddr)> = Vec::new();
-    let mut responses: Vec<(ConnectedResponse, SocketAddr)> = Vec::new();
-
+    let mut torrents = TorrentMaps::default();
     let mut small_rng = SmallRng::from_entropy();
 
     let timeout = Duration::from_micros(config.handlers.channel_recv_timeout_microseconds);
 
     loop {
-        let mut opt_torrents = None;
-
-        // Collect requests from channel, divide them by type
-        //
-        // Collect a maximum number of request. Stop collecting before that
-        // number is reached if having waited for too long for a request, but
-        // only if TorrentMaps mutex isn't locked.
-        for i in 0..config.handlers.max_requests_per_iter {
-            let (request, src): (ConnectedRequest, SocketAddr) = if i == 0 {
-                match request_receiver.recv() {
-                    Ok(r) => r,
-                    Err(_) => break, // Really shouldn't happen
-                }
-            } else {
-                match request_receiver.recv_timeout(timeout) {
-                    Ok(r) => r,
-                    Err(_) => {
-                        if let Some(guard) = state.torrents.try_lock() {
-                            opt_torrents = Some(guard);
-
-                            break;
-                        } else {
-                            continue;
-                        }
-                    }
-                }
-            };
-
-            match request {
-                ConnectedRequest::Announce(request) => announce_requests.push((request, src)),
-                ConnectedRequest::Scrape { request, .. } => scrape_requests.push((request, src)),
-            }
-        }
-
-        // Generate responses for announce and scrape requests, then drop MutexGuard.
-        {
-            let mut torrents = opt_torrents.unwrap_or_else(|| state.torrents.lock());
-
+        if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
             let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
-            responses.extend(announce_requests.drain(..).map(|(request, src)| {
-                let response = handle_announce_request(
+            let response = match request {
+                ConnectedRequest::Announce(request) => handle_announce_request(
                     &config,
                     &mut small_rng,
                     &mut torrents,
                     request,
                     src,
                     peer_valid_until,
-                );
+                ),
+                ConnectedRequest::Scrape(request) => {
+                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, src, request))
+                }
+            };
 
-                (response, src)
-            }));
-
-            responses.extend(scrape_requests.drain(..).map(|(request, src)| {
-                let response = ConnectedResponse::Scrape {
-                    response: handle_scrape_request(&mut torrents, src, request),
-                    original_indices: Vec::new(),
-                };
-
-                (response, src)
-            }));
+            response_sender.try_send_to(sender_index, response, src);
         }
 
-        for r in responses.drain(..) {
-            if let Err(err) = response_sender.send(r) {
-                ::log::error!("error sending response to channel: {}", err);
-            }
-        }
+        // TODO: clean torrent map, update peer_valid_until
     }
 }
 
@@ -207,41 +156,43 @@ fn calc_max_num_peers_to_take(config: &Config, peers_wanted: i32) -> usize {
 pub fn handle_scrape_request(
     torrents: &mut TorrentMaps,
     src: SocketAddr,
-    request: ScrapeRequest,
-) -> ScrapeResponse {
+    request: PendingScrapeRequest,
+) -> PendingScrapeResponse {
     const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
 
-    let mut stats: Vec<TorrentScrapeStatistics> = Vec::with_capacity(request.info_hashes.len());
+    let mut torrent_stats: BTreeMap<usize, TorrentScrapeStatistics> = BTreeMap::new();
 
-    let peer_ip = convert_ipv4_mapped_ipv6(src.ip());
-
-    if peer_ip.is_ipv4() {
-        for info_hash in request.info_hashes.iter() {
-            if let Some(torrent_data) = torrents.ipv4.get(info_hash) {
-                stats.push(create_torrent_scrape_statistics(
+    if src.ip().is_ipv4() {
+        torrent_stats.extend(request.info_hashes.into_iter().map(|(i, info_hash)| {
+            let s = if let Some(torrent_data) = torrents.ipv4.get(&info_hash) {
+                create_torrent_scrape_statistics(
                     torrent_data.num_seeders as i32,
                     torrent_data.num_leechers as i32,
-                ));
+                )
             } else {
-                stats.push(EMPTY_STATS);
-            }
-        }
+                EMPTY_STATS
+            };
+
+            (i, s)
+        }));
     } else {
-        for info_hash in request.info_hashes.iter() {
-            if let Some(torrent_data) = torrents.ipv6.get(info_hash) {
-                stats.push(create_torrent_scrape_statistics(
+        torrent_stats.extend(request.info_hashes.into_iter().map(|(i, info_hash)| {
+            let s = if let Some(torrent_data) = torrents.ipv6.get(&info_hash) {
+                create_torrent_scrape_statistics(
                     torrent_data.num_seeders as i32,
                     torrent_data.num_leechers as i32,
-                ));
+                )
             } else {
-                stats.push(EMPTY_STATS);
-            }
-        }
+                EMPTY_STATS
+            };
+
+            (i, s)
+        }));
     }
 
-    ScrapeResponse {
+    PendingScrapeResponse {
         transaction_id: request.transaction_id,
-        torrent_stats: stats,
+        torrent_stats,
     }
 }
 
