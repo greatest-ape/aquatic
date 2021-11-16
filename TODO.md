@@ -17,17 +17,19 @@
   * cargo-deny
 
 * aquatic_udp
-  * shard torrent state
-    * old note that might be useful:
-      * consider adding ConnectedScrapeRequest::Scrape(PendingScrapeRequest)
-        containing TransactionId and BTreeMap<usize, InfoHash>, and same for
-        response
+  * notes
+    * load testing shows that with sharded state, mio reaches 1.4M responses per second
+      with 6 socket and 4 request workers. performance is great overall and faster than
+      without sharding. io_uring impl is slightly behind or slighly ahead of mio, but
+      nothing justifying code complexity and unsafety
+  * clean torrent map in workers, remove it from shared state
+  * consider rewriting load test to just have one worker type. Connection state
+    should/could be divided by socket worker anyway?
+  * mio
+    * stagger connection cleaning intervals?
   * uring
     * ValidUntil periodic update
     * statistics
-    * shared config keys such as poll interval
-  * mio
-    * stagger connection cleaning intervals?
 
 * aquatic_http:
   * clean out connections regularly
