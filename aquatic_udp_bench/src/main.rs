@@ -39,21 +39,17 @@ fn main() {
 pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     // Setup common state, spawn request handlers
 
-    let state = State::default();
     let aquatic_config = Config::default();
 
     let (request_sender, request_receiver) = unbounded();
     let (response_sender, response_receiver) = unbounded();
 
-    for _ in 0..bench_config.num_threads {
-        let state = state.clone();
-        let config = aquatic_config.clone();
-        let request_receiver = request_receiver.clone();
-        let response_sender = response_sender.clone();
+    let response_sender = ConnectedResponseSender::new(vec![response_sender]);
 
-        ::std::thread::spawn(move || {
-            run_request_worker(state, config, request_receiver, response_sender)
-        });
+    {
+        let config = aquatic_config.clone();
+
+        ::std::thread::spawn(move || run_request_worker(config, request_receiver, response_sender));
     }
 
     // Run benchmarks

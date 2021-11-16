@@ -9,6 +9,7 @@ pub mod tasks;
 
 use config::Config;
 
+use std::collections::BTreeMap;
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::thread::Builder;
 use std::time::Duration;
@@ -23,7 +24,7 @@ use aquatic_common::access_list::update_access_list;
 use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
 
-use common::State;
+use common::{ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State};
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 
@@ -63,14 +64,30 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
-    let (request_sender, request_receiver) = unbounded();
-    let (response_sender, response_receiver) = unbounded();
+    let mut request_senders = Vec::new();
+    let mut request_receivers = BTreeMap::new();
+
+    let mut response_senders = Vec::new();
+    let mut response_receivers = BTreeMap::new();
 
     for i in 0..config.request_workers {
-        let state = state.clone();
+        let (request_sender, request_receiver) = unbounded();
+
+        request_senders.push(request_sender);
+        request_receivers.insert(i, request_receiver);
+    }
+
+    for i in 0..config.socket_workers {
+        let (response_sender, response_receiver) = unbounded();
+
+        response_senders.push(response_sender);
+        response_receivers.insert(i, response_receiver);
+    }
+
+    for i in 0..config.request_workers {
         let config = config.clone();
-        let request_receiver = request_receiver.clone();
-        let response_sender = response_sender.clone();
+        let request_receiver = request_receivers.remove(&i).unwrap().clone();
+        let response_sender = ConnectedResponseSender::new(response_senders.clone());
 
         Builder::new()
             .name(format!("request-{:02}", i + 1))
@@ -82,7 +99,7 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
                     WorkerIndex::RequestWorker(i),
                 );
 
-                handlers::run_request_worker(state, config, request_receiver, response_sender)
+                handlers::run_request_worker(config, request_receiver, response_sender)
             })
             .with_context(|| "spawn request worker")?;
     }
@@ -90,8 +107,9 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
     for i in 0..config.socket_workers {
         let state = state.clone();
         let config = config.clone();
-        let request_sender = request_sender.clone();
-        let response_receiver = response_receiver.clone();
+        let request_sender =
+            ConnectedRequestSender::new(SocketWorkerIndex(i), request_senders.clone());
+        let response_receiver = response_receivers.remove(&i).unwrap();
         let num_bound_sockets = num_bound_sockets.clone();
 
         Builder::new()
@@ -127,6 +145,12 @@ pub fn run_inner(config: Config, state: State) -> ::anyhow::Result<()> {
             })
             .with_context(|| "spawn socket worker")?;
     }
+
+    ::std::mem::drop(request_senders);
+    ::std::mem::drop(request_receivers);
+
+    ::std::mem::drop(response_senders);
+    ::std::mem::drop(response_receivers);
 
     if config.statistics.interval != 0 {
         let state = state.clone();

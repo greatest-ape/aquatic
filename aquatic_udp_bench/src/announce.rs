@@ -16,7 +16,7 @@ use crate::config::BenchConfig;
 pub fn bench_announce_handler(
     bench_config: &BenchConfig,
     aquatic_config: &Config,
-    request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
+    request_sender: &Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
     response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
@@ -38,7 +38,11 @@ pub fn bench_announce_handler(
         for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
                 request_sender
-                    .send((ConnectedRequest::Announce(request.clone()), *src))
+                    .send((
+                        SocketWorkerIndex(0),
+                        ConnectedRequest::Announce(request.clone()),
+                        *src,
+                    ))
                     .unwrap();
             }
 

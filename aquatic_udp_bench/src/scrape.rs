@@ -16,7 +16,7 @@ use crate::config::BenchConfig;
 pub fn bench_scrape_handler(
     bench_config: &BenchConfig,
     aquatic_config: &Config,
-    request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
+    request_sender: &Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
     response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
@@ -42,20 +42,25 @@ pub fn bench_scrape_handler(
     for round in (0..bench_config.num_rounds).progress_with(pb) {
         for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
-                let request = ConnectedRequest::Scrape {
-                    request: request.clone(),
-                    original_indices: Vec::new(),
-                };
+                let request = ConnectedRequest::Scrape(PendingScrapeRequest {
+                    transaction_id: request.transaction_id,
+                    info_hashes: request
+                        .info_hashes
+                        .clone()
+                        .into_iter()
+                        .enumerate()
+                        .collect(),
+                });
 
-                request_sender.send((request, *src)).unwrap();
+                request_sender
+                    .send((SocketWorkerIndex(0), request, *src))
+                    .unwrap();
             }
 
-            while let Ok((ConnectedResponse::Scrape { response, .. }, _)) =
-                response_receiver.try_recv()
-            {
+            while let Ok((ConnectedResponse::Scrape(response), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
-                if let Some(stat) = response.torrent_stats.last() {
+                if let Some(stat) = response.torrent_stats.values().last() {
                     dummy ^= stat.leechers.0;
                 }
             }
@@ -64,10 +69,10 @@ pub fn bench_scrape_handler(
         let total = bench_config.num_scrape_requests * (round + 1);
 
         while num_responses < total {
-            if let Ok((ConnectedResponse::Scrape { response, .. }, _)) = response_receiver.recv() {
+            if let Ok((ConnectedResponse::Scrape(response), _)) = response_receiver.recv() {
                 num_responses += 1;
 
-                if let Some(stat) = response.torrent_stats.last() {
+                if let Some(stat) = response.torrent_stats.values().last() {
                     dummy ^= stat.leechers.0;
                 }
             }

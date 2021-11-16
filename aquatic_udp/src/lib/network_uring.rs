@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::ValidUntil;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Receiver;
 use io_uring::types::{Fixed, Timespec};
 use io_uring::SubmissionQueue;
 use libc::{
@@ -103,7 +103,7 @@ impl Into<u64> for UserData {
 pub fn run_socket_worker(
     state: State,
     config: Config,
-    request_sender: Sender<(ConnectedRequest, SocketAddr)>,
+    request_sender: ConnectedRequestSender,
     response_receiver: Receiver<(ConnectedResponse, SocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
@@ -114,6 +114,7 @@ pub fn run_socket_worker(
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let mut connections = ConnectionMap::default();
+    let mut pending_scrape_responses = PendingScrapeResponseMap::default();
     let mut access_list_cache = create_access_list_cache(&state.access_list);
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
@@ -252,6 +253,7 @@ pub fn run_socket_worker(
                         handle_request(
                             &config,
                             &mut connections,
+                            &mut pending_scrape_responses,
                             &mut access_list_cache,
                             &mut rng,
                             &request_sender,
@@ -333,19 +335,27 @@ pub fn run_socket_worker(
             .try_iter()
             .take(MAX_SEND_EVENTS - send_entries.len())
         {
-            queue_response(
-                &config,
-                &mut sq,
-                fd,
-                &mut send_entries,
-                &mut buffers,
-                &mut iovs,
-                &mut sockaddrs_ipv4,
-                &mut sockaddrs_ipv6,
-                &mut msghdrs,
-                response.into(),
-                addr,
-            );
+            let opt_response = match response {
+                ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r),
+                ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
+                ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
+            };
+
+            if let Some(response) = opt_response {
+                queue_response(
+                    &config,
+                    &mut sq,
+                    fd,
+                    &mut send_entries,
+                    &mut buffers,
+                    &mut iovs,
+                    &mut sockaddrs_ipv4,
+                    &mut sockaddrs_ipv6,
+                    &mut msghdrs,
+                    response,
+                    addr,
+                );
+            }
         }
 
         if iter_counter % 32 == 0 {
