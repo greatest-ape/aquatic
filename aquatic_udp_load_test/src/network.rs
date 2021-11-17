@@ -128,7 +128,12 @@ pub fn run_worker_thread(
 
                 let additional_request = create_connect_request(generate_transaction_id(&mut rng));
 
-                send_request(&mut socket, &mut buffer, &mut statistics, additional_request);
+                send_request(
+                    &mut socket,
+                    &mut buffer,
+                    &mut statistics,
+                    additional_request,
+                );
 
                 update_shared_statistics(&state, &mut statistics);
             }
