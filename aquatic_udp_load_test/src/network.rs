@@ -10,6 +10,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::*;
 
+use crate::config::Config;
 use crate::{common::*, handler::process_response, utils::*};
 
 const MAX_PACKET_SIZE: usize = 4096;

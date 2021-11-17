@@ -8,11 +8,13 @@ use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use rand_distr::Pareto;
 
 mod common;
+mod config;
 mod handler;
 mod network;
 mod utils;
 
 use common::*;
+use config::Config;
 use network::*;
 use utils::*;
 
