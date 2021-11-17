@@ -6,6 +6,7 @@ use rand_distr::Pareto;
 
 use aquatic_udp_protocol::*;
 
+use crate::config::Config;
 use crate::common::*;
 use crate::utils::*;
 
