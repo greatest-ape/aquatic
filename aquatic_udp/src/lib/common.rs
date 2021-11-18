@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crossbeam_channel::Sender;
-use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap};
 use aquatic_common::AHashIndexMap;
@@ -14,8 +13,6 @@ use aquatic_common::ValidUntil;
 use aquatic_udp_protocol::*;
 
 use crate::config::Config;
-
-pub mod network;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
 
@@ -60,58 +57,6 @@ pub enum ConnectedResponse {
     Scrape(PendingScrapeResponse),
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct ProtocolResponsePeer<I> {
-    pub ip_address: I,
-    pub port: Port,
-}
-
-pub struct ProtocolAnnounceResponse<I> {
-    pub transaction_id: TransactionId,
-    pub announce_interval: AnnounceInterval,
-    pub leechers: NumberOfPeers,
-    pub seeders: NumberOfPeers,
-    pub peers: Vec<ProtocolResponsePeer<I>>,
-}
-
-impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv4Addr> {
-    fn into(self) -> ConnectedResponse {
-        ConnectedResponse::AnnounceIpv4(AnnounceResponseIpv4 {
-            transaction_id: self.transaction_id,
-            announce_interval: self.announce_interval,
-            leechers: self.leechers,
-            seeders: self.seeders,
-            peers: self
-                .peers
-                .into_iter()
-                .map(|peer| ResponsePeerIpv4 {
-                    ip_address: peer.ip_address,
-                    port: peer.port,
-                })
-                .collect(),
-        })
-    }
-}
-
-impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv6Addr> {
-    fn into(self) -> ConnectedResponse {
-        ConnectedResponse::AnnounceIpv6(AnnounceResponseIpv6 {
-            transaction_id: self.transaction_id,
-            announce_interval: self.announce_interval,
-            leechers: self.leechers,
-            seeders: self.seeders,
-            peers: self
-                .peers
-                .into_iter()
-                .map(|peer| ResponsePeerIpv6 {
-                    ip_address: peer.ip_address,
-                    port: peer.port,
-                })
-                .collect(),
-        })
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct SocketWorkerIndex(pub usize);
 
@@ -119,7 +64,7 @@ pub struct SocketWorkerIndex(pub usize);
 pub struct RequestWorkerIndex(pub usize);
 
 impl RequestWorkerIndex {
-    fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
+    pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
         Self(info_hash.0[0] as usize % config.request_workers)
     }
 }
@@ -199,16 +144,6 @@ pub struct Peer<I: Ip> {
     pub port: Port,
     pub status: PeerStatus,
     pub valid_until: ValidUntil,
-}
-
-impl<I: Ip> Peer<I> {
-    #[inline(always)]
-    pub fn to_response_peer(&self) -> ProtocolResponsePeer<I> {
-        ProtocolResponsePeer {
-            ip_address: self.ip_address,
-            port: self.port,
-        }
-    }
 }
 
 pub type PeerMap<I> = AHashIndexMap<PeerId, Peer<I>>;

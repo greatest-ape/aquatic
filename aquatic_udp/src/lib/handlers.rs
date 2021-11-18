@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 use std::net::IpAddr;
+use std::net::Ipv4Addr;
+use std::net::Ipv6Addr;
 use std::net::SocketAddr;
 use std::time::Duration;
 use std::time::Instant;
@@ -14,6 +16,68 @@ use aquatic_udp_protocol::*;
 
 use crate::common::*;
 use crate::config::Config;
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ProtocolResponsePeer<I> {
+    pub ip_address: I,
+    pub port: Port,
+}
+
+impl <I: Ip> ProtocolResponsePeer<I> {
+    #[inline(always)]
+    fn from_peer(peer: &Peer<I>) -> Self {
+        Self {
+            ip_address: peer.ip_address,
+            port: peer.port,
+        }
+    }
+}
+
+pub struct ProtocolAnnounceResponse<I> {
+    pub transaction_id: TransactionId,
+    pub announce_interval: AnnounceInterval,
+    pub leechers: NumberOfPeers,
+    pub seeders: NumberOfPeers,
+    pub peers: Vec<ProtocolResponsePeer<I>>,
+}
+
+impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv4Addr> {
+    fn into(self) -> ConnectedResponse {
+        ConnectedResponse::AnnounceIpv4(AnnounceResponseIpv4 {
+            transaction_id: self.transaction_id,
+            announce_interval: self.announce_interval,
+            leechers: self.leechers,
+            seeders: self.seeders,
+            peers: self
+                .peers
+                .into_iter()
+                .map(|peer| ResponsePeerIpv4 {
+                    ip_address: peer.ip_address,
+                    port: peer.port,
+                })
+                .collect(),
+        })
+    }
+}
+
+impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv6Addr> {
+    fn into(self) -> ConnectedResponse {
+        ConnectedResponse::AnnounceIpv6(AnnounceResponseIpv6 {
+            transaction_id: self.transaction_id,
+            announce_interval: self.announce_interval,
+            leechers: self.leechers,
+            seeders: self.seeders,
+            peers: self
+                .peers
+                .into_iter()
+                .map(|peer| ResponsePeerIpv6 {
+                    ip_address: peer.ip_address,
+                    port: peer.port,
+                })
+                .collect(),
+        })
+    }
+}
 
 pub fn run_request_worker(
     config: Config,
@@ -147,7 +211,7 @@ fn handle_announce_request_inner<I: Ip>(
         &torrent_data.peers,
         max_num_peers_to_take,
         request.peer_id,
-        Peer::to_response_peer,
+        ProtocolResponsePeer::from_peer,
     );
 
     ProtocolAnnounceResponse {
@@ -262,14 +326,14 @@ mod tests {
 
             for i in 0..gen_num_peers {
                 let key = gen_peer_id(i);
-                let value = gen_peer((i << 16) + i);
+                let peer = gen_peer((i << 16) + i);
 
                 if i == 0 {
                     opt_sender_key = Some(key);
-                    opt_sender_peer = Some(value.to_response_peer());
+                    opt_sender_peer = Some(ProtocolResponsePeer::from_peer(&peer));
                 }
 
-                peer_map.insert(key, value);
+                peer_map.insert(key, peer);
             }
 
             let mut rng = thread_rng();
@@ -279,7 +343,7 @@ mod tests {
                 &peer_map,
                 req_num_peers,
                 opt_sender_key.unwrap_or_else(|| gen_peer_id(1)),
-                Peer::to_response_peer,
+                ProtocolResponsePeer::from_peer,
             );
 
             // Check that number of returned peers is correct
