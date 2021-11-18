@@ -21,12 +21,11 @@
     * load testing shows that with sharded state, mio reaches 1.4M responses per second
       with 6 socket and 4 request workers. performance is great overall and faster than
       without sharding. io_uring impl is a lot behind mio impl with new load tester
+  * look at proper cpu pinning (check that one thread gets bound per core)
+    * then consider so_attach_reuseport_cbpf
   * what poll event capacity is actually needed?
   * mio
     * stagger connection cleaning intervals?
-  * uring
-    * ValidUntil periodic update
-    * statistics
 
 * aquatic_http:
   * clean out connections regularly
