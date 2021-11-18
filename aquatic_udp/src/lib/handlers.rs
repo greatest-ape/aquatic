@@ -23,7 +23,7 @@ pub struct ProtocolResponsePeer<I> {
     pub port: Port,
 }
 
-impl <I: Ip> ProtocolResponsePeer<I> {
+impl<I: Ip> ProtocolResponsePeer<I> {
     #[inline(always)]
     fn from_peer(peer: &Peer<I>) -> Self {
         Self {
