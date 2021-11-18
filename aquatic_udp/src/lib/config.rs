@@ -27,6 +27,25 @@ pub struct Config {
     pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            socket_workers: 1,
+            request_workers: 1,
+            log_level: LogLevel::Error,
+            network: NetworkConfig::default(),
+            protocol: ProtocolConfig::default(),
+            handlers: HandlerConfig::default(),
+            statistics: StatisticsConfig::default(),
+            cleaning: CleaningConfig::default(),
+            privileges: PrivilegeConfig::default(),
+            access_list: AccessListConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: Default::default(),
+        }
+    }
+}
+
 impl aquatic_cli_helpers::Config for Config {
     fn get_log_level(&self) -> Option<LogLevel> {
         Some(self.log_level)
@@ -57,6 +76,17 @@ pub struct NetworkConfig {
     pub poll_event_capacity: usize,
 }
 
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
+            only_ipv6: false,
+            socket_recv_buffer_size: 4096 * 128,
+            poll_event_capacity: 4096,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
@@ -68,10 +98,28 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: i32,
 }
 
+impl Default for ProtocolConfig {
+    fn default() -> Self {
+        Self {
+            max_scrape_torrents: 255,
+            max_response_peers: 255,
+            peer_announce_interval: 60 * 15,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
     pub channel_recv_timeout_ms: u64,
+}
+
+impl Default for HandlerConfig {
+    fn default() -> Self {
+        Self {
+            channel_recv_timeout_ms: 100,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -79,6 +127,12 @@ pub struct HandlerConfig {
 pub struct StatisticsConfig {
     /// Print statistics this often (seconds). Don't print when set to zero.
     pub interval: u64,
+}
+
+impl Default for StatisticsConfig {
+    fn default() -> Self {
+        Self { interval: 0 }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -92,60 +146,6 @@ pub struct CleaningConfig {
     pub max_connection_age: u64,
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            socket_workers: 1,
-            request_workers: 1,
-            log_level: LogLevel::Error,
-            network: NetworkConfig::default(),
-            protocol: ProtocolConfig::default(),
-            handlers: HandlerConfig::default(),
-            statistics: StatisticsConfig::default(),
-            cleaning: CleaningConfig::default(),
-            privileges: PrivilegeConfig::default(),
-            access_list: AccessListConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: Default::default(),
-        }
-    }
-}
-
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
-            only_ipv6: false,
-            socket_recv_buffer_size: 4096 * 128,
-            poll_event_capacity: 4096,
-        }
-    }
-}
-
-impl Default for ProtocolConfig {
-    fn default() -> Self {
-        Self {
-            max_scrape_torrents: 255,
-            max_response_peers: 255,
-            peer_announce_interval: 60 * 15,
-        }
-    }
-}
-
-impl Default for HandlerConfig {
-    fn default() -> Self {
-        Self {
-            channel_recv_timeout_ms: 100,
-        }
-    }
-}
-
-impl Default for StatisticsConfig {
-    fn default() -> Self {
-        Self { interval: 0 }
-    }
 }
 
 impl Default for CleaningConfig {
