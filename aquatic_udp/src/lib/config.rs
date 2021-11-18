@@ -54,7 +54,6 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_max=104857600
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
-    #[cfg(feature = "with-mio")]
     pub poll_event_capacity: usize,
 }
 
@@ -120,7 +119,6 @@ impl Default for NetworkConfig {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             only_ipv6: false,
             socket_recv_buffer_size: 4096 * 128,
-            #[cfg(feature = "with-mio")]
             poll_event_capacity: 4096,
         }
     }

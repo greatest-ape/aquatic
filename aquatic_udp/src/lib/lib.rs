@@ -1,10 +1,7 @@
 pub mod common;
 pub mod config;
 pub mod handlers;
-#[cfg(feature = "with-mio")]
-pub mod network_mio;
-#[cfg(feature = "with-io-uring")]
-pub mod network_uring;
+pub mod network;
 pub mod tasks;
 
 use config::Config;
@@ -96,25 +93,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::SocketWorker(i),
                 );
 
-                cfg_if::cfg_if!(
-                    if #[cfg(feature = "with-io-uring")] {
-                        network_uring::run_socket_worker(
-                            state,
-                            config,
-                            request_sender,
-                            response_receiver,
-                            num_bound_sockets,
-                        );
-                    } else {
-                        network_mio::run_socket_worker(
-                            state,
-                            config,
-                            i,
-                            request_sender,
-                            response_receiver,
-                            num_bound_sockets,
-                        );
-                    }
+                network::run_socket_worker(
+                    state,
+                    config,
+                    i,
+                    request_sender,
+                    response_receiver,
+                    num_bound_sockets,
                 );
             })
             .with_context(|| "spawn socket worker")?;

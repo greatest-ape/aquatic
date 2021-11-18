@@ -15,10 +15,7 @@ path = "src/lib/lib.rs"
 name = "aquatic_udp"
 
 [features]
-default = ["with-mio"]
 cpu-pinning = ["aquatic_common/cpu-pinning"]
-with-mio = ["mio"]
-with-io-uring = ["io-uring", "libc", "bytemuck"]
 
 [dependencies]
 anyhow = "1"
@@ -30,20 +27,13 @@ crossbeam-channel = "0.5"
 hex = "0.4"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
+mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
 parking_lot = "0.11"
 rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 slab = "0.4"
 signal-hook = { version = "0.3" }
 socket2 = { version = "0.4.1", features = ["all"] }
-
-# mio
-mio = { version = "0.7", features = ["udp", "os-poll", "os-util"], optional = true }
-
-# io-uring
-io-uring = { version = "0.5", optional = true }
-libc = { version = "0.2", optional = true }
-bytemuck = { version = "1", optional = true }
 
 [dev-dependencies]
 quickcheck = "1.0"
