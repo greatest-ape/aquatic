@@ -39,7 +39,9 @@ fn main() {
 pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     // Setup common state, spawn request handlers
 
-    let aquatic_config = Config::default();
+    let mut aquatic_config = Config::default();
+
+    aquatic_config.cleaning.torrent_cleaning_interval = 60 * 60 * 24;
 
     let (request_sender, request_receiver) = unbounded();
     let (response_sender, response_receiver) = unbounded();
@@ -49,7 +51,9 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     {
         let config = aquatic_config.clone();
 
-        ::std::thread::spawn(move || run_request_worker(config, request_receiver, response_sender));
+        ::std::thread::spawn(move || {
+            run_request_worker(config, State::default(), request_receiver, response_sender)
+        });
     }
 
     // Run benchmarks

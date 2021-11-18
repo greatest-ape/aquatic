@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::time::Duration;
+use std::time::Instant;
 
 use aquatic_common::ValidUntil;
 use crossbeam_channel::Receiver;
@@ -16,6 +17,7 @@ use crate::config::Config;
 
 pub fn run_request_worker(
     config: Config,
+    state: State,
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
     response_sender: ConnectedResponseSender,
 ) {
@@ -23,11 +25,15 @@ pub fn run_request_worker(
     let mut small_rng = SmallRng::from_entropy();
 
     let timeout = Duration::from_millis(config.handlers.channel_recv_timeout_ms);
+    let mut peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+
+    let cleaning_interval = Duration::from_secs(config.cleaning.torrent_cleaning_interval);
+
+    let mut iter_counter = 0usize;
+    let mut last_cleaning = Instant::now();
 
     loop {
         if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
-            let peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
-
             let response = match request {
                 ConnectedRequest::Announce(request) => handle_announce_request(
                     &config,
@@ -45,7 +51,19 @@ pub fn run_request_worker(
             response_sender.try_send_to(sender_index, response, src);
         }
 
-        // TODO: clean torrent map, update peer_valid_until
+        if iter_counter % 128 == 0 {
+            peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+
+            let now = Instant::now();
+
+            if now > last_cleaning + cleaning_interval {
+                torrents.clean(&config, &state.access_list);
+
+                last_cleaning = now;
+            }
+        }
+
+        iter_counter = iter_counter.wrapping_add(1);
     }
 }
 

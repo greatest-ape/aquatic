@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crossbeam_channel::Sender;
-use parking_lot::Mutex;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap};
@@ -304,7 +303,6 @@ pub struct Statistics {
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessListArcSwap>,
-    pub torrents: Arc<Mutex<TorrentMaps>>,
     pub statistics: Arc<Statistics>,
 }
 
@@ -312,7 +310,6 @@ impl Default for State {
     fn default() -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
-            torrents: Arc::new(Mutex::new(TorrentMaps::default())),
             statistics: Arc::new(Statistics::default()),
         }
     }

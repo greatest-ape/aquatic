@@ -22,7 +22,6 @@
       with 6 socket and 4 request workers. performance is great overall and faster than
       without sharding. io_uring impl is a lot behind mio impl with new load tester
   * what poll event capacity is actually needed?
-  * clean torrent map in workers, remove it from shared state
   * mio
     * stagger connection cleaning intervals?
   * uring
