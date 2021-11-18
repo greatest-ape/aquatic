@@ -93,6 +93,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "hex",
  "indexmap-amortized",
+ "libc",
  "log",
  "privdrop",
  "rand",

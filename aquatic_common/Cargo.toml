@@ -11,7 +11,7 @@ repository = "https://github.com/greatest-ape/aquatic"
 name = "aquatic_common"
 
 [features]
-cpu-pinning = ["affinity"]
+cpu-pinning = ["affinity", "libc"]
 
 [dependencies]
 ahash = "0.7"
@@ -26,3 +26,4 @@ rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 
 affinity = { version = "0.1", optional = true }
+libc = { version = "0.2", optional = true }
