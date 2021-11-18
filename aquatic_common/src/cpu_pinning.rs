@@ -1,3 +1,4 @@
+use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -17,8 +18,7 @@ impl Default for CpuPinningMode {
 pub struct CpuPinningConfig {
     pub active: bool,
     pub mode: CpuPinningMode,
-    pub virtual_per_physical_cpu: usize,
-    pub offset_cpus: usize,
+    pub core_offset: usize,
 }
 
 impl Default for CpuPinningConfig {
@@ -26,8 +26,7 @@ impl Default for CpuPinningConfig {
         Self {
             active: false,
             mode: Default::default(),
-            virtual_per_physical_cpu: 2,
-            offset_cpus: 0,
+            core_offset: 0,
         }
     }
 }
@@ -49,59 +48,59 @@ pub enum WorkerIndex {
 }
 
 impl WorkerIndex {
-    fn get_cpu_indices(self, config: &CpuPinningConfig, socket_workers: usize) -> Vec<usize> {
-        let offset = match self {
-            Self::Other => config.virtual_per_physical_cpu * config.offset_cpus,
-            Self::SocketWorker(index) => {
-                config.virtual_per_physical_cpu * (config.offset_cpus + 1 + index)
-            }
-            Self::RequestWorker(index) => {
-                config.virtual_per_physical_cpu * (config.offset_cpus + 1 + socket_workers + index)
-            }
+    fn get_core_index(
+        self,
+        config: &CpuPinningConfig,
+        socket_workers: usize,
+        core_count: usize,
+    ) -> usize {
+        let ascending_index = match self {
+            Self::Other => config.core_offset,
+            Self::SocketWorker(index) => config.core_offset + 1 + index,
+            Self::RequestWorker(index) => config.core_offset + 1 + socket_workers + index,
         };
 
-        let virtual_cpus = (0..config.virtual_per_physical_cpu).map(|i| offset + i);
-
-        let virtual_cpus: Vec<usize> = match config.mode {
-            CpuPinningMode::Ascending => virtual_cpus.collect(),
-            CpuPinningMode::Descending => {
-                let max_index = affinity::get_core_num() - 1;
-
-                virtual_cpus
-                    .map(|i| max_index.checked_sub(i).unwrap_or(0))
-                    .collect()
-            }
-        };
-
-        ::log::info!(
-            "Calculated virtual CPU pin indices {:?} for {:?}",
-            virtual_cpus,
-            self
-        );
-
-        virtual_cpus
+        match config.mode {
+            CpuPinningMode::Ascending => ascending_index,
+            CpuPinningMode::Descending => core_count - 1 - ascending_index,
+        }
     }
 }
 
-/// Note: don't call this when affinities were already set in the current or in
-/// a parent thread. Doing so limits the number of cores that are seen and
-/// messes up setting affinities.
+/// Pin current thread to a suitable core
+///
+/// Requires hwloc (`apt-get install libhwloc-dev`)
 pub fn pin_current_if_configured_to(
     config: &CpuPinningConfig,
     socket_workers: usize,
     worker_index: WorkerIndex,
 ) {
     if config.active {
-        let indices = worker_index.get_cpu_indices(config, socket_workers);
+        let mut topology = Topology::new();
 
-        if let Err(err) = affinity::set_thread_affinity(indices.clone()) {
-            ::log::error!(
-                "Failed setting thread affinities {:?} for {:?}: {:#?}",
-                indices,
-                worker_index,
-                err
-            );
-        }
+        let core_cpu_sets: Vec<CpuSet> = topology
+            .objects_with_type(&ObjectType::Core)
+            .expect("hwloc: list cores")
+            .into_iter()
+            .map(|core| core.allowed_cpuset().expect("hwloc: get core cpu set"))
+            .collect();
+
+        let core_index = worker_index.get_core_index(config, socket_workers, core_cpu_sets.len());
+
+        let cpu_set = core_cpu_sets
+            .get(core_index)
+            .expect(&format!("get cpu set for core {}", core_index))
+            .to_owned();
+
+        topology
+            .set_cpubind(cpu_set, CPUBIND_THREAD)
+            .expect(&format!("bind thread to core {}", core_index));
+
+        ::log::info!(
+            "Pinned worker {:?} to cpu core {}",
+            worker_index,
+            core_index
+        );
     }
 }
 
