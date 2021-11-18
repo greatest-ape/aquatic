@@ -25,8 +25,8 @@ of sub-implementations for different protocols:
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- Unless you're planning to only run aquatic_udp and only the cross-platform,
-  mio based implementation, make sure locked memory limits are sufficient.
+- Unless you're planning to only run the cross-platform mio based
+  implementations, make sure locked memory limits are sufficient.
   You can do this by adding the following lines to `/etc/security/limits.conf`,
   and then logging out and back in:
 
@@ -118,8 +118,7 @@ except that it:
     source IP is always used.
   * Doesn't track of the number of torrent downloads (0 is always sent). 
 
-Supports IPv4 and IPv6 (BitTorrent UDP protocol doesn't support IPv6 very well,
-however.)
+Supports IPv4 and IPv6.
 
 #### Performance
 
@@ -129,6 +128,12 @@ More details are available [here](./documents/aquatic-udp-load-test-2021-11-08.p
 
 Since making this benchmark, I have improved the mio-based implementation
 considerably and removed the glommio-based implementation.
+
+#### Optimisation attempts that didn't work out
+
+* Using glommio
+* Using io-uring
+* Using zerocopy + vectored sends for responses
 
 ### aquatic_http: HTTP BitTorrent tracker
 
