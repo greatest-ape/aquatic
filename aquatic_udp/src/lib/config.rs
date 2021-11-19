@@ -18,15 +18,32 @@ pub struct Config {
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
-    #[cfg(feature = "with-mio")]
     pub handlers: HandlerConfig,
-    #[cfg(feature = "with-mio")]
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
     #[cfg(feature = "cpu-pinning")]
     pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            socket_workers: 1,
+            request_workers: 1,
+            log_level: LogLevel::Error,
+            network: NetworkConfig::default(),
+            protocol: ProtocolConfig::default(),
+            handlers: HandlerConfig::default(),
+            statistics: StatisticsConfig::default(),
+            cleaning: CleaningConfig::default(),
+            privileges: PrivilegeConfig::default(),
+            access_list: AccessListConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: Default::default(),
+        }
+    }
 }
 
 impl aquatic_cli_helpers::Config for Config {
@@ -40,6 +57,7 @@ impl aquatic_cli_helpers::Config for Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    pub only_ipv6: bool,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
@@ -55,8 +73,20 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_max=104857600
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
-    #[cfg(feature = "with-mio")]
     pub poll_event_capacity: usize,
+    pub poll_timeout_ms: u64,
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
+            only_ipv6: false,
+            socket_recv_buffer_size: 4096 * 128,
+            poll_event_capacity: 4096,
+            poll_timeout_ms: 50,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -70,69 +100,6 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: i32,
 }
 
-#[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct HandlerConfig {
-    /// Maximum number of requests to receive from channel before locking
-    /// mutex and starting work
-    pub max_requests_per_iter: usize,
-    pub channel_recv_timeout_microseconds: u64,
-}
-
-#[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct StatisticsConfig {
-    /// Print statistics this often (seconds). Don't print when set to zero.
-    pub interval: u64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CleaningConfig {
-    /// Clean connections this often (seconds)
-    pub connection_cleaning_interval: u64,
-    /// Clean torrents this often (seconds)
-    pub torrent_cleaning_interval: u64,
-    /// Remove connections that are older than this (seconds)
-    pub max_connection_age: u64,
-    /// Remove peers that haven't announced for this long (seconds)
-    pub max_peer_age: u64,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            socket_workers: 1,
-            request_workers: 1,
-            log_level: LogLevel::Error,
-            network: NetworkConfig::default(),
-            protocol: ProtocolConfig::default(),
-            #[cfg(feature = "with-mio")]
-            handlers: HandlerConfig::default(),
-            #[cfg(feature = "with-mio")]
-            statistics: StatisticsConfig::default(),
-            cleaning: CleaningConfig::default(),
-            privileges: PrivilegeConfig::default(),
-            access_list: AccessListConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: Default::default(),
-        }
-    }
-}
-
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
-            socket_recv_buffer_size: 4096 * 128,
-            #[cfg(feature = "with-mio")]
-            poll_event_capacity: 4096,
-        }
-    }
-}
-
 impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
@@ -143,21 +110,53 @@ impl Default for ProtocolConfig {
     }
 }
 
-#[cfg(feature = "with-mio")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HandlerConfig {
+    pub channel_recv_timeout_ms: u64,
+}
+
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
-            max_requests_per_iter: 10000,
-            channel_recv_timeout_microseconds: 200,
+            channel_recv_timeout_ms: 100,
         }
     }
 }
 
-#[cfg(feature = "with-mio")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StatisticsConfig {
+    /// Print statistics this often (seconds). Don't print when set to zero.
+    pub interval: u64,
+}
+
 impl Default for StatisticsConfig {
     fn default() -> Self {
         Self { interval: 0 }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CleaningConfig {
+    /// Clean connections this often (seconds)
+    pub connection_cleaning_interval: u64,
+    /// Clean torrents this often (seconds)
+    pub torrent_cleaning_interval: u64,
+    /// Clean pending scrape responses this often (seconds)
+    ///
+    /// In regular operation, there should be no pending scrape responses
+    /// lingering for a long time. However, the cleaning also returns unused
+    /// allocated memory to the OS, so the interval can be configured here.
+    pub pending_scrape_cleaning_interval: u64,
+    /// Remove connections that are older than this (seconds)
+    pub max_connection_age: u64,
+    /// Remove peers that haven't announced for this long (seconds)
+    pub max_peer_age: u64,
+    /// Remove pending scrape responses that haven't been returned from request
+    /// workers for this long (seconds)
+    pub max_pending_scrape_age: u64,
 }
 
 impl Default for CleaningConfig {
@@ -165,8 +164,10 @@ impl Default for CleaningConfig {
         Self {
             connection_cleaning_interval: 60,
             torrent_cleaning_interval: 60 * 2,
+            pending_scrape_cleaning_interval: 60 * 10,
             max_connection_age: 60 * 5,
             max_peer_age: 60 * 20,
+            max_pending_scrape_age: 60,
         }
     }
 }

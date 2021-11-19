@@ -5,19 +5,16 @@ use std::time::{Duration, Instant};
 
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use crossbeam_channel::unbounded;
-use hashbrown::HashMap;
-use parking_lot::Mutex;
-use rand::prelude::*;
 use rand_distr::Pareto;
 
 mod common;
+mod config;
 mod handler;
 mod network;
 mod utils;
 
 use common::*;
-use handler::run_handler_thread;
+use config::Config;
 use network::*;
 use utils::*;
 
@@ -54,91 +51,48 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     let state = LoadTestState {
-        torrent_peers: Arc::new(Mutex::new(HashMap::new())),
         info_hashes: Arc::new(info_hashes),
         statistics: Arc::new(Statistics::default()),
     };
 
     let pareto = Pareto::new(1.0, config.handler.torrent_selection_pareto_shape).unwrap();
 
-    // Start socket workers
+    // Start workers
 
-    let (response_sender, response_receiver) = unbounded();
-
-    let mut request_senders = Vec::new();
-
-    for i in 0..config.num_socket_workers {
+    for i in 0..config.workers {
         let thread_id = ThreadId(i);
-        let (sender, receiver) = unbounded();
         let port = config.network.first_port + (i as u16);
 
-        let addr = if config.network.multiple_client_ips {
-            let ip = if config.network.ipv6_client {
-                // FIXME: test ipv6
-                Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1 + i as u16).into()
-            } else {
-                Ipv4Addr::new(127, 0, 0, 1 + i).into()
-            };
-
-            SocketAddr::new(ip, port)
+        let ip = if config.server_address.is_ipv6() {
+            Ipv6Addr::LOCALHOST.into()
         } else {
-            let ip = if config.network.ipv6_client {
-                Ipv6Addr::LOCALHOST.into()
+            if config.network.multiple_client_ipv4s {
+                Ipv4Addr::new(127, 0, 0, 1 + i).into()
             } else {
                 Ipv4Addr::LOCALHOST.into()
-            };
-
-            SocketAddr::new(ip, port)
+            }
         };
 
-        request_senders.push(sender);
-
+        let addr = SocketAddr::new(ip, port);
         let config = config.clone();
-        let response_sender = response_sender.clone();
         let state = state.clone();
 
         thread::spawn(move || {
             #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
-                config.num_socket_workers as usize,
+                config.workers as usize,
                 WorkerIndex::SocketWorker(i as usize),
             );
 
-            run_socket_thread(state, response_sender, receiver, &config, addr, thread_id)
+            run_worker_thread(state, pareto, &config, addr, thread_id)
         });
-    }
-
-    for i in 0..config.num_request_workers {
-        let config = config.clone();
-        let state = state.clone();
-        let request_senders = request_senders.clone();
-        let response_receiver = response_receiver.clone();
-
-        thread::spawn(move || {
-            #[cfg(feature = "cpu-pinning")]
-            pin_current_if_configured_to(
-                &config.cpu_pinning,
-                config.num_socket_workers as usize,
-                WorkerIndex::RequestWorker(i as usize),
-            );
-            run_handler_thread(&config, state, pareto, request_senders, response_receiver)
-        });
-    }
-
-    // Bootstrap request cycle by adding a request to each request channel
-    for sender in request_senders.iter() {
-        let request = create_connect_request(generate_transaction_id(&mut thread_rng()));
-
-        sender
-            .send(request)
-            .expect("bootstrap: add initial request to request queue");
     }
 
     #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
         &config.cpu_pinning,
-        config.num_socket_workers as usize,
+        config.workers as usize,
         WorkerIndex::Other,
     );
 

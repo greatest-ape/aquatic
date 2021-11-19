@@ -6,24 +6,22 @@ use indicatif::ProgressIterator;
 use rand::Rng;
 use rand_distr::Pareto;
 
-use aquatic_udp::common::handlers::*;
 use aquatic_udp::common::*;
-use aquatic_udp::config::Config;
+use aquatic_udp_protocol::*;
 
 use crate::common::*;
 use crate::config::BenchConfig;
 
 pub fn bench_announce_handler(
     bench_config: &BenchConfig,
-    aquatic_config: &Config,
-    request_sender: &Sender<(ConnectedRequest, SocketAddr)>,
+    request_sender: &Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
     response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
     let requests = create_requests(rng, info_hashes, bench_config.num_announce_requests);
 
-    let p = aquatic_config.handlers.max_requests_per_iter * bench_config.num_threads;
+    let p = 10_000 * bench_config.num_threads; // FIXME: adjust to sharded workers
     let mut num_responses = 0usize;
 
     let mut dummy: u16 = rng.gen();
@@ -38,11 +36,15 @@ pub fn bench_announce_handler(
         for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
                 request_sender
-                    .send((ConnectedRequest::Announce(request.clone()), *src))
+                    .send((
+                        SocketWorkerIndex(0),
+                        ConnectedRequest::Announce(request.clone()),
+                        *src,
+                    ))
                     .unwrap();
             }
 
-            while let Ok((ConnectedResponse::Announce(r), _)) = response_receiver.try_recv() {
+            while let Ok((ConnectedResponse::AnnounceIpv4(r), _)) = response_receiver.try_recv() {
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {
@@ -54,7 +56,7 @@ pub fn bench_announce_handler(
         let total = bench_config.num_announce_requests * (round + 1);
 
         while num_responses < total {
-            if let Ok((ConnectedResponse::Announce(r), _)) = response_receiver.recv() {
+            if let Ok((ConnectedResponse::AnnounceIpv4(r), _)) = response_receiver.recv() {
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {

@@ -1,9 +1,5 @@
 use std::sync::Arc;
-use std::time::Duration;
-use std::vec::Drain;
 
-use crossbeam_channel::{Receiver, Sender};
-use parking_lot::MutexGuard;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use rand_distr::Pareto;
@@ -11,127 +7,10 @@ use rand_distr::Pareto;
 use aquatic_udp_protocol::*;
 
 use crate::common::*;
+use crate::config::Config;
 use crate::utils::*;
 
-pub fn run_handler_thread(
-    config: &Config,
-    state: LoadTestState,
-    pareto: Pareto<f64>,
-    request_senders: Vec<Sender<Request>>,
-    response_receiver: Receiver<(ThreadId, Response)>,
-) {
-    let state = &state;
-
-    let mut rng1 = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
-    let mut rng2 = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
-
-    let timeout = Duration::from_micros(config.handler.channel_timeout);
-
-    let mut responses = Vec::new();
-
-    loop {
-        let mut opt_torrent_peers = None;
-
-        // Collect a maximum number of responses. Stop collecting before that
-        // number is reached if having waited for too long for a request, but
-        // only if ConnectionMap mutex isn't locked.
-        for i in 0..config.handler.max_responses_per_iter {
-            let response = if i == 0 {
-                match response_receiver.recv() {
-                    Ok(r) => r,
-                    Err(_) => break, // Really shouldn't happen
-                }
-            } else {
-                match response_receiver.recv_timeout(timeout) {
-                    Ok(r) => r,
-                    Err(_) => {
-                        if let Some(guard) = state.torrent_peers.try_lock() {
-                            opt_torrent_peers = Some(guard);
-
-                            break;
-                        } else {
-                            continue;
-                        }
-                    }
-                }
-            };
-
-            responses.push(response);
-        }
-
-        let mut torrent_peers: MutexGuard<TorrentPeerMap> =
-            opt_torrent_peers.unwrap_or_else(|| state.torrent_peers.lock());
-
-        let requests = process_responses(
-            &mut rng1,
-            pareto,
-            &state.info_hashes,
-            config,
-            &mut torrent_peers,
-            responses.drain(..),
-        );
-
-        // Somewhat dubious heuristic for deciding how fast to create
-        // and send additional requests (requests not having anything
-        // to do with previously sent requests)
-        let num_additional_to_send = {
-            let num_additional_requests = requests.iter().map(|v| v.len()).sum::<usize>() as f64;
-
-            let num_new_requests_per_socket =
-                num_additional_requests / config.num_socket_workers as f64;
-
-            ((num_new_requests_per_socket / 1.2) * config.handler.additional_request_factor)
-                as usize
-                + 10
-        };
-
-        for (channel_index, new_requests) in requests.into_iter().enumerate() {
-            let channel = &request_senders[channel_index];
-
-            for _ in 0..num_additional_to_send {
-                let request = create_connect_request(generate_transaction_id(&mut rng2));
-
-                channel
-                    .send(request)
-                    .expect("send request to channel in handler worker");
-            }
-
-            for request in new_requests.into_iter() {
-                channel
-                    .send(request)
-                    .expect("send request to channel in handler worker");
-            }
-        }
-    }
-}
-
-fn process_responses(
-    rng: &mut impl Rng,
-    pareto: Pareto<f64>,
-    info_hashes: &Arc<Vec<InfoHash>>,
-    config: &Config,
-    torrent_peers: &mut TorrentPeerMap,
-    responses: Drain<(ThreadId, Response)>,
-) -> Vec<Vec<Request>> {
-    let mut new_requests = Vec::with_capacity(config.num_socket_workers as usize);
-
-    for _ in 0..config.num_socket_workers {
-        new_requests.push(Vec::new());
-    }
-
-    for (socket_thread_id, response) in responses.into_iter() {
-        let opt_request =
-            process_response(rng, pareto, info_hashes, &config, torrent_peers, response);
-
-        if let Some(new_request) = opt_request {
-            new_requests[socket_thread_id.0 as usize].push(new_request);
-        }
-    }
-
-    new_requests
-}
-
-fn process_response(
+pub fn process_response(
     rng: &mut impl Rng,
     pareto: Pareto<f64>,
     info_hashes: &Arc<Vec<InfoHash>>,
@@ -165,7 +44,14 @@ fn process_response(
 
             Some(request)
         }
-        Response::Announce(r) => if_torrent_peer_move_and_create_random_request(
+        Response::AnnounceIpv4(r) => if_torrent_peer_move_and_create_random_request(
+            config,
+            rng,
+            info_hashes,
+            torrent_peers,
+            r.transaction_id,
+        ),
+        Response::AnnounceIpv6(r) => if_torrent_peer_move_and_create_random_request(
             config,
             rng,
             info_hashes,

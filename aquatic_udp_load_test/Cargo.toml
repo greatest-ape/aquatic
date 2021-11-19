@@ -17,16 +17,14 @@ anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
-crossbeam-channel = "0.5"
-hashbrown = "0.11.2"
+hashbrown = "0.11"
 mimalloc = { version = "0.1", default-features = false }
-mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
-parking_lot = "0.11"
+mio = { version = "0.8", features = ["net", "os-poll"] }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
 serde = { version = "1", features = ["derive"] }
-socket2 = { version = "0.4.1", features = ["all"] }
+socket2 = { version = "0.4", features = ["all"] }
 
 [dev-dependencies]
-quickcheck = "1.0"
-quickcheck_macros = "1.0"
+quickcheck = "1"
+quickcheck_macros = "1"

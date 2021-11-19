@@ -6,6 +6,7 @@ use rand_distr::Pareto;
 use aquatic_udp_protocol::*;
 
 use crate::common::*;
+use crate::config::Config;
 
 pub fn create_torrent_peer(
     config: &Config,

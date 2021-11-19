@@ -1,18 +1,18 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crossbeam_channel::Sender;
+
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap};
 use aquatic_common::AHashIndexMap;
-
-pub use aquatic_common::{access_list::AccessList, ValidUntil};
-pub use aquatic_udp_protocol::*;
+use aquatic_common::ValidUntil;
+use aquatic_udp_protocol::*;
 
 use crate::config::Config;
-
-pub mod handlers;
-pub mod network;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
 
@@ -29,6 +29,89 @@ impl Ip for Ipv4Addr {
 impl Ip for Ipv6Addr {
     fn ip_addr(self) -> IpAddr {
         IpAddr::V6(self)
+    }
+}
+
+#[derive(Debug)]
+pub struct PendingScrapeRequest {
+    pub transaction_id: TransactionId,
+    pub info_hashes: BTreeMap<usize, InfoHash>,
+}
+
+#[derive(Debug)]
+pub struct PendingScrapeResponse {
+    pub transaction_id: TransactionId,
+    pub torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
+}
+
+#[derive(Debug)]
+pub enum ConnectedRequest {
+    Announce(AnnounceRequest),
+    Scrape(PendingScrapeRequest),
+}
+
+#[derive(Debug)]
+pub enum ConnectedResponse {
+    AnnounceIpv4(AnnounceResponseIpv4),
+    AnnounceIpv6(AnnounceResponseIpv6),
+    Scrape(PendingScrapeResponse),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SocketWorkerIndex(pub usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct RequestWorkerIndex(pub usize);
+
+impl RequestWorkerIndex {
+    pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
+        Self(info_hash.0[0] as usize % config.request_workers)
+    }
+}
+
+pub struct ConnectedRequestSender {
+    index: SocketWorkerIndex,
+    senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>>,
+}
+
+impl ConnectedRequestSender {
+    pub fn new(
+        index: SocketWorkerIndex,
+        senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>>,
+    ) -> Self {
+        Self { index, senders }
+    }
+
+    pub fn try_send_to(
+        &self,
+        index: RequestWorkerIndex,
+        request: ConnectedRequest,
+        addr: SocketAddr,
+    ) {
+        if let Err(err) = self.senders[index.0].try_send((self.index, request, addr)) {
+            ::log::warn!("request_sender.try_send failed: {:?}", err)
+        }
+    }
+}
+
+pub struct ConnectedResponseSender {
+    senders: Vec<Sender<(ConnectedResponse, SocketAddr)>>,
+}
+
+impl ConnectedResponseSender {
+    pub fn new(senders: Vec<Sender<(ConnectedResponse, SocketAddr)>>) -> Self {
+        Self { senders }
+    }
+
+    pub fn try_send_to(
+        &self,
+        index: SocketWorkerIndex,
+        response: ConnectedResponse,
+        addr: SocketAddr,
+    ) {
+        if let Err(err) = self.senders[index.0].try_send((response, addr)) {
+            ::log::warn!("request_sender.try_send failed: {:?}", err)
+        }
     }
 }
 
@@ -63,23 +146,7 @@ pub struct Peer<I: Ip> {
     pub valid_until: ValidUntil,
 }
 
-impl<I: Ip> Peer<I> {
-    #[inline(always)]
-    pub fn to_response_peer(&self) -> ResponsePeer {
-        ResponsePeer {
-            ip_address: self.ip_address.ip_addr(),
-            port: self.port,
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub struct PeerMapKey<I: Ip> {
-    pub ip: I,
-    pub peer_id: PeerId,
-}
-
-pub type PeerMap<I> = AHashIndexMap<PeerMapKey<I>, Peer<I>>;
+pub type PeerMap<I> = AHashIndexMap<PeerId, Peer<I>>;
 
 pub struct TorrentData<I: Ip> {
     pub peers: PeerMap<I>,
@@ -160,9 +227,56 @@ impl TorrentMaps {
     }
 }
 
+pub struct Statistics {
+    pub requests_received: AtomicUsize,
+    pub responses_sent: AtomicUsize,
+    pub bytes_received: AtomicUsize,
+    pub bytes_sent: AtomicUsize,
+    pub torrents_ipv4: Vec<AtomicUsize>,
+    pub torrents_ipv6: Vec<AtomicUsize>,
+    pub peers_ipv4: Vec<AtomicUsize>,
+    pub peers_ipv6: Vec<AtomicUsize>,
+}
+
+impl Statistics {
+    pub fn new(num_request_workers: usize) -> Self {
+        Self {
+            requests_received: Default::default(),
+            responses_sent: Default::default(),
+            bytes_received: Default::default(),
+            bytes_sent: Default::default(),
+            torrents_ipv4: Self::create_atomic_usize_vec(num_request_workers),
+            torrents_ipv6: Self::create_atomic_usize_vec(num_request_workers),
+            peers_ipv4: Self::create_atomic_usize_vec(num_request_workers),
+            peers_ipv6: Self::create_atomic_usize_vec(num_request_workers),
+        }
+    }
+
+    fn create_atomic_usize_vec(len: usize) -> Vec<AtomicUsize> {
+        ::std::iter::repeat_with(|| AtomicUsize::default())
+            .take(len)
+            .collect()
+    }
+}
+
+#[derive(Clone)]
+pub struct State {
+    pub access_list: Arc<AccessListArcSwap>,
+    pub statistics: Arc<Statistics>,
+}
+
+impl State {
+    pub fn new(num_request_workers: usize) -> Self {
+        Self {
+            access_list: Arc::new(AccessListArcSwap::default()),
+            statistics: Arc::new(Statistics::new(num_request_workers)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, Ipv6Addr};
+    use std::net::Ipv6Addr;
 
     use crate::{common::MAX_PACKET_SIZE, config::Config};
 
@@ -195,14 +309,14 @@ mod tests {
 
         let config = Config::default();
 
-        let peers = ::std::iter::repeat(ResponsePeer {
-            ip_address: IpAddr::V6(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1)),
+        let peers = ::std::iter::repeat(ResponsePeerIpv6 {
+            ip_address: Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1),
             port: Port(1),
         })
         .take(config.protocol.max_response_peers)
         .collect();
 
-        let response = Response::Announce(AnnounceResponse {
+        let response = Response::AnnounceIpv6(AnnounceResponseIpv6 {
             transaction_id: TransactionId(1),
             announce_interval: AnnounceInterval(1),
             seeders: NumberOfPeers(1),
@@ -212,7 +326,7 @@ mod tests {
 
         let mut buf = Vec::new();
 
-        response.write(&mut buf, IpVersion::IPv6).unwrap();
+        response.write(&mut buf).unwrap();
 
         println!("Buffer len: {}", buf.len());
 

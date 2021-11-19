@@ -7,6 +7,7 @@
 //! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
+use aquatic_udp::handlers::run_request_worker;
 use crossbeam_channel::unbounded;
 use num_format::{Locale, ToFormattedString};
 use rand::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
@@ -15,8 +16,7 @@ use std::time::Duration;
 use aquatic_cli_helpers::run_app_with_cli_and_config;
 use aquatic_udp::common::*;
 use aquatic_udp::config::Config;
-use aquatic_udp::mio::common::*;
-use aquatic_udp::mio::handlers;
+use aquatic_udp_protocol::*;
 
 use config::BenchConfig;
 
@@ -39,20 +39,27 @@ fn main() {
 pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     // Setup common state, spawn request handlers
 
-    let state = State::default();
-    let aquatic_config = Config::default();
+    let mut aquatic_config = Config::default();
+
+    aquatic_config.cleaning.torrent_cleaning_interval = 60 * 60 * 24;
 
     let (request_sender, request_receiver) = unbounded();
     let (response_sender, response_receiver) = unbounded();
 
-    for _ in 0..bench_config.num_threads {
-        let state = state.clone();
+    let response_sender = ConnectedResponseSender::new(vec![response_sender]);
+
+    {
         let config = aquatic_config.clone();
-        let request_receiver = request_receiver.clone();
-        let response_sender = response_sender.clone();
+        let state = State::new(config.request_workers);
 
         ::std::thread::spawn(move || {
-            handlers::run_request_worker(state, config, request_receiver, response_sender)
+            run_request_worker(
+                config,
+                state,
+                request_receiver,
+                response_sender,
+                RequestWorkerIndex(0),
+            )
         });
     }
 
@@ -63,7 +70,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     let a = announce::bench_announce_handler(
         &bench_config,
-        &aquatic_config,
         &request_sender,
         &response_receiver,
         &mut rng,
@@ -72,7 +78,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     let s = scrape::bench_scrape_handler(
         &bench_config,
-        &aquatic_config,
         &request_sender,
         &response_receiver,
         &mut rng,

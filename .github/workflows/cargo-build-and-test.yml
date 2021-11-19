@@ -15,10 +15,11 @@ jobs:
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
     - name: Build
       run: |
         cargo build --verbose -p aquatic_udp --features "cpu-pinning"
-        cargo build --verbose -p aquatic_udp --features "with-glommio cpu-pinning" --no-default-features
 
         cargo build --verbose -p aquatic_http --features "cpu-pinning"
 

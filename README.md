@@ -15,7 +15,7 @@ of sub-implementations for different protocols:
 
 | Name         | Protocol                                   | OS requirements                                            |
 |--------------|--------------------------------------------|------------------------------------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]                      | Unix-like with [mio] (default) / Linux 5.8+ with [glommio] |
+| aquatic_udp  | [BitTorrent over UDP]                      | Unix-like                                                  |
 | aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+                                                 |
 | aquatic_ws   | [WebTorrent]                               | Unix-like with [mio] (default) / Linux 5.8+ with [glommio] |
 
@@ -25,8 +25,8 @@ of sub-implementations for different protocols:
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- Unless you're planning to only run aquatic_udp and only the cross-platform,
-  mio based implementation, make sure locked memory limits are sufficient.
+- Unless you're planning to only run the cross-platform mio based
+  implementations, make sure locked memory limits are sufficient.
   You can do this by adding the following lines to `/etc/security/limits.conf`,
   and then logging out and back in:
 
@@ -48,7 +48,6 @@ Compile the implementations that you are interested in:
 . ./scripts/env-native-cpu-without-avx-512
 
 cargo build --release -p aquatic_udp
-cargo build --release -p aquatic_udp --features "with-glommio" --no-default-features
 cargo build --release -p aquatic_http
 cargo build --release -p aquatic_ws
 cargo build --release -p aquatic_ws --features "with-glommio" --no-default-features
@@ -119,22 +118,22 @@ except that it:
     source IP is always used.
   * Doesn't track of the number of torrent downloads (0 is always sent). 
 
-Supports IPv4 and IPv6 (BitTorrent UDP protocol doesn't support IPv6 very well,
-however.)
-
-#### Alternative implementation using io_uring
-
-[io_uring]: https://en.wikipedia.org/wiki/Io_uring
-[glommio]: https://github.com/DataDog/glommio
-
-There is an alternative implementation that utilizes [io_uring] by running on
-[glommio]. It only runs on Linux and requires a recent kernel (version 5.8 or later).
+Supports IPv4 and IPv6.
 
 #### Performance
 
 ![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-08.png)
 
 More details are available [here](./documents/aquatic-udp-load-test-2021-11-08.pdf).
+
+Since making this benchmark, I have improved the mio-based implementation
+considerably and removed the glommio-based implementation.
+
+#### Optimisation attempts that didn't work out
+
+* Using glommio
+* Using io-uring
+* Using zerocopy + vectored sends for responses
 
 ### aquatic_http: HTTP BitTorrent tracker
 

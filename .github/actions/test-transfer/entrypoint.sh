@@ -19,7 +19,7 @@ fi
 ulimit -a
 
 $SUDO apt-get update
-$SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-certificates curl golang
+$SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-certificates curl golang libhwloc-dev
 
 git clone https://github.com/anacrolix/torrent.git gotorrent
 cd gotorrent

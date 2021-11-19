@@ -23,7 +23,7 @@ harness = false
 
 [dependencies]
 anyhow = "1"
-hashbrown = "0.11.2"
+hashbrown = "0.11"
 hex = { version = "0.4", default-features = false }
 httparse = "1"
 itoa = "0.4"
@@ -33,10 +33,10 @@ rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 serde_bencode = "0.2"
 smartstring = "0.2"
-urlencoding = "2.1.0"
+urlencoding = "2"
 
 [dev-dependencies]
 bendy = { version = "0.3", features = ["std", "serde"] }
 criterion = "0.3"
-quickcheck = "1.0"
-quickcheck_macros = "1.0"
+quickcheck = "1"
+quickcheck_macros = "1"

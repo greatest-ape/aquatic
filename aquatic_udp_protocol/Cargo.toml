@@ -12,5 +12,5 @@ byteorder = "1"
 either = "1"
 
 [dev-dependencies]
-quickcheck = "1.0"
-quickcheck_macros = "1.0"
+quickcheck = "1"
+quickcheck_macros = "1"
