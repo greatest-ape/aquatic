@@ -9,16 +9,16 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
     let requests_received: f64 = state
         .statistics
         .requests_received
-        .fetch_and(0, Ordering::SeqCst) as f64;
+        .fetch_and(0, Ordering::AcqRel) as f64;
     let responses_sent: f64 = state
         .statistics
         .responses_sent
-        .fetch_and(0, Ordering::SeqCst) as f64;
+        .fetch_and(0, Ordering::AcqRel) as f64;
     let bytes_received: f64 = state
         .statistics
         .bytes_received
-        .fetch_and(0, Ordering::SeqCst) as f64;
-    let bytes_sent: f64 = state.statistics.bytes_sent.fetch_and(0, Ordering::SeqCst) as f64;
+        .fetch_and(0, Ordering::AcqRel) as f64;
+    let bytes_sent: f64 = state.statistics.bytes_sent.fetch_and(0, Ordering::AcqRel) as f64;
 
     let requests_per_second = requests_received / interval as f64;
     let responses_per_second: f64 = responses_sent / interval as f64;
@@ -58,5 +58,5 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
 }
 
 fn sum_atomic_usizes(values: &[AtomicUsize]) -> usize {
-    values.iter().map(|n| n.load(Ordering::SeqCst)).sum()
+    values.iter().map(|n| n.load(Ordering::Acquire)).sum()
 }

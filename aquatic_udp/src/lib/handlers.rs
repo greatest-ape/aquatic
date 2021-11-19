@@ -132,8 +132,10 @@ pub fn run_request_worker(
                     let peers_ipv4 = torrents.ipv4.values().map(|t| t.peers.len()).sum();
                     let peers_ipv6 = torrents.ipv6.values().map(|t| t.peers.len()).sum();
 
-                    state.statistics.peers_ipv4[worker_index.0].store(peers_ipv4, Ordering::SeqCst);
-                    state.statistics.peers_ipv6[worker_index.0].store(peers_ipv6, Ordering::SeqCst);
+                    state.statistics.peers_ipv4[worker_index.0]
+                        .store(peers_ipv4, Ordering::Release);
+                    state.statistics.peers_ipv6[worker_index.0]
+                        .store(peers_ipv6, Ordering::Release);
                 }
 
                 last_cleaning = now;
@@ -142,9 +144,9 @@ pub fn run_request_worker(
                 && now > last_statistics_update + statistics_update_interval
             {
                 state.statistics.torrents_ipv4[worker_index.0]
-                    .store(torrents.ipv4.len(), Ordering::SeqCst);
+                    .store(torrents.ipv4.len(), Ordering::Release);
                 state.statistics.torrents_ipv6[worker_index.0]
-                    .store(torrents.ipv6.len(), Ordering::SeqCst);
+                    .store(torrents.ipv6.len(), Ordering::Release);
 
                 last_statistics_update = now;
             }

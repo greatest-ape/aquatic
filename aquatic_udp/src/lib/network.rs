@@ -287,11 +287,11 @@ fn read_requests(
         state
             .statistics
             .requests_received
-            .fetch_add(requests_received, Ordering::SeqCst);
+            .fetch_add(requests_received, Ordering::Release);
         state
             .statistics
             .bytes_received
-            .fetch_add(bytes_received, Ordering::SeqCst);
+            .fetch_add(bytes_received, Ordering::Release);
     }
 }
 
@@ -451,11 +451,11 @@ fn send_responses(
         state
             .statistics
             .responses_sent
-            .fetch_add(responses_sent, Ordering::SeqCst);
+            .fetch_add(responses_sent, Ordering::Release);
         state
             .statistics
             .bytes_sent
-            .fetch_add(bytes_sent, Ordering::SeqCst);
+            .fetch_add(bytes_sent, Ordering::Release);
     }
 }
 
