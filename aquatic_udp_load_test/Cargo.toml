@@ -19,7 +19,7 @@ aquatic_common = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
 hashbrown = "0.11"
 mimalloc = { version = "0.1", default-features = false }
-mio = { version = "0.7", features = ["udp", "os-poll", "os-util"] }
+mio = { version = "0.8", features = ["net", "os-poll"] }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
 serde = { version = "1", features = ["derive"] }

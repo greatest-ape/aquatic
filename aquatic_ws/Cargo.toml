@@ -41,7 +41,7 @@ tungstenite = "0.15"
 # mio
 crossbeam-channel = { version = "0.5", optional = true }
 histogram = { version = "0.6", optional = true }
-mio = { version = "0.7", features = ["tcp", "os-poll", "os-util"], optional = true }
+mio = { version = "0.8", features = ["net", "os-poll"], optional = true }
 native-tls = { version = "0.2", optional = true }
 parking_lot = { version = "0.11", optional = true }
 socket2 = { version = "0.4", features = ["all"], optional = true }
