@@ -142,10 +142,19 @@ pub struct CleaningConfig {
     pub connection_cleaning_interval: u64,
     /// Clean torrents this often (seconds)
     pub torrent_cleaning_interval: u64,
+    /// Clean pending scrape responses this often (seconds)
+    ///
+    /// In regular operation, there should be no pending scrape responses
+    /// lingering for a long time. However, the cleaning also returns unused
+    /// allocated memory to the OS, so the interval can be configured here.
+    pub pending_scrape_cleaning_interval: u64,
     /// Remove connections that are older than this (seconds)
     pub max_connection_age: u64,
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
+    /// Remove pending scrape responses that haven't been returned from request
+    /// workers for this long (seconds)
+    pub max_pending_scrape_age: u64,
 }
 
 impl Default for CleaningConfig {
@@ -153,8 +162,10 @@ impl Default for CleaningConfig {
         Self {
             connection_cleaning_interval: 60,
             torrent_cleaning_interval: 60 * 2,
+            pending_scrape_cleaning_interval: 60 * 10,
             max_connection_age: 60 * 5,
             max_peer_age: 60 * 20,
+            max_pending_scrape_age: 60,
         }
     }
 }

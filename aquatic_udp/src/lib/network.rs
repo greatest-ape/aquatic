@@ -140,10 +140,15 @@ pub fn run_socket_worker(
 
     let timeout = Duration::from_millis(50);
 
-    let cleaning_duration = Duration::from_secs(config.cleaning.connection_cleaning_interval);
+    let connection_cleaning_duration =
+        Duration::from_secs(config.cleaning.connection_cleaning_interval);
+    let pending_scrape_cleaning_duration =
+        Duration::from_secs(config.cleaning.pending_scrape_cleaning_interval);
+
+    let mut last_connection_cleaning = Instant::now();
+    let mut last_pending_scrape_cleaning = Instant::now();
 
     let mut iter_counter = 0usize;
-    let mut last_cleaning = Instant::now();
 
     loop {
         poll.poll(&mut events, Some(timeout))
@@ -180,10 +185,15 @@ pub fn run_socket_worker(
         if iter_counter % 32 == 0 {
             let now = Instant::now();
 
-            if now > last_cleaning + cleaning_duration {
+            if now > last_connection_cleaning + connection_cleaning_duration {
                 connections.clean();
 
-                last_cleaning = now;
+                last_connection_cleaning = now;
+            }
+            if now > last_pending_scrape_cleaning + pending_scrape_cleaning_duration {
+                pending_scrape_responses.clean();
+
+                last_pending_scrape_cleaning = now;
             }
         }
 
@@ -206,7 +216,8 @@ fn read_requests(
     let mut requests_received: usize = 0;
     let mut bytes_received: usize = 0;
 
-    let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
+    let connection_valid_until = ValidUntil::new(config.cleaning.max_connection_age);
+    let pending_scrape_valid_until = ValidUntil::new(config.cleaning.max_pending_scrape_age);
 
     let mut access_list_cache = create_access_list_cache(&state.access_list);
 
@@ -246,7 +257,8 @@ fn read_requests(
                     rng,
                     request_sender,
                     local_responses,
-                    valid_until,
+                    connection_valid_until,
+                    pending_scrape_valid_until,
                     res_request,
                     src,
                 );
@@ -281,7 +293,8 @@ pub fn handle_request(
     rng: &mut StdRng,
     request_sender: &ConnectedRequestSender,
     local_responses: &mut Vec<(Response, SocketAddr)>,
-    valid_until: ValidUntil,
+    connection_valid_until: ValidUntil,
+    pending_scrape_valid_until: ValidUntil,
     res_request: Result<Request, RequestParseError>,
     src: SocketAddr,
 ) {
@@ -291,7 +304,7 @@ pub fn handle_request(
         Ok(Request::Connect(request)) => {
             let connection_id = ConnectionId(rng.gen());
 
-            connections.insert(connection_id, src, valid_until);
+            connections.insert(connection_id, src, connection_valid_until);
 
             let response = Response::Connect(ConnectResponse {
                 connection_id,
@@ -342,7 +355,11 @@ pub fn handle_request(
                     pending.info_hashes.insert(i, info_hash);
                 }
 
-                pending_scrape_responses.prepare(transaction_id, requests.len(), valid_until);
+                pending_scrape_responses.prepare(
+                    transaction_id,
+                    requests.len(),
+                    pending_scrape_valid_until,
+                );
 
                 for (request_worker_index, request) in requests {
                     request_sender.try_send_to(
