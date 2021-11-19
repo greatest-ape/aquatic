@@ -128,6 +128,14 @@ pub fn run_request_worker(
             if now > last_cleaning + cleaning_interval {
                 torrents.clean(&config, &state.access_list);
 
+                if !statistics_update_interval.is_zero() {
+                    let peers_ipv4 = torrents.ipv4.values().map(|t| t.peers.len()).sum();
+                    let peers_ipv6 = torrents.ipv6.values().map(|t| t.peers.len()).sum();
+
+                    state.statistics.peers_ipv4[worker_index.0].store(peers_ipv4, Ordering::SeqCst);
+                    state.statistics.peers_ipv6[worker_index.0].store(peers_ipv6, Ordering::SeqCst);
+                }
+
                 last_cleaning = now;
             }
             if !statistics_update_interval.is_zero()

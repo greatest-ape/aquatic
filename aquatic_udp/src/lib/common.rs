@@ -234,6 +234,8 @@ pub struct Statistics {
     pub bytes_sent: AtomicUsize,
     pub torrents_ipv4: Vec<AtomicUsize>,
     pub torrents_ipv6: Vec<AtomicUsize>,
+    pub peers_ipv4: Vec<AtomicUsize>,
+    pub peers_ipv6: Vec<AtomicUsize>,
 }
 
 impl Statistics {
@@ -245,6 +247,8 @@ impl Statistics {
             bytes_sent: Default::default(),
             torrents_ipv4: Self::create_atomic_usize_vec(num_request_workers),
             torrents_ipv6: Self::create_atomic_usize_vec(num_request_workers),
+            peers_ipv4: Self::create_atomic_usize_vec(num_request_workers),
+            peers_ipv6: Self::create_atomic_usize_vec(num_request_workers),
         }
     }
 

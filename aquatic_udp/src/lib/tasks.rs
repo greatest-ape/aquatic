@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::common::*;
 use crate::config::Config;
@@ -37,6 +37,8 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
         .iter()
         .map(|n| n.load(Ordering::SeqCst))
         .sum();
+    let num_peers_ipv4 = sum_atomic_usize_vec(&state.statistics.peers_ipv4);
+    let num_peers_ipv6 = sum_atomic_usize_vec(&state.statistics.peers_ipv6);
 
     let access_list_len = state.access_list.load().len();
 
@@ -55,8 +57,16 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
         "ipv4 torrents: {}, ipv6 torrents: {}",
         num_torrents_ipv4, num_torrents_ipv6,
     );
+    println!(
+        "ipv4 peers: {}, ipv6 peers: {} (both updated every {} seconds)",
+        num_peers_ipv4, num_peers_ipv6, config.cleaning.torrent_cleaning_interval
+    );
 
     println!("access list entries: {}", access_list_len,);
 
     println!();
+}
+
+fn sum_atomic_usize_vec(vec: &Vec<AtomicUsize>) -> usize {
+    vec.iter().map(|n| n.load(Ordering::SeqCst)).sum()
 }
