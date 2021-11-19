@@ -18,7 +18,7 @@ aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_http_protocol = "0.1.0"
 futures-lite = "1"
-hashbrown = "0.11.2"
+hashbrown = "0.11"
 glommio = { git = "https://github.com/DataDog/glommio.git", rev = "4e6b14772da2f4325271fbcf12d24cf91ed466e5" }
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
@@ -28,5 +28,5 @@ rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-quickcheck = "1.0"
-quickcheck_macros = "1.0"
+quickcheck = "1"
+quickcheck_macros = "1"

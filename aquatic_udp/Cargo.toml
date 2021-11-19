@@ -33,8 +33,8 @@ rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 slab = "0.4"
 signal-hook = { version = "0.3" }
-socket2 = { version = "0.4.1", features = ["all"] }
+socket2 = { version = "0.4", features = ["all"] }
 
 [dev-dependencies]
-quickcheck = "1.0"
-quickcheck_macros = "1.0"
+quickcheck = "1"
+quickcheck_macros = "1"
