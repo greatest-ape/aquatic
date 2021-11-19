@@ -25,20 +25,10 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
     let bytes_received_per_second: f64 = bytes_received / interval as f64;
     let bytes_sent_per_second: f64 = bytes_sent / interval as f64;
 
-    let num_torrents_ipv4: usize = state
-        .statistics
-        .torrents_ipv4
-        .iter()
-        .map(|n| n.load(Ordering::SeqCst))
-        .sum();
-    let num_torrents_ipv6: usize = state
-        .statistics
-        .torrents_ipv6
-        .iter()
-        .map(|n| n.load(Ordering::SeqCst))
-        .sum();
-    let num_peers_ipv4 = sum_atomic_usize_vec(&state.statistics.peers_ipv4);
-    let num_peers_ipv6 = sum_atomic_usize_vec(&state.statistics.peers_ipv6);
+    let num_torrents_ipv4: usize = sum_atomic_usizes(&state.statistics.torrents_ipv4);
+    let num_torrents_ipv6 = sum_atomic_usizes(&state.statistics.torrents_ipv6);
+    let num_peers_ipv4 = sum_atomic_usizes(&state.statistics.peers_ipv4);
+    let num_peers_ipv6 = sum_atomic_usizes(&state.statistics.peers_ipv6);
 
     let access_list_len = state.access_list.load().len();
 
@@ -67,6 +57,6 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
     println!();
 }
 
-fn sum_atomic_usize_vec(vec: &Vec<AtomicUsize>) -> usize {
-    vec.iter().map(|n| n.load(Ordering::SeqCst)).sum()
+fn sum_atomic_usizes(values: &[AtomicUsize]) -> usize {
+    values.iter().map(|n| n.load(Ordering::SeqCst)).sum()
 }
