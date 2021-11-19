@@ -188,7 +188,7 @@ pub fn run_socket_worker(
         );
 
         // Run periodic ValidUntil updates and state cleaning
-        if iter_counter % 32 == 0 {
+        if iter_counter % 128 == 0 {
             let now = Instant::now();
 
             connection_valid_until =
