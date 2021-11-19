@@ -138,7 +138,7 @@ pub fn run_socket_worker(
 
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
-    let timeout = Duration::from_millis(50);
+    let poll_timeout = Duration::from_millis(config.network.poll_timeout_ms);
 
     let connection_cleaning_duration =
         Duration::from_secs(config.cleaning.connection_cleaning_interval);
@@ -154,7 +154,7 @@ pub fn run_socket_worker(
     let mut iter_counter = 0usize;
 
     loop {
-        poll.poll(&mut events, Some(timeout))
+        poll.poll(&mut events, Some(poll_timeout))
             .expect("failed polling");
 
         for event in events.iter() {

@@ -74,6 +74,7 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
     pub poll_event_capacity: usize,
+    pub poll_timeout_ms: u64,
 }
 
 impl Default for NetworkConfig {
@@ -83,6 +84,7 @@ impl Default for NetworkConfig {
             only_ipv6: false,
             socket_recv_buffer_size: 4096 * 128,
             poll_event_capacity: 4096,
+            poll_timeout_ms: 50,
         }
     }
 }
