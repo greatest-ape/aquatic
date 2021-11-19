@@ -4,7 +4,7 @@ use super::common::*;
 use crate::config::Config;
 
 pub fn gather_and_print_statistics(state: &State, config: &Config) {
-    let interval = config.statistics.interval;
+    let interval = config.statistics.interval.as_secs_f64();
 
     let requests_received: f64 = state
         .statistics
@@ -20,10 +20,10 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
         .fetch_and(0, Ordering::SeqCst) as f64;
     let bytes_sent: f64 = state.statistics.bytes_sent.fetch_and(0, Ordering::SeqCst) as f64;
 
-    let requests_per_second = requests_received / interval as f64;
-    let responses_per_second: f64 = responses_sent / interval as f64;
-    let bytes_received_per_second: f64 = bytes_received / interval as f64;
-    let bytes_sent_per_second: f64 = bytes_sent / interval as f64;
+    let requests_per_second = requests_received / interval;
+    let responses_per_second: f64 = responses_sent / interval;
+    let bytes_received_per_second: f64 = bytes_received / interval;
+    let bytes_sent_per_second: f64 = bytes_sent / interval;
 
     println!(
         "stats: {:.2} requests/second, {:.2} responses/second",

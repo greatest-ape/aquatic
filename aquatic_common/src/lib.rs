@@ -23,6 +23,11 @@ impl ValidUntil {
     pub fn new(offset_seconds: u64) -> Self {
         Self(Instant::now() + Duration::from_secs(offset_seconds))
     }
+    #[inline]
+    pub fn new_with_duration(offset: Duration) -> Self {
+        Self(Instant::now() + offset)
+    }
+    #[inline]
     pub fn new_with_now(now: Instant, offset_seconds: u64) -> Self {
         Self(now + Duration::from_secs(offset_seconds))
     }

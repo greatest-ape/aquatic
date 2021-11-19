@@ -3,7 +3,6 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::net::SocketAddr;
-use std::time::Duration;
 use std::time::Instant;
 
 use aquatic_common::ValidUntil;
@@ -88,16 +87,14 @@ pub fn run_request_worker(
     let mut torrents = TorrentMaps::default();
     let mut small_rng = SmallRng::from_entropy();
 
-    let timeout = Duration::from_millis(config.handlers.channel_recv_timeout_ms);
-    let mut peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
-
-    let cleaning_interval = Duration::from_secs(config.cleaning.torrent_cleaning_interval);
+    let recv_timeout = config.handlers.channel_recv_timeout_ms;
+    let mut peer_valid_until = ValidUntil::new_with_duration(config.cleaning.max_peer_age);
 
     let mut iter_counter = 0usize;
     let mut last_cleaning = Instant::now();
 
     loop {
-        if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
+        if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(recv_timeout) {
             let response = match request {
                 ConnectedRequest::Announce(request) => handle_announce_request(
                     &config,
@@ -116,11 +113,11 @@ pub fn run_request_worker(
         }
 
         if iter_counter % 128 == 0 {
-            peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+            peer_valid_until = ValidUntil::new_with_duration(config.cleaning.max_peer_age);
 
             let now = Instant::now();
 
-            if now > last_cleaning + cleaning_interval {
+            if now > last_cleaning + config.cleaning.torrent_cleaning_interval {
                 torrents.clean(&config, &state.access_list);
 
                 last_cleaning = now;

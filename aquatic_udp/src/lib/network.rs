@@ -5,7 +5,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::vec::Drain;
 
 use crossbeam_channel::Receiver;
@@ -138,15 +138,10 @@ pub fn run_socket_worker(
 
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
-    let poll_timeout = Duration::from_millis(config.network.poll_timeout_ms);
-
-    let connection_cleaning_duration =
-        Duration::from_secs(config.cleaning.connection_cleaning_interval);
-    let pending_scrape_cleaning_duration =
-        Duration::from_secs(config.cleaning.pending_scrape_cleaning_interval);
-
-    let mut connection_valid_until = ValidUntil::new(config.cleaning.max_connection_age);
-    let mut pending_scrape_valid_until = ValidUntil::new(config.cleaning.max_pending_scrape_age);
+    let mut connection_valid_until =
+        ValidUntil::new_with_duration(config.cleaning.max_connection_age);
+    let mut pending_scrape_valid_until =
+        ValidUntil::new_with_duration(config.cleaning.max_pending_scrape_age);
 
     let mut last_connection_cleaning = Instant::now();
     let mut last_pending_scrape_cleaning = Instant::now();
@@ -154,7 +149,7 @@ pub fn run_socket_worker(
     let mut iter_counter = 0usize;
 
     loop {
-        poll.poll(&mut events, Some(poll_timeout))
+        poll.poll(&mut events, Some(config.network.poll_timeout_ms))
             .expect("failed polling");
 
         for event in events.iter() {
@@ -191,17 +186,16 @@ pub fn run_socket_worker(
         if iter_counter % 128 == 0 {
             let now = Instant::now();
 
-            connection_valid_until =
-                ValidUntil::new_with_now(now, config.cleaning.max_connection_age);
-            pending_scrape_valid_until =
-                ValidUntil::new_with_now(now, config.cleaning.max_pending_scrape_age);
+            connection_valid_until = ValidUntil(now + config.cleaning.max_connection_age);
+            pending_scrape_valid_until = ValidUntil(now + config.cleaning.max_pending_scrape_age);
 
-            if now > last_connection_cleaning + connection_cleaning_duration {
+            if now > last_connection_cleaning + config.cleaning.connection_cleaning_interval {
                 connections.clean();
 
                 last_connection_cleaning = now;
             }
-            if now > last_pending_scrape_cleaning + pending_scrape_cleaning_duration {
+            if now > last_pending_scrape_cleaning + config.cleaning.pending_scrape_cleaning_interval
+            {
                 pending_scrape_responses.clean();
 
                 last_pending_scrape_cleaning = now;
@@ -283,7 +277,7 @@ fn read_requests(
         }
     }
 
-    if config.statistics.interval != 0 {
+    if !config.statistics.interval.is_zero() {
         state
             .statistics
             .requests_received
@@ -447,7 +441,7 @@ fn send_responses(
         }
     }
 
-    if config.statistics.interval != 0 {
+    if !config.statistics.interval.is_zero() {
         state
             .statistics
             .responses_sent

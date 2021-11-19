@@ -41,7 +41,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     let mut aquatic_config = Config::default();
 
-    aquatic_config.cleaning.torrent_cleaning_interval = 60 * 60 * 24;
+    aquatic_config.cleaning.torrent_cleaning_interval = Duration::from_secs(60 * 60 * 24);
 
     let (request_sender, request_receiver) = unbounded();
     let (response_sender, response_receiver) = unbounded();

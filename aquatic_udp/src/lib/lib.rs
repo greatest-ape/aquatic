@@ -9,7 +9,6 @@ use config::Config;
 use std::collections::BTreeMap;
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::thread::Builder;
-use std::time::Duration;
 
 use anyhow::Context;
 #[cfg(feature = "cpu-pinning")]
@@ -105,7 +104,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             .with_context(|| "spawn socket worker")?;
     }
 
-    if config.statistics.interval != 0 {
+    if !config.statistics.interval.is_zero() {
         let state = state.clone();
         let config = config.clone();
 
@@ -120,7 +119,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 loop {
-                    ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
+                    ::std::thread::sleep(config.statistics.interval);
 
                     tasks::gather_and_print_statistics(&state, &config);
                 }
