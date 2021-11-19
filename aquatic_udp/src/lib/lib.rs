@@ -23,10 +23,12 @@ use signal_hook::iterator::Signals;
 
 use common::{ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State};
 
+use crate::common::RequestWorkerIndex;
+
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    let state = State::default();
+    let state = State::new(config.request_workers);
 
     update_access_list(&config.access_list, &state.access_list)?;
 
@@ -70,7 +72,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::RequestWorker(i),
                 );
 
-                handlers::run_request_worker(config, state, request_receiver, response_sender)
+                handlers::run_request_worker(
+                    config,
+                    state,
+                    request_receiver,
+                    response_sender,
+                    RequestWorkerIndex(i),
+                )
             })
             .with_context(|| "spawn request worker")?;
     }

@@ -19,7 +19,6 @@
 * aquatic_udp
   * look at proper cpu pinning (check that one thread gets bound per core)
     * then consider so_attach_reuseport_cbpf
-  * implement statistics for total number of torrents and peers again?
   * what poll event capacity is actually needed?
   * stagger connection cleaning intervals?
   * notes

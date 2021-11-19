@@ -50,9 +50,16 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     {
         let config = aquatic_config.clone();
+        let state = State::new(config.request_workers);
 
         ::std::thread::spawn(move || {
-            run_request_worker(config, State::default(), request_receiver, response_sender)
+            run_request_worker(
+                config,
+                state,
+                request_receiver,
+                response_sender,
+                RequestWorkerIndex(0),
+            )
         });
     }
 

@@ -77,6 +77,10 @@ impl AccessList {
             AccessListMode::Off => true,
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 pub trait AccessListQuery {

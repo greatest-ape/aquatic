@@ -25,6 +25,21 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
     let bytes_received_per_second: f64 = bytes_received / interval as f64;
     let bytes_sent_per_second: f64 = bytes_sent / interval as f64;
 
+    let num_torrents_ipv4: usize = state
+        .statistics
+        .torrents_ipv4
+        .iter()
+        .map(|n| n.load(Ordering::SeqCst))
+        .sum();
+    let num_torrents_ipv6: usize = state
+        .statistics
+        .torrents_ipv6
+        .iter()
+        .map(|n| n.load(Ordering::SeqCst))
+        .sum();
+
+    let access_list_len = state.access_list.load().len();
+
     println!(
         "stats: {:.2} requests/second, {:.2} responses/second",
         requests_per_second, responses_per_second
@@ -35,6 +50,13 @@ pub fn gather_and_print_statistics(state: &State, config: &Config) {
         bytes_received_per_second * 8.0 / 1_000_000.0,
         bytes_sent_per_second * 8.0 / 1_000_000.0,
     );
+
+    println!(
+        "ipv4 torrents: {}, ipv6 torrents: {}",
+        num_torrents_ipv4, num_torrents_ipv6,
+    );
+
+    println!("access list entries: {}", access_list_len,);
 
     println!();
 }

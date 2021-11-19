@@ -227,12 +227,32 @@ impl TorrentMaps {
     }
 }
 
-#[derive(Default)]
 pub struct Statistics {
     pub requests_received: AtomicUsize,
     pub responses_sent: AtomicUsize,
     pub bytes_received: AtomicUsize,
     pub bytes_sent: AtomicUsize,
+    pub torrents_ipv4: Vec<AtomicUsize>,
+    pub torrents_ipv6: Vec<AtomicUsize>,
+}
+
+impl Statistics {
+    pub fn new(num_request_workers: usize) -> Self {
+        Self {
+            requests_received: Default::default(),
+            responses_sent: Default::default(),
+            bytes_received: Default::default(),
+            bytes_sent: Default::default(),
+            torrents_ipv4: Self::create_atomic_usize_vec(num_request_workers),
+            torrents_ipv6: Self::create_atomic_usize_vec(num_request_workers),
+        }
+    }
+
+    fn create_atomic_usize_vec(len: usize) -> Vec<AtomicUsize> {
+        ::std::iter::repeat_with(|| AtomicUsize::default())
+            .take(len)
+            .collect()
+    }
 }
 
 #[derive(Clone)]
@@ -241,11 +261,11 @@ pub struct State {
     pub statistics: Arc<Statistics>,
 }
 
-impl Default for State {
-    fn default() -> Self {
+impl State {
+    pub fn new(num_request_workers: usize) -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
-            statistics: Arc::new(Statistics::default()),
+            statistics: Arc::new(Statistics::new(num_request_workers)),
         }
     }
 }

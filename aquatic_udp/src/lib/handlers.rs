@@ -3,6 +3,7 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::net::SocketAddr;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -84,6 +85,7 @@ pub fn run_request_worker(
     state: State,
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
     response_sender: ConnectedResponseSender,
+    worker_index: RequestWorkerIndex,
 ) {
     let mut torrents = TorrentMaps::default();
     let mut small_rng = SmallRng::from_entropy();
@@ -92,9 +94,12 @@ pub fn run_request_worker(
     let mut peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     let cleaning_interval = Duration::from_secs(config.cleaning.torrent_cleaning_interval);
+    let statistics_update_interval = Duration::from_secs(config.statistics.interval);
+
+    let mut last_cleaning = Instant::now();
+    let mut last_statistics_update = Instant::now();
 
     let mut iter_counter = 0usize;
-    let mut last_cleaning = Instant::now();
 
     loop {
         if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
@@ -124,6 +129,16 @@ pub fn run_request_worker(
                 torrents.clean(&config, &state.access_list);
 
                 last_cleaning = now;
+            }
+            if !statistics_update_interval.is_zero()
+                && now > last_statistics_update + statistics_update_interval
+            {
+                state.statistics.torrents_ipv4[worker_index.0]
+                    .store(torrents.ipv4.len(), Ordering::SeqCst);
+                state.statistics.torrents_ipv6[worker_index.0]
+                    .store(torrents.ipv6.len(), Ordering::SeqCst);
+
+                last_statistics_update = now;
             }
         }
 
