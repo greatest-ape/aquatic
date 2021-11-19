@@ -23,6 +23,9 @@ impl ValidUntil {
     pub fn new(offset_seconds: u64) -> Self {
         Self(Instant::now() + Duration::from_secs(offset_seconds))
     }
+    pub fn new_with_now(now: Instant, offset_seconds: u64) -> Self {
+        Self(now + Duration::from_secs(offset_seconds))
+    }
 }
 
 /// Extract response peers
