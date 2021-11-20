@@ -98,7 +98,10 @@ mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
 path = '' # Path to text file with newline-delimited hex-encoded info hashes
 ```
 
-The file is read on start and when the program receives `SIGUSR1`.
+The file is read on start and when the program receives `SIGUSR1`. If initial
+parsing fails, the program exits. Later failures result in in emitting of
+an error-level log message, while successful updates of the access list result
+in emitting of an info-level log message.
 
 #### More information
 
