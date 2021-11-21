@@ -232,10 +232,8 @@ pub struct Statistics {
     pub responses_sent: AtomicUsize,
     pub bytes_received: AtomicUsize,
     pub bytes_sent: AtomicUsize,
-    pub torrents_ipv4: Vec<AtomicUsize>,
-    pub torrents_ipv6: Vec<AtomicUsize>,
-    pub peers_ipv4: Vec<AtomicUsize>,
-    pub peers_ipv6: Vec<AtomicUsize>,
+    pub torrents: Vec<AtomicUsize>,
+    pub peers: Vec<AtomicUsize>,
 }
 
 impl Statistics {
@@ -245,10 +243,8 @@ impl Statistics {
             responses_sent: Default::default(),
             bytes_received: Default::default(),
             bytes_sent: Default::default(),
-            torrents_ipv4: Self::create_atomic_usize_vec(num_request_workers),
-            torrents_ipv6: Self::create_atomic_usize_vec(num_request_workers),
-            peers_ipv4: Self::create_atomic_usize_vec(num_request_workers),
-            peers_ipv6: Self::create_atomic_usize_vec(num_request_workers),
+            torrents: Self::create_atomic_usize_vec(num_request_workers),
+            peers: Self::create_atomic_usize_vec(num_request_workers),
         }
     }
 
@@ -262,14 +258,16 @@ impl Statistics {
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessListArcSwap>,
-    pub statistics: Arc<Statistics>,
+    pub statistics_ipv4: Arc<Statistics>,
+    pub statistics_ipv6: Arc<Statistics>,
 }
 
 impl State {
     pub fn new(num_request_workers: usize) -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
-            statistics: Arc::new(Statistics::new(num_request_workers)),
+            statistics_ipv4: Arc::new(Statistics::new(num_request_workers)),
+            statistics_ipv6: Arc::new(Statistics::new(num_request_workers)),
         }
     }
 }
