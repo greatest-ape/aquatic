@@ -1,9 +1,18 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
-use super::common::*;
+use crate::common::*;
 use crate::config::Config;
 
-pub fn gather_and_print_statistics(state: &State, config: &Config) {
+pub fn run_statistics_worker(config: Config, state: State) {
+    loop {
+        ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
+
+        gather_and_print_statistics(&config, &state);
+    }
+}
+
+fn gather_and_print_statistics(config: &Config, state: &State) {
     let interval = config.statistics.interval;
 
     let requests_received: f64 = state

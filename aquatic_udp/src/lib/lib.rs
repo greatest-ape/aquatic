@@ -1,15 +1,12 @@
 pub mod common;
 pub mod config;
-pub mod handlers;
-pub mod network;
-pub mod tasks;
+pub mod workers;
 
 use config::Config;
 
 use std::collections::BTreeMap;
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::thread::Builder;
-use std::time::Duration;
 
 use anyhow::Context;
 #[cfg(feature = "cpu-pinning")]
@@ -72,7 +69,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::RequestWorker(i),
                 );
 
-                handlers::run_request_worker(
+                workers::request::run_request_worker(
                     config,
                     state,
                     request_receiver,
@@ -101,7 +98,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::SocketWorker(i),
                 );
 
-                network::run_socket_worker(
+                workers::socket::run_socket_worker(
                     state,
                     config,
                     i,
@@ -127,11 +124,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Other,
                 );
 
-                loop {
-                    ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
-
-                    tasks::gather_and_print_statistics(&state, &config);
-                }
+                workers::statistics::run_statistics_worker(config, state);
             })
             .with_context(|| "spawn statistics worker")?;
     }

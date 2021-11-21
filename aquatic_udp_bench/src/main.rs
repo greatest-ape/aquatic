@@ -7,7 +7,7 @@
 //! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
-use aquatic_udp::handlers::run_request_worker;
+use aquatic_udp::workers::request::run_request_worker;
 use crossbeam_channel::unbounded;
 use num_format::{Locale, ToFormattedString};
 use rand::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
