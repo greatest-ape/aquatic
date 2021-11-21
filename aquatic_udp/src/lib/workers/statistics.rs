@@ -5,17 +5,23 @@ use crate::common::*;
 use crate::config::Config;
 
 pub fn run_statistics_worker(config: Config, state: State) {
+    let ipv4_active = config.network.address.is_ipv4() || !config.network.only_ipv6;
+    let ipv6_active = config.network.address.is_ipv6();
+
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
 
         println!("General:");
         println!("  access list entries: {}", state.access_list.load().len());
 
-        println!("IPv4:");
-        gather_and_print_for_protocol(&config, &state.statistics_ipv4);
-
-        println!("IPv6:");
-        gather_and_print_for_protocol(&config, &state.statistics_ipv6);
+        if ipv4_active {
+            println!("IPv4:");
+            gather_and_print_for_protocol(&config, &state.statistics_ipv4);
+        }
+        if ipv6_active {
+            println!("IPv6:");
+            gather_and_print_for_protocol(&config, &state.statistics_ipv6);
+        }
 
         println!();
     }
