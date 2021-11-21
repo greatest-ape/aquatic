@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::common::*;
 use crate::config::Config;
@@ -7,6 +7,9 @@ use crate::config::Config;
 pub fn run_statistics_worker(config: Config, state: State) {
     let ipv4_active = config.network.address.is_ipv4() || !config.network.only_ipv6;
     let ipv6_active = config.network.address.is_ipv6();
+
+    let mut last_ipv4 = Instant::now();
+    let mut last_ipv6 = Instant::now();
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
@@ -16,29 +19,33 @@ pub fn run_statistics_worker(config: Config, state: State) {
 
         if ipv4_active {
             println!("IPv4:");
-            gather_and_print_for_protocol(&config, &state.statistics_ipv4);
+            gather_and_print_for_protocol(&config, &state.statistics_ipv4, &mut last_ipv4);
         }
         if ipv6_active {
             println!("IPv6:");
-            gather_and_print_for_protocol(&config, &state.statistics_ipv6);
+            gather_and_print_for_protocol(&config, &state.statistics_ipv6, &mut last_ipv6);
         }
 
         println!();
     }
 }
 
-fn gather_and_print_for_protocol(config: &Config, statistics: &Statistics) {
-    let interval = config.statistics.interval;
-
+fn gather_and_print_for_protocol(config: &Config, statistics: &Statistics, last: &mut Instant) {
     let requests_received: f64 = statistics.requests_received.fetch_and(0, Ordering::AcqRel) as f64;
     let responses_sent: f64 = statistics.responses_sent.fetch_and(0, Ordering::AcqRel) as f64;
     let bytes_received: f64 = statistics.bytes_received.fetch_and(0, Ordering::AcqRel) as f64;
     let bytes_sent: f64 = statistics.bytes_sent.fetch_and(0, Ordering::AcqRel) as f64;
 
-    let requests_per_second = requests_received / interval as f64;
-    let responses_per_second: f64 = responses_sent / interval as f64;
-    let bytes_received_per_second: f64 = bytes_received / interval as f64;
-    let bytes_sent_per_second: f64 = bytes_sent / interval as f64;
+    let now = Instant::now();
+
+    let elapsed = (now - *last).as_secs_f64();
+
+    *last = now;
+
+    let requests_per_second = requests_received / elapsed;
+    let responses_per_second: f64 = responses_sent / elapsed;
+    let bytes_received_per_second: f64 = bytes_received / elapsed;
+    let bytes_sent_per_second: f64 = bytes_sent / elapsed;
 
     let num_torrents: usize = sum_atomic_usizes(&statistics.torrents);
     let num_peers = sum_atomic_usizes(&statistics.peers);
