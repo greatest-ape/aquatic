@@ -240,20 +240,8 @@ fn read_requests(
                     Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
 
                 let src = match src {
-                    src @ SocketAddr::V4(_) => {
-                        if res_request.is_ok() {
-                            requests_received_ipv4 += 1;
-                        }
-                        bytes_received_ipv4 += amt;
-
-                        src
-                    }
+                    src @ SocketAddr::V4(_) => src,
                     SocketAddr::V6(src) => {
-                        if res_request.is_ok() {
-                            requests_received_ipv6 += 1;
-                        }
-                        bytes_received_ipv6 += amt;
-
                         match src.ip().octets() {
                             // Convert IPv4-mapped address (available in std but nightly-only)
                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, a, b, c, d] => {
@@ -266,6 +254,19 @@ fn read_requests(
                         }
                     }
                 };
+
+                // Update statistics for converted address
+                if src.is_ipv4() {
+                    if res_request.is_ok() {
+                        requests_received_ipv4 += 1;
+                    }
+                    bytes_received_ipv4 += amt;
+                } else {
+                    if res_request.is_ok() {
+                        requests_received_ipv6 += 1;
+                    }
+                    bytes_received_ipv6 += amt;
+                }
 
                 handle_request(
                     config,
