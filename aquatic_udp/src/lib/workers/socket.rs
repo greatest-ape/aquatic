@@ -226,8 +226,10 @@ fn read_requests(
     connection_valid_until: ValidUntil,
     pending_scrape_valid_until: ValidUntil,
 ) {
-    let mut requests_received: usize = 0;
-    let mut bytes_received: usize = 0;
+    let mut requests_received_ipv4: usize = 0;
+    let mut requests_received_ipv6: usize = 0;
+    let mut bytes_received_ipv4: usize = 0;
+    let mut bytes_received_ipv6 = 0;
 
     let mut access_list_cache = create_access_list_cache(&state.access_list);
 
@@ -237,13 +239,8 @@ fn read_requests(
                 let res_request =
                     Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
 
-                bytes_received += amt;
-
-                if res_request.is_ok() {
-                    requests_received += 1;
-                }
-
                 let src = match src {
+                    src @ SocketAddr::V4(_) => src,
                     SocketAddr::V6(src) => {
                         match src.ip().octets() {
                             // Convert IPv4-mapped address (available in std but nightly-only)
@@ -256,8 +253,20 @@ fn read_requests(
                             _ => src.into(),
                         }
                     }
-                    src => src,
                 };
+
+                // Update statistics for converted address
+                if src.is_ipv4() {
+                    if res_request.is_ok() {
+                        requests_received_ipv4 += 1;
+                    }
+                    bytes_received_ipv4 += amt;
+                } else {
+                    if res_request.is_ok() {
+                        requests_received_ipv6 += 1;
+                    }
+                    bytes_received_ipv6 += amt;
+                }
 
                 handle_request(
                     config,
@@ -285,13 +294,21 @@ fn read_requests(
 
     if config.statistics.interval != 0 {
         state
-            .statistics
+            .statistics_ipv4
             .requests_received
-            .fetch_add(requests_received, Ordering::Release);
+            .fetch_add(requests_received_ipv4, Ordering::Release);
         state
-            .statistics
+            .statistics_ipv6
+            .requests_received
+            .fetch_add(requests_received_ipv6, Ordering::Release);
+        state
+            .statistics_ipv4
             .bytes_received
-            .fetch_add(bytes_received, Ordering::Release);
+            .fetch_add(bytes_received_ipv4, Ordering::Release);
+        state
+            .statistics_ipv6
+            .bytes_received
+            .fetch_add(bytes_received_ipv6, Ordering::Release);
     }
 }
 
@@ -412,16 +429,20 @@ fn send_responses(
     pending_scrape_responses: &mut PendingScrapeResponseMap,
     local_responses: Drain<(Response, SocketAddr)>,
 ) {
-    let mut responses_sent: usize = 0;
-    let mut bytes_sent: usize = 0;
+    let mut responses_sent_ipv4: usize = 0;
+    let mut responses_sent_ipv6: usize = 0;
+    let mut bytes_sent_ipv4: usize = 0;
+    let mut bytes_sent_ipv6: usize = 0;
 
     for (response, addr) in local_responses {
         send_response(
             config,
             socket,
             buffer,
-            &mut responses_sent,
-            &mut bytes_sent,
+            &mut responses_sent_ipv4,
+            &mut responses_sent_ipv6,
+            &mut bytes_sent_ipv4,
+            &mut bytes_sent_ipv6,
             response,
             addr,
         );
@@ -439,8 +460,10 @@ fn send_responses(
                 config,
                 socket,
                 buffer,
-                &mut responses_sent,
-                &mut bytes_sent,
+                &mut responses_sent_ipv4,
+                &mut responses_sent_ipv6,
+                &mut bytes_sent_ipv4,
+                &mut bytes_sent_ipv6,
                 response,
                 addr,
             );
@@ -449,13 +472,21 @@ fn send_responses(
 
     if config.statistics.interval != 0 {
         state
-            .statistics
+            .statistics_ipv4
             .responses_sent
-            .fetch_add(responses_sent, Ordering::Release);
+            .fetch_add(responses_sent_ipv4, Ordering::Release);
         state
-            .statistics
+            .statistics_ipv6
+            .responses_sent
+            .fetch_add(responses_sent_ipv6, Ordering::Release);
+        state
+            .statistics_ipv4
             .bytes_sent
-            .fetch_add(bytes_sent, Ordering::Release);
+            .fetch_add(bytes_sent_ipv4, Ordering::Release);
+        state
+            .statistics_ipv6
+            .bytes_sent
+            .fetch_add(bytes_sent_ipv6, Ordering::Release);
     }
 }
 
@@ -463,12 +494,16 @@ fn send_response(
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    responses_sent: &mut usize,
-    bytes_sent: &mut usize,
+    responses_sent_ipv4: &mut usize,
+    responses_sent_ipv6: &mut usize,
+    bytes_sent_ipv4: &mut usize,
+    bytes_sent_ipv6: &mut usize,
     response: Response,
     addr: SocketAddr,
 ) {
     let mut cursor = Cursor::new(buffer);
+
+    let addr_is_ipv4 = addr.is_ipv4();
 
     let addr = if config.network.address.is_ipv4() {
         if let SocketAddr::V4(addr) = addr {
@@ -493,8 +528,13 @@ fn send_response(
 
             match socket.send_to(&cursor.get_ref()[..amt], addr) {
                 Ok(amt) => {
-                    *responses_sent += 1;
-                    *bytes_sent += amt;
+                    if addr_is_ipv4 {
+                        *responses_sent_ipv4 += 1;
+                        *bytes_sent_ipv4 += amt;
+                    } else {
+                        *responses_sent_ipv6 += 1;
+                        *bytes_sent_ipv6 += amt;
+                    }
                 }
                 Err(err) => {
                     ::log::info!("send_to error: {}", err);
