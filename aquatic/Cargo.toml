@@ -2,7 +2,7 @@
 name = "aquatic"
 version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 description = "Blazingly fast, multi-threaded BitTorrent tracker (UDP, HTTP, WebTorrent)"
 repository = "https://github.com/greatest-ape/aquatic"

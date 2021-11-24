@@ -2,7 +2,7 @@
 name = "aquatic_http_protocol"
 version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/greatest-ape/aquatic"
 description = "HTTP BitTorrent tracker protocol"
