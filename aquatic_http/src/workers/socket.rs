@@ -24,10 +24,8 @@ use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
 use slab::Slab;
 
-use crate::common::num_digits_in_usize;
+use crate::common::*;
 use crate::config::Config;
-
-use super::common::*;
 
 const INTERMEDIATE_BUFFER_SIZE: usize = 1024;
 const MAX_REQUEST_SIZE: usize = 2048;

@@ -9,11 +9,9 @@ repository = "https://github.com/greatest-ape/aquatic"
 
 [lib]
 name = "aquatic_http"
-path = "src/lib/lib.rs"
 
 [[bin]]
 name = "aquatic_http"
-path = "src/bin/main.rs"
 
 [features]
 cpu-pinning = ["aquatic_common/cpu-pinning"]

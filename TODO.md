@@ -17,8 +17,6 @@
   * cargo-deny
 
 * aquatic_udp
-  * don't constantly recreate access list cache
-  * request worker: use `ValidUntil::new_with_now`
   * look at proper cpu pinning (check that one thread gets bound per core)
     * then consider so_attach_reuseport_cbpf
   * what poll event capacity is actually needed?

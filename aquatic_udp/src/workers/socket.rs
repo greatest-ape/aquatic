@@ -135,6 +135,7 @@ pub fn run_socket_worker(
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut connections = ConnectionMap::default();
     let mut pending_scrape_responses = PendingScrapeResponseMap::default();
+    let mut access_list_cache = create_access_list_cache(&state.access_list);
 
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
 
@@ -166,6 +167,7 @@ pub fn run_socket_worker(
                     &state,
                     &mut connections,
                     &mut pending_scrape_responses,
+                    &mut access_list_cache,
                     &mut rng,
                     &mut socket,
                     &mut buffer,
@@ -218,6 +220,7 @@ fn read_requests(
     state: &State,
     connections: &mut ConnectionMap,
     pending_scrape_responses: &mut PendingScrapeResponseMap,
+    access_list_cache: &mut AccessListCache,
     rng: &mut StdRng,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
@@ -230,8 +233,6 @@ fn read_requests(
     let mut requests_received_ipv6: usize = 0;
     let mut bytes_received_ipv4: usize = 0;
     let mut bytes_received_ipv6 = 0;
-
-    let mut access_list_cache = create_access_list_cache(&state.access_list);
 
     loop {
         match socket.recv_from(&mut buffer[..]) {
@@ -272,7 +273,7 @@ fn read_requests(
                     config,
                     connections,
                     pending_scrape_responses,
-                    &mut access_list_cache,
+                    access_list_cache,
                     rng,
                     request_sender,
                     local_responses,

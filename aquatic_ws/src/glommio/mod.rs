@@ -1,11 +1,7 @@
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use aquatic_common::{
-    access_list::update_access_list, privileges::drop_privileges_after_socket_binding,
-};
-use common::{State, TlsConfig};
-use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
-use signal_hook::{consts::SIGUSR1, iterator::Signals};
+pub mod common;
+pub mod request;
+pub mod socket;
+
 use std::{
     fs::File,
     io::BufReader,
@@ -13,50 +9,17 @@ use std::{
 };
 
 use crate::config::Config;
+#[cfg(feature = "cpu-pinning")]
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
+use aquatic_common::privileges::drop_privileges_after_socket_binding;
 
-mod common;
-pub mod config;
-mod handlers;
-mod network;
+use self::common::*;
 
-pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
+use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
 const SHARED_CHANNEL_SIZE: usize = 1024;
 
-pub fn run(config: Config) -> ::anyhow::Result<()> {
-    let state = State::default();
-
-    update_access_list(&config.access_list, &state.access_list)?;
-
-    let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
-
-    {
-        let config = config.clone();
-        let state = state.clone();
-
-        ::std::thread::spawn(move || run_inner(config, state));
-    }
-
-    #[cfg(feature = "cpu-pinning")]
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        WorkerIndex::Other,
-    );
-
-    for signal in &mut signals {
-        match signal {
-            SIGUSR1 => {
-                let _ = update_access_list(&config.access_list, &state.access_list);
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    Ok(())
-}
-
-pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
+pub fn run(config: Config, state: State) -> anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
@@ -86,7 +49,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i),
             );
 
-            network::run_socket_worker(
+            socket::run_socket_worker(
                 config,
                 state,
                 tls_config,
@@ -116,7 +79,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
                 WorkerIndex::RequestWorker(i),
             );
 
-            handlers::run_request_worker(config, state, request_mesh_builder, response_mesh_builder)
+            request::run_request_worker(config, state, request_mesh_builder, response_mesh_builder)
                 .await
         });
 

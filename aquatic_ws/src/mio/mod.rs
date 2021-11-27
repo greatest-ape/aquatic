@@ -14,8 +14,8 @@ use parking_lot::Mutex;
 use privdrop::PrivDrop;
 
 pub mod common;
-pub mod handlers;
-pub mod network;
+pub mod request;
+pub mod socket;
 
 use crate::config::Config;
 use common::*;
@@ -85,7 +85,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
                     WorkerIndex::SocketWorker(i),
                 );
 
-                network::run_socket_worker(
+                socket::run_socket_worker(
                     config,
                     state,
                     i,
@@ -144,7 +144,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
                     WorkerIndex::RequestWorker(i),
                 );
 
-                handlers::run_request_worker(
+                request::run_request_worker(
                     config,
                     state,
                     in_message_receiver,
