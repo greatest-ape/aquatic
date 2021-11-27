@@ -9,7 +9,6 @@ repository = "https://github.com/greatest-ape/aquatic"
 
 [lib]
 name = "aquatic_udp"
-path = "src/lib/lib.rs"
 
 [[bin]]
 name = "aquatic_udp"
