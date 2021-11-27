@@ -103,7 +103,12 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
 fn monitor_statistics(state: LoadTestState, config: &Config) {
     let start_time = Instant::now();
-    let mut report_avg_response_vec: Vec<f64> = Vec::new();
+    let duration = Duration::from_secs(config.duration as u64);
+
+    let mut report_avg_connect: Vec<f64> = Vec::new();
+    let mut report_avg_announce: Vec<f64> = Vec::new();
+    let mut report_avg_scrape: Vec<f64> = Vec::new();
+    let mut report_avg_error: Vec<f64> = Vec::new();
 
     let interval = 5;
     let interval_f64 = interval as f64;
@@ -133,7 +138,10 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
             + responses_scrape_per_second
             + responses_error_per_second;
 
-        report_avg_response_vec.push(responses_per_second);
+        report_avg_connect.push(responses_connect_per_second);
+        report_avg_announce.push(responses_announce_per_second);
+        report_avg_scrape.push(responses_scrape_per_second);
+        report_avg_error.push(responses_error_per_second);
 
         println!();
         println!("Requests out: {:.2}/second", requests_per_second);
@@ -154,12 +162,16 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
         );
 
         let time_elapsed = start_time.elapsed();
-        let duration = Duration::from_secs(config.duration as u64);
 
         if config.duration != 0 && time_elapsed >= duration {
-            let report_len = report_avg_response_vec.len() as f64;
-            let report_sum: f64 = report_avg_response_vec.into_iter().sum();
-            let report_avg: f64 = report_sum / report_len;
+            let len = report_avg_connect.len() as f64;
+
+            let avg_connect: f64 = report_avg_connect.into_iter().sum::<f64>() / len;
+            let avg_announce: f64 = report_avg_announce.into_iter().sum::<f64>() / len;
+            let avg_scrape: f64 = report_avg_scrape.into_iter().sum::<f64>() / len;
+            let avg_error: f64 = report_avg_error.into_iter().sum::<f64>() / len;
+
+            let avg_total = avg_connect + avg_announce + avg_scrape + avg_error;
 
             println!(
                 concat!(
@@ -168,9 +180,13 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
                     "Average responses per second: {:.2}\n\nConfig: {:#?}\n"
                 ),
                 time_elapsed.as_secs(),
-                report_avg,
+                avg_total,
                 config
             );
+            println!("  - Connect responses:  {:.2}", avg_connect);
+            println!("  - Announce responses: {:.2}", avg_announce);
+            println!("  - Scrape responses:   {:.2}", avg_scrape);
+            println!("  - Error responses:    {:.2}", avg_error);
 
             break;
         }
