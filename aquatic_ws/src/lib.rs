@@ -34,7 +34,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         cfg_if!(
             if #[cfg(feature = "with-glommio")] {
-                ::std::thread::spawn(move || glommio::run_inner(config, state));
+                ::std::thread::spawn(move || glommio::run(config, state));
             } else {
                 ::std::thread::spawn(move || mio::run(config, state));
             }

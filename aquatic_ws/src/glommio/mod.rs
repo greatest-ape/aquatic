@@ -1,6 +1,6 @@
 pub mod common;
-pub mod handlers;
-pub mod network;
+pub mod request;
+pub mod socket;
 
 use std::{
     fs::File,
@@ -19,7 +19,7 @@ use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
 const SHARED_CHANNEL_SIZE: usize = 1024;
 
-pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
+pub fn run(config: Config, state: State) -> anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
@@ -49,7 +49,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i),
             );
 
-            network::run_socket_worker(
+            socket::run_socket_worker(
                 config,
                 state,
                 tls_config,
@@ -79,7 +79,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
                 WorkerIndex::RequestWorker(i),
             );
 
-            handlers::run_request_worker(config, state, request_mesh_builder, response_mesh_builder)
+            request::run_request_worker(config, state, request_mesh_builder, response_mesh_builder)
                 .await
         });
 
