@@ -18,6 +18,9 @@ pub struct Config {
     pub workers: u8,
     /// Run duration (quit and generate report after this many seconds)
     pub duration: usize,
+    /// Probability that an additional connect request will be sent for each
+    /// mio event
+    pub additional_request_probability: f32,
     pub network: NetworkConfig,
     pub handler: HandlerConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -88,6 +91,7 @@ impl Default for Config {
             log_level: LogLevel::Error,
             workers: 1,
             duration: 0,
+            additional_request_probability: 0.1,
             network: NetworkConfig::default(),
             handler: HandlerConfig::default(),
             #[cfg(feature = "cpu-pinning")]

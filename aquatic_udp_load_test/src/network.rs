@@ -4,6 +4,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use mio::{net::UdpSocket, Events, Interest, Poll, Token};
+use rand::Rng;
 use rand::{prelude::SmallRng, thread_rng, SeedableRng};
 use rand_distr::Pareto;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -126,14 +127,17 @@ pub fn run_worker_thread(
                     }
                 }
 
-                let additional_request = create_connect_request(generate_transaction_id(&mut rng));
+                if rng.gen::<f32>() <= config.additional_request_probability {
+                    let additional_request =
+                        create_connect_request(generate_transaction_id(&mut rng));
 
-                send_request(
-                    &mut socket,
-                    &mut buffer,
-                    &mut statistics,
-                    additional_request,
-                );
+                    send_request(
+                        &mut socket,
+                        &mut buffer,
+                        &mut statistics,
+                        additional_request,
+                    );
+                }
 
                 update_shared_statistics(&state, &mut statistics);
             }
