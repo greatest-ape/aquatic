@@ -121,9 +121,9 @@ pub fn run_request_worker(
         }
 
         if iter_counter % 128 == 0 {
-            peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
-
             let now = Instant::now();
+
+            peer_valid_until = ValidUntil::new_with_now(now, config.cleaning.max_peer_age);
 
             if now > last_cleaning + cleaning_interval {
                 torrents.clean(&config, &state.access_list);
