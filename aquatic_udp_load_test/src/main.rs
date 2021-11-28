@@ -177,20 +177,18 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
     let avg_total = avg_connect + avg_announce + avg_scrape + avg_error;
 
-    println!(
-        concat!(
-            "\n# aquatic load test report\n\n",
-            "Test ran for {} seconds.\n",
-            "Average responses per second: {:.2}\n\nConfig: {:#?}\n"
-        ),
-        time_elapsed.as_secs(),
-        avg_total,
-        config
-    );
+    println!();
+    println!("# aquatic load test report");
+    println!();
+    println!("Test ran for {} seconds", time_elapsed.as_secs());
+    println!("Average responses per second: {:.2}", avg_total);
     println!("  - Connect responses:  {:.2}", avg_connect);
     println!("  - Announce responses: {:.2}", avg_announce);
     println!("  - Scrape responses:   {:.2}", avg_scrape);
     println!("  - Error responses:    {:.2}", avg_error);
+    println!();
+    println!("Config: {:#?}", config);
+    println!();
 }
 
 fn fetch_and_reset(atomic_usize: &AtomicUsize) -> f64 {
