@@ -16,6 +16,10 @@ pub struct Config {
     /// generate responses and send them back to the socket workers.
     pub request_workers: usize,
     pub log_level: LogLevel,
+    /// Maximum number of items in each channel passing requests/responses
+    /// between workers. A value of zero means that the channel will be of
+    /// unbounded size.
+    pub worker_channel_size: usize,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
     pub handlers: HandlerConfig,
@@ -33,6 +37,7 @@ impl Default for Config {
             socket_workers: 1,
             request_workers: 1,
             log_level: LogLevel::Error,
+            worker_channel_size: 0,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
             handlers: HandlerConfig::default(),

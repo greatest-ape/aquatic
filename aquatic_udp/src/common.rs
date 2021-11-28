@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Sender, TrySendError};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap};
 use aquatic_common::AHashIndexMap;
@@ -88,8 +88,14 @@ impl ConnectedRequestSender {
         request: ConnectedRequest,
         addr: SocketAddr,
     ) {
-        if let Err(err) = self.senders[index.0].try_send((self.index, request, addr)) {
-            ::log::warn!("request_sender.try_send failed: {:?}", err)
+        match self.senders[index.0].try_send((self.index, request, addr)) {
+            Ok(()) => {},
+            Err(TrySendError::Full(_)) => {
+                ::log::error!("Request channel {} is full, dropping request. Try increasing number of request workers or raising config.worker_channel_size.", index.0)
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                panic!("Request channel {} is disconnected", index.0);
+            }
         }
     }
 }
@@ -109,8 +115,14 @@ impl ConnectedResponseSender {
         response: ConnectedResponse,
         addr: SocketAddr,
     ) {
-        if let Err(err) = self.senders[index.0].try_send((response, addr)) {
-            ::log::warn!("request_sender.try_send failed: {:?}", err)
+        match self.senders[index.0].try_send((response, addr)) {
+            Ok(()) => {},
+            Err(TrySendError::Full(_)) => {
+                ::log::error!("Response channel {} is full, dropping response. Try increasing number of socket workers or raising config.worker_channel_size.", index.0)
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                panic!("Response channel {} is disconnected", index.0);
+            }
         }
     }
 }
