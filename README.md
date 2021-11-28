@@ -125,12 +125,9 @@ Supports IPv4 and IPv6.
 
 #### Performance
 
-![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-08.png)
+![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-28.png)
 
-More details are available [here](./documents/aquatic-udp-load-test-2021-11-08.pdf).
-
-Since making this benchmark, I have improved the mio-based implementation
-considerably and removed the glommio-based implementation.
+More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.pdf).
 
 #### Optimisation attempts that didn't work out
 
