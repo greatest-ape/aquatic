@@ -90,7 +90,7 @@ pub fn run_request_worker(
     let mut torrents = TorrentMaps::default();
     let mut small_rng = SmallRng::from_entropy();
 
-    let timeout = Duration::from_millis(config.handlers.channel_recv_timeout_ms);
+    let timeout = Duration::from_millis(config.request_channel_recv_timeout_ms);
     let mut peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
 
     let cleaning_interval = Duration::from_secs(config.cleaning.torrent_cleaning_interval);
