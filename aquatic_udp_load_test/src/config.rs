@@ -91,7 +91,7 @@ impl Default for Config {
             log_level: LogLevel::Error,
             workers: 1,
             duration: 0,
-            additional_request_probability: 0.1,
+            additional_request_probability: 0.5,
             network: NetworkConfig::default(),
             handler: HandlerConfig::default(),
             #[cfg(feature = "cpu-pinning")]
