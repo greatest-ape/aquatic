@@ -24,7 +24,6 @@ pub fn run_worker_thread(
     pareto: Pareto<f64>,
     config: &Config,
     addr: SocketAddr,
-    thread_id: ThreadId,
 ) {
     let mut socket = UdpSocket::from_std(create_socket(config, addr));
     let mut buffer = [0u8; MAX_PACKET_SIZE];
@@ -32,7 +31,7 @@ pub fn run_worker_thread(
     let mut rng = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
     let mut torrent_peers = TorrentPeerMap::default();
 
-    let token = Token(thread_id.0 as usize);
+    let token = Token(0);
     let interests = Interest::READABLE;
     let timeout = Duration::from_micros(config.network.poll_timeout);
 

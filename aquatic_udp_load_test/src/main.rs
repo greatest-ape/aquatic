@@ -62,7 +62,6 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     // Start workers
 
     for i in 0..config.workers {
-        let thread_id = ThreadId(i);
         let port = config.network.first_port + (i as u16);
 
         let ip = if config.server_address.is_ipv6() {
@@ -87,7 +86,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i as usize),
             );
 
-            run_worker_thread(state, pareto, &config, addr, thread_id)
+            run_worker_thread(state, pareto, &config, addr)
         });
     }
 
