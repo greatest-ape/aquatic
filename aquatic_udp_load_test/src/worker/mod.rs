@@ -1,3 +1,5 @@
+mod request_gen;
+
 use std::io::Cursor;
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
@@ -12,41 +14,10 @@ use socket2::{Domain, Protocol, Socket, Type};
 use aquatic_udp_protocol::*;
 
 use crate::config::Config;
-use crate::{common::*, handler::process_response, utils::*};
+use crate::{common::*, utils::*};
+use request_gen::process_response;
 
 const MAX_PACKET_SIZE: usize = 4096;
-
-pub fn create_socket(config: &Config, addr: SocketAddr) -> ::std::net::UdpSocket {
-    let socket = if addr.is_ipv4() {
-        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
-    } else {
-        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
-    }
-    .expect("create socket");
-
-    socket
-        .set_nonblocking(true)
-        .expect("socket: set nonblocking");
-
-    if config.network.recv_buffer != 0 {
-        if let Err(err) = socket.set_recv_buffer_size(config.network.recv_buffer) {
-            eprintln!(
-                "socket: failed setting recv buffer to {}: {:?}",
-                config.network.recv_buffer, err
-            );
-        }
-    }
-
-    socket
-        .bind(&addr.into())
-        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", addr, err));
-
-    socket
-        .connect(&config.server_address.into())
-        .expect("socket: connect to server");
-
-    socket.into()
-}
 
 pub fn run_worker_thread(
     state: LoadTestState,
@@ -200,4 +171,36 @@ fn update_shared_statistics(state: &LoadTestState, statistics: &mut SocketWorker
         .fetch_add(statistics.response_peers, Ordering::Relaxed);
 
     *statistics = SocketWorkerLocalStatistics::default();
+}
+
+fn create_socket(config: &Config, addr: SocketAddr) -> ::std::net::UdpSocket {
+    let socket = if addr.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
+    } else {
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
+    }
+    .expect("create socket");
+
+    socket
+        .set_nonblocking(true)
+        .expect("socket: set nonblocking");
+
+    if config.network.recv_buffer != 0 {
+        if let Err(err) = socket.set_recv_buffer_size(config.network.recv_buffer) {
+            eprintln!(
+                "socket: failed setting recv buffer to {}: {:?}",
+                config.network.recv_buffer, err
+            );
+        }
+    }
+
+    socket
+        .bind(&addr.into())
+        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", addr, err));
+
+    socket
+        .connect(&config.server_address.into())
+        .expect("socket: connect to server");
+
+    socket.into()
 }

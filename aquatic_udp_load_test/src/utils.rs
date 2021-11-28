@@ -1,42 +1,7 @@
-use std::sync::Arc;
-
 use rand::prelude::*;
 use rand_distr::Pareto;
 
 use aquatic_udp_protocol::*;
-
-use crate::common::*;
-use crate::config::Config;
-
-pub fn create_torrent_peer(
-    config: &Config,
-    rng: &mut impl Rng,
-    pareto: Pareto<f64>,
-    info_hashes: &Arc<Vec<InfoHash>>,
-    connection_id: ConnectionId,
-) -> TorrentPeer {
-    let num_scape_hashes = rng.gen_range(1..config.requests.scrape_max_torrents);
-
-    let mut scrape_hash_indeces = Vec::new();
-
-    for _ in 0..num_scape_hashes {
-        scrape_hash_indeces.push(select_info_hash_index(config, rng, pareto))
-    }
-
-    let info_hash_index = select_info_hash_index(config, rng, pareto);
-
-    TorrentPeer {
-        info_hash: info_hashes[info_hash_index],
-        scrape_hash_indeces,
-        connection_id,
-        peer_id: generate_peer_id(),
-        port: Port(rand::random()),
-    }
-}
-
-fn select_info_hash_index(config: &Config, rng: &mut impl Rng, pareto: Pareto<f64>) -> usize {
-    pareto_usize(rng, pareto, config.requests.number_of_torrents - 1)
-}
 
 pub fn pareto_usize(rng: &mut impl Rng, pareto: Pareto<f64>, max: usize) -> usize {
     let p: f64 = rng.sample(pareto);

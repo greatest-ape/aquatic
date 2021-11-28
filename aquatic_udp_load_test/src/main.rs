@@ -10,14 +10,13 @@ use rand_distr::Pareto;
 
 mod common;
 mod config;
-mod handler;
-mod network;
 mod utils;
+mod worker;
 
 use common::*;
 use config::Config;
-use network::*;
 use utils::*;
+use worker::*;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
