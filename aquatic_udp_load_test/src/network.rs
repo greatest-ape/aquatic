@@ -127,7 +127,7 @@ pub fn run_worker_thread(
                     }
                 }
 
-                if rng.gen::<f32>() <= config.additional_request_probability {
+                if rng.gen::<f32>() <= config.requests.additional_request_probability {
                     let additional_request =
                         create_connect_request(generate_transaction_id(&mut rng));
 

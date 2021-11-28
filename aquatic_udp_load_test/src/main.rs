@@ -37,7 +37,9 @@ impl aquatic_cli_helpers::Config for Config {
 }
 
 fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape
+    if config.requests.weight_announce
+        + config.requests.weight_connect
+        + config.requests.weight_scrape
         == 0
     {
         panic!("Error: at least one weight must be larger than zero.");
@@ -45,9 +47,9 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     println!("Starting client with config: {:#?}", config);
 
-    let mut info_hashes = Vec::with_capacity(config.handler.number_of_torrents);
+    let mut info_hashes = Vec::with_capacity(config.requests.number_of_torrents);
 
-    for _ in 0..config.handler.number_of_torrents {
+    for _ in 0..config.requests.number_of_torrents {
         info_hashes.push(generate_info_hash());
     }
 
@@ -56,7 +58,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         statistics: Arc::new(Statistics::default()),
     };
 
-    let pareto = Pareto::new(1.0, config.handler.torrent_selection_pareto_shape).unwrap();
+    let pareto = Pareto::new(1.0, config.requests.torrent_selection_pareto_shape).unwrap();
 
     // Start workers
 

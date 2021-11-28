@@ -15,7 +15,7 @@ pub fn create_torrent_peer(
     info_hashes: &Arc<Vec<InfoHash>>,
     connection_id: ConnectionId,
 ) -> TorrentPeer {
-    let num_scape_hashes = rng.gen_range(1..config.handler.scrape_max_torrents);
+    let num_scape_hashes = rng.gen_range(1..config.requests.scrape_max_torrents);
 
     let mut scrape_hash_indeces = Vec::new();
 
@@ -35,7 +35,7 @@ pub fn create_torrent_peer(
 }
 
 fn select_info_hash_index(config: &Config, rng: &mut impl Rng, pareto: Pareto<f64>) -> usize {
-    pareto_usize(rng, pareto, config.handler.number_of_torrents - 1)
+    pareto_usize(rng, pareto, config.requests.number_of_torrents - 1)
 }
 
 pub fn pareto_usize(rng: &mut impl Rng, pareto: Pareto<f64>, max: usize) -> usize {

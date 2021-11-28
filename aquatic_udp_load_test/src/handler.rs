@@ -115,9 +115,9 @@ fn create_random_request(
     torrent_peer: &TorrentPeer,
 ) -> Request {
     let weights = vec![
-        config.handler.weight_announce as u32,
-        config.handler.weight_connect as u32,
-        config.handler.weight_scrape as u32,
+        config.requests.weight_announce as u32,
+        config.requests.weight_connect as u32,
+        config.requests.weight_scrape as u32,
     ];
 
     let items = vec![
@@ -142,7 +142,7 @@ fn create_announce_request(
     transaction_id: TransactionId,
 ) -> Request {
     let (event, bytes_left) = {
-        if rng.gen_bool(config.handler.peer_seeder_probability) {
+        if rng.gen_bool(config.requests.peer_seeder_probability) {
             (AnnounceEvent::Completed, NumberOfBytes(0))
         } else {
             (AnnounceEvent::Started, NumberOfBytes(50))

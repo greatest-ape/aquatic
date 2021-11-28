@@ -18,13 +18,25 @@ pub struct Config {
     pub workers: u8,
     /// Run duration (quit and generate report after this many seconds)
     pub duration: usize,
-    /// Probability that an additional connect request will be sent for each
-    /// mio event
-    pub additional_request_probability: f32,
     pub network: NetworkConfig,
-    pub handler: HandlerConfig,
+    pub requests: RequestConfig,
     #[cfg(feature = "cpu-pinning")]
     pub cpu_pinning: CpuPinningConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            server_address: "127.0.0.1:3000".parse().unwrap(),
+            log_level: LogLevel::Error,
+            workers: 1,
+            duration: 0,
+            network: NetworkConfig::default(),
+            requests: RequestConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: CpuPinningConfig::default_for_load_test(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -60,9 +72,21 @@ pub struct NetworkConfig {
     pub recv_buffer: usize,
 }
 
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            multiple_client_ipv4s: true,
+            first_port: 45_000,
+            poll_timeout: 276,
+            poll_event_capacity: 2_877,
+            recv_buffer: 6_000_000,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
-pub struct HandlerConfig {
+pub struct RequestConfig {
     /// Number of torrents to simulate
     pub number_of_torrents: usize,
     /// Maximum number of torrents to ask about in scrape requests
@@ -82,37 +106,12 @@ pub struct HandlerConfig {
     pub torrent_selection_pareto_shape: f64,
     /// Probability that a generated peer is a seeder
     pub peer_seeder_probability: f64,
+    /// Probability that an additional connect request will be sent for each
+    /// mio event
+    pub additional_request_probability: f32,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server_address: "127.0.0.1:3000".parse().unwrap(),
-            log_level: LogLevel::Error,
-            workers: 1,
-            duration: 0,
-            additional_request_probability: 0.5,
-            network: NetworkConfig::default(),
-            handler: HandlerConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: CpuPinningConfig::default_for_load_test(),
-        }
-    }
-}
-
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            multiple_client_ipv4s: true,
-            first_port: 45_000,
-            poll_timeout: 276,
-            poll_event_capacity: 2_877,
-            recv_buffer: 6_000_000,
-        }
-    }
-}
-
-impl Default for HandlerConfig {
+impl Default for RequestConfig {
     fn default() -> Self {
         Self {
             number_of_torrents: 10_000,
@@ -122,6 +121,7 @@ impl Default for HandlerConfig {
             weight_announce: 5,
             weight_scrape: 1,
             torrent_selection_pareto_shape: 2.0,
+            additional_request_probability: 0.5,
         }
     }
 }
