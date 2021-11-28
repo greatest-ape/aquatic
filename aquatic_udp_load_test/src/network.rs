@@ -4,6 +4,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use mio::{net::UdpSocket, Events, Interest, Poll, Token};
+use rand::Rng;
 use rand::{prelude::SmallRng, thread_rng, SeedableRng};
 use rand_distr::Pareto;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -126,14 +127,17 @@ pub fn run_worker_thread(
                     }
                 }
 
-                let additional_request = create_connect_request(generate_transaction_id(&mut rng));
+                if rng.gen::<f32>() <= config.additional_request_probability {
+                    let additional_request =
+                        create_connect_request(generate_transaction_id(&mut rng));
 
-                send_request(
-                    &mut socket,
-                    &mut buffer,
-                    &mut statistics,
-                    additional_request,
-                );
+                    send_request(
+                        &mut socket,
+                        &mut buffer,
+                        &mut statistics,
+                        additional_request,
+                    );
+                }
 
                 update_shared_statistics(&state, &mut statistics);
             }
@@ -173,27 +177,27 @@ fn update_shared_statistics(state: &LoadTestState, statistics: &mut SocketWorker
     state
         .statistics
         .requests
-        .fetch_add(statistics.requests, Ordering::SeqCst);
+        .fetch_add(statistics.requests, Ordering::Relaxed);
     state
         .statistics
         .responses_connect
-        .fetch_add(statistics.responses_connect, Ordering::SeqCst);
+        .fetch_add(statistics.responses_connect, Ordering::Relaxed);
     state
         .statistics
         .responses_announce
-        .fetch_add(statistics.responses_announce, Ordering::SeqCst);
+        .fetch_add(statistics.responses_announce, Ordering::Relaxed);
     state
         .statistics
         .responses_scrape
-        .fetch_add(statistics.responses_scrape, Ordering::SeqCst);
+        .fetch_add(statistics.responses_scrape, Ordering::Relaxed);
     state
         .statistics
         .responses_error
-        .fetch_add(statistics.responses_error, Ordering::SeqCst);
+        .fetch_add(statistics.responses_error, Ordering::Relaxed);
     state
         .statistics
         .response_peers
-        .fetch_add(statistics.response_peers, Ordering::SeqCst);
+        .fetch_add(statistics.response_peers, Ordering::Relaxed);
 
     *statistics = SocketWorkerLocalStatistics::default();
 }
