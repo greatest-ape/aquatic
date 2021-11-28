@@ -177,27 +177,27 @@ fn update_shared_statistics(state: &LoadTestState, statistics: &mut SocketWorker
     state
         .statistics
         .requests
-        .fetch_add(statistics.requests, Ordering::SeqCst);
+        .fetch_add(statistics.requests, Ordering::Relaxed);
     state
         .statistics
         .responses_connect
-        .fetch_add(statistics.responses_connect, Ordering::SeqCst);
+        .fetch_add(statistics.responses_connect, Ordering::Relaxed);
     state
         .statistics
         .responses_announce
-        .fetch_add(statistics.responses_announce, Ordering::SeqCst);
+        .fetch_add(statistics.responses_announce, Ordering::Relaxed);
     state
         .statistics
         .responses_scrape
-        .fetch_add(statistics.responses_scrape, Ordering::SeqCst);
+        .fetch_add(statistics.responses_scrape, Ordering::Relaxed);
     state
         .statistics
         .responses_error
-        .fetch_add(statistics.responses_error, Ordering::SeqCst);
+        .fetch_add(statistics.responses_error, Ordering::Relaxed);
     state
         .statistics
         .response_peers
-        .fetch_add(statistics.response_peers, Ordering::SeqCst);
+        .fetch_add(statistics.response_peers, Ordering::Relaxed);
 
     *statistics = SocketWorkerLocalStatistics::default();
 }
