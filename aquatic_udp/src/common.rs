@@ -89,7 +89,7 @@ impl ConnectedRequestSender {
         addr: SocketAddr,
     ) {
         match self.senders[index.0].try_send((self.index, request, addr)) {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(TrySendError::Full(_)) => {
                 ::log::error!("Request channel {} is full, dropping request. Try increasing number of request workers or raising config.worker_channel_size.", index.0)
             }
@@ -116,7 +116,7 @@ impl ConnectedResponseSender {
         addr: SocketAddr,
     ) {
         match self.senders[index.0].try_send((response, addr)) {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(TrySendError::Full(_)) => {
                 ::log::error!("Response channel {} is full, dropping response. Try increasing number of socket workers or raising config.worker_channel_size.", index.0)
             }

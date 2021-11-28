@@ -15,8 +15,8 @@ use std::{
 use crate::config::Config;
 
 mod common;
-mod workers;
 pub mod config;
+mod workers;
 
 pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
 
@@ -115,8 +115,13 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
                 WorkerIndex::RequestWorker(i),
             );
 
-            workers::request::run_request_worker(config, state, request_mesh_builder, response_mesh_builder)
-                .await
+            workers::request::run_request_worker(
+                config,
+                state,
+                request_mesh_builder,
+                response_mesh_builder,
+            )
+            .await
         });
 
         executors.push(executor);
