@@ -115,7 +115,7 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
     let mut last = start_time;
 
-    loop {
+    let time_elapsed = loop {
         thread::sleep(Duration::from_secs(interval));
 
         let requests = fetch_and_reset(&state.statistics.requests);
@@ -164,33 +164,33 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
         let time_elapsed = start_time.elapsed();
 
         if config.duration != 0 && time_elapsed >= duration {
-            let len = report_avg_connect.len() as f64;
-
-            let avg_connect: f64 = report_avg_connect.into_iter().sum::<f64>() / len;
-            let avg_announce: f64 = report_avg_announce.into_iter().sum::<f64>() / len;
-            let avg_scrape: f64 = report_avg_scrape.into_iter().sum::<f64>() / len;
-            let avg_error: f64 = report_avg_error.into_iter().sum::<f64>() / len;
-
-            let avg_total = avg_connect + avg_announce + avg_scrape + avg_error;
-
-            println!(
-                concat!(
-                    "\n# aquatic load test report\n\n",
-                    "Test ran for {} seconds.\n",
-                    "Average responses per second: {:.2}\n\nConfig: {:#?}\n"
-                ),
-                time_elapsed.as_secs(),
-                avg_total,
-                config
-            );
-            println!("  - Connect responses:  {:.2}", avg_connect);
-            println!("  - Announce responses: {:.2}", avg_announce);
-            println!("  - Scrape responses:   {:.2}", avg_scrape);
-            println!("  - Error responses:    {:.2}", avg_error);
-
-            break;
+            break time_elapsed;
         }
-    }
+    };
+
+    let len = report_avg_connect.len() as f64;
+
+    let avg_connect: f64 = report_avg_connect.into_iter().sum::<f64>() / len;
+    let avg_announce: f64 = report_avg_announce.into_iter().sum::<f64>() / len;
+    let avg_scrape: f64 = report_avg_scrape.into_iter().sum::<f64>() / len;
+    let avg_error: f64 = report_avg_error.into_iter().sum::<f64>() / len;
+
+    let avg_total = avg_connect + avg_announce + avg_scrape + avg_error;
+
+    println!(
+        concat!(
+            "\n# aquatic load test report\n\n",
+            "Test ran for {} seconds.\n",
+            "Average responses per second: {:.2}\n\nConfig: {:#?}\n"
+        ),
+        time_elapsed.as_secs(),
+        avg_total,
+        config
+    );
+    println!("  - Connect responses:  {:.2}", avg_connect);
+    println!("  - Announce responses: {:.2}", avg_announce);
+    println!("  - Scrape responses:   {:.2}", avg_scrape);
+    println!("  - Error responses:    {:.2}", avg_error);
 }
 
 fn fetch_and_reset(atomic_usize: &AtomicUsize) -> f64 {
