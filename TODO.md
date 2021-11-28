@@ -17,14 +17,12 @@
   * cargo-deny
 
 * aquatic_udp
+  * consider bounded channels with size 0 meaning unbounded
+  * check config field and group names, including in load tester
   * look at proper cpu pinning (check that one thread gets bound per core)
     * then consider so_attach_reuseport_cbpf
   * what poll event capacity is actually needed?
   * stagger connection cleaning intervals?
-  * notes
-    * load testing shows that with sharded state, mio reaches 1.4M responses per second
-      with 6 socket and 4 request workers. performance is great overall and faster than
-      without sharding. io_uring impl is a lot behind mio impl with new load tester
 
 * aquatic_http:
   * clean out connections regularly
