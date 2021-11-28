@@ -17,7 +17,7 @@ use crate::config::Config;
 use crate::{common::*, utils::*};
 use request_gen::process_response;
 
-const MAX_PACKET_SIZE: usize = 4096;
+const MAX_PACKET_SIZE: usize = 8192;
 
 pub fn run_worker_thread(
     state: LoadTestState,
