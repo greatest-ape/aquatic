@@ -106,7 +106,7 @@ in emitting of an info-level log message.
 #### More information
 
 More documentation of the various configuration options might be available
-under `src/lib/config.rs` in directories `aquatic_udp`, `aquatic_http` and
+under `src/config.rs` in directories `aquatic_udp`, `aquatic_http` and
 `aquatic_ws`.
 
 ## Details on implementations
