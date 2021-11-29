@@ -16,9 +16,18 @@ pub struct Config {
     /// generate responses and send them back to the socket workers.
     pub request_workers: usize,
     pub log_level: LogLevel,
+    /// Maximum number of items in each channel passing requests/responses
+    /// between workers. A value of zero means that the channel will be of
+    /// unbounded size.
+    pub worker_channel_size: usize,
+    /// How long to block waiting for requests in request workers. Higher
+    /// values means that with zero traffic, the worker will not unnecessarily
+    /// cause the CPU to wake up as often. However, high values (something like
+    /// larger than 1000) combined with very low traffic can cause delays
+    /// in torrent cleaning.
+    pub request_channel_recv_timeout_ms: u64,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
-    pub handlers: HandlerConfig,
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
@@ -33,9 +42,10 @@ impl Default for Config {
             socket_workers: 1,
             request_workers: 1,
             log_level: LogLevel::Error,
+            worker_channel_size: 0,
+            request_channel_recv_timeout_ms: 100,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
-            handlers: HandlerConfig::default(),
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
@@ -106,20 +116,6 @@ impl Default for ProtocolConfig {
             max_scrape_torrents: 255,
             max_response_peers: 255,
             peer_announce_interval: 60 * 15,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct HandlerConfig {
-    pub channel_recv_timeout_ms: u64,
-}
-
-impl Default for HandlerConfig {
-    fn default() -> Self {
-        Self {
-            channel_recv_timeout_ms: 100,
         }
     }
 }

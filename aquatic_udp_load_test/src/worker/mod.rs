@@ -1,3 +1,5 @@
+mod request_gen;
+
 use std::io::Cursor;
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
@@ -12,48 +14,16 @@ use socket2::{Domain, Protocol, Socket, Type};
 use aquatic_udp_protocol::*;
 
 use crate::config::Config;
-use crate::{common::*, handler::process_response, utils::*};
+use crate::{common::*, utils::*};
+use request_gen::process_response;
 
-const MAX_PACKET_SIZE: usize = 4096;
-
-pub fn create_socket(config: &Config, addr: SocketAddr) -> ::std::net::UdpSocket {
-    let socket = if addr.is_ipv4() {
-        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
-    } else {
-        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
-    }
-    .expect("create socket");
-
-    socket
-        .set_nonblocking(true)
-        .expect("socket: set nonblocking");
-
-    if config.network.recv_buffer != 0 {
-        if let Err(err) = socket.set_recv_buffer_size(config.network.recv_buffer) {
-            eprintln!(
-                "socket: failed setting recv buffer to {}: {:?}",
-                config.network.recv_buffer, err
-            );
-        }
-    }
-
-    socket
-        .bind(&addr.into())
-        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", addr, err));
-
-    socket
-        .connect(&config.server_address.into())
-        .expect("socket: connect to server");
-
-    socket.into()
-}
+const MAX_PACKET_SIZE: usize = 8192;
 
 pub fn run_worker_thread(
     state: LoadTestState,
     pareto: Pareto<f64>,
     config: &Config,
     addr: SocketAddr,
-    thread_id: ThreadId,
 ) {
     let mut socket = UdpSocket::from_std(create_socket(config, addr));
     let mut buffer = [0u8; MAX_PACKET_SIZE];
@@ -61,7 +31,7 @@ pub fn run_worker_thread(
     let mut rng = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
     let mut torrent_peers = TorrentPeerMap::default();
 
-    let token = Token(thread_id.0 as usize);
+    let token = Token(0);
     let interests = Interest::READABLE;
     let timeout = Duration::from_micros(config.network.poll_timeout);
 
@@ -127,7 +97,7 @@ pub fn run_worker_thread(
                     }
                 }
 
-                if rng.gen::<f32>() <= config.additional_request_probability {
+                if rng.gen::<f32>() <= config.requests.additional_request_probability {
                     let additional_request =
                         create_connect_request(generate_transaction_id(&mut rng));
 
@@ -200,4 +170,36 @@ fn update_shared_statistics(state: &LoadTestState, statistics: &mut SocketWorker
         .fetch_add(statistics.response_peers, Ordering::Relaxed);
 
     *statistics = SocketWorkerLocalStatistics::default();
+}
+
+fn create_socket(config: &Config, addr: SocketAddr) -> ::std::net::UdpSocket {
+    let socket = if addr.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
+    } else {
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
+    }
+    .expect("create socket");
+
+    socket
+        .set_nonblocking(true)
+        .expect("socket: set nonblocking");
+
+    if config.network.recv_buffer != 0 {
+        if let Err(err) = socket.set_recv_buffer_size(config.network.recv_buffer) {
+            eprintln!(
+                "socket: failed setting recv buffer to {}: {:?}",
+                config.network.recv_buffer, err
+            );
+        }
+    }
+
+    socket
+        .bind(&addr.into())
+        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", addr, err));
+
+    socket
+        .connect(&config.server_address.into())
+        .expect("socket: connect to server");
+
+    socket.into()
 }

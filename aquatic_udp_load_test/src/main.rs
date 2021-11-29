@@ -10,14 +10,13 @@ use rand_distr::Pareto;
 
 mod common;
 mod config;
-mod handler;
-mod network;
 mod utils;
+mod worker;
 
 use common::*;
 use config::Config;
-use network::*;
 use utils::*;
+use worker::*;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -37,7 +36,9 @@ impl aquatic_cli_helpers::Config for Config {
 }
 
 fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.handler.weight_announce + config.handler.weight_connect + config.handler.weight_scrape
+    if config.requests.weight_announce
+        + config.requests.weight_connect
+        + config.requests.weight_scrape
         == 0
     {
         panic!("Error: at least one weight must be larger than zero.");
@@ -45,9 +46,9 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     println!("Starting client with config: {:#?}", config);
 
-    let mut info_hashes = Vec::with_capacity(config.handler.number_of_torrents);
+    let mut info_hashes = Vec::with_capacity(config.requests.number_of_torrents);
 
-    for _ in 0..config.handler.number_of_torrents {
+    for _ in 0..config.requests.number_of_torrents {
         info_hashes.push(generate_info_hash());
     }
 
@@ -56,12 +57,11 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         statistics: Arc::new(Statistics::default()),
     };
 
-    let pareto = Pareto::new(1.0, config.handler.torrent_selection_pareto_shape).unwrap();
+    let pareto = Pareto::new(1.0, config.requests.torrent_selection_pareto_shape).unwrap();
 
     // Start workers
 
     for i in 0..config.workers {
-        let thread_id = ThreadId(i);
         let port = config.network.first_port + (i as u16);
 
         let ip = if config.server_address.is_ipv6() {
@@ -86,7 +86,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i as usize),
             );
 
-            run_worker_thread(state, pareto, &config, addr, thread_id)
+            run_worker_thread(state, pareto, &config, addr)
         });
     }
 

@@ -12,7 +12,7 @@ use anyhow::Context;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{bounded, unbounded};
 
 use aquatic_common::access_list::update_access_list;
 use signal_hook::consts::SIGUSR1;
@@ -40,14 +40,22 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut response_receivers = BTreeMap::new();
 
     for i in 0..config.request_workers {
-        let (request_sender, request_receiver) = unbounded();
+        let (request_sender, request_receiver) = if config.worker_channel_size == 0 {
+            unbounded()
+        } else {
+            bounded(config.worker_channel_size)
+        };
 
         request_senders.push(request_sender);
         request_receivers.insert(i, request_receiver);
     }
 
     for i in 0..config.socket_workers {
-        let (response_sender, response_receiver) = unbounded();
+        let (response_sender, response_receiver) = if config.worker_channel_size == 0 {
+            unbounded()
+        } else {
+            bounded(config.worker_channel_size)
+        };
 
         response_senders.push(response_sender);
         response_receivers.insert(i, response_receiver);
