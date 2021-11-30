@@ -17,12 +17,13 @@
   * cargo-deny
 
 * aquatic_udp
-  * consider bounded channels with size 0 meaning unbounded
-  * check config field and group names, including in load tester
   * look at proper cpu pinning (check that one thread gets bound per core)
     * then consider so_attach_reuseport_cbpf
   * what poll event capacity is actually needed?
   * stagger connection cleaning intervals?
+  * load test
+      * move additional request sending to for each received response, maybe
+        with probability 0.2
 
 * aquatic_http:
   * clean out connections regularly
