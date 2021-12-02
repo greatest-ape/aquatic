@@ -94,7 +94,7 @@ dependencies = [
  "either",
  "futures-lite",
  "futures-rustls",
- "glommio",
+ "glommio 0.6.0 (git+https://github.com/DataDog/glommio.git?rev=4e6b14772da2f4325271fbcf12d24cf91ed466e5)",
  "itoa",
  "log",
  "memchr",
@@ -120,7 +120,7 @@ dependencies = [
  "aquatic_common",
  "aquatic_http_protocol",
  "futures-lite",
- "glommio",
+ "glommio 0.6.0 (git+https://github.com/DataDog/glommio.git?rev=4e6b14772da2f4325271fbcf12d24cf91ed466e5)",
  "hashbrown 0.11.2",
  "log",
  "mimalloc",
@@ -239,7 +239,7 @@ dependencies = [
  "futures",
  "futures-lite",
  "futures-rustls",
- "glommio",
+ "glommio 0.6.0 (git+https://github.com/DataDog/glommio.git?rev=2efe2f2a08f54394a435b674e8e0125057cbff03)",
  "hashbrown 0.11.2",
  "histogram",
  "log",
@@ -270,7 +270,7 @@ dependencies = [
  "async-tungstenite",
  "futures",
  "futures-rustls",
- "glommio",
+ "glommio 0.6.0 (git+https://github.com/DataDog/glommio.git?rev=2efe2f2a08f54394a435b674e8e0125057cbff03)",
  "hashbrown 0.11.2",
  "mimalloc",
  "quickcheck",
@@ -943,6 +943,37 @@ name = "gimli"
 version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78cc372d058dcf6d5ecd98510e7fbc9e5aec4d21de70f65fea8fecebcd881bd4"
+
+[[package]]
+name = "glommio"
+version = "0.6.0"
+source = "git+https://github.com/DataDog/glommio.git?rev=2efe2f2a08f54394a435b674e8e0125057cbff03#2efe2f2a08f54394a435b674e8e0125057cbff03"
+dependencies = [
+ "ahash",
+ "bitflags 1.3.2",
+ "bitmaps",
+ "buddy-alloc",
+ "cc",
+ "concurrent-queue",
+ "crossbeam",
+ "enclose",
+ "futures-lite",
+ "intrusive-collections",
+ "lazy_static",
+ "libc",
+ "lockfree",
+ "log",
+ "membarrier",
+ "nix",
+ "pin-project-lite",
+ "rlimit",
+ "scoped-tls",
+ "scopeguard",
+ "smallvec",
+ "socket2 0.3.19",
+ "tracing",
+ "typenum",
+]
 
 [[package]]
 name = "glommio"
