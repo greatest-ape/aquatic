@@ -17,7 +17,7 @@ use futures_lite::StreamExt;
 use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
-use glommio::channels::local_channel::{LocalReceiver, LocalSender, new_bounded};
+use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
 use glommio::timer::TimerActionRepeat;
@@ -59,6 +59,11 @@ pub async fn run_socket_worker(
     let (in_message_senders, _) = in_message_mesh_builder.join(Role::Producer).await.unwrap();
     let in_message_senders = Rc::new(in_message_senders);
 
+    let tq_prioritized =
+        executor().create_task_queue(Shares::Static(50), Latency::NotImportant, "prioritized");
+    let tq_regular =
+        executor().create_task_queue(Shares::Static(1), Latency::NotImportant, "regular");
+
     let (_, mut out_message_receivers) =
         out_message_mesh_builder.join(Role::Consumer).await.unwrap();
     let out_message_consumer_id = ConsumerId(out_message_receivers.consumer_id().unwrap());
@@ -67,7 +72,7 @@ pub async fn run_socket_worker(
     let connections_to_remove = Rc::new(RefCell::new(Vec::new()));
 
     // Periodically remove closed connections
-    TimerActionRepeat::repeat(
+    TimerActionRepeat::repeat_into(
         enclose!((config, connection_slab, connections_to_remove) move || {
             remove_closed_connections(
                 config.clone(),
@@ -75,13 +80,16 @@ pub async fn run_socket_worker(
                 connections_to_remove.clone(),
             )
         }),
-    );
+        tq_prioritized,
+    )
+    .unwrap();
 
     for (_, out_message_receiver) in out_message_receivers.streams() {
-        spawn_local(receive_out_messages(
-            out_message_receiver,
-            connection_slab.clone(),
-        ))
+        spawn_local_into(
+            receive_out_messages(out_message_receiver, connection_slab.clone()),
+            tq_regular,
+        )
+        .unwrap()
         .detach();
     }
 
@@ -97,11 +105,13 @@ pub async fn run_socket_worker(
                     out_message_sender: out_message_sender.clone(),
                 });
 
-                spawn_local(enclose!((config, access_list, in_message_senders, tls_config, connections_to_remove) async move {
-                    if let Err(err) = Connection::run(
+                spawn_local_into(enclose!((config, access_list, in_message_senders, tls_config, connections_to_remove) async move {
+                    if let Err(err) = run_connection(
                         config,
                         access_list,
                         in_message_senders,
+                        tq_prioritized,
+                        tq_regular,
                         out_message_sender,
                         out_message_receiver,
                         out_message_consumer_id,
@@ -113,7 +123,8 @@ pub async fn run_socket_worker(
                     }
 
                     RefCell::borrow_mut(&connections_to_remove).push(key);
-                }))
+                }), tq_regular)
+                .unwrap()
                 .detach();
             }
             Err(err) => {
@@ -170,39 +181,39 @@ async fn receive_out_messages(
     }
 }
 
-struct Connection;
+async fn run_connection(
+    config: Rc<Config>,
+    access_list: Arc<AccessListArcSwap>,
+    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
+    tq_prioritized: TaskQueueHandle,
+    tq_regular: TaskQueueHandle,
+    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
+    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_consumer_id: ConsumerId,
+    connection_id: ConnectionId,
+    tls_config: Arc<TlsConfig>,
+    stream: TcpStream,
+) -> anyhow::Result<()> {
+    let peer_addr = stream
+        .peer_addr()
+        .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
 
-impl Connection {
-    async fn run(
-        config: Rc<Config>,
-        access_list: Arc<AccessListArcSwap>,
-        in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
-        out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
-        out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
-        out_message_consumer_id: ConsumerId,
-        connection_id: ConnectionId,
-        tls_config: Arc<TlsConfig>,
-        stream: TcpStream,
-    ) -> anyhow::Result<()> {
-        let peer_addr = stream
-            .peer_addr()
-            .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
+    let tls_acceptor: TlsAcceptor = tls_config.into();
+    let stream = tls_acceptor.accept(stream).await?;
 
-        let tls_acceptor: TlsAcceptor = tls_config.into();
-        let stream = tls_acceptor.accept(stream).await?;
+    let ws_config = tungstenite::protocol::WebSocketConfig {
+        max_frame_size: Some(config.network.websocket_max_frame_size),
+        max_message_size: Some(config.network.websocket_max_message_size),
+        ..Default::default()
+    };
+    let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
+    let (ws_out, ws_in) = futures::StreamExt::split(stream);
 
-        let ws_config = tungstenite::protocol::WebSocketConfig {
-            max_frame_size: Some(config.network.websocket_max_frame_size),
-            max_message_size: Some(config.network.websocket_max_message_size),
-            ..Default::default()
-        };
-        let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
-        let (ws_out, ws_in) = futures::StreamExt::split(stream);
+    let pending_scrape_slab = Rc::new(RefCell::new(Slab::new()));
+    let access_list_cache = create_access_list_cache(&access_list);
 
-        let pending_scrape_slab = Rc::new(RefCell::new(Slab::new()));
-        let access_list_cache = create_access_list_cache(&access_list);
-
-        let reader_handle = spawn_local(enclose!((pending_scrape_slab) async move {
+    let reader_handle = spawn_local_into(
+        enclose!((pending_scrape_slab) async move {
             let mut reader = ConnectionReader {
                 config,
                 access_list_cache,
@@ -216,10 +227,14 @@ impl Connection {
             };
 
             reader.run_in_message_loop().await
-        }))
-        .detach();
+        }),
+        tq_regular,
+    )
+    .unwrap()
+    .detach();
 
-        let writer_handle = spawn_local(async move {
+    let writer_handle = spawn_local_into(
+        async move {
             let mut writer = ConnectionWriter {
                 out_message_receiver,
                 ws_out,
@@ -228,11 +243,13 @@ impl Connection {
             };
 
             writer.run_out_message_loop().await
-        })
-        .detach();
+        },
+        tq_prioritized,
+    )
+    .unwrap()
+    .detach();
 
-        race(reader_handle, writer_handle).await.unwrap()
-    }
+    race(reader_handle, writer_handle).await.unwrap()
 }
 
 struct ConnectionReader {
@@ -266,6 +283,8 @@ impl ConnectionReader {
                     self.send_error_response("Invalid request".into(), None);
                 }
             }
+
+            yield_if_needed().await;
         }
     }
 
@@ -431,6 +450,8 @@ impl ConnectionWriter {
                     self.send_out_message(&out_message).await?;
                 }
             };
+
+            yield_if_needed().await;
         }
     }
 
