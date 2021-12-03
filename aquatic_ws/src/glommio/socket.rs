@@ -17,7 +17,7 @@ use futures_lite::StreamExt;
 use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
-use glommio::channels::local_channel::{new_unbounded, LocalReceiver, LocalSender};
+use glommio::channels::local_channel::{LocalReceiver, LocalSender, new_bounded};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
 use glommio::timer::TimerActionRepeat;
@@ -30,6 +30,8 @@ use crate::config::Config;
 use crate::common::*;
 
 use super::common::*;
+
+const LOCAL_CHANNEL_SIZE: usize = 16;
 
 struct PendingScrapeResponse {
     pending_worker_out_messages: usize,
@@ -88,7 +90,7 @@ pub async fn run_socket_worker(
     while let Some(stream) = incoming.next().await {
         match stream {
             Ok(stream) => {
-                let (out_message_sender, out_message_receiver) = new_unbounded();
+                let (out_message_sender, out_message_receiver) = new_bounded(LOCAL_CHANNEL_SIZE);
                 let out_message_sender = Rc::new(out_message_sender);
 
                 let key = RefCell::borrow_mut(&connection_slab).insert(ConnectionReference {
@@ -156,13 +158,15 @@ async fn receive_out_messages(
             match reference.out_message_sender.try_send(channel_out_message) {
                 Ok(()) | Err(GlommioError::Closed(_)) => {}
                 Err(err) => {
-                    ::log::error!(
+                    ::log::info!(
                         "Couldn't send out_message from shared channel to local receiver: {:?}",
                         err
                     );
                 }
             }
         }
+
+        yield_if_needed().await;
     }
 }
 
