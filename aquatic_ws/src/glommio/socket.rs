@@ -140,7 +140,7 @@ async fn remove_closed_connections(
     }
 
     Some(Duration::from_secs(
-        config.cleaning.torrent_cleaning_interval,
+        config.cleaning.connection_cleaning_interval,
     ))
 }
 

@@ -97,6 +97,8 @@ pub struct CleaningConfig {
     /// Remove connections that are older than this (seconds)
     #[cfg(feature = "with-mio")]
     pub max_connection_age: u64,
+    #[cfg(feature = "with-glommio")]
+    pub connection_cleaning_interval: u64,
 }
 
 #[cfg(feature = "with-mio")]
@@ -183,6 +185,8 @@ impl Default for CleaningConfig {
 
             #[cfg(feature = "with-mio")]
             max_connection_age: 1800,
+            #[cfg(feature = "with-glommio")]
+            connection_cleaning_interval: 30,
         }
     }
 }
