@@ -17,7 +17,7 @@ use self::common::*;
 
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
-const SHARED_CHANNEL_SIZE: usize = 1024;
+pub const SHARED_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config, state: State) -> anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;

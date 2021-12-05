@@ -11,9 +11,9 @@ use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, A
 use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
+use futures::StreamExt;
 use futures::stream::{SplitSink, SplitStream};
 use futures_lite::future::race;
-use futures_lite::StreamExt;
 use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
@@ -29,7 +29,7 @@ use crate::config::Config;
 
 use crate::common::*;
 
-use super::common::*;
+use super::{common::*, SHARED_CHANNEL_SIZE};
 
 const LOCAL_CHANNEL_SIZE: usize = 16;
 
@@ -60,7 +60,7 @@ pub async fn run_socket_worker(
     let in_message_senders = Rc::new(in_message_senders);
 
     let tq_prioritized =
-        executor().create_task_queue(Shares::Static(50), Latency::NotImportant, "prioritized");
+        executor().create_task_queue(Shares::Static(100), Latency::NotImportant, "prioritized");
     let tq_regular =
         executor().create_task_queue(Shares::Static(1), Latency::NotImportant, "regular");
 
@@ -104,6 +104,8 @@ pub async fn run_socket_worker(
                 let key = RefCell::borrow_mut(&connection_slab).insert(ConnectionReference {
                     out_message_sender: out_message_sender.clone(),
                 });
+
+                ::log::info!("accepting stream");
 
                 spawn_local_into(enclose!((config, access_list, in_message_senders, tls_config, connections_to_remove) async move {
                     if let Err(err) = run_connection(
@@ -158,15 +160,21 @@ async fn remove_closed_connections(
 }
 
 async fn receive_out_messages(
-    mut out_message_receiver: ConnectedReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_receiver: ConnectedReceiver<(ConnectionMeta, OutMessage)>,
     connection_references: Rc<RefCell<Slab<ConnectionReference>>>,
 ) {
-    while let Some(channel_out_message) = out_message_receiver.next().await {
-        if let Some(reference) = connection_references
+    let connection_references = &connection_references;
+
+    out_message_receiver.for_each_concurrent(SHARED_CHANNEL_SIZE, move |channel_out_message| async {
+        let opt_sender = connection_references
             .borrow()
             .get(channel_out_message.0.connection_id.0)
-        {
-            match reference.out_message_sender.try_send(channel_out_message) {
+            .map(|reference| reference.out_message_sender.clone());
+
+        if let Some(sender) = opt_sender {
+            ::log::info!("local channel {} len: {}", channel_out_message.0.connection_id.0, sender.len());
+
+            match sender.send(channel_out_message).await {
                 Ok(()) | Err(GlommioError::Closed(_)) => {}
                 Err(err) => {
                     ::log::info!(
@@ -176,9 +184,7 @@ async fn receive_out_messages(
                 }
             }
         }
-
-        yield_if_needed().await;
-    }
+    }).await;
 }
 
 async fn run_connection(
@@ -273,7 +279,7 @@ impl ConnectionReader {
 
             match InMessage::from_ws_message(message) {
                 Ok(in_message) => {
-                    ::log::debug!("received in_message: {:?}", in_message);
+                    ::log::debug!("parsed in_message");
 
                     self.handle_in_message(in_message).await?;
                 }
@@ -311,6 +317,7 @@ impl ConnectionReader {
                         )
                         .await
                         .unwrap();
+                    ::log::info!("sent message to request worker");
                 } else {
                     self.send_error_response("Info hash not allowed".into(), Some(info_hash));
                 }
@@ -360,6 +367,7 @@ impl ConnectionReader {
                         .send_to(consumer_index, (meta, in_message))
                         .await
                         .unwrap();
+                    ::log::info!("sent message to request worker");
                 }
             }
         }
@@ -407,6 +415,8 @@ impl ConnectionWriter {
                 anyhow::anyhow!("ConnectionWriter couldn't receive message, sender is closed")
             })?;
 
+            ::log::info!("ConnectionWriter received message");
+
             if meta.naive_peer_addr != self.peer_addr {
                 return Err(anyhow::anyhow!("peer addresses didn't match"));
             }
@@ -450,8 +460,6 @@ impl ConnectionWriter {
                     self.send_out_message(&out_message).await?;
                 }
             };
-
-            yield_if_needed().await;
         }
     }
 
