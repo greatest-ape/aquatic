@@ -1,13 +1,15 @@
 use std::io::ErrorKind;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::vec::Drain;
 
+use anyhow::Context;
 use aquatic_common::access_list::AccessListQuery;
 use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
 use mio::net::TcpListener;
 use mio::{Events, Interest, Poll, Token};
+use socket2::{Domain, Protocol, Socket, Type};
 use tungstenite::protocol::WebSocketConfig;
 
 use aquatic_common::convert_ipv4_mapped_ipv6;
@@ -16,17 +18,56 @@ use aquatic_ws_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
-use self::connection::Registered;
+pub mod connection;
 
 use super::common::*;
 
-pub mod connection;
-pub mod utils;
+use connection::{Connection, NotRegistered, Registered};
 
-use connection::Connection;
-use utils::*;
+#[derive(Default)]
+struct ConnectionMap(HashMap<Token, Connection<Registered>>);
 
-type ConnectionMap = HashMap<Token, Connection<Registered>>;
+impl ConnectionMap {
+    fn insert_and_register(
+        &mut self,
+        poll: &mut Poll,
+        key: Token,
+        conn: Connection<NotRegistered>,
+    ) {
+        self.0.insert(key, conn.register(poll, key));
+    }
+    fn remove_and_deregister(
+        &mut self,
+        poll: &mut Poll,
+        key: &Token,
+    ) -> Option<Connection<NotRegistered>> {
+        if let Some(connection) = self.0.remove(key) {
+            Some(connection.deregister(poll))
+        } else {
+            None
+        }
+    }
+    fn get_mut(&mut self, key: &Token) -> Option<&mut Connection<Registered>> {
+        self.0.get_mut(key)
+    }
+
+    /// Close and remove inactive connections
+    fn clean(mut self, poll: &mut Poll) -> Self {
+        let now = Instant::now();
+
+        let mut retained_connections = ConnectionMap::default();
+
+        for (token, connection) in self.0.drain() {
+            if connection.valid_until.0 < now {
+                connection.deregister(poll).close();
+            } else {
+                retained_connections.0.insert(token, connection);
+            }
+        }
+
+        retained_connections
+    }
+}
 
 pub fn run_socket_worker(
     config: Config,
@@ -60,7 +101,7 @@ pub fn run_socket_worker(
     }
 }
 
-pub fn run_poll_loop(
+fn run_poll_loop(
     config: Config,
     state: &State,
     socket_worker_index: usize,
@@ -85,7 +126,7 @@ pub fn run_poll_loop(
         .register(&mut listener, LISTENER_TOKEN, Interest::READABLE)
         .unwrap();
 
-    let mut connections: ConnectionMap = HashMap::new();
+    let mut connections = ConnectionMap::default();
     let mut local_responses = Vec::new();
 
     let mut poll_token_counter = Token(0usize);
@@ -134,7 +175,7 @@ pub fn run_poll_loop(
 
         // Remove inactive connections, but not every iteration
         if iter_counter % 128 == 0 {
-            connections = remove_inactive_connections(connections, &mut poll);
+            connections = connections.clean(&mut poll);
         }
 
         iter_counter = iter_counter.wrapping_add(1);
@@ -162,9 +203,7 @@ fn accept_new_streams(
 
                 let token = *poll_token_counter;
 
-                if let Some(connection) = connections.remove(&token) {
-                    connection.deregister(poll).close();
-                }
+                connections.remove_and_deregister(poll, &token);
 
                 let naive_peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
                     peer_addr
@@ -183,10 +222,9 @@ fn accept_new_streams(
                 };
 
                 let connection =
-                    Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta)
-                        .register(poll, token);
+                    Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta);
 
-                connections.insert(token, connection);
+                connections.insert_and_register(poll, token, connection);
             }
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
                 break;
@@ -198,7 +236,7 @@ fn accept_new_streams(
     }
 }
 
-pub fn handle_stream_read_event(
+fn handle_stream_read_event(
     config: &Config,
     state: &State,
     local_responses: &mut Vec<(ConnectionMeta, OutMessage)>,
@@ -210,7 +248,7 @@ pub fn handle_stream_read_event(
 ) {
     let access_list_mode = config.access_list.mode;
 
-    if let Some(mut connection) = connections.remove(&token) {
+    if let Some(mut connection) = connections.remove_and_deregister(poll, &token) {
         let message_handler = &mut |meta, message| match message {
             InMessage::AnnounceRequest(ref request)
                 if !state
@@ -234,9 +272,9 @@ pub fn handle_stream_read_event(
 
         connection.valid_until = valid_until;
 
-        match connection.deregister(poll).read(message_handler) {
+        match connection.read(message_handler) {
             Ok(connection) => {
-                connections.insert(token, connection.register(poll, token));
+                connections.insert_and_register(poll, token, connection);
             }
             Err(err) => {
                 ::log::info!("Connection error: {}", err);
@@ -246,7 +284,7 @@ pub fn handle_stream_read_event(
 }
 
 /// Read messages from channel, send to peers
-pub fn send_out_messages(
+fn send_out_messages(
     poll: &mut Poll,
     local_responses: Drain<(ConnectionMeta, OutMessage)>,
     out_message_receiver: &Receiver<(ConnectionMeta, OutMessage)>,
@@ -272,9 +310,37 @@ pub fn send_out_messages(
         }
 
         if remove_connection {
-            if let Some(connection) = connections.remove(&token) {
-                connection.deregister(poll).close();
-            }
+            connections.remove_and_deregister(poll, &token);
         }
     }
+}
+
+pub fn create_listener(config: &Config) -> ::anyhow::Result<::std::net::TcpListener> {
+    let builder = if config.network.address.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))
+    } else {
+        Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))
+    }
+    .context("Couldn't create socket2::Socket")?;
+
+    if config.network.ipv6_only {
+        builder
+            .set_only_v6(true)
+            .context("Couldn't put socket in ipv6 only mode")?
+    }
+
+    builder
+        .set_nonblocking(true)
+        .context("Couldn't put socket in non-blocking mode")?;
+    builder
+        .set_reuse_port(true)
+        .context("Couldn't put socket in reuse_port mode")?;
+    builder
+        .bind(&config.network.address.into())
+        .with_context(|| format!("Couldn't bind socket to address {}", config.network.address))?;
+    builder
+        .listen(128)
+        .context("Couldn't listen for connections on socket")?;
+
+    Ok(builder.into())
 }
