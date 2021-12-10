@@ -10,7 +10,9 @@ use crate::common::ConnectionMeta;
 
 type TlsStream = rustls::StreamOwned<ServerConnection, TcpStream>;
 
-pub type ConnectionReadResult<T> = ::std::io::Result<ConnectionReadStatus<T>>;
+type HandshakeResult<S> = Result<tungstenite::WebSocket<S>, HandshakeError<ServerHandshake<S, NoCallback>>>;
+
+type ConnectionReadResult<T> = ::std::io::Result<ConnectionReadStatus<T>>;
 
 pub trait RegistryStatus {}
 
@@ -22,12 +24,10 @@ pub struct NotRegistered;
 
 impl RegistryStatus for NotRegistered {}
 
-pub enum ConnectionReadStatus<T> {
+enum ConnectionReadStatus<T> {
     Ok(T),
     WouldBlock(T),
 }
-
-type HandshakeResult<S> = Result<tungstenite::WebSocket<S>, HandshakeError<ServerHandshake<S, NoCallback>>>;
 
 struct TlsHandshaking<R: RegistryStatus> {
     tls_conn: ServerConnection,
@@ -275,7 +275,7 @@ impl Connection<NotRegistered> {
         }
     }
 
-    pub fn read<F>(mut self, message_handler: &mut F) -> ConnectionReadResult<Connection<NotRegistered>> where F: FnMut(ConnectionMeta, InMessage) {
+    pub fn read<F>(mut self, message_handler: &mut F) -> ::std::io::Result<Connection<NotRegistered>> where F: FnMut(ConnectionMeta, InMessage) {
         loop {
             let result = match self.state {
                 ConnectionState::TlsHandshaking(inner) => inner.read(),
@@ -290,7 +290,7 @@ impl Connection<NotRegistered> {
                 Ok(ConnectionReadStatus::WouldBlock(state)) => {
                     self.state = state;
 
-                    return Ok(ConnectionReadStatus::WouldBlock(self));
+                    return Ok(self);
                 }
                 Err(err) => {
                     return Err(err);

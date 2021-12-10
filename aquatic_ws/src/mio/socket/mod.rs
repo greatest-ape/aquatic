@@ -16,7 +16,7 @@ use aquatic_ws_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
-use self::connection::{ConnectionReadStatus, Registered};
+use self::connection::Registered;
 
 use super::common::*;
 
@@ -112,7 +112,7 @@ pub fn run_poll_loop(
                     &mut poll_token_counter,
                 );
             } else if token != CHANNEL_TOKEN {
-                handle_connection_read_events(
+                handle_stream_read_event(
                     &config,
                     state,
                     &mut local_responses,
@@ -197,7 +197,7 @@ fn accept_new_streams(
     }
 }
 
-pub fn handle_connection_read_events(
+pub fn handle_stream_read_event(
     config: &Config,
     state: &State,
     local_responses: &mut Vec<(ConnectionMeta, OutMessage)>,
@@ -209,56 +209,39 @@ pub fn handle_connection_read_events(
 ) {
     let access_list_mode = config.access_list.mode;
 
-    loop {
-        if let Some(connection) = connections.remove(&token) {
-            let mut connection = connection.deregister(poll);
+    if let Some(mut connection) = connections.remove(&token) {
+        let message_handler = &mut |meta, message| {
+            match message {
+                InMessage::AnnounceRequest(ref request)
+                    if !state
+                        .access_list
+                        .allows(access_list_mode, &request.info_hash.0) =>
+                {
+                    let out_message = OutMessage::ErrorResponse(ErrorResponse {
+                        failure_reason: "Info hash not allowed".into(),
+                        action: Some(ErrorResponseAction::Announce),
+                        info_hash: Some(request.info_hash),
+                    });
 
-            connection.valid_until = valid_until;
-
-            let result = connection.read(&mut |meta, message| {
-                match message {
-                    InMessage::AnnounceRequest(ref request)
-                        if !state
-                            .access_list
-                            .allows(access_list_mode, &request.info_hash.0) =>
-                    {
-                        let out_message = OutMessage::ErrorResponse(ErrorResponse {
-                            failure_reason: "Info hash not allowed".into(),
-                            action: Some(ErrorResponseAction::Announce),
-                            info_hash: Some(request.info_hash),
-                        });
-
-                        local_responses.push((meta, out_message));
+                    local_responses.push((meta, out_message));
+                }
+                in_message => {
+                    if let Err(err) = in_message_sender.send((meta, in_message)) {
+                        ::log::error!("InMessageSender: couldn't send message: {:?}", err);
                     }
-                    in_message => {
-                        if let Err(err) = in_message_sender.send((meta, in_message)) {
-                            ::log::error!("InMessageSender: couldn't send message: {:?}", err);
-                        }
-                    }
-                }
-            });
-
-            match result {
-                Ok(ConnectionReadStatus::Ok(connection)) => {
-                    let connection = connection.register(poll, token);
-
-                    connections.insert(token, connection);
-                }
-                Ok(ConnectionReadStatus::WouldBlock(connection)) => {
-                    let connection = connection.register(poll, token);
-
-                    connections.insert(token, connection);
-
-                    break;
-                }
-                Err(err) => {
-                    ::log::info!("Connection error: {}", err);
-
-                    break;
                 }
             }
-        } else {
-            break;
+        };
+
+        connection.valid_until = valid_until;
+
+        match connection.deregister(poll).read(message_handler){
+            Ok(connection) => {
+                connections.insert(token, connection.register(poll, token));
+            }
+            Err(err) => {
+                ::log::info!("Connection error: {}", err);
+            }
         }
     }
 }
@@ -273,8 +256,9 @@ pub fn send_out_messages(
     let len = out_message_receiver.len();
 
     for (meta, out_message) in local_responses.chain(out_message_receiver.try_iter().take(len)) {
-        let mut remove_connection = false;
         let token = Token(meta.connection_id.0);
+
+        let mut remove_connection = false;
 
         if let Some(connection) = connections.get_mut(&token) {
             if connection.meta.naive_peer_addr != meta.naive_peer_addr {
