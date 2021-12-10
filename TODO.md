@@ -42,6 +42,9 @@
 * aquatic_ws
   * mio
     * connection cleaning interval
+    * shard torrent state
+    * use access list cache
+    * connection closing: send tls close message etc?
   * glommio
     * fix memory leak / huge growth
 
