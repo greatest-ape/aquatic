@@ -1,16 +1,21 @@
-use std::{sync::Arc, io::ErrorKind, net::Shutdown, marker::PhantomData};
+use std::{io::ErrorKind, marker::PhantomData, net::Shutdown, sync::Arc};
 
 use aquatic_common::ValidUntil;
 use aquatic_ws_protocol::{InMessage, OutMessage};
-use mio::{net::TcpStream, Poll, Token, Interest};
+use mio::{net::TcpStream, Interest, Poll, Token};
 use rustls::{ServerConfig, ServerConnection};
-use tungstenite::{HandshakeError, handshake::{MidHandshake, server::NoCallback}, ServerHandshake, protocol::WebSocketConfig};
+use tungstenite::{
+    handshake::{server::NoCallback, MidHandshake},
+    protocol::WebSocketConfig,
+    HandshakeError, ServerHandshake,
+};
 
 use crate::common::ConnectionMeta;
 
 type TlsStream = rustls::StreamOwned<ServerConnection, TcpStream>;
 
-type HandshakeResult<S> = Result<tungstenite::WebSocket<S>, HandshakeError<ServerHandshake<S, NoCallback>>>;
+type WsHandshakeResult<S> =
+    Result<tungstenite::WebSocket<S>, HandshakeError<ServerHandshake<S, NoCallback>>>;
 
 type ConnectionReadResult<T> = ::std::io::Result<ConnectionReadStatus<T>>;
 
@@ -37,11 +42,7 @@ struct TlsHandshaking<R: RegistryStatus> {
 }
 
 impl TlsHandshaking<NotRegistered> {
-    fn new(
-        tls_config: Arc<ServerConfig>,
-        ws_config: WebSocketConfig,
-        stream: TcpStream,
-    ) -> Self {
+    fn new(tls_config: Arc<ServerConfig>, ws_config: WebSocketConfig, stream: TcpStream) -> Self {
         Self {
             tls_conn: ServerConnection::new(tls_config).unwrap(),
             ws_config,
@@ -53,39 +54,49 @@ impl TlsHandshaking<NotRegistered> {
     fn read(mut self) -> ConnectionReadResult<ConnectionState<NotRegistered>> {
         match self.tls_conn.read_tls(&mut self.tcp_stream) {
             Ok(0) => {
-                return Err(::std::io::Error::new(ErrorKind::ConnectionReset, "Connection closed"))
+                return Err(::std::io::Error::new(
+                    ErrorKind::ConnectionReset,
+                    "Connection closed",
+                ))
             }
-            Ok(_) => {
-                match self.tls_conn.process_new_packets() {
-                    Ok(_) => {
-                        while self.tls_conn.wants_write() {
-                            self.tls_conn.write_tls(&mut self.tcp_stream)?;
-                        }
-
-                        if self.tls_conn.is_handshaking() {
-                            Ok(ConnectionReadStatus::WouldBlock(ConnectionState::TlsHandshaking(self)))
-                        } else {
-                            let tls_stream = TlsStream::new(self.tls_conn, self.tcp_stream);
-
-                            WsHandshaking::handle_handshake_result(tungstenite::accept_with_config(tls_stream, Some(self.ws_config)))
-                        }
+            Ok(_) => match self.tls_conn.process_new_packets() {
+                Ok(_) => {
+                    while self.tls_conn.wants_write() {
+                        self.tls_conn.write_tls(&mut self.tcp_stream)?;
                     }
-                    Err(err) => {
-                        let _ = self.tls_conn.write_tls(&mut self.tcp_stream);
 
-                        Err(::std::io::Error::new(ErrorKind::InvalidData, err))
+                    if self.tls_conn.is_handshaking() {
+                        Ok(ConnectionReadStatus::WouldBlock(
+                            ConnectionState::TlsHandshaking(self),
+                        ))
+                    } else {
+                        let tls_stream = TlsStream::new(self.tls_conn, self.tcp_stream);
+
+                        WsHandshaking::handle_handshake_result(tungstenite::accept_with_config(
+                            tls_stream,
+                            Some(self.ws_config),
+                        ))
                     }
                 }
-            }
+                Err(err) => {
+                    let _ = self.tls_conn.write_tls(&mut self.tcp_stream);
+
+                    Err(::std::io::Error::new(ErrorKind::InvalidData, err))
+                }
+            },
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                return Ok(ConnectionReadStatus::WouldBlock(ConnectionState::TlsHandshaking(self)))
+                return Ok(ConnectionReadStatus::WouldBlock(
+                    ConnectionState::TlsHandshaking(self),
+                ))
             }
             Err(err) => return Err(err),
         }
     }
 
     fn register(mut self, poll: &mut Poll, token: Token) -> TlsHandshaking<Registered> {
-        poll.registry().register(&mut self.tcp_stream, token, Interest::READABLE).unwrap();
+        poll.registry()
+            .register(&mut self.tcp_stream, token, Interest::READABLE)
+            .unwrap();
 
         TlsHandshaking {
             tls_conn: self.tls_conn,
@@ -123,7 +134,9 @@ impl WsHandshaking<NotRegistered> {
         Self::handle_handshake_result(self.mid_handshake.handshake())
     }
 
-    fn handle_handshake_result(handshake_result: HandshakeResult<TlsStream>) -> ConnectionReadResult<ConnectionState<NotRegistered>> {
+    fn handle_handshake_result(
+        handshake_result: WsHandshakeResult<TlsStream>,
+    ) -> ConnectionReadResult<ConnectionState<NotRegistered>> {
         match handshake_result {
             Ok(web_socket) => {
                 let conn = ConnectionState::WsConnection(WsConnection {
@@ -132,7 +145,7 @@ impl WsHandshaking<NotRegistered> {
                 });
 
                 Ok(ConnectionReadStatus::Ok(conn))
-            },
+            }
             Err(HandshakeError::Interrupted(mid_handshake)) => {
                 let conn = ConnectionState::WsHandshaking(WsHandshaking {
                     mid_handshake,
@@ -150,7 +163,9 @@ impl WsHandshaking<NotRegistered> {
     fn register(mut self, poll: &mut Poll, token: Token) -> WsHandshaking<Registered> {
         let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
 
-        poll.registry().register(tcp_stream, token, Interest::READABLE).unwrap();
+        poll.registry()
+            .register(tcp_stream, token, Interest::READABLE)
+            .unwrap();
 
         WsHandshaking {
             mid_handshake: self.mid_handshake,
@@ -160,7 +175,7 @@ impl WsHandshaking<NotRegistered> {
 
     fn close(mut self) {
         let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
-        
+
         let _ = tcp_stream.shutdown(Shutdown::Both);
     }
 }
@@ -184,36 +199,43 @@ struct WsConnection<R: RegistryStatus> {
 }
 
 impl WsConnection<NotRegistered> {
-    fn read<F>(mut self, message_handler: &mut F, meta: ConnectionMeta) -> ConnectionReadResult<ConnectionState<NotRegistered>> where F: FnMut(ConnectionMeta, InMessage) {
+    fn read<F>(
+        mut self,
+        message_handler: &mut F,
+        meta: ConnectionMeta,
+    ) -> ConnectionReadResult<ConnectionState<NotRegistered>>
+    where
+        F: FnMut(ConnectionMeta, InMessage),
+    {
         match self.web_socket.read_message() {
-            Ok(message) => {
-                match InMessage::from_ws_message(message) {
-                    Ok(message) => {
-                        message_handler(meta, message);
+            Ok(message) => match InMessage::from_ws_message(message) {
+                Ok(message) => {
+                    message_handler(meta, message);
 
-                        Ok(ConnectionReadStatus::Ok(ConnectionState::WsConnection(self)))
-                    }
-                    Err(err) => {
-                        Err(std::io::Error::new(ErrorKind::InvalidData, err))
-                    }
+                    Ok(ConnectionReadStatus::Ok(ConnectionState::WsConnection(
+                        self,
+                    )))
                 }
+                Err(err) => Err(std::io::Error::new(ErrorKind::InvalidData, err)),
             },
             Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                 let conn = ConnectionState::WsConnection(self);
 
                 Ok(ConnectionReadStatus::WouldBlock(conn))
             }
-            Err(tungstenite::Error::Io(err)) => {
-                Err(err)
-            }
-            Err(err) => {
-                Err(std::io::Error::new(ErrorKind::InvalidData, err))
-            }
+            Err(tungstenite::Error::Io(err)) => Err(err),
+            Err(err) => Err(std::io::Error::new(ErrorKind::InvalidData, err)),
         }
     }
 
     fn register(mut self, poll: &mut Poll, token: Token) -> WsConnection<Registered> {
-        poll.registry().register(self.web_socket.get_mut().get_mut(), token, Interest::READABLE).unwrap();
+        poll.registry()
+            .register(
+                self.web_socket.get_mut().get_mut(),
+                token,
+                Interest::READABLE,
+            )
+            .unwrap();
 
         WsConnection {
             web_socket: self.web_socket,
@@ -234,7 +256,9 @@ impl WsConnection<NotRegistered> {
 
 impl WsConnection<Registered> {
     fn deregister(mut self, poll: &mut Poll) -> WsConnection<NotRegistered> {
-        poll.registry().deregister(self.web_socket.get_mut().get_mut()).unwrap();
+        poll.registry()
+            .deregister(self.web_socket.get_mut().get_mut())
+            .unwrap();
 
         WsConnection {
             web_socket: self.web_socket,
@@ -246,9 +270,8 @@ impl WsConnection<Registered> {
 enum ConnectionState<R: RegistryStatus> {
     TlsHandshaking(TlsHandshaking<R>),
     WsHandshaking(WsHandshaking<R>),
-    WsConnection(WsConnection<R>)
+    WsConnection(WsConnection<R>),
 }
-
 
 pub struct Connection<R: RegistryStatus> {
     pub valid_until: ValidUntil,
@@ -264,8 +287,9 @@ impl Connection<NotRegistered> {
         tcp_stream: TcpStream,
         valid_until: ValidUntil,
         meta: ConnectionMeta,
-    )  -> Self {
-        let state = ConnectionState::TlsHandshaking(TlsHandshaking::new(tls_config, ws_config, tcp_stream));
+    ) -> Self {
+        let state =
+            ConnectionState::TlsHandshaking(TlsHandshaking::new(tls_config, ws_config, tcp_stream));
 
         Self {
             valid_until,
@@ -275,7 +299,13 @@ impl Connection<NotRegistered> {
         }
     }
 
-    pub fn read<F>(mut self, message_handler: &mut F) -> ::std::io::Result<Connection<NotRegistered>> where F: FnMut(ConnectionMeta, InMessage) {
+    pub fn read<F>(
+        mut self,
+        message_handler: &mut F,
+    ) -> ::std::io::Result<Connection<NotRegistered>>
+    where
+        F: FnMut(ConnectionMeta, InMessage),
+    {
         loop {
             let result = match self.state {
                 ConnectionState::TlsHandshaking(inner) => inner.read(),
@@ -301,9 +331,15 @@ impl Connection<NotRegistered> {
 
     pub fn register(self, poll: &mut Poll, token: Token) -> Connection<Registered> {
         let state = match self.state {
-            ConnectionState::TlsHandshaking(inner) => ConnectionState::TlsHandshaking(inner.register(poll, token)),
-            ConnectionState::WsHandshaking(inner) => ConnectionState::WsHandshaking(inner.register(poll, token)),
-            ConnectionState::WsConnection(inner) => ConnectionState::WsConnection(inner.register(poll, token)),
+            ConnectionState::TlsHandshaking(inner) => {
+                ConnectionState::TlsHandshaking(inner.register(poll, token))
+            }
+            ConnectionState::WsHandshaking(inner) => {
+                ConnectionState::WsHandshaking(inner.register(poll, token))
+            }
+            ConnectionState::WsConnection(inner) => {
+                ConnectionState::WsConnection(inner.register(poll, token))
+            }
         };
 
         Connection {
@@ -325,26 +361,34 @@ impl Connection<NotRegistered> {
 
 impl Connection<Registered> {
     pub fn write(&mut self, message: OutMessage) -> ::std::io::Result<()> {
-        if let ConnectionState::WsConnection(WsConnection { ref mut web_socket , ..}) = self.state {
+        if let ConnectionState::WsConnection(WsConnection {
+            ref mut web_socket, ..
+        }) = self.state
+        {
             match web_socket.write_message(message.to_ws_message()) {
                 Ok(_) => Ok(()),
-                Err(tungstenite::Error::Io(err)) => {
-                    Err(err)
-                }
-                Err(err) => {
-                    Err(std::io::Error::new(ErrorKind::Other, err))
-                }
+                Err(tungstenite::Error::Io(err)) => Err(err),
+                Err(err) => Err(std::io::Error::new(ErrorKind::Other, err)),
             }
         } else {
-            Err(std::io::Error::new(ErrorKind::NotConnected, "WebSocket connection not established"))
+            Err(std::io::Error::new(
+                ErrorKind::NotConnected,
+                "WebSocket connection not established",
+            ))
         }
     }
 
     pub fn deregister(self, poll: &mut Poll) -> Connection<NotRegistered> {
         let state = match self.state {
-            ConnectionState::TlsHandshaking(inner) => ConnectionState::TlsHandshaking(inner.deregister(poll)),
-            ConnectionState::WsHandshaking(inner) => ConnectionState::WsHandshaking(inner.deregister(poll)),
-            ConnectionState::WsConnection(inner) => ConnectionState::WsConnection(inner.deregister(poll)),
+            ConnectionState::TlsHandshaking(inner) => {
+                ConnectionState::TlsHandshaking(inner.deregister(poll))
+            }
+            ConnectionState::WsHandshaking(inner) => {
+                ConnectionState::WsHandshaking(inner.deregister(poll))
+            }
+            ConnectionState::WsConnection(inner) => {
+                ConnectionState::WsConnection(inner.deregister(poll))
+            }
         };
 
         Connection {
