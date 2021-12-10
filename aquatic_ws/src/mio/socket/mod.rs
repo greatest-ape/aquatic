@@ -16,7 +16,7 @@ use aquatic_ws_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
-use self::connection::ConnectionReadStatus;
+use self::connection::{ConnectionReadStatus, Registered};
 
 use super::common::*;
 
@@ -26,7 +26,7 @@ pub mod utils;
 use connection::Connection;
 use utils::*;
 
-type ConnectionMap = HashMap<Token, Connection>;
+type ConnectionMap = HashMap<Token, Connection<Registered>>;
 
 pub fn run_socket_worker(
     config: Config,
@@ -182,9 +182,7 @@ fn accept_new_streams(
                     pending_scrape_id: None, // FIXME
                 };
 
-                let mut connection = Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta);
-
-                connection.register(poll, token);
+                let connection = Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta).register(poll, token);
 
                 connections.insert(token, connection);
             }
@@ -212,9 +210,10 @@ pub fn handle_connection_read_events(
     let access_list_mode = config.access_list.mode;
 
     loop {
-        if let Some(mut connection) = connections.remove(&token) {
+        if let Some(connection) = connections.remove(&token) {
+            let mut connection = connection.deregister(poll);
+
             connection.valid_until = valid_until;
-            connection.deregister(poll);
 
             let result = connection.read(&mut |meta, message| {
                 match message {
@@ -240,15 +239,15 @@ pub fn handle_connection_read_events(
             });
 
             match result {
-                Ok(ConnectionReadStatus::Ok(mut conn)) => {
-                    conn.register(poll, token);
+                Ok(ConnectionReadStatus::Ok(connection)) => {
+                    let connection = connection.register(poll, token);
 
-                    connections.insert(token, conn);
+                    connections.insert(token, connection);
                 }
-                Ok(ConnectionReadStatus::WouldBlock(mut conn)) => {
-                    conn.register(poll, token);
+                Ok(ConnectionReadStatus::WouldBlock(connection)) => {
+                    let connection = connection.register(poll, token);
 
-                    connections.insert(token, conn);
+                    connections.insert(token, connection);
 
                     break;
                 }
