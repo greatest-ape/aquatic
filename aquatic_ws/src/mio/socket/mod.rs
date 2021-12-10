@@ -260,7 +260,7 @@ pub fn send_out_messages(
         let mut remove_connection = false;
 
         if let Some(connection) = connections.get_mut(&token) {
-            if connection.meta.naive_peer_addr != meta.naive_peer_addr {
+            if connection.get_meta().naive_peer_addr != meta.naive_peer_addr {
                 ::log::info!("socket worker error: peer socket addrs didn't match");
 
                 remove_connection = true;

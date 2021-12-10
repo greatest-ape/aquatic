@@ -275,7 +275,7 @@ enum ConnectionState<R: RegistryStatus> {
 
 pub struct Connection<R: RegistryStatus> {
     pub valid_until: ValidUntil,
-    pub meta: ConnectionMeta,
+    meta: ConnectionMeta,
     state: ConnectionState<R>,
     phantom_data: PhantomData<R>,
 }
@@ -297,6 +297,10 @@ impl<R: RegistryStatus> Connection<R> {
                 "WebSocket connection not established",
             ))
         }
+    }
+
+    pub fn get_meta(&self) -> ConnectionMeta {
+        self.meta
     }
 }
 
