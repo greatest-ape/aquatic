@@ -17,7 +17,7 @@ of sub-implementations for different protocols:
 |--------------|--------------------------------------------|------------------------------------------------------------|
 | aquatic_udp  | [BitTorrent over UDP]                      | Unix-like                                                  |
 | aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+                                                 |
-| aquatic_ws   | [WebTorrent]                               | Unix-like with [mio] (default) / Linux 5.8+ with [glommio] |
+| aquatic_ws   | [WebTorrent] over TLS ([rustls])           | Unix-like with [mio] (default) / Linux 5.8+ with [glommio] |
 
 ## Usage
 
@@ -166,28 +166,11 @@ tls_private_key_path = './key.pem'
 Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
 clients, with some exceptions:
 
+  * Only runs over TLS
   * Doesn't track of the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
-
-#### TLS: mio version
-
-To run over TLS, a pkcs12 file (`.pkx`) is needed. It can be generated from
-Let's Encrypt certificates as follows, assuming you are in the directory where
-they are stored:
-
-```sh
-openssl pkcs12 -export -out identity.pfx -inkey privkey.pem -in cert.pem -certfile fullchain.pem
-```
-
-Enter a password when prompted. Then move `identity.pfx` somewhere suitable,
-and enter the path into the tracker configuration field `tls_pkcs12_path`. Set
-the password in the field `tls_pkcs12_password` and set `use_tls` to true.
-
-#### TLS: glommio version
-
-The glommio version only runs over TLS. For setup instructions, please see
-`aquatic_http` TLS section above.
+For TLS setup instructions, please see `aquatic_http` TLS section above.
 
 #### Benchmarks
 
