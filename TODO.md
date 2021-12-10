@@ -41,7 +41,6 @@
 
 * aquatic_ws
   * mio
-    * pass Poll to Connection methods, deregister on errors
     * connection cleaning interval
   * glommio
     * proper cpu set pinning

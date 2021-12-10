@@ -6,7 +6,6 @@ use std::vec::Drain;
 use aquatic_common::access_list::AccessListQuery;
 use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
-use log::{error, info};
 use mio::net::TcpListener;
 use mio::{Events, Interest, Poll, Token};
 use tungstenite::protocol::WebSocketConfig;
@@ -113,7 +112,7 @@ pub fn run_poll_loop(
                     &mut poll_token_counter,
                 );
             } else if token != CHANNEL_TOKEN {
-                run_handshakes_and_read_messages(
+                handle_connection_read_events(
                     &config,
                     state,
                     &mut local_responses,
@@ -154,7 +153,7 @@ fn accept_new_streams(
 ) {
     loop {
         match listener.accept() {
-            Ok((mut stream, _)) => {
+            Ok((stream, _)) => {
                 poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
 
                 if poll_token_counter.0 < 2 {
@@ -166,10 +165,6 @@ fn accept_new_streams(
                 if let Some(mut connection) = connections.remove(&token) {
                     connection.close(poll);
                 }
-
-                poll.registry()
-                    .register(&mut stream, token, Interest::READABLE)
-                    .unwrap();
                 
                 let naive_peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
                     peer_addr
@@ -187,7 +182,9 @@ fn accept_new_streams(
                     pending_scrape_id: None, // FIXME
                 };
 
-                let connection = Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta);
+                let mut connection = Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta);
+
+                connection.register(poll, token);
 
                 connections.insert(token, connection);
             }
@@ -196,29 +193,28 @@ fn accept_new_streams(
                     break;
                 }
 
-                info!("error while accepting streams: {}", err);
+                ::log::info!("error while accepting streams: {}", err);
             }
         }
     }
 }
 
-/// On the stream given by poll_token, get TLS (if requested) and tungstenite
-/// up and running, then read messages and pass on through channel.
-pub fn run_handshakes_and_read_messages(
+pub fn handle_connection_read_events(
     config: &Config,
     state: &State,
     local_responses: &mut Vec<(ConnectionMeta, OutMessage)>,
     in_message_sender: &InMessageSender,
     poll: &mut Poll,
     connections: &mut ConnectionMap,
-    poll_token: Token,
+    token: Token,
     valid_until: ValidUntil,
 ) {
     let access_list_mode = config.access_list.mode;
 
     loop {
-        if let Some(mut connection) = connections.remove(&poll_token) {
+        if let Some(mut connection) = connections.remove(&token) {
             connection.valid_until = valid_until;
+            connection.deregister(poll);
 
             let result = connection.read(&mut |meta, message| {
                 match message {
@@ -237,23 +233,27 @@ pub fn run_handshakes_and_read_messages(
                     }
                     in_message => {
                         if let Err(err) = in_message_sender.send((meta, in_message)) {
-                            error!("InMessageSender: couldn't send message: {:?}", err);
+                            ::log::error!("InMessageSender: couldn't send message: {:?}", err);
                         }
                     }
                 }
             });
 
             match result {
-                Ok(ConnectionReadStatus::Ok(conn)) => {
-                    connections.insert(poll_token, conn);
+                Ok(ConnectionReadStatus::Ok(mut conn)) => {
+                    conn.register(poll, token);
+
+                    connections.insert(token, conn);
                 }
-                Ok(ConnectionReadStatus::WouldBlock(conn)) => {
-                    connections.insert(poll_token, conn);
+                Ok(ConnectionReadStatus::WouldBlock(mut conn)) => {
+                    conn.register(poll, token);
+
+                    connections.insert(token, conn);
 
                     break;
                 }
                 Err(err) => {
-                    info!("Connection error: {}", err);
+                    ::log::info!("Connection error: {}", err);
 
                     break;
                 }
@@ -274,16 +274,23 @@ pub fn send_out_messages(
     let len = out_message_receiver.len();
 
     for (meta, out_message) in local_responses.chain(out_message_receiver.try_iter().take(len)) {
-        if let Some(connection) = connections.get_mut(&Token(meta.connection_id.0)) {
+        let mut remove_connection = false;
+        let token = Token(meta.connection_id.0);
+
+        if let Some(connection) = connections.get_mut(&token) {
             if connection.meta.naive_peer_addr != meta.naive_peer_addr {
-                info!("socket worker error: peer socket addrs didn't match");
+                ::log::info!("socket worker error: peer socket addrs didn't match");
 
-                continue;
+                remove_connection = true;
+            } else if let Err(err) = connection.write(out_message) {
+                ::log::info!("error sending ws message to peer: {}", err);
+
+                remove_connection = true;
             }
+        }
 
-            if let Err(err) = connection.write(out_message) {
-                info!("error sending ws message to peer: {}", err);
-
+        if remove_connection {
+            if let Some(mut connection) = connections.remove(&token) {
                 connection.close(poll);
             }
         }

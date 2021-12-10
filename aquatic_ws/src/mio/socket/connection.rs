@@ -2,7 +2,7 @@ use std::{sync::Arc, io::ErrorKind, net::Shutdown};
 
 use aquatic_common::ValidUntil;
 use aquatic_ws_protocol::{InMessage, OutMessage};
-use mio::{net::TcpStream, Poll};
+use mio::{net::TcpStream, Poll, Token, Interest};
 use rustls::{ServerConfig, ServerConnection};
 use tungstenite::{HandshakeError, handshake::{MidHandshake, server::NoCallback}, ServerHandshake, protocol::WebSocketConfig};
 
@@ -75,7 +75,15 @@ impl TlsHandshaking {
     fn close(&mut self, poll: &mut Poll) {
         let _ = self.tcp_stream.shutdown(Shutdown::Both);
 
-        let _ = poll.registry().deregister(&mut self.tcp_stream);
+        self.deregister(poll);
+    }
+
+    fn register(&mut self, poll: &mut Poll, token: Token) {
+        poll.registry().register(&mut self.tcp_stream, token, Interest::READABLE).unwrap();
+    }
+
+    fn deregister(&mut self, poll: &mut Poll) {
+        poll.registry().deregister(&mut self.tcp_stream).unwrap();
     }
 }
 
@@ -115,7 +123,19 @@ impl WsHandshaking {
         
         let _ = tcp_stream.shutdown(Shutdown::Both);
 
-        let _ = poll.registry().deregister(tcp_stream);
+        self.deregister(poll);
+    }
+
+    fn register(&mut self, poll: &mut Poll, token: Token) {
+        let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
+
+        poll.registry().register(tcp_stream, token, Interest::READABLE).unwrap();
+    }
+
+    fn deregister(&mut self, poll: &mut Poll) {
+        let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
+
+        poll.registry().deregister(tcp_stream).unwrap();
     }
 }
 
@@ -161,7 +181,15 @@ impl WsConnection {
             }
         }
 
-        let _ = poll.registry().deregister(self.web_socket.get_mut().get_mut());
+        self.deregister(poll)
+    }
+
+    fn register(&mut self, poll: &mut Poll, token: Token) {
+        poll.registry().register(self.web_socket.get_mut().get_mut(), token, Interest::READABLE).unwrap();
+    }
+
+    fn deregister(&mut self, poll: &mut Poll) {
+        poll.registry().deregister(self.web_socket.get_mut().get_mut()).unwrap();
     }
 }
 
@@ -239,6 +267,22 @@ impl Connection {
             ConnectionState::TlsHandshaking(ref mut inner) => inner.close(poll),
             ConnectionState::WsHandshaking(ref mut inner) => inner.close(poll),
             ConnectionState::WsConnection(ref mut inner) => inner.close(poll),
+        }
+    }
+
+    pub fn register(&mut self, poll: &mut Poll, token: Token) {
+        match self.state {
+            ConnectionState::TlsHandshaking(ref mut inner) => inner.register(poll, token),
+            ConnectionState::WsHandshaking(ref mut inner) => inner.register(poll, token),
+            ConnectionState::WsConnection(ref mut inner) => inner.register(poll, token),
+        }
+    }
+
+    pub fn deregister(&mut self, poll: &mut Poll) {
+        match self.state {
+            ConnectionState::TlsHandshaking(ref mut inner) => inner.deregister(poll),
+            ConnectionState::WsHandshaking(ref mut inner) => inner.deregister(poll),
+            ConnectionState::WsConnection(ref mut inner) => inner.deregister(poll),
         }
     }
 }
