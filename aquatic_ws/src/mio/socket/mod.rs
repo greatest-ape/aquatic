@@ -55,6 +55,8 @@ impl ConnectionMap {
         // Remove, deregister and close any existing connection with this token.
         // This shouldn't happen in practice.
         if let Some(connection) = self.connections.remove(&token) {
+            ::log::warn!("removing existing connection {} because of token reuse", token.0);
+
             connection.deregister(poll).close();
         }
 
@@ -92,17 +94,20 @@ impl ConnectionMap {
     fn clean(mut self, poll: &mut Poll) -> Self {
         let now = Instant::now();
 
-        let mut retained_connections = ConnectionMap::default();
+        let mut retained_connections = HashMap::default();
 
         for (token, connection) in self.connections.drain() {
             if connection.valid_until.0 < now {
                 connection.deregister(poll).close();
             } else {
-                retained_connections.connections.insert(token, connection);
+                retained_connections.insert(token, connection);
             }
         }
 
-        retained_connections
+        ConnectionMap {
+            connections: retained_connections,
+            ..self
+        }
     }
 }
 
@@ -299,9 +304,7 @@ fn handle_stream_read_event(
             Ok(connection) => {
                 connections.insert_and_register(poll, token, connection);
             }
-            Err(err) => {
-                ::log::info!("Connection error: {}", err);
-            }
+            Err(_) => {}
         }
     }
 }
@@ -322,13 +325,20 @@ fn send_out_messages(
 
         if let Some(connection) = connections.get_mut(&token) {
             if connection.get_meta().naive_peer_addr != meta.naive_peer_addr {
-                ::log::info!("socket worker error: peer socket addrs didn't match");
+                ::log::warn!(
+                    "socket worker error: connection socket addr {} didn't match channel {}. Token: {}.",
+                    connection.get_meta().naive_peer_addr,
+                    meta.naive_peer_addr,
+                    token.0
+                );
 
                 remove_connection = true;
             } else if let Err(err) = connection.write(out_message) {
-                ::log::info!("error sending ws message to peer: {}", err);
+                ::log::debug!("error sending ws message to peer: {}", err);
 
                 remove_connection = true;
+            } else {
+                ::log::debug!("sent message");
             }
         }
 
