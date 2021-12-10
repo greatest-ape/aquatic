@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-#[cfg(feature = "with-glommio")]
 use std::path::PathBuf;
 
 #[cfg(feature = "cpu-pinning")]
@@ -48,17 +47,9 @@ pub struct NetworkConfig {
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
 
-    #[cfg(feature = "with-glommio")]
     pub tls_certificate_path: PathBuf,
-    #[cfg(feature = "with-glommio")]
     pub tls_private_key_path: PathBuf,
 
-    #[cfg(feature = "with-mio")]
-    pub use_tls: bool,
-    #[cfg(feature = "with-mio")]
-    pub tls_pkcs12_path: String,
-    #[cfg(feature = "with-mio")]
-    pub tls_pkcs12_password: String,
     #[cfg(feature = "with-mio")]
     pub poll_event_capacity: usize,
     #[cfg(feature = "with-mio")]
@@ -143,17 +134,9 @@ impl Default for NetworkConfig {
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
 
-            #[cfg(feature = "with-glommio")]
             tls_certificate_path: "".into(),
-            #[cfg(feature = "with-glommio")]
             tls_private_key_path: "".into(),
 
-            #[cfg(feature = "with-mio")]
-            use_tls: false,
-            #[cfg(feature = "with-mio")]
-            tls_pkcs12_path: "".into(),
-            #[cfg(feature = "with-mio")]
-            tls_pkcs12_password: "".into(),
             #[cfg(feature = "with-mio")]
             poll_event_capacity: 4096,
             #[cfg(feature = "with-mio")]
