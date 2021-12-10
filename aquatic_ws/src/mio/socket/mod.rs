@@ -24,31 +24,68 @@ use super::common::*;
 
 use connection::{Connection, NotRegistered, Registered};
 
-#[derive(Default)]
-struct ConnectionMap(HashMap<Token, Connection<Registered>>);
+struct ConnectionMap {
+    token_counter: Token,
+    connections: HashMap<Token, Connection<Registered>>,
+}
+
+impl Default for ConnectionMap {
+    fn default() -> Self {
+        Self {
+            token_counter: Token(2),
+            connections: Default::default(),
+        }
+    }
+}
 
 impl ConnectionMap {
+    fn insert_and_register_new<F>(&mut self, poll: &mut Poll, connection_creator: F)
+    where
+        F: FnOnce(Token) -> Connection<NotRegistered>,
+    {
+        self.token_counter.0 = self.token_counter.0.wrapping_add(1);
+
+        // Don't assign LISTENER_TOKEN or CHANNEL_TOKEN
+        if self.token_counter.0 < 2 {
+            self.token_counter.0 = 2;
+        }
+
+        let token = self.token_counter;
+
+        // Remove, deregister and close any existing connection with this token.
+        // This shouldn't happen in practice.
+        if let Some(connection) = self.connections.remove(&token) {
+            connection.deregister(poll).close();
+        }
+
+        let connection = connection_creator(token);
+
+        self.insert_and_register(poll, token, connection);
+    }
+
     fn insert_and_register(
         &mut self,
         poll: &mut Poll,
         key: Token,
         conn: Connection<NotRegistered>,
     ) {
-        self.0.insert(key, conn.register(poll, key));
+        self.connections.insert(key, conn.register(poll, key));
     }
+
     fn remove_and_deregister(
         &mut self,
         poll: &mut Poll,
         key: &Token,
     ) -> Option<Connection<NotRegistered>> {
-        if let Some(connection) = self.0.remove(key) {
+        if let Some(connection) = self.connections.remove(key) {
             Some(connection.deregister(poll))
         } else {
             None
         }
     }
+
     fn get_mut(&mut self, key: &Token) -> Option<&mut Connection<Registered>> {
-        self.0.get_mut(key)
+        self.connections.get_mut(key)
     }
 
     /// Close and remove inactive connections
@@ -57,11 +94,11 @@ impl ConnectionMap {
 
         let mut retained_connections = ConnectionMap::default();
 
-        for (token, connection) in self.0.drain() {
+        for (token, connection) in self.connections.drain() {
             if connection.valid_until.0 < now {
                 connection.deregister(poll).close();
             } else {
-                retained_connections.0.insert(token, connection);
+                retained_connections.connections.insert(token, connection);
             }
         }
 
@@ -129,7 +166,6 @@ fn run_poll_loop(
     let mut connections = ConnectionMap::default();
     let mut local_responses = Vec::new();
 
-    let mut poll_token_counter = Token(0usize);
     let mut iter_counter = 0usize;
 
     loop {
@@ -150,7 +186,6 @@ fn run_poll_loop(
                     &mut poll,
                     &mut connections,
                     valid_until,
-                    &mut poll_token_counter,
                 );
             } else if token != CHANNEL_TOKEN {
                 handle_stream_read_event(
@@ -190,41 +225,29 @@ fn accept_new_streams(
     poll: &mut Poll,
     connections: &mut ConnectionMap,
     valid_until: ValidUntil,
-    poll_token_counter: &mut Token,
 ) {
     loop {
         match listener.accept() {
             Ok((stream, _)) => {
-                poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
-
-                if poll_token_counter.0 < 2 {
-                    poll_token_counter.0 = 2;
-                }
-
-                let token = *poll_token_counter;
-
-                connections.remove_and_deregister(poll, &token);
-
                 let naive_peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
                     peer_addr
                 } else {
                     continue;
                 };
 
-                let converted_peer_ip = convert_ipv4_mapped_ipv6(naive_peer_addr.ip());
+                connections.insert_and_register_new(poll, move |token| {
+                    let converted_peer_ip = convert_ipv4_mapped_ipv6(naive_peer_addr.ip());
 
-                let meta = ConnectionMeta {
-                    out_message_consumer_id: ConsumerId(socket_worker_index),
-                    connection_id: ConnectionId(token.0),
-                    naive_peer_addr,
-                    converted_peer_ip,
-                    pending_scrape_id: None, // FIXME
-                };
+                    let meta = ConnectionMeta {
+                        out_message_consumer_id: ConsumerId(socket_worker_index),
+                        connection_id: ConnectionId(token.0),
+                        naive_peer_addr,
+                        converted_peer_ip,
+                        pending_scrape_id: None, // FIXME
+                    };
 
-                let connection =
-                    Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta);
-
-                connections.insert_and_register(poll, token, connection);
+                    Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta)
+                });
             }
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
                 break;
