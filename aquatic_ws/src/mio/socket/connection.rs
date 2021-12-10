@@ -280,6 +280,26 @@ pub struct Connection<R: RegistryStatus> {
     phantom_data: PhantomData<R>,
 }
 
+impl<R: RegistryStatus> Connection<R> {
+    pub fn write(&mut self, message: OutMessage) -> ::std::io::Result<()> {
+        if let ConnectionState::WsConnection(WsConnection {
+            ref mut web_socket, ..
+        }) = self.state
+        {
+            match web_socket.write_message(message.to_ws_message()) {
+                Ok(_) => Ok(()),
+                Err(tungstenite::Error::Io(err)) => Err(err),
+                Err(err) => Err(std::io::Error::new(ErrorKind::Other, err)),
+            }
+        } else {
+            Err(std::io::Error::new(
+                ErrorKind::NotConnected,
+                "WebSocket connection not established",
+            ))
+        }
+    }
+}
+
 impl Connection<NotRegistered> {
     pub fn new(
         tls_config: Arc<ServerConfig>,
@@ -299,6 +319,9 @@ impl Connection<NotRegistered> {
         }
     }
 
+    /// Read until stream blocks (or error occurs)
+    ///
+    /// Requires Connection not to be registered, since it might be dropped on errors
     pub fn read<F>(
         mut self,
         message_handler: &mut F,
@@ -360,24 +383,6 @@ impl Connection<NotRegistered> {
 }
 
 impl Connection<Registered> {
-    pub fn write(&mut self, message: OutMessage) -> ::std::io::Result<()> {
-        if let ConnectionState::WsConnection(WsConnection {
-            ref mut web_socket, ..
-        }) = self.state
-        {
-            match web_socket.write_message(message.to_ws_message()) {
-                Ok(_) => Ok(()),
-                Err(tungstenite::Error::Io(err)) => Err(err),
-                Err(err) => Err(std::io::Error::new(ErrorKind::Other, err)),
-            }
-        } else {
-            Err(std::io::Error::new(
-                ErrorKind::NotConnected,
-                "WebSocket connection not established",
-            ))
-        }
-    }
-
     pub fn deregister(self, poll: &mut Poll) -> Connection<NotRegistered> {
         let state = match self.state {
             ConnectionState::TlsHandshaking(inner) => {
