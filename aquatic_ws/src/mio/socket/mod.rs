@@ -55,7 +55,10 @@ impl ConnectionMap {
         // Remove, deregister and close any existing connection with this token.
         // This shouldn't happen in practice.
         if let Some(connection) = self.connections.remove(&token) {
-            ::log::warn!("removing existing connection {} because of token reuse", token.0);
+            ::log::warn!(
+                "removing existing connection {} because of token reuse",
+                token.0
+            );
 
             connection.deregister(poll).close();
         }
@@ -182,35 +185,62 @@ fn run_poll_loop(
         for event in events.iter() {
             let token = event.token();
 
-            if token == LISTENER_TOKEN {
-                accept_new_streams(
-                    &tls_config,
-                    ws_config,
-                    socket_worker_index,
-                    &mut listener,
-                    &mut poll,
-                    &mut connections,
-                    valid_until,
-                );
-            } else if token != CHANNEL_TOKEN {
-                handle_stream_read_event(
-                    &config,
-                    state,
-                    &mut local_responses,
-                    &in_message_sender,
-                    &mut poll,
-                    &mut connections,
-                    token,
-                    valid_until,
-                );
+            match (token, event.is_readable()) {
+                (LISTENER_TOKEN, _) => {
+                    accept_new_streams(
+                        &tls_config,
+                        ws_config,
+                        socket_worker_index,
+                        &mut listener,
+                        &mut poll,
+                        &mut connections,
+                        valid_until,
+                    );
+                }
+                (CHANNEL_TOKEN, _) => {
+                    send_out_messages(
+                        &mut poll,
+                        local_responses.drain(..),
+                        &out_message_receiver,
+                        &mut connections,
+                    );
+                }
+                (token, true) => {
+                    handle_stream_read_event(
+                        &config,
+                        state,
+                        &mut local_responses,
+                        &in_message_sender,
+                        &mut poll,
+                        &mut connections,
+                        token,
+                        valid_until,
+                    );
+                }
+                (token, false) => {
+                    let mut remove_connection = false;
+
+                    if let Some(connection) = connections.get_mut(&token) {
+                        if let Err(err) = connection.write(&mut poll) {
+                            ::log::info!("Connection::write error: {}", err);
+
+                            remove_connection = true;
+                        }
+                    }
+
+                    if remove_connection {
+                        if let Some(connection) =
+                            connections.remove_and_deregister(&mut poll, &token)
+                        {
+                            connection.close();
+                        }
+                    }
+                }
             }
 
-            send_out_messages(
-                &mut poll,
-                local_responses.drain(..),
-                &out_message_receiver,
-                &mut connections,
-            );
+            if token == LISTENER_TOKEN {
+            } else if token != CHANNEL_TOKEN {
+            }
         }
 
         // Remove inactive connections, but not every iteration
@@ -333,12 +363,15 @@ fn send_out_messages(
                 );
 
                 remove_connection = true;
-            } else if let Err(err) = connection.write(out_message) {
-                ::log::debug!("error sending ws message to peer: {}", err);
-
-                remove_connection = true;
             } else {
-                ::log::debug!("sent message");
+                match connection.write_or_queue_message(poll, out_message) {
+                    Ok(()) => {}
+                    Err(err) => {
+                        ::log::info!("Connection::queue_message error: {}", err);
+
+                        remove_connection = true;
+                    }
+                }
             }
         }
 
