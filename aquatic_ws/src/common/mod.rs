@@ -152,7 +152,7 @@ pub fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig
 
         rustls_pemfile::certs(&mut f)?
             .into_iter()
-            .map(|bytes| futures_rustls::rustls::Certificate(bytes))
+            .map(|bytes| rustls::Certificate(bytes))
             .collect()
     };
 
@@ -162,11 +162,11 @@ pub fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig
 
         rustls_pemfile::pkcs8_private_keys(&mut f)?
             .first()
-            .map(|bytes| futures_rustls::rustls::PrivateKey(bytes.clone()))
+            .map(|bytes| rustls::PrivateKey(bytes.clone()))
             .ok_or(anyhow::anyhow!("No private keys in file"))?
     };
 
-    let tls_config = futures_rustls::rustls::ServerConfig::builder()
+    let tls_config = rustls::ServerConfig::builder()
         .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(certs, private_key)?;
