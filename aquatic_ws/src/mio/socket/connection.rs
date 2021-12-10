@@ -110,13 +110,19 @@ impl Connection<NotRegistered> {
             match result {
                 Ok(ConnectionReadStatus::Ok(state)) => {
                     self.state = state;
+
+                    ::log::debug!("read connection");
                 }
                 Ok(ConnectionReadStatus::WouldBlock(state)) => {
                     self.state = state;
 
+                    ::log::debug!("reading connection would block");
+
                     return Ok(self);
                 }
                 Err(err) => {
+                    ::log::info!("Connection::read error: {}", err);
+
                     return Err(err);
                 }
             }
@@ -145,6 +151,8 @@ impl Connection<NotRegistered> {
     }
 
     pub fn close(self) {
+        ::log::info!("will close connection to {}", self.meta.naive_peer_addr);
+
         match self.state {
             ConnectionState::TlsHandshaking(inner) => inner.close(),
             ConnectionState::WsHandshaking(inner) => inner.close(),
@@ -249,6 +257,8 @@ impl TlsHandshaking<NotRegistered> {
     }
 
     fn close(self) {
+        ::log::info!("closing connection (TlsHandshaking state)");
+
         let _ = self.tcp_stream.shutdown(Shutdown::Both);
     }
 }
@@ -316,6 +326,8 @@ impl WsHandshaking<NotRegistered> {
     }
 
     fn close(mut self) {
+        ::log::info!("closing connection (WsHandshaking state)");
+
         let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
 
         let _ = tcp_stream.shutdown(Shutdown::Both);
@@ -350,8 +362,12 @@ impl WsConnection<NotRegistered> {
         F: FnMut(ConnectionMeta, InMessage),
     {
         match self.web_socket.read_message() {
-            Ok(message) => match InMessage::from_ws_message(message) {
+            Ok(
+                message @ tungstenite::Message::Text(_) | message @ tungstenite::Message::Binary(_),
+            ) => match InMessage::from_ws_message(message) {
                 Ok(message) => {
+                    ::log::debug!("received WebSocket message");
+
                     message_handler(meta, message);
 
                     Ok(ConnectionReadStatus::Ok(ConnectionState::WsConnection(
@@ -360,6 +376,14 @@ impl WsConnection<NotRegistered> {
                 }
                 Err(err) => Err(std::io::Error::new(ErrorKind::InvalidData, err)),
             },
+            Ok(message) => {
+                ::log::info!("received unexpected WebSocket message: {}", message);
+
+                Err(std::io::Error::new(
+                    ErrorKind::InvalidData,
+                    "unexpected WebSocket message type",
+                ))
+            }
             Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
                 let conn = ConnectionState::WsConnection(self);
 
@@ -386,13 +410,10 @@ impl WsConnection<NotRegistered> {
     }
 
     fn close(mut self) {
-        let _ = self.web_socket.close(None);
+        ::log::info!("closing connection (WsConnection state)");
 
-        loop {
-            if let Err(_) = self.web_socket.write_pending() {
-                break;
-            }
-        }
+        let _ = self.web_socket.close(None);
+        let _ = self.web_socket.write_pending();
     }
 }
 
