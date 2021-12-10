@@ -41,6 +41,8 @@
 
 * aquatic_ws
   * mio
+    * pending_response_queue: use bounded VecDeque
+    * use write event interest for handshake too
     * connection cleaning interval
     * shard torrent state
     * use access list cache

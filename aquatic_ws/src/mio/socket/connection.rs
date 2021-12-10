@@ -44,28 +44,12 @@ pub struct Connection<R: RegistryStatus> {
     pub valid_until: ValidUntil,
     meta: ConnectionMeta,
     state: ConnectionState<R>,
+    pending_out_messages: Vec<OutMessage>,
+    interest: Interest,
     phantom_data: PhantomData<R>,
 }
 
 impl<R: RegistryStatus> Connection<R> {
-    pub fn write(&mut self, message: OutMessage) -> ::std::io::Result<()> {
-        if let ConnectionState::WsConnection(WsConnection {
-            ref mut web_socket, ..
-        }) = self.state
-        {
-            match web_socket.write_message(message.to_ws_message()) {
-                Ok(_) => Ok(()),
-                Err(tungstenite::Error::Io(err)) => Err(err),
-                Err(err) => Err(std::io::Error::new(ErrorKind::Other, err)),
-            }
-        } else {
-            Err(std::io::Error::new(
-                ErrorKind::NotConnected,
-                "WebSocket connection not established",
-            ))
-        }
-    }
-
     pub fn get_meta(&self) -> ConnectionMeta {
         self.meta
     }
@@ -86,6 +70,8 @@ impl Connection<NotRegistered> {
             valid_until,
             meta,
             state,
+            pending_out_messages: Vec::new(),
+            interest: Interest::READABLE,
             phantom_data: PhantomData::default(),
         }
     }
@@ -132,13 +118,13 @@ impl Connection<NotRegistered> {
     pub fn register(self, poll: &mut Poll, token: Token) -> Connection<Registered> {
         let state = match self.state {
             ConnectionState::TlsHandshaking(inner) => {
-                ConnectionState::TlsHandshaking(inner.register(poll, token))
+                ConnectionState::TlsHandshaking(inner.register(poll, token, self.interest))
             }
             ConnectionState::WsHandshaking(inner) => {
-                ConnectionState::WsHandshaking(inner.register(poll, token))
+                ConnectionState::WsHandshaking(inner.register(poll, token, self.interest))
             }
             ConnectionState::WsConnection(inner) => {
-                ConnectionState::WsConnection(inner.register(poll, token))
+                ConnectionState::WsConnection(inner.register(poll, token, self.interest))
             }
         };
 
@@ -146,6 +132,8 @@ impl Connection<NotRegistered> {
             valid_until: self.valid_until,
             meta: self.meta,
             state,
+            pending_out_messages: self.pending_out_messages,
+            interest: self.interest,
             phantom_data: PhantomData::default(),
         }
     }
@@ -162,6 +150,97 @@ impl Connection<NotRegistered> {
 }
 
 impl Connection<Registered> {
+    pub fn write_or_queue_message(
+        &mut self,
+        poll: &mut Poll,
+        message: OutMessage,
+    ) -> ::std::io::Result<()> {
+        let message_clone = message.clone();
+
+        match self.write_message(message) {
+            Ok(()) => Ok(()),
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                self.pending_out_messages.push(message_clone);
+
+                if !self.interest.is_writable() {
+                    self.interest = Interest::READABLE | Interest::WRITABLE;
+
+                    self.reregister(poll)?;
+                }
+
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn write(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
+        if let ConnectionState::WsConnection(_) = self.state {
+            while let Some(message) = self.pending_out_messages.pop() {
+                let message_clone = message.clone();
+
+                match self.write_message(message) {
+                    Ok(()) => {}
+                    Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                        self.pending_out_messages.push(message_clone);
+
+                        break;
+                    }
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+            }
+
+            if self.pending_out_messages.is_empty() {
+                self.interest = Interest::READABLE;
+
+                self.reregister(poll)?;
+            }
+
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                ErrorKind::NotConnected,
+                "WebSocket connection not established",
+            ))
+        }
+    }
+
+    fn write_message(&mut self, message: OutMessage) -> ::std::io::Result<()> {
+        if let ConnectionState::WsConnection(WsConnection {
+            ref mut web_socket, ..
+        }) = self.state
+        {
+            match web_socket.write_message(message.to_ws_message()) {
+                Ok(_) => Ok(()),
+                Err(tungstenite::Error::Io(err)) => Err(err),
+                Err(err) => Err(std::io::Error::new(ErrorKind::Other, err)),
+            }
+        } else {
+            Err(std::io::Error::new(
+                ErrorKind::NotConnected,
+                "WebSocket connection not established",
+            ))
+        }
+    }
+
+    pub fn reregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
+        let token = Token(self.meta.connection_id.0);
+
+        match self.state {
+            ConnectionState::TlsHandshaking(ref mut inner) => {
+                inner.reregister(poll, token, self.interest)
+            }
+            ConnectionState::WsHandshaking(ref mut inner) => {
+                inner.reregister(poll, token, self.interest)
+            }
+            ConnectionState::WsConnection(ref mut inner) => {
+                inner.reregister(poll, token, self.interest)
+            }
+        }
+    }
+
     pub fn deregister(self, poll: &mut Poll) -> Connection<NotRegistered> {
         let state = match self.state {
             ConnectionState::TlsHandshaking(inner) => {
@@ -179,6 +258,8 @@ impl Connection<Registered> {
             valid_until: self.valid_until,
             meta: self.meta,
             state,
+            pending_out_messages: self.pending_out_messages,
+            interest: self.interest,
             phantom_data: PhantomData::default(),
         }
     }
@@ -243,9 +324,14 @@ impl TlsHandshaking<NotRegistered> {
         }
     }
 
-    fn register(mut self, poll: &mut Poll, token: Token) -> TlsHandshaking<Registered> {
+    fn register(
+        mut self,
+        poll: &mut Poll,
+        token: Token,
+        interest: Interest,
+    ) -> TlsHandshaking<Registered> {
         poll.registry()
-            .register(&mut self.tcp_stream, token, Interest::READABLE)
+            .register(&mut self.tcp_stream, token, interest)
             .unwrap();
 
         TlsHandshaking {
@@ -273,6 +359,16 @@ impl TlsHandshaking<Registered> {
             tcp_stream: self.tcp_stream,
             phantom_data: PhantomData::default(),
         }
+    }
+
+    fn reregister(
+        &mut self,
+        poll: &mut Poll,
+        token: Token,
+        interest: Interest,
+    ) -> std::io::Result<()> {
+        poll.registry()
+            .reregister(&mut self.tcp_stream, token, interest)
     }
 }
 
@@ -312,11 +408,16 @@ impl WsHandshaking<NotRegistered> {
         }
     }
 
-    fn register(mut self, poll: &mut Poll, token: Token) -> WsHandshaking<Registered> {
+    fn register(
+        mut self,
+        poll: &mut Poll,
+        token: Token,
+        interest: Interest,
+    ) -> WsHandshaking<Registered> {
         let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
 
         poll.registry()
-            .register(tcp_stream, token, Interest::READABLE)
+            .register(tcp_stream, token, interest)
             .unwrap();
 
         WsHandshaking {
@@ -344,6 +445,17 @@ impl WsHandshaking<Registered> {
             mid_handshake: self.mid_handshake,
             phantom_data: PhantomData::default(),
         }
+    }
+
+    fn reregister(
+        &mut self,
+        poll: &mut Poll,
+        token: Token,
+        interest: Interest,
+    ) -> std::io::Result<()> {
+        let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
+
+        poll.registry().reregister(tcp_stream, token, interest)
     }
 }
 
@@ -394,13 +506,14 @@ impl WsConnection<NotRegistered> {
         }
     }
 
-    fn register(mut self, poll: &mut Poll, token: Token) -> WsConnection<Registered> {
+    fn register(
+        mut self,
+        poll: &mut Poll,
+        token: Token,
+        interest: Interest,
+    ) -> WsConnection<Registered> {
         poll.registry()
-            .register(
-                self.web_socket.get_mut().get_mut(),
-                token,
-                Interest::READABLE,
-            )
+            .register(self.web_socket.get_mut().get_mut(), token, interest)
             .unwrap();
 
         WsConnection {
@@ -427,5 +540,15 @@ impl WsConnection<Registered> {
             web_socket: self.web_socket,
             phantom_data: PhantomData::default(),
         }
+    }
+
+    fn reregister(
+        &mut self,
+        poll: &mut Poll,
+        token: Token,
+        interest: Interest,
+    ) -> std::io::Result<()> {
+        poll.registry()
+            .reregister(self.web_socket.get_mut().get_mut(), token, interest)
     }
 }
