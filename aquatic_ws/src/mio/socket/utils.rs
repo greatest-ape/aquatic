@@ -1,12 +1,12 @@
 use std::time::Instant;
 
 use anyhow::Context;
-use mio::{Poll, Token};
+use mio::Poll;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::config::Config;
 
-use super::connection::*;
+use super::ConnectionMap;
 
 pub fn create_listener(config: &Config) -> ::anyhow::Result<::std::net::TcpListener> {
     let builder = if config.network.address.is_ipv4() {
@@ -38,23 +38,13 @@ pub fn create_listener(config: &Config) -> ::anyhow::Result<::std::net::TcpListe
     Ok(builder.into())
 }
 
-pub fn remove_connection_if_exists(poll: &mut Poll, connections: &mut ConnectionMap, token: Token) {
-    if let Some(mut connection) = connections.remove(&token) {
-        connection.close();
-
-        if let Err(err) = connection.deregister(poll) {
-            ::log::error!("couldn't deregister stream: {}", err);
-        }
-    }
-}
-
 // Close and remove inactive connections
-pub fn remove_inactive_connections(connections: &mut ConnectionMap) {
+pub fn remove_inactive_connections(connections: &mut ConnectionMap, poll: &mut Poll) {
     let now = Instant::now();
 
     connections.retain(|_, connection| {
         if connection.valid_until.0 < now {
-            connection.close();
+            connection.close(poll);
 
             false
         } else {

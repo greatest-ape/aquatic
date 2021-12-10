@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::Read;
 use std::sync::Arc;
 use std::thread::Builder;
 use std::time::Duration;
@@ -9,7 +7,6 @@ use anyhow::Context;
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use histogram::Histogram;
 use mio::{Poll, Waker};
-use native_tls::{Identity, TlsAcceptor};
 use parking_lot::Mutex;
 use privdrop::PrivDrop;
 
@@ -17,7 +14,7 @@ pub mod common;
 pub mod request;
 pub mod socket;
 
-use crate::config::Config;
+use crate::{config::Config, common::create_tls_config};
 use common::*;
 
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
@@ -44,7 +41,7 @@ pub fn run(config: Config, state: State) -> anyhow::Result<()> {
 }
 
 pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
-    let opt_tls_acceptor = create_tls_acceptor(&config)?;
+    let tls_config = Arc::new(create_tls_config(&config)?);
 
     let (in_message_sender, in_message_receiver) = ::crossbeam_channel::unbounded();
 
@@ -66,7 +63,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         let state = state.clone();
         let socket_worker_statuses = socket_worker_statuses.clone();
         let in_message_sender = in_message_sender.clone();
-        let opt_tls_acceptor = opt_tls_acceptor.clone();
+        let tls_config = tls_config.clone();
         let poll = Poll::new()?;
         let waker = Arc::new(Waker::new(poll.registry(), CHANNEL_TOKEN)?);
 
@@ -93,7 +90,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
                     poll,
                     in_message_sender,
                     out_message_receiver,
-                    opt_tls_acceptor,
+                    tls_config,
                 );
             })?;
     }
@@ -178,27 +175,6 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-pub fn create_tls_acceptor(config: &Config) -> anyhow::Result<Option<TlsAcceptor>> {
-    if config.network.use_tls {
-        let mut identity_bytes = Vec::new();
-        let mut file = File::open(&config.network.tls_pkcs12_path)
-            .context("Couldn't open pkcs12 identity file")?;
-
-        file.read_to_end(&mut identity_bytes)
-            .context("Couldn't read pkcs12 identity file")?;
-
-        let identity = Identity::from_pkcs12(&identity_bytes, &config.network.tls_pkcs12_password)
-            .context("Couldn't parse pkcs12 identity file")?;
-
-        let acceptor = TlsAcceptor::new(identity)
-            .context("Couldn't create TlsAcceptor from pkcs12 identity")?;
-
-        Ok(Some(acceptor))
-    } else {
-        Ok(None)
-    }
 }
 
 fn print_statistics(state: &State) {

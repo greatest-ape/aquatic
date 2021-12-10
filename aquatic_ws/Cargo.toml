@@ -17,7 +17,7 @@ name = "aquatic_ws"
 default = ["with-mio"]
 cpu-pinning = ["aquatic_common/cpu-pinning"]
 with-glommio = ["cpu-pinning", "async-tungstenite", "futures-lite", "futures", "futures-rustls", "glommio", "rustls-pemfile"]
-with-mio = ["crossbeam-channel", "histogram", "mio", "native-tls", "parking_lot", "socket2"]
+with-mio = ["crossbeam-channel", "histogram", "mio", "parking_lot", "rustls", "socket2"]
 
 [dependencies]
 anyhow = "1"
@@ -40,8 +40,8 @@ tungstenite = "0.16"
 crossbeam-channel = { version = "0.5", optional = true }
 histogram = { version = "0.6", optional = true }
 mio = { version = "0.8", features = ["net", "os-poll"], optional = true }
-native-tls = { version = "0.2", optional = true }
 parking_lot = { version = "0.11", optional = true }
+rustls = { version = "0.20", optional = true }
 socket2 = { version = "0.4", features = ["all"], optional = true }
 
 # glommio

@@ -1,298 +1,244 @@
-use std::io::{Read, Write};
-use std::net::SocketAddr;
+use std::{sync::Arc, io::ErrorKind, net::Shutdown};
 
-use either::Either;
-use hashbrown::HashMap;
-use log::info;
-use mio::net::TcpStream;
-use mio::{Poll, Token};
-use native_tls::{MidHandshakeTlsStream, TlsAcceptor, TlsStream};
-use tungstenite::handshake::{server::NoCallback, HandshakeError, MidHandshake};
-use tungstenite::protocol::WebSocketConfig;
-use tungstenite::ServerHandshake;
-use tungstenite::WebSocket;
+use aquatic_common::ValidUntil;
+use aquatic_ws_protocol::{InMessage, OutMessage};
+use mio::{net::TcpStream, Poll};
+use rustls::{ServerConfig, ServerConnection};
+use tungstenite::{HandshakeError, handshake::{MidHandshake, server::NoCallback}, ServerHandshake, protocol::WebSocketConfig};
 
-use crate::common::*;
+use crate::common::ConnectionMeta;
 
-pub enum Stream {
-    TcpStream(TcpStream),
-    TlsStream(TlsStream<TcpStream>),
+type TlsStream = rustls::StreamOwned<ServerConnection, TcpStream>;
+
+pub type ConnectionReadResult<T> = ::std::io::Result<ConnectionReadStatus<T>>;
+
+pub enum ConnectionReadStatus<T> {
+    Ok(T),
+    WouldBlock(T),
 }
 
-impl Stream {
-    #[inline]
-    pub fn get_peer_addr(&self) -> ::std::io::Result<SocketAddr> {
-        match self {
-            Self::TcpStream(stream) => stream.peer_addr(),
-            Self::TlsStream(stream) => stream.get_ref().peer_addr(),
-        }
-    }
+type HandshakeResult<S> = Result<tungstenite::WebSocket<S>, HandshakeError<ServerHandshake<S, NoCallback>>>;
 
-    #[inline]
-    pub fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
-        match self {
-            Self::TcpStream(stream) => poll.registry().deregister(stream),
-            Self::TlsStream(stream) => poll.registry().deregister(stream.get_mut()),
-        }
-    }
+struct TlsHandshaking {
+    tls_conn: ServerConnection,
+    ws_config: WebSocketConfig,
+    tcp_stream: TcpStream,
 }
 
-impl Read for Stream {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, ::std::io::Error> {
-        match self {
-            Self::TcpStream(stream) => stream.read(buf),
-            Self::TlsStream(stream) => stream.read(buf),
-        }
-    }
-
-    /// Not used but provided for completeness
-    #[inline]
-    fn read_vectored(
-        &mut self,
-        bufs: &mut [::std::io::IoSliceMut<'_>],
-    ) -> ::std::io::Result<usize> {
-        match self {
-            Self::TcpStream(stream) => stream.read_vectored(bufs),
-            Self::TlsStream(stream) => stream.read_vectored(bufs),
-        }
-    }
-}
-
-impl Write for Stream {
-    #[inline]
-    fn write(&mut self, buf: &[u8]) -> ::std::io::Result<usize> {
-        match self {
-            Self::TcpStream(stream) => stream.write(buf),
-            Self::TlsStream(stream) => stream.write(buf),
-        }
-    }
-
-    /// Not used but provided for completeness
-    #[inline]
-    fn write_vectored(&mut self, bufs: &[::std::io::IoSlice<'_>]) -> ::std::io::Result<usize> {
-        match self {
-            Self::TcpStream(stream) => stream.write_vectored(bufs),
-            Self::TlsStream(stream) => stream.write_vectored(bufs),
-        }
-    }
-
-    #[inline]
-    fn flush(&mut self) -> ::std::io::Result<()> {
-        match self {
-            Self::TcpStream(stream) => stream.flush(),
-            Self::TlsStream(stream) => stream.flush(),
-        }
-    }
-}
-
-enum HandshakeMachine {
-    TcpStream(TcpStream),
-    TlsStream(TlsStream<TcpStream>),
-    TlsMidHandshake(MidHandshakeTlsStream<TcpStream>),
-    WsMidHandshake(MidHandshake<ServerHandshake<Stream, NoCallback>>),
-}
-
-impl HandshakeMachine {
-    #[inline]
-    fn new(tcp_stream: TcpStream) -> Self {
-        Self::TcpStream(tcp_stream)
-    }
-
-    #[inline]
-    fn advance(
-        self,
+impl TlsHandshaking {
+    fn new(
+        tls_config: Arc<ServerConfig>,
         ws_config: WebSocketConfig,
-        opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
-    ) -> (Option<Either<EstablishedWs, Self>>, bool) {
-        // bool = stop looping
-        match self {
-            HandshakeMachine::TcpStream(stream) => {
-                if let Some(tls_acceptor) = opt_tls_acceptor {
-                    Self::handle_tls_handshake_result(tls_acceptor.accept(stream))
-                } else {
-                    let handshake_result = ::tungstenite::accept_with_config(
-                        Stream::TcpStream(stream),
-                        Some(ws_config),
-                    );
+        stream: TcpStream,
+    ) -> Self {
+        Self {
+            tls_conn: ServerConnection::new(tls_config).unwrap(),
+            ws_config,
+            tcp_stream: stream,
+        }
+    }
 
-                    Self::handle_ws_handshake_result(handshake_result)
+    fn read(mut self) -> ConnectionReadResult<ConnectionState> {
+        match self.tls_conn.read_tls(&mut self.tcp_stream) {
+            Ok(0) => {
+                return Err(::std::io::Error::new(ErrorKind::ConnectionReset, "Connection closed"))
+            }
+            Ok(_) => {
+                match self.tls_conn.process_new_packets() {
+                    Ok(_) => {
+                        while self.tls_conn.wants_write() {
+                            self.tls_conn.write_tls(&mut self.tcp_stream)?;
+                        }
+
+                        if self.tls_conn.is_handshaking() {
+                            Ok(ConnectionReadStatus::WouldBlock(ConnectionState::TlsHandshaking(self)))
+                        } else {
+                            let tls_stream = TlsStream::new(self.tls_conn, self.tcp_stream);
+
+                            WsHandshaking::handle_handshake_result(tungstenite::accept_with_config(tls_stream, Some(self.ws_config)))
+                        }
+                    }
+                    Err(err) => {
+                        let _ = self.tls_conn.write_tls(&mut self.tcp_stream);
+
+                        Err(::std::io::Error::new(ErrorKind::InvalidData, err))
+                    }
                 }
             }
-            HandshakeMachine::TlsStream(stream) => {
-                let handshake_result = ::tungstenite::accept(Stream::TlsStream(stream));
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                return Ok(ConnectionReadStatus::WouldBlock(ConnectionState::TlsHandshaking(self)))
+            }
+            Err(err) => return Err(err),
+        }
+    }
 
-                Self::handle_ws_handshake_result(handshake_result)
+    fn close(&mut self, poll: &mut Poll) {
+        let _ = self.tcp_stream.shutdown(Shutdown::Both);
+
+        let _ = poll.registry().deregister(&mut self.tcp_stream);
+    }
+}
+
+struct WsHandshaking {
+    mid_handshake: MidHandshake<ServerHandshake<TlsStream, NoCallback>>,
+}
+
+impl WsHandshaking {
+    fn read(self) -> ConnectionReadResult<ConnectionState> {
+        Self::handle_handshake_result(self.mid_handshake.handshake())
+    }
+
+    fn handle_handshake_result(handshake_result: HandshakeResult<TlsStream>) -> ConnectionReadResult<ConnectionState> {
+        match handshake_result {
+            Ok(web_socket) => {
+                let conn = ConnectionState::WsConnection(WsConnection {
+                    web_socket
+                });
+
+                Ok(ConnectionReadStatus::Ok(conn))
+            },
+            Err(HandshakeError::Interrupted(mid_handshake)) => {
+                let conn = ConnectionState::WsHandshaking(WsHandshaking {
+                    mid_handshake,
+                });
+
+                Ok(ConnectionReadStatus::WouldBlock(conn))
             }
-            HandshakeMachine::TlsMidHandshake(handshake) => {
-                Self::handle_tls_handshake_result(handshake.handshake())
-            }
-            HandshakeMachine::WsMidHandshake(handshake) => {
-                Self::handle_ws_handshake_result(handshake.handshake())
+            Err(HandshakeError::Failure(err)) => {
+                return Err(std::io::Error::new(ErrorKind::InvalidData, err))
             }
         }
     }
 
-    #[inline]
-    fn handle_tls_handshake_result(
-        result: Result<TlsStream<TcpStream>, ::native_tls::HandshakeError<TcpStream>>,
-    ) -> (Option<Either<EstablishedWs, Self>>, bool) {
-        match result {
-            Ok(stream) => {
-                ::log::trace!(
-                    "established tls handshake with peer with addr: {:?}",
-                    stream.get_ref().peer_addr()
-                );
+    fn close(&mut self, poll: &mut Poll) {
+        let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
+        
+        let _ = tcp_stream.shutdown(Shutdown::Both);
 
-                (Some(Either::Right(Self::TlsStream(stream))), false)
-            }
-            Err(native_tls::HandshakeError::WouldBlock(handshake)) => {
-                (Some(Either::Right(Self::TlsMidHandshake(handshake))), true)
-            }
-            Err(native_tls::HandshakeError::Failure(err)) => {
-                info!("tls handshake error: {}", err);
-
-                (None, false)
-            }
-        }
+        let _ = poll.registry().deregister(tcp_stream);
     }
+}
 
-    #[inline]
-    fn handle_ws_handshake_result(
-        result: Result<WebSocket<Stream>, HandshakeError<ServerHandshake<Stream, NoCallback>>>,
-    ) -> (Option<Either<EstablishedWs, Self>>, bool) {
-        match result {
-            Ok(mut ws) => match ws.get_mut().get_peer_addr() {
-                Ok(peer_addr) => {
-                    ::log::trace!(
-                        "established ws handshake with peer with addr: {:?}",
-                        peer_addr
-                    );
+struct WsConnection {
+    web_socket: tungstenite::WebSocket<TlsStream>,
+}
 
-                    let established_ws = EstablishedWs { ws, peer_addr };
+impl WsConnection {
+    fn read<F>(mut self, message_handler: &mut F, meta: ConnectionMeta) -> ConnectionReadResult<ConnectionState> where F: FnMut(ConnectionMeta, InMessage) {
+        match self.web_socket.read_message() {
+            Ok(message) => {
+                match InMessage::from_ws_message(message) {
+                    Ok(message) => {
+                        message_handler(meta, message);
 
-                    (Some(Either::Left(established_ws)), false)
-                }
-                Err(err) => {
-                    ::log::info!(
-                        "get_peer_addr failed during handshake, removing connection: {:?}",
-                        err
-                    );
-
-                    (None, false)
+                        Ok(ConnectionReadStatus::Ok(ConnectionState::WsConnection(self)))
+                    }
+                    Err(err) => {
+                        Err(std::io::Error::new(ErrorKind::InvalidData, err))
+                    }
                 }
             },
-            Err(HandshakeError::Interrupted(handshake)) => (
-                Some(Either::Right(HandshakeMachine::WsMidHandshake(handshake))),
-                true,
-            ),
-            Err(HandshakeError::Failure(err)) => {
-                info!("ws handshake error: {}", err);
+            Err(tungstenite::Error::Io(err)) if err.kind() == ErrorKind::WouldBlock => {
+                let conn = ConnectionState::WsConnection(self);
 
-                (None, false)
+                Ok(ConnectionReadStatus::WouldBlock(conn))
+            }
+            Err(tungstenite::Error::Io(err)) => {
+                Err(err)
+            }
+            Err(err) => {
+                Err(std::io::Error::new(ErrorKind::InvalidData, err))
             }
         }
     }
+
+    fn close(&mut self, poll: &mut Poll) {
+        let _ = self.web_socket.close(None);
+
+        loop {
+            if let Err(_) = self.web_socket.write_pending() {
+                break;
+            }
+        }
+
+        let _ = poll.registry().deregister(self.web_socket.get_mut().get_mut());
+    }
 }
 
-pub struct EstablishedWs {
-    pub ws: WebSocket<Stream>,
-    pub peer_addr: SocketAddr,
+enum ConnectionState {
+    TlsHandshaking(TlsHandshaking),
+    WsHandshaking(WsHandshaking),
+    WsConnection(WsConnection)
 }
 
 pub struct Connection {
-    ws_config: WebSocketConfig,
     pub valid_until: ValidUntil,
-    inner: Either<EstablishedWs, HandshakeMachine>,
+    pub meta: ConnectionMeta,
+    state: ConnectionState,
 }
 
-/// Create from TcpStream. Run `advance_handshakes` until `get_established_ws`
-/// returns Some(EstablishedWs).
-///
-/// advance_handshakes takes ownership of self because the TLS and WebSocket
-/// handshake methods do. get_established_ws doesn't, since work can be done
-/// on a mutable reference to a tungstenite websocket, and this way, the whole
-/// Connection doesn't have to be removed from and reinserted into the
-/// TorrentMap. This is also the reason for wrapping Container.inner in an
-/// Either instead of combining all states into one structure just having a
-/// single method for advancing handshakes and maybe returning a websocket.
 impl Connection {
-    #[inline]
-    pub fn new(ws_config: WebSocketConfig, valid_until: ValidUntil, tcp_stream: TcpStream) -> Self {
-        Self {
-            ws_config,
-            valid_until,
-            inner: Either::Right(HandshakeMachine::new(tcp_stream)),
-        }
-    }
-
-    #[inline]
-    pub fn get_established_ws(&mut self) -> Option<&mut EstablishedWs> {
-        match self.inner {
-            Either::Left(ref mut ews) => Some(ews),
-            Either::Right(_) => None,
-        }
-    }
-
-    #[inline]
-    pub fn advance_handshakes(
-        self,
-        opt_tls_acceptor: &Option<TlsAcceptor>,
+    pub fn new(
+        tls_config: Arc<ServerConfig>,
+        ws_config: WebSocketConfig,
+        tcp_stream: TcpStream,
         valid_until: ValidUntil,
-    ) -> (Option<Self>, bool) {
-        match self.inner {
-            Either::Left(_) => (Some(self), false),
-            Either::Right(machine) => {
-                let ws_config = self.ws_config;
+        meta: ConnectionMeta,
+    )  -> Self {
+        let state = ConnectionState::TlsHandshaking(TlsHandshaking::new(tls_config, ws_config, tcp_stream));
 
-                let (opt_inner, stop_loop) = machine.advance(ws_config, opt_tls_acceptor);
+        Self {
+            valid_until,
+            meta,
+            state,
+        }
+    }
 
-                let opt_new_self = opt_inner.map(|inner| Self {
-                    ws_config,
-                    valid_until,
-                    inner,
-                });
+    pub fn read<F>(mut self, message_handler: &mut F) -> ConnectionReadResult<Connection> where F: FnMut(ConnectionMeta, InMessage) {
+        loop {
+            let result = match self.state {
+                ConnectionState::TlsHandshaking(inner) => inner.read(),
+                ConnectionState::WsHandshaking(inner) => inner.read(),
+                ConnectionState::WsConnection(inner) => inner.read(message_handler, self.meta),
+            };
 
-                (opt_new_self, stop_loop)
+            match result {
+                Ok(ConnectionReadStatus::Ok(state)) => {
+                    self.state = state;
+                }
+                Ok(ConnectionReadStatus::WouldBlock(state)) => {
+                    self.state = state;
+
+                    return Ok(ConnectionReadStatus::WouldBlock(self));
+                }
+                Err(err) => {
+                    return Err(err);
+                }
             }
         }
     }
 
-    #[inline]
-    pub fn close(&mut self) {
-        if let Either::Left(ref mut ews) = self.inner {
-            if ews.ws.can_read() {
-                if let Err(err) = ews.ws.close(None) {
-                    ::log::info!("error closing ws: {}", err);
+    pub fn write(&mut self, message: OutMessage) -> ::std::io::Result<()> {
+        if let ConnectionState::WsConnection(WsConnection { ref mut web_socket }) = self.state {
+            match web_socket.write_message(message.to_ws_message()) {
+                Ok(_) => Ok(()),
+                Err(tungstenite::Error::Io(err)) => {
+                    Err(err)
                 }
-
-                // Required after ws.close()
-                if let Err(err) = ews.ws.write_pending() {
-                    ::log::info!("error writing pending messages after closing ws: {}", err)
+                Err(err) => {
+                    Err(std::io::Error::new(ErrorKind::Other, err))
                 }
             }
+        } else {
+            Err(std::io::Error::new(ErrorKind::NotConnected, "WebSocket connection not established"))
         }
     }
 
-    pub fn deregister(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
-        use Either::{Left, Right};
-
-        match self.inner {
-            Left(EstablishedWs { ref mut ws, .. }) => ws.get_mut().deregister(poll),
-            Right(HandshakeMachine::TcpStream(ref mut stream)) => {
-                poll.registry().deregister(stream)
-            }
-            Right(HandshakeMachine::TlsMidHandshake(ref mut handshake)) => {
-                poll.registry().deregister(handshake.get_mut())
-            }
-            Right(HandshakeMachine::TlsStream(ref mut stream)) => {
-                poll.registry().deregister(stream.get_mut())
-            }
-            Right(HandshakeMachine::WsMidHandshake(ref mut handshake)) => {
-                handshake.get_mut().get_mut().deregister(poll)
-            }
+    pub fn close(&mut self, poll: &mut Poll) {
+        match self.state {
+            ConnectionState::TlsHandshaking(ref mut inner) => inner.close(poll),
+            ConnectionState::WsHandshaking(ref mut inner) => inner.close(poll),
+            ConnectionState::WsConnection(ref mut inner) => inner.close(poll),
         }
     }
 }
-
-pub type ConnectionMap = HashMap<Token, Connection>;

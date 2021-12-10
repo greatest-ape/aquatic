@@ -40,6 +40,9 @@
     messages can be sent back (e.g., "full scrapes are not supported")
 
 * aquatic_ws
+  * mio
+    * pass Poll to Connection methods, deregister on errors
+    * connection cleaning interval
   * glommio
     * proper cpu set pinning
     * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
