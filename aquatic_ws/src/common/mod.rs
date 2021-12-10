@@ -1,5 +1,7 @@
 pub mod handlers;
 
+use std::fs::File;
+use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Instant;
@@ -141,4 +143,33 @@ impl TorrentMaps {
 
         torrent_map.shrink_to_fit();
     }
+}
+
+pub fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
+    let certs = {
+        let f = File::open(&config.network.tls_certificate_path)?;
+        let mut f = BufReader::new(f);
+
+        rustls_pemfile::certs(&mut f)?
+            .into_iter()
+            .map(|bytes| futures_rustls::rustls::Certificate(bytes))
+            .collect()
+    };
+
+    let private_key = {
+        let f = File::open(&config.network.tls_private_key_path)?;
+        let mut f = BufReader::new(f);
+
+        rustls_pemfile::pkcs8_private_keys(&mut f)?
+            .first()
+            .map(|bytes| futures_rustls::rustls::PrivateKey(bytes.clone()))
+            .ok_or(anyhow::anyhow!("No private keys in file"))?
+    };
+
+    let tls_config = futures_rustls::rustls::ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(certs, private_key)?;
+
+    Ok(tls_config)
 }

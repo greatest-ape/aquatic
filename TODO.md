@@ -40,6 +40,9 @@
     messages can be sent back (e.g., "full scrapes are not supported")
 
 * aquatic_ws
+  * mio
+    * pass Poll to Connection methods, deregister on errors
+    * connection cleaning interval
   * glommio
     * fix memory leak / huge growth
 
