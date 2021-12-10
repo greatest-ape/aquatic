@@ -14,7 +14,7 @@ cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [dependencies]
 anyhow = "1"
-async-tungstenite = "0.15"
+async-tungstenite = "0.16"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
@@ -22,13 +22,14 @@ futures = "0.3"
 futures-rustls = "0.22"
 glommio = { git = "https://github.com/DataDog/glommio.git", rev = "4e6b14772da2f4325271fbcf12d24cf91ed466e5" }
 hashbrown = { version = "0.11", features = ["serde"] }
+log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
 rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tungstenite = "0.15"
+tungstenite = "0.16"
 
 [dev-dependencies]
 quickcheck = "1"
