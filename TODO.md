@@ -42,6 +42,9 @@
 * aquatic_ws
   * mio
     * connection cleaning interval
+    * shard torrent state
+    * use access list cache
+    * connection closing: send tls close message etc?
   * glommio
     * proper cpu set pinning
     * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
