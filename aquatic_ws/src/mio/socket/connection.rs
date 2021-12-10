@@ -12,6 +12,16 @@ type TlsStream = rustls::StreamOwned<ServerConnection, TcpStream>;
 
 pub type ConnectionReadResult<T> = ::std::io::Result<ConnectionReadStatus<T>>;
 
+pub trait RegistryStatus {}
+
+pub struct Registered;
+
+impl RegistryStatus for Registered {}
+
+pub struct NotRegistered;
+
+impl RegistryStatus for NotRegistered {}
+
 pub enum ConnectionReadStatus<T> {
     Ok(T),
     WouldBlock(T),
@@ -19,13 +29,14 @@ pub enum ConnectionReadStatus<T> {
 
 type HandshakeResult<S> = Result<tungstenite::WebSocket<S>, HandshakeError<ServerHandshake<S, NoCallback>>>;
 
-struct TlsHandshaking {
+struct TlsHandshaking<R: RegistryStatus> {
     tls_conn: ServerConnection,
     ws_config: WebSocketConfig,
     tcp_stream: TcpStream,
+    phantom_data: PhantomData<R>,
 }
 
-impl TlsHandshaking {
+impl TlsHandshaking<NotRegistered> {
     fn new(
         tls_config: Arc<ServerConfig>,
         ws_config: WebSocketConfig,
@@ -35,10 +46,11 @@ impl TlsHandshaking {
             tls_conn: ServerConnection::new(tls_config).unwrap(),
             ws_config,
             tcp_stream: stream,
+            phantom_data: PhantomData::default(),
         }
     }
 
-    fn read(mut self) -> ConnectionReadResult<ConnectionState> {
+    fn read(mut self) -> ConnectionReadResult<ConnectionState<NotRegistered>> {
         match self.tls_conn.read_tls(&mut self.tcp_stream) {
             Ok(0) => {
                 return Err(::std::io::Error::new(ErrorKind::ConnectionReset, "Connection closed"))
@@ -72,35 +84,51 @@ impl TlsHandshaking {
         }
     }
 
-    fn close(&mut self, poll: &mut Poll) {
-        let _ = self.tcp_stream.shutdown(Shutdown::Both);
-
-        self.deregister(poll);
-    }
-
-    fn register(&mut self, poll: &mut Poll, token: Token) {
+    fn register(mut self, poll: &mut Poll, token: Token) -> TlsHandshaking<Registered> {
         poll.registry().register(&mut self.tcp_stream, token, Interest::READABLE).unwrap();
+
+        TlsHandshaking {
+            tls_conn: self.tls_conn,
+            ws_config: self.ws_config,
+            tcp_stream: self.tcp_stream,
+            phantom_data: PhantomData::default(),
+        }
     }
 
-    fn deregister(&mut self, poll: &mut Poll) {
+    fn close(self) {
+        let _ = self.tcp_stream.shutdown(Shutdown::Both);
+    }
+}
+
+impl TlsHandshaking<Registered> {
+    fn deregister(mut self, poll: &mut Poll) -> TlsHandshaking<NotRegistered> {
         poll.registry().deregister(&mut self.tcp_stream).unwrap();
+
+        TlsHandshaking {
+            tls_conn: self.tls_conn,
+            ws_config: self.ws_config,
+            tcp_stream: self.tcp_stream,
+            phantom_data: PhantomData::default(),
+        }
     }
 }
 
-struct WsHandshaking {
+struct WsHandshaking<R: RegistryStatus> {
     mid_handshake: MidHandshake<ServerHandshake<TlsStream, NoCallback>>,
+    phantom_data: PhantomData<R>,
 }
 
-impl WsHandshaking {
-    fn read(self) -> ConnectionReadResult<ConnectionState> {
+impl WsHandshaking<NotRegistered> {
+    fn read(self) -> ConnectionReadResult<ConnectionState<NotRegistered>> {
         Self::handle_handshake_result(self.mid_handshake.handshake())
     }
 
-    fn handle_handshake_result(handshake_result: HandshakeResult<TlsStream>) -> ConnectionReadResult<ConnectionState> {
+    fn handle_handshake_result(handshake_result: HandshakeResult<TlsStream>) -> ConnectionReadResult<ConnectionState<NotRegistered>> {
         match handshake_result {
             Ok(web_socket) => {
                 let conn = ConnectionState::WsConnection(WsConnection {
-                    web_socket
+                    web_socket,
+                    phantom_data: PhantomData::default(),
                 });
 
                 Ok(ConnectionReadStatus::Ok(conn))
@@ -108,6 +136,7 @@ impl WsHandshaking {
             Err(HandshakeError::Interrupted(mid_handshake)) => {
                 let conn = ConnectionState::WsHandshaking(WsHandshaking {
                     mid_handshake,
+                    phantom_data: PhantomData::default(),
                 });
 
                 Ok(ConnectionReadStatus::WouldBlock(conn))
@@ -118,33 +147,44 @@ impl WsHandshaking {
         }
     }
 
-    fn close(&mut self, poll: &mut Poll) {
-        let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
-        
-        let _ = tcp_stream.shutdown(Shutdown::Both);
-
-        self.deregister(poll);
-    }
-
-    fn register(&mut self, poll: &mut Poll, token: Token) {
+    fn register(mut self, poll: &mut Poll, token: Token) -> WsHandshaking<Registered> {
         let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
 
         poll.registry().register(tcp_stream, token, Interest::READABLE).unwrap();
+
+        WsHandshaking {
+            mid_handshake: self.mid_handshake,
+            phantom_data: PhantomData::default(),
+        }
     }
 
-    fn deregister(&mut self, poll: &mut Poll) {
+    fn close(mut self) {
+        let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
+        
+        let _ = tcp_stream.shutdown(Shutdown::Both);
+    }
+}
+
+impl WsHandshaking<Registered> {
+    fn deregister(mut self, poll: &mut Poll) -> WsHandshaking<NotRegistered> {
         let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
 
         poll.registry().deregister(tcp_stream).unwrap();
+
+        WsHandshaking {
+            mid_handshake: self.mid_handshake,
+            phantom_data: PhantomData::default(),
+        }
     }
 }
 
-struct WsConnection {
+struct WsConnection<R: RegistryStatus> {
     web_socket: tungstenite::WebSocket<TlsStream>,
+    phantom_data: PhantomData<R>,
 }
 
-impl WsConnection {
-    fn read<F>(mut self, message_handler: &mut F, meta: ConnectionMeta) -> ConnectionReadResult<ConnectionState> where F: FnMut(ConnectionMeta, InMessage) {
+impl WsConnection<NotRegistered> {
+    fn read<F>(mut self, message_handler: &mut F, meta: ConnectionMeta) -> ConnectionReadResult<ConnectionState<NotRegistered>> where F: FnMut(ConnectionMeta, InMessage) {
         match self.web_socket.read_message() {
             Ok(message) => {
                 match InMessage::from_ws_message(message) {
@@ -172,7 +212,16 @@ impl WsConnection {
         }
     }
 
-    fn close(&mut self, poll: &mut Poll) {
+    fn register(mut self, poll: &mut Poll, token: Token) -> WsConnection<Registered> {
+        poll.registry().register(self.web_socket.get_mut().get_mut(), token, Interest::READABLE).unwrap();
+
+        WsConnection {
+            web_socket: self.web_socket,
+            phantom_data: PhantomData::default(),
+        }
+    }
+
+    fn close(mut self) {
         let _ = self.web_socket.close(None);
 
         loop {
@@ -180,40 +229,31 @@ impl WsConnection {
                 break;
             }
         }
-
-        self.deregister(poll)
     }
+}
 
-    fn register(&mut self, poll: &mut Poll, token: Token) {
-        poll.registry().register(self.web_socket.get_mut().get_mut(), token, Interest::READABLE).unwrap();
-    }
-
-    fn deregister(&mut self, poll: &mut Poll) {
+impl WsConnection<Registered> {
+    fn deregister(mut self, poll: &mut Poll) -> WsConnection<NotRegistered> {
         poll.registry().deregister(self.web_socket.get_mut().get_mut()).unwrap();
+
+        WsConnection {
+            web_socket: self.web_socket,
+            phantom_data: PhantomData::default(),
+        }
     }
 }
 
-enum ConnectionState {
-    TlsHandshaking(TlsHandshaking),
-    WsHandshaking(WsHandshaking),
-    WsConnection(WsConnection)
+enum ConnectionState<R: RegistryStatus> {
+    TlsHandshaking(TlsHandshaking<R>),
+    WsHandshaking(WsHandshaking<R>),
+    WsConnection(WsConnection<R>)
 }
-
-pub trait RegistryStatus {}
-
-pub struct Registered;
-
-impl RegistryStatus for Registered {}
-
-pub struct NotRegistered;
-
-impl RegistryStatus for NotRegistered {}
 
 
 pub struct Connection<R: RegistryStatus> {
     pub valid_until: ValidUntil,
     pub meta: ConnectionMeta,
-    state: ConnectionState,
+    state: ConnectionState<R>,
     phantom_data: PhantomData<R>,
 }
 
@@ -259,25 +299,33 @@ impl Connection<NotRegistered> {
         }
     }
 
-    pub fn register(mut self, poll: &mut Poll, token: Token) -> Connection<Registered> {
-        match self.state {
-            ConnectionState::TlsHandshaking(ref mut inner) => inner.register(poll, token),
-            ConnectionState::WsHandshaking(ref mut inner) => inner.register(poll, token),
-            ConnectionState::WsConnection(ref mut inner) => inner.register(poll, token),
+    pub fn register(self, poll: &mut Poll, token: Token) -> Connection<Registered> {
+        let state = match self.state {
+            ConnectionState::TlsHandshaking(inner) => ConnectionState::TlsHandshaking(inner.register(poll, token)),
+            ConnectionState::WsHandshaking(inner) => ConnectionState::WsHandshaking(inner.register(poll, token)),
+            ConnectionState::WsConnection(inner) => ConnectionState::WsConnection(inner.register(poll, token)),
         };
 
         Connection {
             valid_until: self.valid_until,
             meta: self.meta,
-            state: self.state,
+            state,
             phantom_data: PhantomData::default(),
+        }
+    }
+
+    pub fn close(self) {
+        match self.state {
+            ConnectionState::TlsHandshaking(inner) => inner.close(),
+            ConnectionState::WsHandshaking(inner) => inner.close(),
+            ConnectionState::WsConnection(inner) => inner.close(),
         }
     }
 }
 
 impl Connection<Registered> {
     pub fn write(&mut self, message: OutMessage) -> ::std::io::Result<()> {
-        if let ConnectionState::WsConnection(WsConnection { ref mut web_socket }) = self.state {
+        if let ConnectionState::WsConnection(WsConnection { ref mut web_socket , ..}) = self.state {
             match web_socket.write_message(message.to_ws_message()) {
                 Ok(_) => Ok(()),
                 Err(tungstenite::Error::Io(err)) => {
@@ -292,25 +340,17 @@ impl Connection<Registered> {
         }
     }
 
-    pub fn close(&mut self, poll: &mut Poll) {
-        match self.state {
-            ConnectionState::TlsHandshaking(ref mut inner) => inner.close(poll),
-            ConnectionState::WsHandshaking(ref mut inner) => inner.close(poll),
-            ConnectionState::WsConnection(ref mut inner) => inner.close(poll),
-        }
-    }
-
-    pub fn deregister(mut self, poll: &mut Poll) -> Connection<NotRegistered> {
-        match self.state {
-            ConnectionState::TlsHandshaking(ref mut inner) => inner.deregister(poll),
-            ConnectionState::WsHandshaking(ref mut inner) => inner.deregister(poll),
-            ConnectionState::WsConnection(ref mut inner) => inner.deregister(poll),
-        }
+    pub fn deregister(self, poll: &mut Poll) -> Connection<NotRegistered> {
+        let state = match self.state {
+            ConnectionState::TlsHandshaking(inner) => ConnectionState::TlsHandshaking(inner.deregister(poll)),
+            ConnectionState::WsHandshaking(inner) => ConnectionState::WsHandshaking(inner.deregister(poll)),
+            ConnectionState::WsConnection(inner) => ConnectionState::WsConnection(inner.deregister(poll)),
+        };
 
         Connection {
             valid_until: self.valid_until,
             meta: self.meta,
-            state: self.state,
+            state,
             phantom_data: PhantomData::default(),
         }
     }

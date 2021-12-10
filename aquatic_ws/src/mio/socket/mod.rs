@@ -134,7 +134,7 @@ pub fn run_poll_loop(
 
         // Remove inactive connections, but not every iteration
         if iter_counter % 128 == 0 {
-            remove_inactive_connections(&mut connections, &mut poll);
+            connections = remove_inactive_connections(connections, &mut poll);
         }
 
         iter_counter = iter_counter.wrapping_add(1);
@@ -162,8 +162,8 @@ fn accept_new_streams(
 
                 let token = *poll_token_counter;
 
-                if let Some(mut connection) = connections.remove(&token) {
-                    connection.close(poll);
+                if let Some(connection) = connections.remove(&token) {
+                    connection.deregister(poll).close();
                 }
                 
                 let naive_peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
@@ -289,8 +289,8 @@ pub fn send_out_messages(
         }
 
         if remove_connection {
-            if let Some(mut connection) = connections.remove(&token) {
-                connection.close(poll);
+            if let Some(connection) = connections.remove(&token) {
+                connection.deregister(poll).close();
             }
         }
     }
