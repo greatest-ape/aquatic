@@ -39,7 +39,10 @@ pub fn create_listener(config: &Config) -> ::anyhow::Result<::std::net::TcpListe
 }
 
 // Close and remove inactive connections
-pub fn remove_inactive_connections(mut connections: ConnectionMap, poll: &mut Poll) -> ConnectionMap {
+pub fn remove_inactive_connections(
+    mut connections: ConnectionMap,
+    poll: &mut Poll,
+) -> ConnectionMap {
     let now = Instant::now();
 
     let mut retained_connections = ConnectionMap::default();

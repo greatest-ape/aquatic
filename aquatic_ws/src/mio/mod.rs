@@ -14,7 +14,7 @@ pub mod common;
 pub mod request;
 pub mod socket;
 
-use crate::{config::Config, common::create_tls_config};
+use crate::{common::create_tls_config, config::Config};
 use common::*;
 
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";

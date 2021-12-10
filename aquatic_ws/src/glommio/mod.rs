@@ -4,7 +4,7 @@ pub mod socket;
 
 use std::sync::{atomic::AtomicUsize, Arc};
 
-use crate::{config::Config, common::create_tls_config};
+use crate::{common::create_tls_config, config::Config};
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::drop_privileges_after_socket_binding;

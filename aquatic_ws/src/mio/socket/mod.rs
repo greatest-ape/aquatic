@@ -165,7 +165,7 @@ fn accept_new_streams(
                 if let Some(connection) = connections.remove(&token) {
                     connection.deregister(poll).close();
                 }
-                
+
                 let naive_peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
                     peer_addr
                 } else {
@@ -182,15 +182,16 @@ fn accept_new_streams(
                     pending_scrape_id: None, // FIXME
                 };
 
-                let connection = Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta).register(poll, token);
+                let connection =
+                    Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta)
+                        .register(poll, token);
 
                 connections.insert(token, connection);
             }
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                break;
+            }
             Err(err) => {
-                if err.kind() == ErrorKind::WouldBlock {
-                    break;
-                }
-
                 ::log::info!("error while accepting streams: {}", err);
             }
         }
@@ -210,32 +211,30 @@ pub fn handle_stream_read_event(
     let access_list_mode = config.access_list.mode;
 
     if let Some(mut connection) = connections.remove(&token) {
-        let message_handler = &mut |meta, message| {
-            match message {
-                InMessage::AnnounceRequest(ref request)
-                    if !state
-                        .access_list
-                        .allows(access_list_mode, &request.info_hash.0) =>
-                {
-                    let out_message = OutMessage::ErrorResponse(ErrorResponse {
-                        failure_reason: "Info hash not allowed".into(),
-                        action: Some(ErrorResponseAction::Announce),
-                        info_hash: Some(request.info_hash),
-                    });
+        let message_handler = &mut |meta, message| match message {
+            InMessage::AnnounceRequest(ref request)
+                if !state
+                    .access_list
+                    .allows(access_list_mode, &request.info_hash.0) =>
+            {
+                let out_message = OutMessage::ErrorResponse(ErrorResponse {
+                    failure_reason: "Info hash not allowed".into(),
+                    action: Some(ErrorResponseAction::Announce),
+                    info_hash: Some(request.info_hash),
+                });
 
-                    local_responses.push((meta, out_message));
-                }
-                in_message => {
-                    if let Err(err) = in_message_sender.send((meta, in_message)) {
-                        ::log::error!("InMessageSender: couldn't send message: {:?}", err);
-                    }
+                local_responses.push((meta, out_message));
+            }
+            in_message => {
+                if let Err(err) = in_message_sender.send((meta, in_message)) {
+                    ::log::error!("InMessageSender: couldn't send message: {:?}", err);
                 }
             }
         };
 
         connection.valid_until = valid_until;
 
-        match connection.deregister(poll).read(message_handler){
+        match connection.deregister(poll).read(message_handler) {
             Ok(connection) => {
                 connections.insert(token, connection.register(poll, token));
             }
