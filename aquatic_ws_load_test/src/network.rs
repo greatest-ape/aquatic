@@ -105,7 +105,7 @@ impl Connection {
         *num_active_connections.borrow_mut() += 1;
 
         if let Err(err) = connection.run_connection_loop().await {
-            eprintln!("connection error: {:?}", err);
+            eprintln!("connection error: {}", err);
         }
 
         *num_active_connections.borrow_mut() -= 1;
@@ -159,7 +159,26 @@ impl Connection {
     }
 
     async fn read_message(&mut self) -> anyhow::Result<()> {
-        match OutMessage::from_ws_message(self.stream.next().await.unwrap()?) {
+        let message = match self
+            .stream
+            .next()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("stream finished"))??
+        {
+            message @ tungstenite::Message::Text(_) | message @ tungstenite::Message::Binary(_) => {
+                message
+            }
+            message => {
+                eprintln!(
+                    "Received WebSocket message of unexpected type: {:?}",
+                    message
+                );
+
+                return Ok(());
+            }
+        };
+
+        match OutMessage::from_ws_message(message) {
             Ok(OutMessage::Offer(offer)) => {
                 self.load_test_state
                     .statistics
@@ -205,7 +224,7 @@ impl Connection {
                 self.can_send = true;
             }
             Err(err) => {
-                eprintln!("error deserializing offer: {:?}", err);
+                eprintln!("error deserializing message: {:?}", err);
             }
         }
 
