@@ -25,6 +25,22 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            server_address: "127.0.0.1:3000".parse().unwrap(),
+            log_level: LogLevel::Error,
+            num_workers: 1,
+            num_connections_per_worker: 16,
+            connection_creation_interval_ms: 10,
+            duration: 0,
+            torrents: TorrentConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: CpuPinningConfig::default_for_load_test(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TorrentConfig {
@@ -42,22 +58,6 @@ pub struct TorrentConfig {
     /// Probability that a generated request is a scrape request, as part
     /// of sum of the various weight arguments.
     pub weight_scrape: usize,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server_address: "127.0.0.1:3000".parse().unwrap(),
-            log_level: LogLevel::Error,
-            num_workers: 1,
-            num_connections_per_worker: 16,
-            connection_creation_interval_ms: 10,
-            duration: 0,
-            torrents: TorrentConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: CpuPinningConfig::default_for_load_test(),
-        }
-    }
 }
 
 impl Default for TorrentConfig {
