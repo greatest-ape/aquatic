@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::convert_ipv4_mapped_ipv6;
@@ -39,7 +39,11 @@ struct PendingScrapeResponse {
 }
 
 struct ConnectionReference {
+    /// Sender part of channel used to pass on outgoing messages from request
+    /// worker
     out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
+    /// Updated after sending message to peer
+    valid_until: ValidUntil,
 }
 
 pub async fn run_socket_worker(
@@ -72,15 +76,13 @@ pub async fn run_socket_worker(
     let out_message_consumer_id = ConsumerId(out_message_receivers.consumer_id().unwrap());
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
-    let connections_to_remove = Rc::new(RefCell::new(Vec::new()));
 
-    // Periodically remove closed connections
+    // Periodically clean connections
     TimerActionRepeat::repeat_into(
-        enclose!((config, connection_slab, connections_to_remove) move || {
-            remove_closed_connections(
+        enclose!((config, connection_slab) move || {
+            clean_connections(
                 config.clone(),
                 connection_slab.clone(),
-                connections_to_remove.clone(),
             )
         }),
         tq_prioritized,
@@ -106,17 +108,19 @@ pub async fn run_socket_worker(
 
                 let key = RefCell::borrow_mut(&connection_slab).insert(ConnectionReference {
                     out_message_sender: out_message_sender.clone(),
+                    valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
                 });
 
                 ::log::info!("accepting stream: {}", key);
 
-                spawn_local_into(enclose!((config, access_list, in_message_senders, tls_config, connections_to_remove) async move {
+                spawn_local_into(enclose!((config, access_list, in_message_senders, connection_slab, tls_config) async move {
                     if let Err(err) = run_connection(
                         config,
                         access_list,
                         in_message_senders,
                         tq_prioritized,
                         tq_regular,
+                        connection_slab.clone(),
                         out_message_sender,
                         out_message_receiver,
                         out_message_consumer_id,
@@ -127,7 +131,7 @@ pub async fn run_socket_worker(
                         ::log::debug!("Connection::run() error: {:?}", err);
                     }
 
-                    RefCell::borrow_mut(&connections_to_remove).push(key);
+                    connection_slab.borrow_mut().try_remove(key);
                 }), tq_regular)
                 .unwrap()
                 .detach();
@@ -139,23 +143,17 @@ pub async fn run_socket_worker(
     }
 }
 
-async fn remove_closed_connections(
+async fn clean_connections(
     config: Rc<Config>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    connections_to_remove: Rc<RefCell<Vec<usize>>>,
 ) -> Option<Duration> {
-    let connections_to_remove = connections_to_remove.replace(Vec::new());
+    let now = Instant::now();
 
-    for connection_id in connections_to_remove {
-        if let Some(_) = RefCell::borrow_mut(&connection_slab).try_remove(connection_id) {
-            ::log::debug!("removed connection with id {}", connection_id);
-        } else {
-            ::log::error!(
-                "couldn't remove connection with id {}, it is not in connection slab",
-                connection_id
-            );
-        }
-    }
+    connection_slab.borrow_mut().retain(|_, reference| {
+        reference.valid_until.0 > now
+    });
+
+    connection_slab.borrow_mut().shrink_to_fit();
 
     Some(Duration::from_secs(
         config.cleaning.connection_cleaning_interval,
@@ -197,6 +195,7 @@ async fn run_connection(
     in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
     tq_prioritized: TaskQueueHandle,
     tq_regular: TaskQueueHandle,
+    connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
     out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
     out_message_consumer_id: ConsumerId,
@@ -225,7 +224,7 @@ async fn run_connection(
     let access_list_cache = create_access_list_cache(&access_list);
 
     let reader_handle = spawn_local_into(
-        enclose!((pending_scrape_slab) async move {
+        enclose!((config, pending_scrape_slab) async move {
             let mut reader = ConnectionReader {
                 config,
                 access_list_cache,
@@ -250,10 +249,13 @@ async fn run_connection(
     let writer_handle = spawn_local_into(
         async move {
             let mut writer = ConnectionWriter {
+                config,
                 out_message_receiver,
+                connection_slab,
                 ws_out,
                 pending_scrape_slab,
                 peer_addr,
+                connection_id,
             };
 
             let result = writer.run_out_message_loop().await;
@@ -426,10 +428,13 @@ impl ConnectionReader {
 }
 
 struct ConnectionWriter {
+    config: Rc<Config>,
     out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     ws_out: SplitSink<WebSocketStream<TlsStream<TcpStream>>, tungstenite::Message>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
     peer_addr: SocketAddr,
+    connection_id: ConnectionId,
 }
 
 impl ConnectionWriter {
@@ -495,14 +500,22 @@ impl ConnectionWriter {
         .await;
 
         match result {
-            Ok(Ok(())) => {}
-            Ok(err @ Err(_)) => err?,
+            Ok(Ok(())) => {
+                self.connection_slab
+                    .borrow_mut()
+                    .get_mut(self.connection_id.0)
+                    .ok_or_else(|| anyhow::anyhow!("connection reference {} not found in slab", self.connection_id.0))?
+                    .valid_until = ValidUntil::new(self.config.cleaning.max_connection_idle);
+
+                Ok(())
+            }
+            Ok(Err(err)) => Err(err.into()),
             Err(err) => {
                 ::log::info!("send_out_message: send to {} took to long: {}", self.peer_addr, err);
+
+                Ok(())
             }
         }
-
-        Ok(())
     }
 }
 

@@ -94,11 +94,16 @@ pub struct CleaningConfig {
     /// Remove peers that haven't announced for this long (seconds)
     pub max_peer_age: u64,
 
+    // Clean connections this often (seconds)
+    #[cfg(feature = "with-glommio")]
+    pub connection_cleaning_interval: u64,
+    /// Close connections if no responses have been sent to them for this long (seconds)
+    #[cfg(feature = "with-glommio")]
+    pub max_connection_idle: u64,
+
     /// Remove connections that are older than this (seconds)
     #[cfg(feature = "with-mio")]
     pub max_connection_age: u64,
-    #[cfg(feature = "with-glommio")]
-    pub connection_cleaning_interval: u64,
 }
 
 #[cfg(feature = "with-mio")]
@@ -182,6 +187,8 @@ impl Default for CleaningConfig {
         Self {
             torrent_cleaning_interval: 30,
             max_peer_age: 1800,
+            #[cfg(feature = "with-glommio")]
+            max_connection_idle: 60 * 5,
 
             #[cfg(feature = "with-mio")]
             max_connection_age: 1800,
