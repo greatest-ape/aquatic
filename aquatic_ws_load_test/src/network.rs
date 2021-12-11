@@ -44,7 +44,9 @@ async fn periodically_open_connections(
     load_test_state: LoadTestState,
     num_active_connections: Rc<RefCell<usize>>,
 ) -> Option<Duration> {
-    if *num_active_connections.borrow() < config.num_connections {
+    let wait = Duration::from_millis(config.connection_creation_interval_ms);
+
+    if *num_active_connections.borrow() < config.num_connections_per_worker {
         spawn_local(async move {
             if let Err(err) =
                 Connection::run(config, tls_config, load_test_state, num_active_connections).await
@@ -55,7 +57,7 @@ async fn periodically_open_connections(
         .detach();
     }
 
-    Some(Duration::from_secs(1))
+    Some(wait)
 }
 
 struct Connection {
@@ -101,8 +103,6 @@ impl Connection {
         };
 
         *num_active_connections.borrow_mut() += 1;
-
-        println!("run connection");
 
         if let Err(err) = connection.run_connection_loop().await {
             eprintln!("connection error: {:?}", err);

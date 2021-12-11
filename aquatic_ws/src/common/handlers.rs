@@ -1,6 +1,6 @@
 use aquatic_common::extract_response_peers;
 use hashbrown::HashMap;
-use rand::Rng;
+use rand::rngs::SmallRng;
 
 use aquatic_ws_protocol::*;
 
@@ -9,7 +9,7 @@ use crate::config::Config;
 
 pub fn handle_announce_request(
     config: &Config,
-    rng: &mut impl Rng,
+    rng: &mut SmallRng,
     torrent_maps: &mut TorrentMaps,
     out_messages: &mut Vec<(ConnectionMeta, OutMessage)>,
     valid_until: ValidUntil,

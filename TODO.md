@@ -41,7 +41,13 @@
 
 * aquatic_ws
   * glommio
-    * fix memory leak / huge growth
+    * proper cpu set pinning
+    * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
+      * replacing indexmap_amortized / simd_json with equivalents doesn't help
+    * SinkExt::send maybe doesn't wake up properly?
+      * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
+  * general
+    * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
 
 # Less important
 

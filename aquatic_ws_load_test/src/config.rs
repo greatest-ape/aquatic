@@ -11,7 +11,8 @@ pub struct Config {
     pub server_address: SocketAddr,
     pub log_level: LogLevel,
     pub num_workers: usize,
-    pub num_connections: usize,
+    pub num_connections_per_worker: usize,
+    pub connection_creation_interval_ms: u64,
     pub duration: usize,
     pub torrents: TorrentConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -21,6 +22,22 @@ pub struct Config {
 impl aquatic_cli_helpers::Config for Config {
     fn get_log_level(&self) -> Option<LogLevel> {
         Some(self.log_level)
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            server_address: "127.0.0.1:3000".parse().unwrap(),
+            log_level: LogLevel::Error,
+            num_workers: 1,
+            num_connections_per_worker: 16,
+            connection_creation_interval_ms: 10,
+            duration: 0,
+            torrents: TorrentConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: CpuPinningConfig::default_for_load_test(),
+        }
     }
 }
 
@@ -41,21 +58,6 @@ pub struct TorrentConfig {
     /// Probability that a generated request is a scrape request, as part
     /// of sum of the various weight arguments.
     pub weight_scrape: usize,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server_address: "127.0.0.1:3000".parse().unwrap(),
-            log_level: LogLevel::Error,
-            num_workers: 1,
-            num_connections: 16,
-            duration: 0,
-            torrents: TorrentConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: CpuPinningConfig::default_for_load_test(),
-        }
-    }
 }
 
 impl Default for TorrentConfig {
