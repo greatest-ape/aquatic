@@ -287,6 +287,8 @@ impl ConnectionReader {
 
             while self.out_message_sender.is_full() {
                 sleep(Duration::from_millis(100)).await;
+
+                yield_if_needed().await;
             }
 
             let message = self.ws_in.next().await.unwrap()?;
