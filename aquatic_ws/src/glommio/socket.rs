@@ -149,9 +149,9 @@ async fn clean_connections(
 ) -> Option<Duration> {
     let now = Instant::now();
 
-    connection_slab.borrow_mut().retain(|_, reference| {
-        reference.valid_until.0 > now
-    });
+    connection_slab
+        .borrow_mut()
+        .retain(|_, reference| reference.valid_until.0 > now);
 
     connection_slab.borrow_mut().shrink_to_fit();
 
@@ -305,7 +305,7 @@ impl ConnectionReader {
                     ::log::debug!("Couldn't parse in_message: {:?}", err);
 
                     self.send_error_response("Invalid request".into(), None)
-                        .await;
+                        .await?;
                 }
             }
 
@@ -339,7 +339,7 @@ impl ConnectionReader {
                     ::log::info!("sent message to request worker");
                 } else {
                     self.send_error_response("Info hash not allowed".into(), Some(info_hash))
-                        .await;
+                        .await?;
                 }
             }
             InMessage::ScrapeRequest(ScrapeRequest { info_hashes, .. }) => {
@@ -349,7 +349,7 @@ impl ConnectionReader {
                     // If request.info_hashes is empty, don't return scrape for all
                     // torrents, even though reference server does it. It is too expensive.
                     self.send_error_response("Full scrapes are not allowed".into(), None)
-                        .await;
+                        .await?;
 
                     return Ok(());
                 };
@@ -400,20 +400,17 @@ impl ConnectionReader {
         &self,
         failure_reason: Cow<'static, str>,
         info_hash: Option<InfoHash>,
-    ) {
+    ) -> anyhow::Result<()> {
         let out_message = OutMessage::ErrorResponse(ErrorResponse {
             action: Some(ErrorResponseAction::Scrape),
             failure_reason,
             info_hash,
         });
 
-        if let Err(err) = self
-            .out_message_sender
+        self.out_message_sender
             .send((self.make_connection_meta(None), out_message))
             .await
-        {
-            ::log::error!("ConnectionWriter::send_error_response failed: {:?}", err)
-        }
+            .map_err(|err| anyhow::anyhow!("ConnectionReader::send_error_response failed: {}", err))
     }
 
     fn make_connection_meta(&self, pending_scrape_id: Option<PendingScrapeId>) -> ConnectionMeta {
@@ -504,14 +501,23 @@ impl ConnectionWriter {
                 self.connection_slab
                     .borrow_mut()
                     .get_mut(self.connection_id.0)
-                    .ok_or_else(|| anyhow::anyhow!("connection reference {} not found in slab", self.connection_id.0))?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "connection reference {} not found in slab",
+                            self.connection_id.0
+                        )
+                    })?
                     .valid_until = ValidUntil::new(self.config.cleaning.max_connection_idle);
 
                 Ok(())
             }
             Ok(Err(err)) => Err(err.into()),
             Err(err) => {
-                ::log::info!("send_out_message: send to {} took to long: {}", self.peer_addr, err);
+                ::log::info!(
+                    "send_out_message: send to {} took to long: {}",
+                    self.peer_addr,
+                    err
+                );
 
                 Ok(())
             }
