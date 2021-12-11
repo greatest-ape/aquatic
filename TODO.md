@@ -41,11 +41,11 @@
 
 * aquatic_ws
   * mio
-    * memory leak!
-    * deregistering before closing isn't necessary with epoll
-    * use write event interest for handshakes too
+    * shard torrent state. this could decrease dropped messages too, since
+      request handlers won't send large batches of them
     * connection cleaning interval
-    * shard torrent state
+    * use write event interest for handshakes too
+    * deregistering before closing isn't necessary with epoll. what about on other OSs?
     * use access list cache
     * connection closing: send tls close message etc?
   * glommio
