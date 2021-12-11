@@ -20,6 +20,7 @@ use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
+use glommio::task::JoinHandle;
 use glommio::timer::{sleep, timeout, TimerActionRepeat};
 use glommio::{enclose, prelude::*};
 use hashbrown::HashMap;
@@ -39,6 +40,7 @@ struct PendingScrapeResponse {
 }
 
 struct ConnectionReference {
+    task_handle: Option<JoinHandle<()>>,
     /// Sender part of channel used to pass on outgoing messages from request
     /// worker
     out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
@@ -107,13 +109,14 @@ pub async fn run_socket_worker(
                 let out_message_sender = Rc::new(out_message_sender);
 
                 let key = RefCell::borrow_mut(&connection_slab).insert(ConnectionReference {
+                    task_handle: None,
                     out_message_sender: out_message_sender.clone(),
                     valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
                 });
 
                 ::log::info!("accepting stream: {}", key);
 
-                spawn_local_into(enclose!((config, access_list, in_message_senders, connection_slab, tls_config) async move {
+                let task_handle = spawn_local_into(enclose!((config, access_list, in_message_senders, connection_slab, tls_config) async move {
                     if let Err(err) = run_connection(
                         config,
                         access_list,
@@ -135,6 +138,10 @@ pub async fn run_socket_worker(
                 }), tq_regular)
                 .unwrap()
                 .detach();
+
+                if let Some(reference) = connection_slab.borrow_mut().get_mut(key) {
+                    reference.task_handle = Some(task_handle);
+                }
             }
             Err(err) => {
                 ::log::error!("accept connection: {:?}", err);
@@ -149,9 +156,17 @@ async fn clean_connections(
 ) -> Option<Duration> {
     let now = Instant::now();
 
-    connection_slab
-        .borrow_mut()
-        .retain(|_, reference| reference.valid_until.0 > now);
+    connection_slab.borrow_mut().retain(|_, reference| {
+        let keep = reference.valid_until.0 > now;
+
+        if !keep {
+            if let Some(ref handle) = reference.task_handle {
+                handle.cancel();
+            }
+        }
+
+        keep
+    });
 
     connection_slab.borrow_mut().shrink_to_fit();
 
