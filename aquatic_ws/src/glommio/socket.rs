@@ -498,7 +498,7 @@ impl ConnectionWriter {
             Ok(Ok(())) => {}
             Ok(err @ Err(_)) => err?,
             Err(err) => {
-                ::log::warn!("send_out_message: send took to long: {}", err);
+                ::log::info!("send_out_message: send to {} took to long: {}", self.peer_addr, err);
             }
         }
 
