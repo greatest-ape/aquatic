@@ -20,7 +20,7 @@ use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
-use glommio::timer::TimerActionRepeat;
+use glommio::timer::{TimerActionRepeat, timeout};
 use glommio::{enclose, prelude::*};
 use hashbrown::HashMap;
 use slab::Slab;
@@ -498,7 +498,20 @@ impl ConnectionWriter {
     async fn send_out_message(&mut self, out_message: &OutMessage) -> anyhow::Result<()> {
         ::log::warn!("send_out_message");
 
-        futures::SinkExt::send(&mut self.ws_out, out_message.to_ws_message()).await?;
+        // FIXME
+        let result = timeout(Duration::from_millis(1), async {
+            let result = futures::SinkExt::send(&mut self.ws_out, out_message.to_ws_message()).await;
+
+            Ok(result)
+        }).await;
+
+        match result {
+            Ok(Ok(())) => {}
+            Ok(err@Err(_)) => err?,
+            Err(err) => {
+                ::log::warn!("send_out_message: send took to long: {}", err);
+            }
+        }
 
         Ok(())
     }

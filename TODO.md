@@ -43,7 +43,7 @@
   * glommio
     * fix memory leak / huge growth
     * fix grinding to a halt
-      * senders wait for space in local channel, receiver waits for message
+      * SinkExt::send probably doesn't wake up properly
       * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
 
 # Less important
