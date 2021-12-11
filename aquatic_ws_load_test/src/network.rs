@@ -44,6 +44,8 @@ async fn periodically_open_connections(
     load_test_state: LoadTestState,
     num_active_connections: Rc<RefCell<usize>>,
 ) -> Option<Duration> {
+    let wait = Duration::from_millis(config.connection_creation_interval_ms);
+
     if *num_active_connections.borrow() < config.num_connections {
         spawn_local(async move {
             if let Err(err) =
@@ -55,7 +57,7 @@ async fn periodically_open_connections(
         .detach();
     }
 
-    Some(Duration::from_secs(1))
+    Some(wait)
 }
 
 struct Connection {

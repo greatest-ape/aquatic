@@ -12,6 +12,7 @@ pub struct Config {
     pub log_level: LogLevel,
     pub num_workers: usize,
     pub num_connections: usize,
+    pub connection_creation_interval_ms: u64,
     pub duration: usize,
     pub torrents: TorrentConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -50,6 +51,7 @@ impl Default for Config {
             log_level: LogLevel::Error,
             num_workers: 1,
             num_connections: 16,
+            connection_creation_interval_ms: 10,
             duration: 0,
             torrents: TorrentConfig::default(),
             #[cfg(feature = "cpu-pinning")]

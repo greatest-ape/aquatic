@@ -41,6 +41,7 @@
 
 * aquatic_ws
   * glommio
+    * proper cpu set pinning
     * SinkExt::send maybe doesn't wake up properly?
       * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
 
