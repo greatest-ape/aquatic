@@ -60,7 +60,7 @@ pub async fn run_socket_worker(
     let in_message_senders = Rc::new(in_message_senders);
 
     let tq_prioritized =
-        executor().create_task_queue(Shares::Static(100), Latency::NotImportant, "prioritized");
+        executor().create_task_queue(Shares::Static(100), Latency::Matters(Duration::from_millis(1)), "prioritized");
     let tq_regular =
         executor().create_task_queue(Shares::Static(1), Latency::NotImportant, "regular");
 
@@ -105,7 +105,7 @@ pub async fn run_socket_worker(
                     out_message_sender: out_message_sender.clone(),
                 });
 
-                ::log::info!("accepting stream");
+                ::log::info!("accepting stream: {}", key);
 
                 spawn_local_into(enclose!((config, access_list, in_message_senders, tls_config, connections_to_remove) async move {
                     if let Err(err) = run_connection(
@@ -175,7 +175,12 @@ async fn receive_out_messages(
             ::log::info!("local channel {} len: {}", channel_out_message.0.connection_id.0, sender.len());
 
             match sender.send(channel_out_message).await {
-                Ok(()) | Err(GlommioError::Closed(_)) => {}
+                Ok(()) => {
+                    ::log::warn!("receive_out_messages: sent message");
+                },
+                Err(GlommioError::Closed(_)) => {
+                    ::log::warn!("receive_out_messages: channel closed");
+                }
                 Err(err) => {
                     ::log::info!(
                         "Couldn't send out_message from shared channel to local receiver: {:?}",
@@ -207,12 +212,18 @@ async fn run_connection(
     let tls_acceptor: TlsAcceptor = tls_config.into();
     let stream = tls_acceptor.accept(stream).await?;
 
+    ::log::warn!("accepted tls stream");
+
     let ws_config = tungstenite::protocol::WebSocketConfig {
         max_frame_size: Some(config.network.websocket_max_frame_size),
         max_message_size: Some(config.network.websocket_max_message_size),
+        max_send_queue: Some(2),
         ..Default::default()
     };
     let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
+
+    ::log::warn!("accepted websocket stream");
+
     let (ws_out, ws_in) = futures::StreamExt::split(stream);
 
     let pending_scrape_slab = Rc::new(RefCell::new(Slab::new()));
@@ -220,6 +231,7 @@ async fn run_connection(
 
     let reader_handle = spawn_local_into(
         enclose!((pending_scrape_slab) async move {
+            ::log::warn!("running ConnectionReader");
             let mut reader = ConnectionReader {
                 config,
                 access_list_cache,
@@ -232,7 +244,11 @@ async fn run_connection(
                 connection_id,
             };
 
-            reader.run_in_message_loop().await
+            let result = reader.run_in_message_loop().await;
+
+            ::log::warn!("run_out_message_loop ended: {:?}", result);
+
+            result
         }),
         tq_regular,
     )
@@ -241,6 +257,7 @@ async fn run_connection(
 
     let writer_handle = spawn_local_into(
         async move {
+            ::log::warn!("running ConnectionWriter");
             let mut writer = ConnectionWriter {
                 out_message_receiver,
                 ws_out,
@@ -248,7 +265,11 @@ async fn run_connection(
                 peer_addr,
             };
 
-            writer.run_out_message_loop().await
+            let result = writer.run_out_message_loop().await;
+
+            ::log::warn!("run_out_message_loop ended: {:?}", result);
+
+            result
         },
         tq_prioritized,
     )
@@ -277,6 +298,8 @@ impl ConnectionReader {
 
             let message = self.ws_in.next().await.unwrap()?;
 
+            ::log::warn!("ConnectionReader received message");
+
             match InMessage::from_ws_message(message) {
                 Ok(in_message) => {
                     ::log::debug!("parsed in_message");
@@ -286,7 +309,7 @@ impl ConnectionReader {
                 Err(err) => {
                     ::log::debug!("Couldn't parse in_message: {:?}", err);
 
-                    self.send_error_response("Invalid request".into(), None);
+                    self.send_error_response("Invalid request".into(), None).await;
                 }
             }
 
@@ -295,6 +318,8 @@ impl ConnectionReader {
     }
 
     async fn handle_in_message(&mut self, in_message: InMessage) -> anyhow::Result<()> {
+        ::log::warn!("ConnectionReader handle_in_message");
+
         match in_message {
             InMessage::AnnounceRequest(announce_request) => {
                 let info_hash = announce_request.info_hash;
@@ -309,6 +334,8 @@ impl ConnectionReader {
                     let consumer_index =
                         calculate_in_message_consumer_index(&self.config, info_hash);
 
+                    ::log::warn!("ConnectionReader handle_in_message sending message");
+
                     // Only fails when receiver is closed
                     self.in_message_senders
                         .send_to(
@@ -317,9 +344,10 @@ impl ConnectionReader {
                         )
                         .await
                         .unwrap();
+                    ::log::warn!("ConnectionReader handle_in_message sent message message");
                     ::log::info!("sent message to request worker");
                 } else {
-                    self.send_error_response("Info hash not allowed".into(), Some(info_hash));
+                    self.send_error_response("Info hash not allowed".into(), Some(info_hash)).await;
                 }
             }
             InMessage::ScrapeRequest(ScrapeRequest { info_hashes, .. }) => {
@@ -328,7 +356,7 @@ impl ConnectionReader {
                 } else {
                     // If request.info_hashes is empty, don't return scrape for all
                     // torrents, even though reference server does it. It is too expensive.
-                    self.send_error_response("Full scrapes are not allowed".into(), None);
+                    self.send_error_response("Full scrapes are not allowed".into(), None).await;
 
                     return Ok(());
                 };
@@ -375,16 +403,18 @@ impl ConnectionReader {
         Ok(())
     }
 
-    fn send_error_response(&self, failure_reason: Cow<'static, str>, info_hash: Option<InfoHash>) {
+    async fn send_error_response(&self, failure_reason: Cow<'static, str>, info_hash: Option<InfoHash>) {
         let out_message = OutMessage::ErrorResponse(ErrorResponse {
             action: Some(ErrorResponseAction::Scrape),
             failure_reason,
             info_hash,
         });
 
+        ::log::warn!("send_error_response");
+
         if let Err(err) = self
             .out_message_sender
-            .try_send((self.make_connection_meta(None), out_message))
+            .send((self.make_connection_meta(None), out_message)).await
         {
             ::log::error!("ConnectionWriter::send_error_response failed: {:?}", err)
         }
@@ -411,11 +441,13 @@ struct ConnectionWriter {
 impl ConnectionWriter {
     async fn run_out_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
+            ::log::warn!("run_out_message_loop iteration");
+
             let (meta, out_message) = self.out_message_receiver.recv().await.ok_or_else(|| {
                 anyhow::anyhow!("ConnectionWriter couldn't receive message, sender is closed")
             })?;
 
-            ::log::info!("ConnectionWriter received message");
+            ::log::warn!("ConnectionWriter received message");
 
             if meta.naive_peer_addr != self.peer_addr {
                 return Err(anyhow::anyhow!("peer addresses didn't match"));
@@ -464,8 +496,9 @@ impl ConnectionWriter {
     }
 
     async fn send_out_message(&mut self, out_message: &OutMessage) -> anyhow::Result<()> {
+        ::log::warn!("send_out_message");
+
         futures::SinkExt::send(&mut self.ws_out, out_message.to_ws_message()).await?;
-        futures::SinkExt::flush(&mut self.ws_out).await?;
 
         Ok(())
     }
