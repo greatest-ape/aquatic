@@ -41,8 +41,9 @@
 
 * aquatic_ws
   * mio
-    * pending_response_queue: use bounded VecDeque
-    * use write event interest for handshake too
+    * memory leak!
+    * deregistering before closing isn't necessary with epoll
+    * use write event interest for handshakes too
     * connection cleaning interval
     * shard torrent state
     * use access list cache
