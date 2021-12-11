@@ -15,8 +15,8 @@ use crate::common::handlers::*;
 use crate::common::*;
 use crate::config::Config;
 
-use super::SHARED_IN_CHANNEL_SIZE;
 use super::common::State;
+use super::SHARED_IN_CHANNEL_SIZE;
 
 pub async fn run_request_worker(
     config: Config,
@@ -87,37 +87,42 @@ async fn handle_request_stream<S>(
     let rng = &rng;
     let out_message_senders = &out_message_senders;
 
-    stream.for_each_concurrent(SHARED_IN_CHANNEL_SIZE, move |(meta, in_message)| async move {
-        let mut out_messages = Vec::new();
+    stream
+        .for_each_concurrent(
+            SHARED_IN_CHANNEL_SIZE,
+            move |(meta, in_message)| async move {
+                let mut out_messages = Vec::new();
 
-        match in_message {
-            InMessage::AnnounceRequest(request) => handle_announce_request(
-                &config,
-                &mut rng.borrow_mut(),
-                &mut torrents.borrow_mut(),
-                &mut out_messages,
-                peer_valid_until.borrow().to_owned(),
-                meta,
-                request,
-            ),
-            InMessage::ScrapeRequest(request) => handle_scrape_request(
-                &config,
-                &mut torrents.borrow_mut(),
-                &mut out_messages,
-                meta,
-                request,
-            ),
-        };
+                match in_message {
+                    InMessage::AnnounceRequest(request) => handle_announce_request(
+                        &config,
+                        &mut rng.borrow_mut(),
+                        &mut torrents.borrow_mut(),
+                        &mut out_messages,
+                        peer_valid_until.borrow().to_owned(),
+                        meta,
+                        request,
+                    ),
+                    InMessage::ScrapeRequest(request) => handle_scrape_request(
+                        &config,
+                        &mut torrents.borrow_mut(),
+                        &mut out_messages,
+                        meta,
+                        request,
+                    ),
+                };
 
-        for (meta, out_message) in out_messages.drain(..) {
-            ::log::info!("request worker trying to send OutMessage to socket worker");
+                for (meta, out_message) in out_messages.drain(..) {
+                    ::log::info!("request worker trying to send OutMessage to socket worker");
 
-            out_message_senders
-                .send_to(meta.out_message_consumer_id.0, (meta, out_message))
-                .await
-                .expect("failed sending out_message to socket worker");
+                    out_message_senders
+                        .send_to(meta.out_message_consumer_id.0, (meta, out_message))
+                        .await
+                        .expect("failed sending out_message to socket worker");
 
-            ::log::info!("request worker sent OutMessage to socket worker");
-        }
-    }).await;
+                    ::log::info!("request worker sent OutMessage to socket worker");
+                }
+            },
+        )
+        .await;
 }

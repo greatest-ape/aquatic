@@ -41,13 +41,8 @@
 
 * aquatic_ws
   * glommio
-    * fix grinding to a halt
-      * SinkExt::send maybe doesn't wake up properly?
-        * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
-      * I should probably use a more sensible timeout (10s) and don't await when sending into local channel.
-        If more responses are generated than can be handled, something will be dropped. Possibly,
-        I could do some kind of backpressure and avoid reading messages when local channel is full
-        or something like that
+    * SinkExt::send maybe doesn't wake up properly?
+      * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
 
 # Less important
 

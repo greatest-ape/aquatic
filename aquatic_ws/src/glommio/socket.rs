@@ -11,8 +11,8 @@ use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, A
 use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
-use futures::StreamExt;
 use futures::stream::{SplitSink, SplitStream};
+use futures::StreamExt;
 use futures_lite::future::race;
 use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
@@ -20,7 +20,7 @@ use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
-use glommio::timer::{TimerActionRepeat, timeout};
+use glommio::timer::{sleep, timeout, TimerActionRepeat};
 use glommio::{enclose, prelude::*};
 use hashbrown::HashMap;
 use slab::Slab;
@@ -29,7 +29,7 @@ use crate::config::Config;
 
 use crate::common::*;
 
-use super::{common::*, SHARED_IN_CHANNEL_SIZE};
+use super::common::*;
 
 const LOCAL_CHANNEL_SIZE: usize = 16;
 
@@ -59,8 +59,11 @@ pub async fn run_socket_worker(
     let (in_message_senders, _) = in_message_mesh_builder.join(Role::Producer).await.unwrap();
     let in_message_senders = Rc::new(in_message_senders);
 
-    let tq_prioritized =
-        executor().create_task_queue(Shares::Static(100), Latency::Matters(Duration::from_millis(1)), "prioritized");
+    let tq_prioritized = executor().create_task_queue(
+        Shares::Static(100),
+        Latency::Matters(Duration::from_millis(1)),
+        "prioritized",
+    );
     let tq_regular =
         executor().create_task_queue(Shares::Static(1), Latency::NotImportant, "regular");
 
@@ -160,25 +163,23 @@ async fn remove_closed_connections(
 }
 
 async fn receive_out_messages(
-    out_message_receiver: ConnectedReceiver<(ConnectionMeta, OutMessage)>,
+    mut out_message_receiver: ConnectedReceiver<(ConnectionMeta, OutMessage)>,
     connection_references: Rc<RefCell<Slab<ConnectionReference>>>,
 ) {
     let connection_references = &connection_references;
 
-    out_message_receiver.for_each_concurrent(SHARED_IN_CHANNEL_SIZE, move |channel_out_message| async {
-        let opt_sender = connection_references
-            .borrow()
-            .get(channel_out_message.0.connection_id.0)
-            .map(|reference| reference.out_message_sender.clone());
+    while let Some((meta, out_message)) = out_message_receiver.next().await {
+        if let Some(reference) = connection_references.borrow().get(meta.connection_id.0) {
+            ::log::info!(
+                "local channel {} len: {}",
+                meta.connection_id.0,
+                reference.out_message_sender.len()
+            );
 
-        if let Some(sender) = opt_sender {
-            ::log::info!("local channel {} len: {}", channel_out_message.0.connection_id.0, sender.len());
-
-            match sender.send(channel_out_message).await {
-                Ok(()) => {
-                },
-                Err(GlommioError::Closed(_)) => {
-                }
+            match reference.out_message_sender.try_send((meta, out_message)) {
+                Ok(()) => {}
+                Err(GlommioError::Closed(_)) => {}
+                Err(GlommioError::WouldBlock(_)) => {}
                 Err(err) => {
                     ::log::info!(
                         "Couldn't send out_message from shared channel to local receiver: {:?}",
@@ -187,7 +188,7 @@ async fn receive_out_messages(
                 }
             }
         }
-    }).await;
+    }
 }
 
 async fn run_connection(
@@ -284,6 +285,10 @@ impl ConnectionReader {
         loop {
             ::log::debug!("read_in_message");
 
+            while self.out_message_sender.is_full() {
+                sleep(Duration::from_millis(100)).await;
+            }
+
             let message = self.ws_in.next().await.unwrap()?;
 
             match InMessage::from_ws_message(message) {
@@ -295,7 +300,8 @@ impl ConnectionReader {
                 Err(err) => {
                     ::log::debug!("Couldn't parse in_message: {:?}", err);
 
-                    self.send_error_response("Invalid request".into(), None).await;
+                    self.send_error_response("Invalid request".into(), None)
+                        .await;
                 }
             }
 
@@ -328,7 +334,8 @@ impl ConnectionReader {
                         .unwrap();
                     ::log::info!("sent message to request worker");
                 } else {
-                    self.send_error_response("Info hash not allowed".into(), Some(info_hash)).await;
+                    self.send_error_response("Info hash not allowed".into(), Some(info_hash))
+                        .await;
                 }
             }
             InMessage::ScrapeRequest(ScrapeRequest { info_hashes, .. }) => {
@@ -337,7 +344,8 @@ impl ConnectionReader {
                 } else {
                     // If request.info_hashes is empty, don't return scrape for all
                     // torrents, even though reference server does it. It is too expensive.
-                    self.send_error_response("Full scrapes are not allowed".into(), None).await;
+                    self.send_error_response("Full scrapes are not allowed".into(), None)
+                        .await;
 
                     return Ok(());
                 };
@@ -384,7 +392,11 @@ impl ConnectionReader {
         Ok(())
     }
 
-    async fn send_error_response(&self, failure_reason: Cow<'static, str>, info_hash: Option<InfoHash>) {
+    async fn send_error_response(
+        &self,
+        failure_reason: Cow<'static, str>,
+        info_hash: Option<InfoHash>,
+    ) {
         let out_message = OutMessage::ErrorResponse(ErrorResponse {
             action: Some(ErrorResponseAction::Scrape),
             failure_reason,
@@ -393,7 +405,8 @@ impl ConnectionReader {
 
         if let Err(err) = self
             .out_message_sender
-            .send((self.make_connection_meta(None), out_message)).await
+            .send((self.make_connection_meta(None), out_message))
+            .await
         {
             ::log::error!("ConnectionWriter::send_error_response failed: {:?}", err)
         }
@@ -471,16 +484,17 @@ impl ConnectionWriter {
     }
 
     async fn send_out_message(&mut self, out_message: &OutMessage) -> anyhow::Result<()> {
-        // FIXME
-        let result = timeout(Duration::from_nanos(1), async {
-            let result = futures::SinkExt::send(&mut self.ws_out, out_message.to_ws_message()).await;
+        let result = timeout(Duration::from_secs(10), async {
+            let result =
+                futures::SinkExt::send(&mut self.ws_out, out_message.to_ws_message()).await;
 
             Ok(result)
-        }).await;
+        })
+        .await;
 
         match result {
             Ok(Ok(())) => {}
-            Ok(err@Err(_)) => err?,
+            Ok(err @ Err(_)) => err?,
             Err(err) => {
                 ::log::warn!("send_out_message: send took to long: {}", err);
             }
