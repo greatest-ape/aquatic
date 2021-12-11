@@ -158,7 +158,7 @@ fn run_poll_loop(
     let ws_config = WebSocketConfig {
         max_message_size: Some(config.network.websocket_max_message_size),
         max_frame_size: Some(config.network.websocket_max_frame_size),
-        max_send_queue: None,
+        max_send_queue: Some(2),
         ..Default::default()
     };
 
@@ -177,7 +177,7 @@ fn run_poll_loop(
     loop {
         poll.poll(&mut events, Some(poll_timeout))
             .expect("failed polling");
-        
+
         let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
         for event in events.iter() {
@@ -198,7 +198,9 @@ fn run_poll_loop(
                 CHANNEL_TOKEN => {
                     write_or_queue_messages(
                         &mut poll,
-                        out_message_receiver.try_iter().take(out_message_receiver.len()),
+                        out_message_receiver
+                            .try_iter()
+                            .take(out_message_receiver.len()),
                         &mut connections,
                     );
                 }
@@ -208,7 +210,7 @@ fn run_poll_loop(
 
                         if let Some(connection) = connections.get_mut(&token) {
                             if let Err(err) = connection.write(&mut poll) {
-                                ::log::info!("Connection::write error: {}", err);
+                                ::log::debug!("Connection::write error: {}", err);
 
                                 remove_connection = true;
                             }
@@ -237,11 +239,7 @@ fn run_poll_loop(
                 }
             }
 
-            write_or_queue_messages(
-                &mut poll,
-                local_responses.drain(..),
-                &mut connections,
-            );
+            write_or_queue_messages(&mut poll, local_responses.drain(..), &mut connections);
         }
 
         // Remove inactive connections, but not every iteration
@@ -340,11 +338,10 @@ fn handle_stream_read_event(
     }
 }
 
-fn write_or_queue_messages<I>(
-    poll: &mut Poll,
-    responses: I,
-    connections: &mut ConnectionMap,
-) where I: Iterator<Item=(ConnectionMeta, OutMessage)> {
+fn write_or_queue_messages<I>(poll: &mut Poll, responses: I, connections: &mut ConnectionMap)
+where
+    I: Iterator<Item = (ConnectionMeta, OutMessage)>,
+{
     for (meta, out_message) in responses {
         let token = Token(meta.connection_id.0);
 
@@ -364,7 +361,7 @@ fn write_or_queue_messages<I>(
                 match connection.write_or_queue_message(poll, out_message) {
                     Ok(()) => {}
                     Err(err) => {
-                        ::log::info!("Connection::write_or_queue_message error: {}", err);
+                        ::log::debug!("Connection::write_or_queue_message error: {}", err);
 
                         remove_connection = true;
                     }
