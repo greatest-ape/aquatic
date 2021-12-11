@@ -104,8 +104,6 @@ impl Connection {
 
         *num_active_connections.borrow_mut() += 1;
 
-        println!("run connection");
-
         if let Err(err) = connection.run_connection_loop().await {
             eprintln!("connection error: {:?}", err);
         }
