@@ -179,14 +179,14 @@ fn run_poll_loop(
     loop {
         poll.poll(&mut events, Some(poll_timeout))
             .expect("failed polling");
-
+        
         let valid_until = ValidUntil::new(config.cleaning.max_connection_age);
 
         for event in events.iter() {
             let token = event.token();
 
-            match (token, event.is_readable()) {
-                (LISTENER_TOKEN, _) => {
+            match token {
+                LISTENER_TOKEN => {
                     accept_new_streams(
                         &tls_config,
                         ws_config,
@@ -197,7 +197,7 @@ fn run_poll_loop(
                         valid_until,
                     );
                 }
-                (CHANNEL_TOKEN, _) => {
+                CHANNEL_TOKEN => {
                     send_out_messages(
                         &mut poll,
                         local_responses.drain(..),
@@ -205,41 +205,39 @@ fn run_poll_loop(
                         &mut connections,
                     );
                 }
-                (token, true) => {
-                    handle_stream_read_event(
-                        &config,
-                        state,
-                        &mut local_responses,
-                        &in_message_sender,
-                        &mut poll,
-                        &mut connections,
-                        token,
-                        valid_until,
-                    );
-                }
-                (token, false) => {
-                    let mut remove_connection = false;
+                token => {
+                    if event.is_writable() {
+                        let mut remove_connection = false;
 
-                    if let Some(connection) = connections.get_mut(&token) {
-                        if let Err(err) = connection.write(&mut poll) {
-                            ::log::info!("Connection::write error: {}", err);
+                        if let Some(connection) = connections.get_mut(&token) {
+                            if let Err(err) = connection.write(&mut poll) {
+                                ::log::info!("Connection::write error: {}", err);
 
-                            remove_connection = true;
+                                remove_connection = true;
+                            }
+                        }
+
+                        if remove_connection {
+                            if let Some(connection) =
+                                connections.remove_and_deregister(&mut poll, &token)
+                            {
+                                connection.close();
+                            }
                         }
                     }
-
-                    if remove_connection {
-                        if let Some(connection) =
-                            connections.remove_and_deregister(&mut poll, &token)
-                        {
-                            connection.close();
-                        }
+                    if event.is_readable() {
+                        handle_stream_read_event(
+                            &config,
+                            state,
+                            &mut local_responses,
+                            &in_message_sender,
+                            &mut poll,
+                            &mut connections,
+                            token,
+                            valid_until,
+                        );
                     }
                 }
-            }
-
-            if token == LISTENER_TOKEN {
-            } else if token != CHANNEL_TOKEN {
             }
         }
 
@@ -323,7 +321,7 @@ fn handle_stream_read_event(
             }
             in_message => {
                 if let Err(err) = in_message_sender.send((meta, in_message)) {
-                    ::log::error!("InMessageSender: couldn't send message: {:?}", err);
+                    ::log::info!("InMessageSender: couldn't send message: {:?}", err);
                 }
             }
         };
@@ -367,7 +365,7 @@ fn send_out_messages(
                 match connection.write_or_queue_message(poll, out_message) {
                     Ok(()) => {}
                     Err(err) => {
-                        ::log::info!("Connection::queue_message error: {}", err);
+                        ::log::info!("Connection::write_or_queue_message error: {}", err);
 
                         remove_connection = true;
                     }
