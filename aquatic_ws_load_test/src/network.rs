@@ -46,7 +46,7 @@ async fn periodically_open_connections(
 ) -> Option<Duration> {
     let wait = Duration::from_millis(config.connection_creation_interval_ms);
 
-    if *num_active_connections.borrow() < config.num_connections {
+    if *num_active_connections.borrow() < config.num_connections_per_worker {
         spawn_local(async move {
             if let Err(err) =
                 Connection::run(config, tls_config, load_test_state, num_active_connections).await
