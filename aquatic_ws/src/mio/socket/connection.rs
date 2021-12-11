@@ -1,4 +1,4 @@
-use std::{io::ErrorKind, marker::PhantomData, net::Shutdown, sync::Arc};
+use std::{collections::VecDeque, io::ErrorKind, marker::PhantomData, net::Shutdown, sync::Arc};
 
 use aquatic_common::ValidUntil;
 use aquatic_ws_protocol::{InMessage, OutMessage};
@@ -11,6 +11,8 @@ use tungstenite::{
 };
 
 use crate::common::ConnectionMeta;
+
+const MAX_PENDING_MESSAGES: usize = 128;
 
 type TlsStream = rustls::StreamOwned<ServerConnection, TcpStream>;
 
@@ -30,6 +32,7 @@ pub struct NotRegistered;
 impl RegistryStatus for NotRegistered {}
 
 enum ConnectionReadStatus<T> {
+    Message(T, InMessage),
     Ok(T),
     WouldBlock(T),
 }
@@ -44,8 +47,8 @@ pub struct Connection<R: RegistryStatus> {
     pub valid_until: ValidUntil,
     meta: ConnectionMeta,
     state: ConnectionState<R>,
-    pending_out_messages: Vec<OutMessage>,
-    interest: Interest,
+    pub message_queue: VecDeque<OutMessage>,
+    pub interest: Interest,
     phantom_data: PhantomData<R>,
 }
 
@@ -70,7 +73,7 @@ impl Connection<NotRegistered> {
             valid_until,
             meta,
             state,
-            pending_out_messages: Vec::new(),
+            message_queue: Default::default(),
             interest: Interest::READABLE,
             phantom_data: PhantomData::default(),
         }
@@ -90,10 +93,21 @@ impl Connection<NotRegistered> {
             let result = match self.state {
                 ConnectionState::TlsHandshaking(inner) => inner.read(),
                 ConnectionState::WsHandshaking(inner) => inner.read(),
-                ConnectionState::WsConnection(inner) => inner.read(message_handler, self.meta),
+                ConnectionState::WsConnection(inner) => inner.read(),
             };
 
             match result {
+                Ok(ConnectionReadStatus::Message(state, message)) => {
+                    self.state = state;
+
+                    message_handler(self.meta, message);
+
+                    // Stop looping even if WouldBlock wasn't necessarily reached. Otherwise,
+                    // we might get stuck reading from this connection only. Since we register
+                    // the connection again upon reinsertion into the ConnectionMap, we should
+                    // be getting new events anyway.
+                    return Ok(self);
+                }
                 Ok(ConnectionReadStatus::Ok(state)) => {
                     self.state = state;
 
@@ -132,7 +146,7 @@ impl Connection<NotRegistered> {
             valid_until: self.valid_until,
             meta: self.meta,
             state,
-            pending_out_messages: self.pending_out_messages,
+            message_queue: self.message_queue,
             interest: self.interest,
             phantom_data: PhantomData::default(),
         }
@@ -160,12 +174,16 @@ impl Connection<Registered> {
         match self.write_message(message) {
             Ok(()) => Ok(()),
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                self.pending_out_messages.push(message_clone);
+                if self.message_queue.len() < MAX_PENDING_MESSAGES {
+                    self.message_queue.push_back(message_clone);
 
-                if !self.interest.is_writable() {
-                    self.interest = Interest::READABLE | Interest::WRITABLE;
+                    if !self.interest.is_writable() {
+                        self.interest = Interest::WRITABLE;
 
-                    self.reregister(poll)?;
+                        self.reregister(poll)?;
+                    }
+                } else {
+                    ::log::info!("Connection::message_queue is full, dropping message");
                 }
 
                 Ok(())
@@ -176,15 +194,16 @@ impl Connection<Registered> {
 
     pub fn write(&mut self, poll: &mut Poll) -> ::std::io::Result<()> {
         if let ConnectionState::WsConnection(_) = self.state {
-            while let Some(message) = self.pending_out_messages.pop() {
+            while let Some(message) = self.message_queue.pop_front() {
                 let message_clone = message.clone();
 
                 match self.write_message(message) {
                     Ok(()) => {}
                     Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                        self.pending_out_messages.push(message_clone);
+                        // Can't make message queue longer than it was before pop_front
+                        self.message_queue.push_front(message_clone);
 
-                        break;
+                        return Ok(());
                     }
                     Err(err) => {
                         return Err(err);
@@ -192,11 +211,11 @@ impl Connection<Registered> {
                 }
             }
 
-            if self.pending_out_messages.is_empty() {
+            if self.message_queue.is_empty() {
                 self.interest = Interest::READABLE;
-
-                self.reregister(poll)?;
             }
+
+            self.reregister(poll)?;
 
             Ok(())
         } else {
@@ -258,7 +277,7 @@ impl Connection<Registered> {
             valid_until: self.valid_until,
             meta: self.meta,
             state,
-            pending_out_messages: self.pending_out_messages,
+            message_queue: self.message_queue,
             interest: self.interest,
             phantom_data: PhantomData::default(),
         }
@@ -465,14 +484,7 @@ struct WsConnection<R: RegistryStatus> {
 }
 
 impl WsConnection<NotRegistered> {
-    fn read<F>(
-        mut self,
-        message_handler: &mut F,
-        meta: ConnectionMeta,
-    ) -> ConnectionReadResult<ConnectionState<NotRegistered>>
-    where
-        F: FnMut(ConnectionMeta, InMessage),
-    {
+    fn read(mut self) -> ConnectionReadResult<ConnectionState<NotRegistered>> {
         match self.web_socket.read_message() {
             Ok(
                 message @ tungstenite::Message::Text(_) | message @ tungstenite::Message::Binary(_),
@@ -480,11 +492,7 @@ impl WsConnection<NotRegistered> {
                 Ok(message) => {
                     ::log::debug!("received WebSocket message");
 
-                    message_handler(meta, message);
-
-                    Ok(ConnectionReadStatus::Ok(ConnectionState::WsConnection(
-                        self,
-                    )))
+                    Ok(ConnectionReadStatus::Message(ConnectionState::WsConnection(self), message))
                 }
                 Err(err) => Err(std::io::Error::new(ErrorKind::InvalidData, err)),
             },

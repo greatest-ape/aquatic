@@ -19,6 +19,8 @@ use common::*;
 
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 
+const SHARED_IN_CHANNEL_SIZE: usize = 1024 * 4;
+
 pub fn run(config: Config, state: State) -> anyhow::Result<()> {
     start_workers(config.clone(), state.clone()).expect("couldn't start workers");
 
@@ -43,7 +45,7 @@ pub fn run(config: Config, state: State) -> anyhow::Result<()> {
 pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
     let tls_config = Arc::new(create_tls_config(&config)?);
 
-    let (in_message_sender, in_message_receiver) = ::crossbeam_channel::unbounded();
+    let (in_message_sender, in_message_receiver) = ::crossbeam_channel::bounded(SHARED_IN_CHANNEL_SIZE);
 
     let mut out_message_senders = Vec::new();
     let mut wakers = Vec::new();
@@ -67,7 +69,7 @@ pub fn start_workers(config: Config, state: State) -> anyhow::Result<()> {
         let poll = Poll::new()?;
         let waker = Arc::new(Waker::new(poll.registry(), CHANNEL_TOKEN)?);
 
-        let (out_message_sender, out_message_receiver) = ::crossbeam_channel::unbounded();
+        let (out_message_sender, out_message_receiver) = ::crossbeam_channel::bounded(SHARED_IN_CHANNEL_SIZE * 16);
 
         out_message_senders.push(out_message_sender);
         wakers.push(waker);

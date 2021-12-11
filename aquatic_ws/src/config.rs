@@ -159,7 +159,7 @@ impl Default for ProtocolConfig {
 impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
-            max_requests_per_iter: 10000,
+            max_requests_per_iter: 256,
             channel_recv_timeout_microseconds: 200,
         }
     }
