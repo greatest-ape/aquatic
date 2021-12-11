@@ -1,11 +1,9 @@
 use std::io::ErrorKind;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::vec::Drain;
 
 use anyhow::Context;
 use aquatic_common::access_list::AccessListQuery;
-use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
 use mio::net::TcpListener;
 use mio::{Events, Interest, Poll, Token};
@@ -198,10 +196,9 @@ fn run_poll_loop(
                     );
                 }
                 CHANNEL_TOKEN => {
-                    send_out_messages(
+                    write_or_queue_messages(
                         &mut poll,
-                        local_responses.drain(..),
-                        &out_message_receiver,
+                        out_message_receiver.try_iter().take(out_message_receiver.len()),
                         &mut connections,
                     );
                 }
@@ -239,6 +236,12 @@ fn run_poll_loop(
                     }
                 }
             }
+
+            write_or_queue_messages(
+                &mut poll,
+                local_responses.drain(..),
+                &mut connections,
+            );
         }
 
         // Remove inactive connections, but not every iteration
@@ -337,16 +340,12 @@ fn handle_stream_read_event(
     }
 }
 
-/// Read messages from channel, send to peers
-fn send_out_messages(
+fn write_or_queue_messages<I>(
     poll: &mut Poll,
-    local_responses: Drain<(ConnectionMeta, OutMessage)>,
-    out_message_receiver: &Receiver<(ConnectionMeta, OutMessage)>,
+    responses: I,
     connections: &mut ConnectionMap,
-) {
-    let len = out_message_receiver.len();
-
-    for (meta, out_message) in local_responses.chain(out_message_receiver.try_iter().take(len)) {
+) where I: Iterator<Item=(ConnectionMeta, OutMessage)> {
+    for (meta, out_message) in responses {
         let token = Token(meta.connection_id.0);
 
         let mut remove_connection = false;
