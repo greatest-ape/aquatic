@@ -19,7 +19,7 @@ use common::*;
 
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
 
-const SHARED_IN_CHANNEL_SIZE: usize = 1024 * 4;
+const SHARED_IN_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config, state: State) -> anyhow::Result<()> {
     start_workers(config.clone(), state.clone()).expect("couldn't start workers");
