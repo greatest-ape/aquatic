@@ -29,7 +29,7 @@ use crate::config::Config;
 
 use crate::common::*;
 
-use super::{common::*, SHARED_CHANNEL_SIZE};
+use super::{common::*, SHARED_IN_CHANNEL_SIZE};
 
 const LOCAL_CHANNEL_SIZE: usize = 16;
 
@@ -165,7 +165,7 @@ async fn receive_out_messages(
 ) {
     let connection_references = &connection_references;
 
-    out_message_receiver.for_each_concurrent(SHARED_CHANNEL_SIZE, move |channel_out_message| async {
+    out_message_receiver.for_each_concurrent(SHARED_IN_CHANNEL_SIZE, move |channel_out_message| async {
         let opt_sender = connection_references
             .borrow()
             .get(channel_out_message.0.connection_id.0)
@@ -176,10 +176,8 @@ async fn receive_out_messages(
 
             match sender.send(channel_out_message).await {
                 Ok(()) => {
-                    ::log::warn!("receive_out_messages: sent message");
                 },
                 Err(GlommioError::Closed(_)) => {
-                    ::log::warn!("receive_out_messages: channel closed");
                 }
                 Err(err) => {
                     ::log::info!(
@@ -212,8 +210,6 @@ async fn run_connection(
     let tls_acceptor: TlsAcceptor = tls_config.into();
     let stream = tls_acceptor.accept(stream).await?;
 
-    ::log::warn!("accepted tls stream");
-
     let ws_config = tungstenite::protocol::WebSocketConfig {
         max_frame_size: Some(config.network.websocket_max_frame_size),
         max_message_size: Some(config.network.websocket_max_message_size),
@@ -222,8 +218,6 @@ async fn run_connection(
     };
     let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
 
-    ::log::warn!("accepted websocket stream");
-
     let (ws_out, ws_in) = futures::StreamExt::split(stream);
 
     let pending_scrape_slab = Rc::new(RefCell::new(Slab::new()));
@@ -231,7 +225,6 @@ async fn run_connection(
 
     let reader_handle = spawn_local_into(
         enclose!((pending_scrape_slab) async move {
-            ::log::warn!("running ConnectionReader");
             let mut reader = ConnectionReader {
                 config,
                 access_list_cache,
@@ -246,8 +239,6 @@ async fn run_connection(
 
             let result = reader.run_in_message_loop().await;
 
-            ::log::warn!("run_out_message_loop ended: {:?}", result);
-
             result
         }),
         tq_regular,
@@ -257,7 +248,6 @@ async fn run_connection(
 
     let writer_handle = spawn_local_into(
         async move {
-            ::log::warn!("running ConnectionWriter");
             let mut writer = ConnectionWriter {
                 out_message_receiver,
                 ws_out,
@@ -266,8 +256,6 @@ async fn run_connection(
             };
 
             let result = writer.run_out_message_loop().await;
-
-            ::log::warn!("run_out_message_loop ended: {:?}", result);
 
             result
         },
@@ -298,8 +286,6 @@ impl ConnectionReader {
 
             let message = self.ws_in.next().await.unwrap()?;
 
-            ::log::warn!("ConnectionReader received message");
-
             match InMessage::from_ws_message(message) {
                 Ok(in_message) => {
                     ::log::debug!("parsed in_message");
@@ -318,8 +304,6 @@ impl ConnectionReader {
     }
 
     async fn handle_in_message(&mut self, in_message: InMessage) -> anyhow::Result<()> {
-        ::log::warn!("ConnectionReader handle_in_message");
-
         match in_message {
             InMessage::AnnounceRequest(announce_request) => {
                 let info_hash = announce_request.info_hash;
@@ -334,8 +318,6 @@ impl ConnectionReader {
                     let consumer_index =
                         calculate_in_message_consumer_index(&self.config, info_hash);
 
-                    ::log::warn!("ConnectionReader handle_in_message sending message");
-
                     // Only fails when receiver is closed
                     self.in_message_senders
                         .send_to(
@@ -344,7 +326,6 @@ impl ConnectionReader {
                         )
                         .await
                         .unwrap();
-                    ::log::warn!("ConnectionReader handle_in_message sent message message");
                     ::log::info!("sent message to request worker");
                 } else {
                     self.send_error_response("Info hash not allowed".into(), Some(info_hash)).await;
@@ -410,8 +391,6 @@ impl ConnectionReader {
             info_hash,
         });
 
-        ::log::warn!("send_error_response");
-
         if let Err(err) = self
             .out_message_sender
             .send((self.make_connection_meta(None), out_message)).await
@@ -441,13 +420,9 @@ struct ConnectionWriter {
 impl ConnectionWriter {
     async fn run_out_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
-            ::log::warn!("run_out_message_loop iteration");
-
             let (meta, out_message) = self.out_message_receiver.recv().await.ok_or_else(|| {
                 anyhow::anyhow!("ConnectionWriter couldn't receive message, sender is closed")
             })?;
-
-            ::log::warn!("ConnectionWriter received message");
 
             if meta.naive_peer_addr != self.peer_addr {
                 return Err(anyhow::anyhow!("peer addresses didn't match"));
@@ -496,10 +471,8 @@ impl ConnectionWriter {
     }
 
     async fn send_out_message(&mut self, out_message: &OutMessage) -> anyhow::Result<()> {
-        ::log::warn!("send_out_message");
-
         // FIXME
-        let result = timeout(Duration::from_millis(1), async {
+        let result = timeout(Duration::from_nanos(1), async {
             let result = futures::SinkExt::send(&mut self.ws_out, out_message.to_ws_message()).await;
 
             Ok(result)

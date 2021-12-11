@@ -15,7 +15,7 @@ use crate::common::handlers::*;
 use crate::common::*;
 use crate::config::Config;
 
-use super::SHARED_CHANNEL_SIZE;
+use super::SHARED_IN_CHANNEL_SIZE;
 use super::common::State;
 
 pub async fn run_request_worker(
@@ -87,7 +87,7 @@ async fn handle_request_stream<S>(
     let rng = &rng;
     let out_message_senders = &out_message_senders;
 
-    stream.for_each_concurrent(SHARED_CHANNEL_SIZE, move |(meta, in_message)| async move {
+    stream.for_each_concurrent(SHARED_IN_CHANNEL_SIZE, move |(meta, in_message)| async move {
         let mut out_messages = Vec::new();
 
         match in_message {

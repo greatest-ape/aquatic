@@ -17,13 +17,13 @@ use self::common::*;
 
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 
-pub const SHARED_CHANNEL_SIZE: usize = 1024;
+pub const SHARED_IN_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config, state: State) -> anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;
 
-    let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
-    let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
+    let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE);
+    let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE * 16);
 
     let num_bound_sockets = Arc::new(AtomicUsize::new(0));
 
