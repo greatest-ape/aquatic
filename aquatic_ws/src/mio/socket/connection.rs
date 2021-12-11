@@ -12,7 +12,7 @@ use tungstenite::{
 
 use crate::common::ConnectionMeta;
 
-const MAX_PENDING_MESSAGES: usize = 128;
+const MAX_PENDING_MESSAGES: usize = 16;
 
 type TlsStream = rustls::StreamOwned<ServerConnection, TcpStream>;
 
@@ -121,7 +121,7 @@ impl Connection<NotRegistered> {
                     return Ok(self);
                 }
                 Err(err) => {
-                    ::log::info!("Connection::read error: {}", err);
+                    ::log::debug!("Connection::read error: {}", err);
 
                     return Err(err);
                 }
@@ -153,7 +153,7 @@ impl Connection<NotRegistered> {
     }
 
     pub fn close(self) {
-        ::log::info!("will close connection to {}", self.meta.naive_peer_addr);
+        ::log::debug!("will close connection to {}", self.meta.naive_peer_addr);
 
         match self.state {
             ConnectionState::TlsHandshaking(inner) => inner.close(),
@@ -232,9 +232,21 @@ impl Connection<Registered> {
         }) = self.state
         {
             match web_socket.write_message(message.to_ws_message()) {
-                Ok(_) => Ok(()),
+                Ok(_) => {}
+                Err(tungstenite::Error::SendQueueFull(_message)) => {
+                    return Err(std::io::Error::new(
+                        ErrorKind::WouldBlock,
+                        "Send queue full",
+                    ))
+                }
+                Err(tungstenite::Error::Io(err)) => return Err(err),
+                Err(err) => return Err(std::io::Error::new(ErrorKind::Other, err))?,
+            }
+
+            match web_socket.write_pending() {
+                Ok(()) => Ok(()),
                 Err(tungstenite::Error::Io(err)) => Err(err),
-                Err(err) => Err(std::io::Error::new(ErrorKind::Other, err)),
+                Err(err) => Err(std::io::Error::new(ErrorKind::Other, err))?,
             }
         } else {
             Err(std::io::Error::new(
@@ -362,7 +374,7 @@ impl TlsHandshaking<NotRegistered> {
     }
 
     fn close(self) {
-        ::log::info!("closing connection (TlsHandshaking state)");
+        ::log::debug!("closing connection (TlsHandshaking state)");
 
         let _ = self.tcp_stream.shutdown(Shutdown::Both);
     }
@@ -446,7 +458,7 @@ impl WsHandshaking<NotRegistered> {
     }
 
     fn close(mut self) {
-        ::log::info!("closing connection (WsHandshaking state)");
+        ::log::debug!("closing connection (WsHandshaking state)");
 
         let tcp_stream = &mut self.mid_handshake.get_mut().get_mut().sock;
 
@@ -492,7 +504,10 @@ impl WsConnection<NotRegistered> {
                 Ok(message) => {
                     ::log::debug!("received WebSocket message");
 
-                    Ok(ConnectionReadStatus::Message(ConnectionState::WsConnection(self), message))
+                    Ok(ConnectionReadStatus::Message(
+                        ConnectionState::WsConnection(self),
+                        message,
+                    ))
                 }
                 Err(err) => Err(std::io::Error::new(ErrorKind::InvalidData, err)),
             },
@@ -531,7 +546,7 @@ impl WsConnection<NotRegistered> {
     }
 
     fn close(mut self) {
-        ::log::info!("closing connection (WsConnection state)");
+        ::log::debug!("closing connection (WsConnection state)");
 
         let _ = self.web_socket.close(None);
         let _ = self.web_socket.write_pending();
