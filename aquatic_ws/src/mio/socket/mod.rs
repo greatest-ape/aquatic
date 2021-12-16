@@ -1,14 +1,13 @@
 use std::io::ErrorKind;
-use std::time::Duration;
-use std::vec::Drain;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use aquatic_common::access_list::AccessListQuery;
-use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
-use log::{debug, error, info};
 use mio::net::TcpListener;
 use mio::{Events, Interest, Poll, Token};
-use native_tls::TlsAcceptor;
+use socket2::{Domain, Protocol, Socket, Type};
 use tungstenite::protocol::WebSocketConfig;
 
 use aquatic_common::convert_ipv4_mapped_ipv6;
@@ -17,13 +16,101 @@ use aquatic_ws_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
+pub mod connection;
+
 use super::common::*;
 
-pub mod connection;
-pub mod utils;
+use connection::{Connection, NotRegistered, Registered};
 
-use connection::*;
-use utils::*;
+struct ConnectionMap {
+    token_counter: Token,
+    connections: HashMap<Token, Connection<Registered>>,
+}
+
+impl Default for ConnectionMap {
+    fn default() -> Self {
+        Self {
+            token_counter: Token(2),
+            connections: Default::default(),
+        }
+    }
+}
+
+impl ConnectionMap {
+    fn insert_and_register_new<F>(&mut self, poll: &mut Poll, connection_creator: F)
+    where
+        F: FnOnce(Token) -> Connection<NotRegistered>,
+    {
+        self.token_counter.0 = self.token_counter.0.wrapping_add(1);
+
+        // Don't assign LISTENER_TOKEN or CHANNEL_TOKEN
+        if self.token_counter.0 < 2 {
+            self.token_counter.0 = 2;
+        }
+
+        let token = self.token_counter;
+
+        // Remove, deregister and close any existing connection with this token.
+        // This shouldn't happen in practice.
+        if let Some(connection) = self.connections.remove(&token) {
+            ::log::warn!(
+                "removing existing connection {} because of token reuse",
+                token.0
+            );
+
+            connection.deregister(poll).close();
+        }
+
+        let connection = connection_creator(token);
+
+        self.insert_and_register(poll, token, connection);
+    }
+
+    fn insert_and_register(
+        &mut self,
+        poll: &mut Poll,
+        key: Token,
+        conn: Connection<NotRegistered>,
+    ) {
+        self.connections.insert(key, conn.register(poll, key));
+    }
+
+    fn remove_and_deregister(
+        &mut self,
+        poll: &mut Poll,
+        key: &Token,
+    ) -> Option<Connection<NotRegistered>> {
+        if let Some(connection) = self.connections.remove(key) {
+            Some(connection.deregister(poll))
+        } else {
+            None
+        }
+    }
+
+    fn get_mut(&mut self, key: &Token) -> Option<&mut Connection<Registered>> {
+        self.connections.get_mut(key)
+    }
+
+    /// Close and remove inactive connections
+    fn clean(mut self, poll: &mut Poll) -> Self {
+        let now = Instant::now();
+
+        let mut retained_connections = HashMap::default();
+
+        for (token, connection) in self.connections.drain() {
+            if connection.valid_until.0 < now {
+                connection.deregister(poll).close();
+            } else {
+                retained_connections.insert(token, connection);
+            }
+        }
+
+        ConnectionMap {
+            connections: retained_connections,
+            ..self
+        }
+    }
+}
 
 pub fn run_socket_worker(
     config: Config,
@@ -33,7 +120,7 @@ pub fn run_socket_worker(
     poll: Poll,
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
-    opt_tls_acceptor: Option<TlsAcceptor>,
+    tls_config: Arc<rustls::ServerConfig>,
 ) {
     match create_listener(&config) {
         Ok(listener) => {
@@ -47,7 +134,7 @@ pub fn run_socket_worker(
                 in_message_sender,
                 out_message_receiver,
                 listener,
-                opt_tls_acceptor,
+                tls_config,
             );
         }
         Err(err) => {
@@ -57,7 +144,7 @@ pub fn run_socket_worker(
     }
 }
 
-pub fn run_poll_loop(
+fn run_poll_loop(
     config: Config,
     state: &State,
     socket_worker_index: usize,
@@ -65,13 +152,13 @@ pub fn run_poll_loop(
     in_message_sender: InMessageSender,
     out_message_receiver: OutMessageReceiver,
     listener: ::std::net::TcpListener,
-    opt_tls_acceptor: Option<TlsAcceptor>,
+    tls_config: Arc<rustls::ServerConfig>,
 ) {
     let poll_timeout = Duration::from_micros(config.network.poll_timeout_microseconds);
     let ws_config = WebSocketConfig {
         max_message_size: Some(config.network.websocket_max_message_size),
         max_frame_size: Some(config.network.websocket_max_frame_size),
-        max_send_queue: None,
+        max_send_queue: Some(2),
         ..Default::default()
     };
 
@@ -82,10 +169,9 @@ pub fn run_poll_loop(
         .register(&mut listener, LISTENER_TOKEN, Interest::READABLE)
         .unwrap();
 
-    let mut connections: ConnectionMap = HashMap::new();
+    let mut connections = ConnectionMap::default();
     let mut local_responses = Vec::new();
 
-    let mut poll_token_counter = Token(0usize);
     let mut iter_counter = 0usize;
 
     loop {
@@ -97,41 +183,68 @@ pub fn run_poll_loop(
         for event in events.iter() {
             let token = event.token();
 
-            if token == LISTENER_TOKEN {
-                accept_new_streams(
-                    ws_config,
-                    &mut listener,
-                    &mut poll,
-                    &mut connections,
-                    valid_until,
-                    &mut poll_token_counter,
-                );
-            } else if token != CHANNEL_TOKEN {
-                run_handshakes_and_read_messages(
-                    &config,
-                    state,
-                    socket_worker_index,
-                    &mut local_responses,
-                    &in_message_sender,
-                    &opt_tls_acceptor,
-                    &mut poll,
-                    &mut connections,
-                    token,
-                    valid_until,
-                );
+            match token {
+                LISTENER_TOKEN => {
+                    accept_new_streams(
+                        &tls_config,
+                        ws_config,
+                        socket_worker_index,
+                        &mut listener,
+                        &mut poll,
+                        &mut connections,
+                        valid_until,
+                    );
+                }
+                CHANNEL_TOKEN => {
+                    write_or_queue_messages(
+                        &mut poll,
+                        out_message_receiver
+                            .try_iter()
+                            .take(out_message_receiver.len()),
+                        &mut connections,
+                    );
+                }
+                token => {
+                    if event.is_writable() {
+                        let mut remove_connection = false;
+
+                        if let Some(connection) = connections.get_mut(&token) {
+                            if let Err(err) = connection.write(&mut poll) {
+                                ::log::debug!("Connection::write error: {}", err);
+
+                                remove_connection = true;
+                            }
+                        }
+
+                        if remove_connection {
+                            if let Some(connection) =
+                                connections.remove_and_deregister(&mut poll, &token)
+                            {
+                                connection.close();
+                            }
+                        }
+                    }
+                    if event.is_readable() {
+                        handle_stream_read_event(
+                            &config,
+                            state,
+                            &mut local_responses,
+                            &in_message_sender,
+                            &mut poll,
+                            &mut connections,
+                            token,
+                            valid_until,
+                        );
+                    }
+                }
             }
 
-            send_out_messages(
-                &mut poll,
-                local_responses.drain(..),
-                &out_message_receiver,
-                &mut connections,
-            );
+            write_or_queue_messages(&mut poll, local_responses.drain(..), &mut connections);
         }
 
         // Remove inactive connections, but not every iteration
         if iter_counter % 128 == 0 {
-            remove_inactive_connections(&mut connections);
+            connections = connections.clean(&mut poll);
         }
 
         iter_counter = iter_counter.wrapping_add(1);
@@ -139,194 +252,155 @@ pub fn run_poll_loop(
 }
 
 fn accept_new_streams(
+    tls_config: &Arc<rustls::ServerConfig>,
     ws_config: WebSocketConfig,
+    socket_worker_index: usize,
     listener: &mut TcpListener,
     poll: &mut Poll,
     connections: &mut ConnectionMap,
     valid_until: ValidUntil,
-    poll_token_counter: &mut Token,
 ) {
     loop {
         match listener.accept() {
-            Ok((mut stream, _)) => {
-                poll_token_counter.0 = poll_token_counter.0.wrapping_add(1);
+            Ok((stream, _)) => {
+                let naive_peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
+                    peer_addr
+                } else {
+                    continue;
+                };
 
-                if poll_token_counter.0 < 2 {
-                    poll_token_counter.0 = 2;
-                }
-
-                let token = *poll_token_counter;
-
-                remove_connection_if_exists(poll, connections, token);
-
-                poll.registry()
-                    .register(&mut stream, token, Interest::READABLE)
-                    .unwrap();
-
-                let connection = Connection::new(ws_config, valid_until, stream);
-
-                connections.insert(token, connection);
-            }
-            Err(err) => {
-                if err.kind() == ErrorKind::WouldBlock {
-                    break;
-                }
-
-                info!("error while accepting streams: {}", err);
-            }
-        }
-    }
-}
-
-/// On the stream given by poll_token, get TLS (if requested) and tungstenite
-/// up and running, then read messages and pass on through channel.
-pub fn run_handshakes_and_read_messages(
-    config: &Config,
-    state: &State,
-    socket_worker_index: usize,
-    local_responses: &mut Vec<(ConnectionMeta, OutMessage)>,
-    in_message_sender: &InMessageSender,
-    opt_tls_acceptor: &Option<TlsAcceptor>, // If set, run TLS
-    poll: &mut Poll,
-    connections: &mut ConnectionMap,
-    poll_token: Token,
-    valid_until: ValidUntil,
-) {
-    let access_list_mode = config.access_list.mode;
-
-    loop {
-        if let Some(established_ws) = connections
-            .get_mut(&poll_token)
-            .map(|c| {
-                // Ugly but works
-                c.valid_until = valid_until;
-
-                c
-            })
-            .and_then(Connection::get_established_ws)
-        {
-            use ::tungstenite::Error::Io;
-
-            match established_ws.ws.read_message() {
-                Ok(ws_message) => {
-                    let naive_peer_addr = established_ws.peer_addr;
+                connections.insert_and_register_new(poll, move |token| {
                     let converted_peer_ip = convert_ipv4_mapped_ipv6(naive_peer_addr.ip());
 
                     let meta = ConnectionMeta {
                         out_message_consumer_id: ConsumerId(socket_worker_index),
-                        connection_id: ConnectionId(poll_token.0),
+                        connection_id: ConnectionId(token.0),
                         naive_peer_addr,
                         converted_peer_ip,
                         pending_scrape_id: None, // FIXME
                     };
 
-                    debug!("read message");
-
-                    match InMessage::from_ws_message(ws_message) {
-                        Ok(InMessage::AnnounceRequest(ref request))
-                            if !state
-                                .access_list
-                                .allows(access_list_mode, &request.info_hash.0) =>
-                        {
-                            let out_message = OutMessage::ErrorResponse(ErrorResponse {
-                                failure_reason: "Info hash not allowed".into(),
-                                action: Some(ErrorResponseAction::Announce),
-                                info_hash: Some(request.info_hash),
-                            });
-
-                            local_responses.push((meta, out_message));
-                        }
-                        Ok(in_message) => {
-                            if let Err(err) = in_message_sender.send((meta, in_message)) {
-                                error!("InMessageSender: couldn't send message: {:?}", err);
-                            }
-                        }
-                        Err(_) => {
-                            // FIXME: maybe this condition just occurs when enough data hasn't been recevied?
-                            /*
-                            info!("error parsing message: {:?}", err);
-                            let out_message = OutMessage::ErrorResponse(ErrorResponse {
-                                failure_reason: "Error parsing message".into(),
-                                action: None,
-                                info_hash: None,
-                            });
-                            local_responses.push((meta, out_message));
-                            */
-                        }
-                    }
-                }
-                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {
-                    break;
-                }
-                Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(poll, connections, poll_token);
-
-                    break;
-                }
-                Err(err) => {
-                    info!("error reading messages: {}", err);
-
-                    remove_connection_if_exists(poll, connections, poll_token);
-
-                    break;
-                }
+                    Connection::new(tls_config.clone(), ws_config, stream, valid_until, meta)
+                });
             }
-        } else if let Some(connection) = connections.remove(&poll_token) {
-            let (opt_new_connection, stop_loop) =
-                connection.advance_handshakes(opt_tls_acceptor, valid_until);
-
-            if let Some(connection) = opt_new_connection {
-                connections.insert(poll_token, connection);
-            }
-
-            if stop_loop {
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
                 break;
             }
-        } else {
-            break;
+            Err(err) => {
+                ::log::info!("error while accepting streams: {}", err);
+            }
         }
     }
 }
 
-/// Read messages from channel, send to peers
-pub fn send_out_messages(
+fn handle_stream_read_event(
+    config: &Config,
+    state: &State,
+    local_responses: &mut Vec<(ConnectionMeta, OutMessage)>,
+    in_message_sender: &InMessageSender,
     poll: &mut Poll,
-    local_responses: Drain<(ConnectionMeta, OutMessage)>,
-    out_message_receiver: &Receiver<(ConnectionMeta, OutMessage)>,
     connections: &mut ConnectionMap,
+    token: Token,
+    valid_until: ValidUntil,
 ) {
-    let len = out_message_receiver.len();
+    let access_list_mode = config.access_list.mode;
 
-    for (meta, out_message) in local_responses.chain(out_message_receiver.try_iter().take(len)) {
-        let opt_established_ws = connections
-            .get_mut(&Token(meta.connection_id.0))
-            .and_then(Connection::get_established_ws);
+    if let Some(mut connection) = connections.remove_and_deregister(poll, &token) {
+        let message_handler = &mut |meta, message| match message {
+            InMessage::AnnounceRequest(ref request)
+                if !state
+                    .access_list
+                    .allows(access_list_mode, &request.info_hash.0) =>
+            {
+                let out_message = OutMessage::ErrorResponse(ErrorResponse {
+                    failure_reason: "Info hash not allowed".into(),
+                    action: Some(ErrorResponseAction::Announce),
+                    info_hash: Some(request.info_hash),
+                });
 
-        if let Some(established_ws) = opt_established_ws {
-            if established_ws.peer_addr != meta.naive_peer_addr {
-                info!("socket worker error: peer socket addrs didn't match");
-
-                continue;
+                local_responses.push((meta, out_message));
             }
-
-            use ::tungstenite::Error::Io;
-
-            let ws_message = out_message.to_ws_message();
-
-            match established_ws.ws.write_message(ws_message) {
-                Ok(()) => {
-                    debug!("sent message");
+            in_message => {
+                if let Err(err) = in_message_sender.send((meta, in_message)) {
+                    ::log::info!("InMessageSender: couldn't send message: {:?}", err);
                 }
-                Err(Io(err)) if err.kind() == ErrorKind::WouldBlock => {}
-                Err(tungstenite::Error::ConnectionClosed) => {
-                    remove_connection_if_exists(poll, connections, Token(meta.connection_id.0));
-                }
-                Err(err) => {
-                    info!("error writing ws message: {}", err);
+            }
+        };
 
-                    remove_connection_if_exists(poll, connections, Token(meta.connection_id.0));
+        connection.valid_until = valid_until;
+
+        match connection.read(message_handler) {
+            Ok(connection) => {
+                connections.insert_and_register(poll, token, connection);
+            }
+            Err(_) => {}
+        }
+    }
+}
+
+fn write_or_queue_messages<I>(poll: &mut Poll, responses: I, connections: &mut ConnectionMap)
+where
+    I: Iterator<Item = (ConnectionMeta, OutMessage)>,
+{
+    for (meta, out_message) in responses {
+        let token = Token(meta.connection_id.0);
+
+        let mut remove_connection = false;
+
+        if let Some(connection) = connections.get_mut(&token) {
+            if connection.get_meta().naive_peer_addr != meta.naive_peer_addr {
+                ::log::warn!(
+                    "socket worker error: connection socket addr {} didn't match channel {}. Token: {}.",
+                    connection.get_meta().naive_peer_addr,
+                    meta.naive_peer_addr,
+                    token.0
+                );
+
+                remove_connection = true;
+            } else {
+                match connection.write_or_queue_message(poll, out_message) {
+                    Ok(()) => {}
+                    Err(err) => {
+                        ::log::debug!("Connection::write_or_queue_message error: {}", err);
+
+                        remove_connection = true;
+                    }
                 }
             }
         }
+
+        if remove_connection {
+            connections.remove_and_deregister(poll, &token);
+        }
     }
+}
+
+pub fn create_listener(config: &Config) -> ::anyhow::Result<::std::net::TcpListener> {
+    let builder = if config.network.address.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))
+    } else {
+        Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))
+    }
+    .context("Couldn't create socket2::Socket")?;
+
+    if config.network.ipv6_only {
+        builder
+            .set_only_v6(true)
+            .context("Couldn't put socket in ipv6 only mode")?
+    }
+
+    builder
+        .set_nonblocking(true)
+        .context("Couldn't put socket in non-blocking mode")?;
+    builder
+        .set_reuse_port(true)
+        .context("Couldn't put socket in reuse_port mode")?;
+    builder
+        .bind(&config.network.address.into())
+        .with_context(|| format!("Couldn't bind socket to address {}", config.network.address))?;
+    builder
+        .listen(128)
+        .context("Couldn't listen for connections on socket")?;
+
+    Ok(builder.into())
 }

@@ -40,6 +40,15 @@
     messages can be sent back (e.g., "full scrapes are not supported")
 
 * aquatic_ws
+  * mio
+    * shard torrent state. this could decrease dropped messages too, since
+      request handlers won't send large batches of them
+    * connection cleaning interval
+    * use access list cache
+    * use write event interest for handshakes too
+    * deregistering before closing is required by mio, but it hurts performance
+      * blocked on https://github.com/snapview/tungstenite-rs/issues/51
+    * connection closing: send tls close message etc?
   * glommio
     * proper cpu set pinning
     * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
