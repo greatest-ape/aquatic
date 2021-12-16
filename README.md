@@ -172,35 +172,6 @@ clients, with some exceptions:
 
 For TLS setup instructions, please see `aquatic_http` TLS section above.
 
-#### Benchmarks
-
-[wt-tracker]: https://github.com/Novage/wt-tracker
-[bittorrent-tracker]: https://github.com/webtorrent/bittorrent-tracker
-
-The following benchmark is not very realistic, as it simulates a small number
-of clients, each sending a large number of requests. Nonetheless, I think that
-it gives a useful indication of relative performance.
-
-Server responses per second, best result in bold:
-
-| workers | aquatic    | [wt-tracker] | [bittorrent-tracker] |
-|---------|------------|--------------|----------------------|
-| 1       | n/a        | __117k__     | 45k                  |
-| 2       | __225k__   | n/a          | n/a                  |
-| 4       | __627k__   | n/a          | n/a                  |
-| 6       | __831k__*  | n/a          | n/a                  |
-| 8       | __1209k__* | n/a          | n/a                  |
-| 10      | __1455k__* | n/a          | n/a                  |
-| 12      | __1650k__* | n/a          | n/a                  |
-| 14      | __1804k__* | n/a          | n/a                  |
-| 16      | __1789k__* | n/a          | n/a                  |
-
-\* Using a VPS with 32 vCPUs. The other measurements were made using a 16 vCPU VPS.
-
-Please refer to `documents/aquatic-ws-load-test-2021-08-18.pdf` for more details.
-
-__Note__: these benchmarks were made with the mio-based implementation.
-
 ## Load testing
 
 There are load test binaries for all protocols. They use a CLI structure
