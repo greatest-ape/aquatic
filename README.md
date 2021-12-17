@@ -66,9 +66,8 @@ Begin by generating configuration files. They differ between protocols.
 Make adjustments to the files. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
-`aquatic_http` requires configuring a TLS certificate file as well as a
-private key file to run. More information is available in the
-corresponding subsection of this document.
+`aquatic_http` and `aquatic_ws` both require configuring a TLS certificate file as well as a
+private key file to run. More information is available below.
 
 Once done, run the tracker:
 
@@ -80,12 +79,25 @@ Once done, run the tracker:
 
 ### Configuration values
 
-Starting a lot more socket workers than request workers is recommended. All
-implementations are heavily IO-bound and spend most of their time reading from
-and writing to sockets. This part is handled by the `socket_workers`, which
+Starting more socket workers than request workers is recommended. All
+implementations are quite IO-bound and spend a lot of their time reading from
+and writing to sockets. This is handled by the `socket_workers`, which
 also do parsing, serialisation and access control. They pass announce and
 scrape requests to the `request_workers`, which update internal tracker state
 and pass back responses.
+
+#### TLS
+
+`aquatic_ws` and `aquatic_http` both require access to a TLS certificate file
+(DER-encoded X.509) and a corresponding private key file (DER-encoded ASN.1 in
+either PKCS#8 or PKCS#1 format) to run. Set their paths in the configuration file, e.g.:
+
+```toml
+[network]
+address = '0.0.0.0:3000'
+tls_certificate_path = './cert.pem'
+tls_private_key_path = './key.pem'
+```
 
 #### Access control
 
@@ -148,19 +160,6 @@ Aims for compatibility with the [HTTP BitTorrent protocol], with some exceptions
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
 fine.
 
-#### TLS
-
-A TLS certificate file (DER-encoded X.509) and a corresponding private key file
-(DER-encoded ASN.1 in either PKCS#8 or PKCS#1 format) are required. Set their
-paths in the configuration file, e.g.:
-
-```toml
-[network]
-address = '0.0.0.0:3000'
-tls_certificate_path = './cert.pem'
-tls_private_key_path = './key.pem'
-```
-
 ### aquatic_ws: WebTorrent tracker
 
 Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
@@ -169,8 +168,6 @@ clients, with some exceptions:
   * Only runs over TLS
   * Doesn't track of the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
-
-For TLS setup instructions, please see `aquatic_http` TLS section above.
 
 ## Load testing
 
