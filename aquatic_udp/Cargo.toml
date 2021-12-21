@@ -21,18 +21,21 @@ anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
+chrono = "0.4"
 cfg-if = "1"
 crossbeam-channel = "0.5"
 hex = "0.4"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }
+num-format = "0.4"
 parking_lot = "0.11"
 rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 slab = "0.4"
 signal-hook = { version = "0.3" }
 socket2 = { version = "0.4", features = ["all"] }
+tinytemplate = "1"
 
 [dev-dependencies]
 quickcheck = "1"

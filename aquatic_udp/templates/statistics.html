@@ -1,0 +1,93 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>UDP BitTorrent tracker statistics</title>
+
+    {#- Include stylesheet like this to prevent code editor syntax warnings #}
+    { stylesheet | unescaped }
+</head>
+
+<body>
+    <h1>BitTorrent tracker statistics</h1>
+
+    <p>
+        <strong>Tracker software:</strong> <a href="https://github.com/greatest-ape/aquatic">aquatic_udp</a>
+    </p>
+
+    <p>
+        <strong>Updated:</strong> { last_updated } (UTC)
+    </p>
+
+    {{ if ipv4_active }}
+
+    <h2>IPv4</h2>
+
+    <table>
+        <caption>* Peer count is updated every { peer_update_interval } seconds</caption>
+        <tr>
+            <th scope="row">Number of torrents</th>
+            <td>{ ipv4.num_torrents }</td>
+        </tr>
+        <tr>
+            <th scope="row">Number of peers</th>
+            <td>{ ipv4.num_peers } *</td>
+        </tr>
+        <tr>
+            <th scope="row">Requests / second</th>
+            <td>{ ipv4.requests_per_second }</td>
+        </tr>
+        <tr>
+            <th scope="row">Responses / second</th>
+            <td>{ ipv4.responses_per_second }</td>
+        </tr>
+        <tr>
+            <th scope="row">Bandwidth (RX)</th>
+            <td>{ ipv4.rx_mbits } mbit/s</td>
+        </tr>
+        <tr>
+            <th scope="row">Bandwidth (TX)</th>
+            <td>{ ipv4.tx_mbits } mbit/s</td>
+        </tr>
+    </table>
+
+    {{ endif }}
+
+    {{ if ipv6_active }}
+
+    <h2>IPv6</h2>
+
+    <table>
+        <caption>* Peer count is updated every { peer_update_interval } seconds</caption>
+        <tr>
+            <th scope="row">Number of torrents</th>
+            <td>{ ipv6.num_torrents }</td>
+        </tr>
+        <tr>
+            <th scope="row">Number of peers</th>
+            <td>{ ipv6.num_peers } *</td>
+        </tr>
+        <tr>
+            <th scope="row">Requests / second</th>
+            <td>{ ipv6.requests_per_second }</td>
+        </tr>
+        <tr>
+            <th scope="row">Responses / second</th>
+            <td>{ ipv6.responses_per_second }</td>
+        </tr>
+        <tr>
+            <th scope="row">Bandwidth (RX)</th>
+            <td>{ ipv6.rx_mbits } mbit/s</td>
+        </tr>
+        <tr>
+            <th scope="row">Bandwidth (TX)</th>
+            <td>{ ipv6.tx_mbits } mbit/s</td>
+        </tr>
+    </table>
+
+    {{ endif }}
+</body>
+</html>

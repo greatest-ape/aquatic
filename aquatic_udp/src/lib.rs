@@ -118,7 +118,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             .with_context(|| "spawn socket worker")?;
     }
 
-    if config.statistics.interval != 0 {
+    if config.statistics.active() {
         let state = state.clone();
         let config = config.clone();
 
