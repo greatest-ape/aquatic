@@ -293,7 +293,7 @@ fn read_requests(
         }
     }
 
-    if config.statistics.interval != 0 {
+    if config.statistics.active() {
         state
             .statistics_ipv4
             .requests_received
@@ -471,7 +471,7 @@ fn send_responses(
         }
     }
 
-    if config.statistics.interval != 0 {
+    if config.statistics.active() {
         state
             .statistics_ipv4
             .responses_sent

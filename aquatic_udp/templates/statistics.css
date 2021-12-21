@@ -1,0 +1,22 @@
+body {
+    font-family: arial, sans-serif;
+    font-size: 16px;
+}
+
+table {
+    border-collapse: collapse
+}
+
+caption {
+    caption-side: bottom;
+    padding-top: 0.5rem;
+}
+
+th, td {
+    padding: 0.5rem 2rem;
+    border: 1px solid #ccc;
+}
+
+th {
+    background-color: #eee;
+}

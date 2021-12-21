@@ -163,11 +163,13 @@ dependencies = [
  "aquatic_common",
  "aquatic_udp_protocol",
  "cfg-if",
+ "chrono",
  "crossbeam-channel",
  "hex",
  "log",
  "mimalloc",
  "mio",
+ "num-format",
  "parking_lot",
  "quickcheck",
  "quickcheck_macros",
@@ -176,6 +178,7 @@ dependencies = [
  "signal-hook",
  "slab",
  "socket2 0.4.2",
+ "tinytemplate",
 ]
 
 [[package]]

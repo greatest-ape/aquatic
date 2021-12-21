@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::{Deserialize, Serialize};
@@ -87,6 +87,15 @@ pub struct NetworkConfig {
     pub poll_timeout_ms: u64,
 }
 
+impl NetworkConfig {
+    pub fn ipv4_active(&self) -> bool {
+        self.address.is_ipv4() || !self.only_ipv6
+    }
+    pub fn ipv6_active(&self) -> bool {
+        self.address.is_ipv6()
+    }
+}
+
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
@@ -123,13 +132,30 @@ impl Default for ProtocolConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
-    /// Print statistics this often (seconds). Don't print when set to zero.
+    /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
+    /// Print statistics to standard output
+    pub print_to_stdout: bool,
+    /// Save statistics as HTML to a file
+    pub write_html_to_file: bool,
+    /// Path to save HTML file
+    pub html_file_path: PathBuf,
+}
+
+impl StatisticsConfig {
+    pub fn active(&self) -> bool {
+        (self.interval != 0) & (self.print_to_stdout | self.write_html_to_file)
+    }
 }
 
 impl Default for StatisticsConfig {
     fn default() -> Self {
-        Self { interval: 0 }
+        Self {
+            interval: 5,
+            print_to_stdout: false,
+            write_html_to_file: false,
+            html_file_path: "tmp/statistics.html".into(),
+        }
     }
 }
 
