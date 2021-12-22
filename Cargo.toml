@@ -14,6 +14,8 @@ members = [
     "aquatic_ws",
     "aquatic_ws_load_test",
     "aquatic_ws_protocol",
+    "toml_config",
+    "toml_config_derive",
 ]
 
 [patch.crates-io]
@@ -30,6 +32,8 @@ aquatic_udp_protocol = { path = "aquatic_udp_protocol" }
 aquatic_ws = { path = "aquatic_ws" }
 aquatic_ws_load_test = { path = "aquatic_ws_load_test" }
 aquatic_ws_protocol = { path = "aquatic_ws_protocol" }
+toml_config = { path = "toml_config" }
+toml_config_derive = { path = "toml_config_derive" }
 
 [profile.release]
 debug = true

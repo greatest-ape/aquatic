@@ -1,0 +1,17 @@
+[package]
+name = "toml_config_derive"
+version = "0.1.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2021"
+license = "Apache-2.0"
+description = "WebTorrent tracker protocol"
+repository = "https://github.com/greatest-ape/aquatic"
+exclude = ["target"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = "1"

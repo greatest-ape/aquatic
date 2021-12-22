@@ -2067,6 +2067,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml_config"
+version = "0.1.0"
+dependencies = [
+ "quickcheck",
+ "quickcheck_macros",
+ "toml_config_derive",
+]
+
+[[package]]
+name = "toml_config_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "tracing"
 version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
