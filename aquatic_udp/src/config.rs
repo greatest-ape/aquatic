@@ -69,7 +69,7 @@ impl aquatic_cli_helpers::Config for Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
-    /// Only allow IPv6 access
+    /// Only allow access over IPv6
     pub only_ipv6: bool,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///

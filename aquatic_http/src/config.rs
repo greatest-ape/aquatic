@@ -39,7 +39,9 @@ pub struct NetworkConfig {
     pub address: SocketAddr,
     pub tls_certificate_path: PathBuf,
     pub tls_private_key_path: PathBuf,
+    /// Only allow access over IPv6
     pub ipv6_only: bool,
+    /// Keep connections alive
     pub keep_alive: bool,
 }
 

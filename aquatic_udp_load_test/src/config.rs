@@ -16,6 +16,7 @@ pub struct Config {
     /// address here.
     pub server_address: SocketAddr,
     pub log_level: LogLevel,
+    /// Number of workers sending requests
     pub workers: u8,
     /// Run duration (quit and generate report after this many seconds)
     pub duration: usize,
@@ -60,12 +61,10 @@ pub struct NetworkConfig {
     ///
     /// This setting can have a big impact on dropped packages. It might
     /// require changing system defaults. Some examples of commands to set
-    /// recommended values for different operating systems:
+    /// values for different operating systems:
     ///
     /// macOS:
     /// $ sudo sysctl net.inet.udp.recvspace=6000000
-    /// $ sudo sysctl net.inet.udp.maxdgram=500000 # Not necessary, but recommended
-    /// $ sudo sysctl kern.ipc.maxsockbuf=8388608 # Not necessary, but recommended
     ///
     /// Linux:
     /// $ sudo sysctl -w net.core.rmem_max=104857600

@@ -44,6 +44,7 @@ impl aquatic_cli_helpers::Config for Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    /// Only allow access over IPv6
     pub ipv6_only: bool,
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
