@@ -10,7 +10,7 @@ use privdrop::PrivDrop;
 use serde::{Deserialize};
 use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct PrivilegeConfig {
     /// Chroot and switch user after binding to sockets

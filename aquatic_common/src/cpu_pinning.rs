@@ -2,7 +2,7 @@ use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
 use serde::{Deserialize, Serialize};
 use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, TomlConfig, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CpuPinningMode {
     Ascending,
@@ -15,7 +15,7 @@ impl Default for CpuPinningMode {
     }
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 pub struct CpuPinningConfig {
     pub active: bool,
     pub mode: CpuPinningMode,

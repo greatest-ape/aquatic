@@ -7,7 +7,7 @@ use aquatic_cli_helpers::LogLevel;
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Server address
@@ -41,7 +41,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// True means bind to one localhost IP per socket.
@@ -84,7 +84,7 @@ impl Default for NetworkConfig {
     }
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct RequestConfig {
     /// Number of torrents to simulate
@@ -124,4 +124,11 @@ impl Default for RequestConfig {
             additional_request_probability: 0.5,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }

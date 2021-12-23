@@ -6,7 +6,7 @@ use toml_config::TomlConfig;
 
 use aquatic_cli_helpers::LogLevel;
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
@@ -32,7 +32,7 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// Bind to this address
@@ -45,7 +45,7 @@ pub struct NetworkConfig {
     pub keep_alive: bool,
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
@@ -56,7 +56,7 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: usize,
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
@@ -111,4 +111,11 @@ impl Default for CleaningConfig {
             max_peer_age: 1800,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }

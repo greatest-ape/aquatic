@@ -9,7 +9,7 @@ use serde::{Deserialize};
 use aquatic_cli_helpers::LogLevel;
 use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
@@ -39,7 +39,7 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// Bind to this address
@@ -58,7 +58,7 @@ pub struct NetworkConfig {
     pub poll_timeout_microseconds: u64,
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
@@ -70,7 +70,7 @@ pub struct ProtocolConfig {
 }
 
 #[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
     /// Maximum number of requests to receive from channel before locking
@@ -79,7 +79,7 @@ pub struct HandlerConfig {
     pub channel_recv_timeout_microseconds: u64,
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
@@ -100,7 +100,7 @@ pub struct CleaningConfig {
 }
 
 #[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
     /// Print statistics this often (seconds). Don't print when set to zero.
@@ -188,4 +188,11 @@ impl Default for StatisticsConfig {
     fn default() -> Self {
         Self { interval: 0 }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }

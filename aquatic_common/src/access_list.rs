@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use toml_config::TomlConfig;
 
 /// Access list mode. Available modes are white, black and off.
-#[derive(Clone, Copy, Debug, TomlConfig, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AccessListMode {
     /// Only serve torrents with info hash present in file
@@ -27,7 +27,7 @@ impl AccessListMode {
     }
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 pub struct AccessListConfig {
     pub mode: AccessListMode,
     /// Path to access list file consisting of newline-separated hex-encoded info hashes.

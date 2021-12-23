@@ -10,7 +10,7 @@ macro_rules! gen_serialize_deserialize_test {
         fn test_cargo_toml_serialize_deserialize(){
             use ::toml_config::TomlConfig;
             let serialized = $ident::default_to_string();
-            let deserialized = ::toml::de::from_str(&serialized).unwrap();
+            let deserialized = ::toml_config::toml::de::from_str(&serialized).unwrap();
 
             assert_eq!($ident::default(), deserialized);
         }

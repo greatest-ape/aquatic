@@ -4,7 +4,7 @@ use aquatic_cli_helpers::LogLevel;
 use serde::{Deserialize};
 use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub server_address: SocketAddr,
@@ -29,7 +29,7 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct TorrentConfig {
     pub number_of_torrents: usize,
@@ -73,4 +73,11 @@ impl Default for TorrentConfig {
             weight_scrape: 0,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }
