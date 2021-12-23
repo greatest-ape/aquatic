@@ -2072,6 +2072,8 @@ version = "0.1.0"
 dependencies = [
  "quickcheck",
  "quickcheck_macros",
+ "serde",
+ "toml",
  "toml_config_derive",
 ]
 
