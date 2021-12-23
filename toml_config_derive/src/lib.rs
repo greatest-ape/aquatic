@@ -1,6 +1,6 @@
 use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Type, Attribute, Ident, Data, Fields};
+use syn::{parse_macro_input, DeriveInput, Type, Attribute, Ident, Data, Fields, DataStruct};
 
 #[proc_macro_derive(TomlConfig)]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -9,72 +9,96 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let comment = extract_comment_string(input.attrs);
     let ident = input.ident;
 
-    let mut output_stream = quote! {
-        let mut output = String::new();
-    };
-
-    extract_from_struct(ident.clone(), input.data, &mut output_stream);
-
-    let expanded = quote! {
-        impl ::toml_config::TomlConfig for #ident {
-            fn default_to_string() -> String {
+    match input.data {
+        Data::Struct(struct_data) => {
+            let mut output_stream = quote! {
                 let mut output = String::new();
+            };
 
-                let comment: Option<String> = #comment;
+            extract_from_struct(ident.clone(), struct_data, &mut output_stream);
 
-                if let Some(comment) = comment {
-                    output.push_str(&comment);
-                    output.push('\n');
+            let expanded = quote! {
+                impl ::toml_config::TomlConfig for #ident {
+                    fn default_to_string() -> String {
+                        let mut output = String::new();
+
+                        let comment: Option<String> = #comment;
+
+                        if let Some(comment) = comment {
+                            output.push_str(&comment);
+                            output.push('\n');
+                        }
+
+                        let body = {
+                            #output_stream
+
+                            output
+                        };
+
+                        output.push_str(&body);
+
+                        output
+                    }
                 }
+                impl ::toml_config::__private::Private for #ident {
+                    fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
+                        let mut output = String::new();
 
-                let body = {
-                    #output_stream
+                        output.push('\n');
 
-                    output
-                };
+                        if let Some(comment) = comment {
+                            output.push_str(&comment);
+                        }
+                        output.push_str(&format!("[{}]\n", field_name));
 
-                output.push_str(&body);
+                        let body = {
+                            #output_stream
 
-                output
-            }
-        }
-        impl ::toml_config::__private::Private for #ident {
-            fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
-                let mut output = String::new();
+                            output
+                        };
 
-                output.push('\n');
+                        output.push_str(&body);
 
-                if let Some(comment) = comment {
-                    output.push_str(&comment);
+                        output
+                    }
                 }
-                output.push_str(&format!("[{}]\n", field_name));
+            };
 
-                let body = {
-                    #output_stream
-
-                    output
-                };
-
-                output.push_str(&body);
-
-                output
-            }
+            proc_macro::TokenStream::from(expanded)
         }
-    };
+        Data::Enum(_) => {
+            let expanded = quote! {
+                impl ::toml_config::__private::Private for #ident {
+                    fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
+                        let mut output = String::new();
 
-    proc_macro::TokenStream::from(expanded)
+                        if let Some(comment) = comment {
+                            output.push_str(&comment);
+                        }
+
+                        let value = match ::toml_config::toml::ser::to_string(self) {
+                            Ok(value) => value,
+                            Err(err) => panic!("Couldn't serialize enum to toml: {:#}", err),
+                        };
+
+                        output.push_str(&format!("{} = {}\n", field_name, value));
+
+                        output
+                    }
+                }
+            };
+
+            proc_macro::TokenStream::from(expanded)
+        }
+        Data::Union(_) => panic!("Unions are not supported"),
+    }
 }
 
 fn extract_from_struct(
     struct_ty_ident: Ident,
-    struct_data: Data,
+    struct_data: DataStruct,
     output_stream: &mut TokenStream
 ) {
-    let struct_data = if let Data::Struct(data) = struct_data {
-        data
-    } else {
-        panic!("Not a struct");
-    };
     let fields = if let Fields::Named(fields) = struct_data.fields {
         fields
     } else {

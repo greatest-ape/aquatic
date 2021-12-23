@@ -4,8 +4,9 @@ use std::io::Read;
 use anyhow::Context;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
+use toml_config::TomlConfig;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Off,
@@ -22,7 +23,7 @@ impl Default for LogLevel {
     }
 }
 
-pub trait Config: Default + Serialize + DeserializeOwned {
+pub trait Config: Default + TomlConfig + DeserializeOwned {
     fn get_log_level(&self) -> Option<LogLevel> {
         None
     }
@@ -169,9 +170,9 @@ where
 
 fn default_config_as_toml<T>() -> String
 where
-    T: Default + Serialize,
+    T: Default + TomlConfig,
 {
-    toml::to_string_pretty(&T::default()).expect("Could not serialize default config to toml")
+    <T as TomlConfig>::default_to_string()
 }
 
 fn start_logger(log_level: LogLevel) -> ::anyhow::Result<()> {

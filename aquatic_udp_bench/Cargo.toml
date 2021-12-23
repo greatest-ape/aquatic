@@ -21,3 +21,4 @@ num-format = "0.4"
 rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
 serde = { version = "1", features = ["derive"] }
+toml_config = "0.1.0"

@@ -1,9 +1,10 @@
 use std::net::SocketAddr;
 
 use aquatic_cli_helpers::LogLevel;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub server_address: SocketAddr,
@@ -28,7 +29,7 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct TorrentConfig {
     pub number_of_torrents: usize,

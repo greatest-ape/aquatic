@@ -1,12 +1,13 @@
 use std::net::SocketAddr;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 
 use aquatic_cli_helpers::LogLevel;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Server address
@@ -39,7 +40,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// True means bind to one localhost IP per socket.
@@ -84,7 +85,7 @@ impl Default for NetworkConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct RequestConfig {
     /// Number of torrents to simulate

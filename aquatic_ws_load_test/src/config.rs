@@ -3,9 +3,10 @@ use std::net::SocketAddr;
 use aquatic_cli_helpers::LogLevel;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub server_address: SocketAddr,
@@ -41,7 +42,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct TorrentConfig {
     pub offers_per_request: usize,

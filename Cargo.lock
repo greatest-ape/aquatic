@@ -62,6 +62,7 @@ dependencies = [
  "serde",
  "simplelog",
  "toml",
+ "toml_config",
 ]
 
 [[package]]
@@ -80,6 +81,7 @@ dependencies = [
  "privdrop",
  "rand",
  "serde",
+ "toml_config",
 ]
 
 [[package]]
@@ -109,6 +111,7 @@ dependencies = [
  "signal-hook",
  "slab",
  "smartstring",
+ "toml_config",
 ]
 
 [[package]]
@@ -130,6 +133,7 @@ dependencies = [
  "rand_distr",
  "rustls",
  "serde",
+ "toml_config",
 ]
 
 [[package]]
@@ -179,6 +183,7 @@ dependencies = [
  "slab",
  "socket2 0.4.2",
  "tinytemplate",
+ "toml_config",
 ]
 
 [[package]]
@@ -196,6 +201,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "serde",
+ "toml_config",
 ]
 
 [[package]]
@@ -215,6 +221,7 @@ dependencies = [
  "rand_distr",
  "serde",
  "socket2 0.4.2",
+ "toml_config",
 ]
 
 [[package]]
@@ -259,6 +266,7 @@ dependencies = [
  "signal-hook",
  "slab",
  "socket2 0.4.2",
+ "toml_config",
  "tungstenite",
 ]
 
@@ -284,6 +292,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "toml_config",
  "tungstenite",
 ]
 

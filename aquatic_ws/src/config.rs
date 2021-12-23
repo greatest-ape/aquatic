@@ -4,11 +4,12 @@ use std::path::PathBuf;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 
 use aquatic_cli_helpers::LogLevel;
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
@@ -38,7 +39,7 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// Bind to this address
@@ -56,7 +57,7 @@ pub struct NetworkConfig {
     pub poll_timeout_microseconds: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
@@ -68,7 +69,7 @@ pub struct ProtocolConfig {
 }
 
 #[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
     /// Maximum number of requests to receive from channel before locking
@@ -77,7 +78,7 @@ pub struct HandlerConfig {
     pub channel_recv_timeout_microseconds: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
@@ -98,7 +99,7 @@ pub struct CleaningConfig {
 }
 
 #[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
     /// Print statistics this often (seconds). Don't print when set to zero.

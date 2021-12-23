@@ -12,3 +12,4 @@ anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 simplelog = "0.11"
 toml = "0.5"
+toml_config = "0.1.0"

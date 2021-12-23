@@ -36,6 +36,7 @@ rustls-pemfile = "0.2"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
+toml_config = "0.1.0"
 tungstenite = "0.16"
 
 # mio
