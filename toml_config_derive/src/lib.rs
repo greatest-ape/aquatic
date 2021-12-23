@@ -71,6 +71,11 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 impl ::toml_config::__private::Private for #ident {
                     fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
                         let mut output = String::new();
+                        let wrapping_comment: Option<String> = #comment;
+
+                        if let Some(comment) = wrapping_comment {
+                            output.push_str(&comment);
+                        }
 
                         if let Some(comment) = comment {
                             output.push_str(&comment);
