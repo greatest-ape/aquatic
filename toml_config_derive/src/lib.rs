@@ -152,8 +152,11 @@ fn extract_comment_string(attrs: Vec<Attribute>) -> TokenStream {
                     {
                         let mut comment = format!("{}", literal);
 
+                        // Strip leading and trailing quotation marks
                         comment.remove(comment.len() - 1);
                         comment.remove(0);
+
+                        // Add toml comment indicator
                         comment.insert(0, '#');
 
                         output.push_str(&comment);

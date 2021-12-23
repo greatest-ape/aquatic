@@ -1,7 +1,8 @@
 pub use toml;
 pub use toml_config_derive::TomlConfig;
 
-/// Run this on your struct implementing TomlConfig to generate a test for it
+/// Run this on your struct implementing TomlConfig to generate a
+/// serialization/deserialization test for it.
 #[macro_export]
 macro_rules! gen_serialize_deserialize_test {
     ($ident:ident) => {
@@ -16,6 +17,11 @@ macro_rules! gen_serialize_deserialize_test {
     };
 }
 
+/// Export structs to toml, converting Rust doc strings to comments.
+/// 
+/// Supports one level of nesting. Fields containing structs must come
+/// after regular fields.
+/// 
 /// Usage:
 /// ```
 /// use toml_config::TomlConfig;
