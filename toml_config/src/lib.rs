@@ -1,14 +1,9 @@
-use std::path::PathBuf;
-
 pub use toml_config_derive::TomlConfig;
 
 macro_rules! impl_trait {
     ($ident:ident) => {
-        impl TomlConfig for $ident {
-            fn to_string(&self) -> String {
-                unimplemented!()
-            }
-            fn to_string_internal(&self, comment: Option<String>, field_name: String) -> String {
+        impl Private for $ident {
+            fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
                 let mut output = String::new();
 
                 if let Some(comment) = comment {
@@ -26,11 +21,18 @@ macro_rules! impl_trait {
 }
 
 pub trait TomlConfig: Default {
-    fn to_string(&self) -> String;
-    fn to_string_internal(&self, comment: Option<String>, field_name: String) -> String;
+    fn default_to_string(&self) -> String;
 }
 
-impl_trait!(usize);
-impl_trait!(bool);
-impl_trait!(String);
-impl_trait!(PathBuf);
+pub mod __private {
+    use std::path::PathBuf;
+
+    pub trait Private: Default {
+        fn __to_string(&self, comment: Option<String>, field_name: String) -> String;
+    }
+
+    impl_trait!(usize);
+    impl_trait!(bool);
+    impl_trait!(String);
+    impl_trait!(PathBuf);
+}

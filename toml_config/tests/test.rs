@@ -32,7 +32,7 @@ mod tests {
     fn test() {
         let config = TestConfig::default();
 
-        println!("{}", TomlConfig::to_string(&config));
+        println!("{}", TomlConfig::default_to_string(&config));
 
         assert!(false);
     }

@@ -2,24 +2,22 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Type, Attribute, Ident, Data, Fields};
 
-
 #[proc_macro_derive(TomlConfig)]
-pub fn derive_toml_config(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let mut output = quote! {
+    let comment = extract_comment_string(input.attrs);
+    let ident = input.ident;
+
+    let mut output_stream = quote! {
         let mut output = String::new();
     };
 
-    let comment = extract_comment_string(input.attrs);
-
-    let ident = input.ident;
-
-    extract_from_data(ident.clone(), input.data, &mut output);
+    extract_from_struct(ident.clone(), input.data, &mut output_stream);
 
     let expanded = quote! {
-        impl TomlConfig for #ident {
-            fn to_string(&self) -> String {
+        impl ::toml_config::TomlConfig for #ident {
+            fn default_to_string(&self) -> String {
                 let mut output = String::new();
 
                 let comment: Option<String> = #comment;
@@ -30,7 +28,7 @@ pub fn derive_toml_config(input: proc_macro::TokenStream) -> proc_macro::TokenSt
                 }
 
                 let body = {
-                    #output
+                    #output_stream
 
                     output
                 };
@@ -39,7 +37,9 @@ pub fn derive_toml_config(input: proc_macro::TokenStream) -> proc_macro::TokenSt
 
                 output
             }
-            fn to_string_internal(&self, comment: Option<String>, field_name: String) -> String {
+        }
+        impl ::toml_config::__private::Private for #ident {
+            fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
                 let mut output = String::new();
 
                 output.push('\n');
@@ -50,7 +50,7 @@ pub fn derive_toml_config(input: proc_macro::TokenStream) -> proc_macro::TokenSt
                 output.push_str(&format!("[{}]\n", field_name));
 
                 let body = {
-                    #output
+                    #output_stream
 
                     output
                 };
@@ -65,7 +65,11 @@ pub fn derive_toml_config(input: proc_macro::TokenStream) -> proc_macro::TokenSt
     proc_macro::TokenStream::from(expanded)
 }
 
-fn extract_from_data(struct_ty_ident: Ident, struct_data: Data, output: &mut TokenStream) {
+fn extract_from_struct(
+    struct_ty_ident: Ident,
+    struct_data: Data,
+    output_stream: &mut TokenStream
+) {
     let struct_data = if let Data::Struct(data) = struct_data {
         data
     } else {
@@ -77,7 +81,7 @@ fn extract_from_data(struct_ty_ident: Ident, struct_data: Data, output: &mut Tok
         panic!("Fields are not named");
     };
 
-    output.extend(::std::iter::once(quote!{
+    output_stream.extend(::std::iter::once(quote!{
         let struct_default = #struct_ty_ident::default();
     }));
 
@@ -87,11 +91,11 @@ fn extract_from_data(struct_ty_ident: Ident, struct_data: Data, output: &mut Tok
         let comment = extract_comment_string(field.attrs);
 
         if let Type::Path(path) = field.ty {
-            output.extend(::std::iter::once(quote!{
+            output_stream.extend(::std::iter::once(quote!{
                 {
                     let comment: Option<String> = #comment;
 
-                    let s: String = ::toml_config::TomlConfig::to_string_internal(
+                    let s: String = ::toml_config::__private::Private::__to_string(
                         &#path::default(),
                         comment,
                         #ident_string.to_string()
@@ -107,6 +111,16 @@ fn extract_comment_string(attrs: Vec<Attribute>) -> TokenStream {
     let mut output = String::new();
 
     for attr in attrs.into_iter() {
+        let path_ident = if let Some(path_ident) = attr.path.get_ident() {
+            path_ident
+        } else {
+            continue;
+        };
+
+        if format!("{}", path_ident) != "doc" {
+            continue;
+        }
+
         for token_tree in attr.tokens {
             match token_tree {
                 TokenTree::Literal(literal) => {
