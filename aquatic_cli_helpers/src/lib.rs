@@ -6,6 +6,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use toml_config::TomlConfig;
 
+/// Log level. Available values are off, error, warn, info, debug and trace.
 #[derive(Debug, Clone, Copy, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {

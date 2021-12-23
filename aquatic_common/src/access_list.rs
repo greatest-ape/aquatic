@@ -9,6 +9,7 @@ use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 use toml_config::TomlConfig;
 
+/// Access list mode. Available modes are white, black and off.
 #[derive(Clone, Copy, Debug, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AccessListMode {

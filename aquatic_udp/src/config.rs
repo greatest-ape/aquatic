@@ -6,6 +6,7 @@ use serde::{Deserialize};
 use aquatic_cli_helpers::LogLevel;
 use toml_config::TomlConfig;
 
+/// aquatic_udp configuration
 #[derive(Clone, Debug, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -68,17 +69,16 @@ impl aquatic_cli_helpers::Config for Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    /// Only allow IPv6 access
     pub only_ipv6: bool,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
     /// require changing system defaults. Some examples of commands to set
-    /// recommended values for different operating systems:
+    /// values for different operating systems:
     ///
     /// macOS:
     /// $ sudo sysctl net.inet.udp.recvspace=6000000
-    /// $ sudo sysctl net.inet.udp.maxdgram=500000 # Not necessary, but recommended
-    /// $ sudo sysctl kern.ipc.maxsockbuf=8388608 # Not necessary, but recommended
     ///
     /// Linux:
     /// $ sudo sysctl -w net.core.rmem_max=104857600
@@ -139,7 +139,7 @@ pub struct StatisticsConfig {
     pub print_to_stdout: bool,
     /// Save statistics as HTML to a file
     pub write_html_to_file: bool,
-    /// Path to save HTML file
+    /// Path to save HTML file to
     pub html_file_path: PathBuf,
 }
 
@@ -175,9 +175,9 @@ pub struct CleaningConfig {
     pub pending_scrape_cleaning_interval: u64,
     /// Remove connections that are older than this (seconds)
     pub max_connection_age: u64,
-    /// Remove peers that haven't announced for this long (seconds)
+    /// Remove peers who have not announced for this long (seconds)
     pub max_peer_age: u64,
-    /// Remove pending scrape responses that haven't been returned from request
+    /// Remove pending scrape responses that have not been returned from request
     /// workers for this long (seconds)
     pub max_pending_scrape_age: u64,
 }
