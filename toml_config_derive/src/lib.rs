@@ -17,7 +17,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let expanded = quote! {
         impl ::toml_config::TomlConfig for #ident {
-            fn default_to_string(&self) -> String {
+            fn default_to_string() -> String {
                 let mut output = String::new();
 
                 let comment: Option<String> = #comment;
@@ -94,9 +94,10 @@ fn extract_from_struct(
             output_stream.extend(::std::iter::once(quote!{
                 {
                     let comment: Option<String> = #comment;
+                    let field_default: #path = struct_default.#ident;
 
                     let s: String = ::toml_config::__private::Private::__to_string(
-                        &#path::default(),
+                        &field_default,
                         comment,
                         #ident_string.to_string()
                     );

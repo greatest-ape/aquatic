@@ -1,39 +1,46 @@
+use serde::Deserialize;
 
-#[cfg(test)]
-mod tests {
-    use toml_config::*;
+use toml_config::{TomlConfig, gen_serialize_deserialize_test};
 
-    #[derive(TomlConfig, Default)]
-    struct TestConfigInnerA {
-        /// Comment for a
-        a: String,
-        /// Comment for b
-        b: usize,
-        /// Comment for c
-        c: usize,
-        // Comment for 
-    }
+#[derive(Clone, Debug, PartialEq, Eq, TomlConfig, Deserialize)]
+struct TestConfigInnerA {
+    /// Comment for a
+    a: String,
+    /// Comment for b
+    b: usize,
+}
 
-    /// Comment for TestConfig
-    #[derive(TomlConfig, Default)]
-    struct TestConfig {
-        /// Comment for a that stretches over
-        /// multiple lines
-        a: String,
-        /// Comment for b
-        b: usize,
-        /// Comment for c
-        c: bool,
-        /// Comment for TestConfigInnerA
-        inner_a: TestConfigInnerA,
-    }
-
-    #[test]
-    fn test() {
-        let config = TestConfig::default();
-
-        println!("{}", TomlConfig::default_to_string(&config));
-
-        assert!(false);
+impl Default for TestConfigInnerA {
+    fn default() -> Self {
+        Self {
+            a: "Inner hello world".into(),
+            b: 100,
+        }
     }
 }
+
+/// Comment for TestConfig
+#[derive(Clone, Debug, PartialEq, Eq, TomlConfig, Deserialize)]
+struct TestConfig {
+    /// Comment for a that stretches over
+    /// multiple lines
+    a: String,
+    /// Comment for b
+    b: usize,
+    c: bool,
+    /// Comment for TestConfigInnerA
+    inner_a: TestConfigInnerA,
+}
+
+impl Default for TestConfig {
+    fn default() -> Self {
+        Self {
+            a: "Hello, world!".into(),
+            b: 100,
+            c: true,
+            inner_a: Default::default(),
+        }
+    }
+}
+
+gen_serialize_deserialize_test!(TestConfig);
