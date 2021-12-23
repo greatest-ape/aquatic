@@ -7,6 +7,7 @@ use aquatic_cli_helpers::LogLevel;
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use toml_config::TomlConfig;
 
+/// aquatic_udp_load_test configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {

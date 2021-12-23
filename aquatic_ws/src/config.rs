@@ -9,6 +9,7 @@ use serde::{Deserialize};
 use aquatic_cli_helpers::LogLevel;
 use toml_config::TomlConfig;
 
+/// aquatic_ws configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -84,7 +85,7 @@ pub struct HandlerConfig {
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,
-    /// Remove peers that haven't announced for this long (seconds)
+    /// Remove peers that have not announced for this long (seconds)
     pub max_peer_age: u64,
 
     // Clean connections this often (seconds)
@@ -103,7 +104,7 @@ pub struct CleaningConfig {
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
-    /// Print statistics this often (seconds). Don't print when set to zero.
+    /// Print statistics this often (seconds). Do not print when set to zero.
     pub interval: u64,
 }
 

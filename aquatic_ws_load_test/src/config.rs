@@ -6,6 +6,7 @@ use aquatic_common::cpu_pinning::CpuPinningConfig;
 use serde::{Deserialize};
 use toml_config::TomlConfig;
 
+/// aquatic_ws_load_test configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {

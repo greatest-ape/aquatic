@@ -4,6 +4,7 @@ use aquatic_cli_helpers::LogLevel;
 use serde::{Deserialize};
 use toml_config::TomlConfig;
 
+/// aquatic_http_load_test configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -15,7 +16,7 @@ pub struct Config {
     /// How often to check if num_connections connections are open, and
     /// open a new one otherwise. A value of 0 means that connections are
     /// opened as quickly as possible, which is useful when the tracker
-    /// doesn't keep connections alive.
+    /// does not keep connections alive.
     pub connection_creation_interval_ms: u64,
     pub duration: usize,
     pub torrents: TorrentConfig,

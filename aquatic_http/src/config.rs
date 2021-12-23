@@ -6,6 +6,7 @@ use toml_config::TomlConfig;
 
 use aquatic_cli_helpers::LogLevel;
 
+/// aquatic_http configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -61,7 +62,7 @@ pub struct ProtocolConfig {
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,
-    /// Remove peers that haven't announced for this long (seconds)
+    /// Remove peers that have not announced for this long (seconds)
     pub max_peer_age: u64,
 }
 
