@@ -1,8 +1,6 @@
 use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Type};
-use syn::{Attribute, Ident, Result, Token, Data, Fields, FieldsNamed, DataStruct};
-use syn::parse::{Parse, ParseStream};
+use syn::{parse_macro_input, DeriveInput, Type, Attribute, Ident, Data, Fields};
 
 
 #[proc_macro_derive(TomlConfig)]
@@ -13,7 +11,7 @@ pub fn derive_toml_config(input: proc_macro::TokenStream) -> proc_macro::TokenSt
         let mut output = String::new();
     };
 
-    output.extend(::std::iter::once(extract_comment_string(input.attrs)));
+    let comment = extract_comment_string(input.attrs);
 
     let ident = input.ident;
 
@@ -22,14 +20,42 @@ pub fn derive_toml_config(input: proc_macro::TokenStream) -> proc_macro::TokenSt
     let expanded = quote! {
         impl TomlConfig for #ident {
             fn to_string(&self) -> String {
-                #output
+                let mut output = String::new();
+
+                let comment: Option<String> = #comment;
+
+                if let Some(comment) = comment {
+                    output.push_str(&comment);
+                    output.push('\n');
+                }
+
+                let body = {
+                    #output
+
+                    output
+                };
+
+                output.push_str(&body);
 
                 output
             }
-            fn to_string_with_field_name(&self, field_name: String) -> String {
-                let mut output = format!("[{}]\n", field_name);
+            fn to_string_internal(&self, comment: Option<String>, field_name: String) -> String {
+                let mut output = String::new();
 
-                output.push_str(&::toml_config::TomlConfig::to_string(self));
+                output.push('\n');
+
+                if let Some(comment) = comment {
+                    output.push_str(&comment);
+                }
+                output.push_str(&format!("[{}]\n", field_name));
+
+                let body = {
+                    #output
+
+                    output
+                };
+
+                output.push_str(&body);
 
                 output
             }
@@ -58,14 +84,16 @@ fn extract_from_data(struct_ty_ident: Ident, struct_data: Data, output: &mut Tok
     for field in fields.named.into_iter() {
         let ident = field.ident.expect("Encountered unnamed field");
         let ident_string = format!("{}", ident);
-
-        output.extend(::std::iter::once(extract_comment_string(field.attrs)));
+        let comment = extract_comment_string(field.attrs);
 
         if let Type::Path(path) = field.ty {
             output.extend(::std::iter::once(quote!{
                 {
-                    let s: String = ::toml_config::TomlConfig::to_string_with_field_name(
+                    let comment: Option<String> = #comment;
+
+                    let s: String = ::toml_config::TomlConfig::to_string_internal(
                         &#path::default(),
+                        comment,
                         #ident_string.to_string()
                     );
                     output.push_str(&s);
@@ -98,7 +126,13 @@ fn extract_comment_string(attrs: Vec<Attribute>) -> TokenStream {
         }
     }
 
-    quote! {
-        output.push_str(&#output);
+    if output.is_empty() {
+        quote! {
+            None
+        }
+    } else {
+        quote! {
+            Some(#output.to_string())
+        }
     }
 }

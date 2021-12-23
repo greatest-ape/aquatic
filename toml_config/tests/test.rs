@@ -17,12 +17,13 @@ mod tests {
     /// Comment for TestConfig
     #[derive(TomlConfig, Default)]
     struct TestConfig {
-        /// Comment for a
+        /// Comment for a that stretches over
+        /// multiple lines
         a: String,
         /// Comment for b
         b: usize,
         /// Comment for c
-        c: usize,
+        c: bool,
         /// Comment for TestConfigInnerA
         inner_a: TestConfigInnerA,
     }

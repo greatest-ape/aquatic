@@ -12,7 +12,6 @@ exclude = ["target"]
 name = "toml_config"
 
 [dependencies]
-serde = "1"
 toml = "0.5"
 toml_config_derive = { path = "../toml_config_derive" }
 
