@@ -11,8 +11,8 @@ use aquatic_cli_helpers::LogLevel;
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the request handler. They then recieve responses from the
-    /// request handler, encode them and send them back over the socket.
+    /// them on to the request workers. They then recieve responses from the
+    /// request workers, encode them and send them back over the socket.
     pub socket_workers: usize,
     /// Request workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
