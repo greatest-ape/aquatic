@@ -105,12 +105,6 @@ parsing fails, the program exits. Later failures result in in emitting of
 an error-level log message, while successful updates of the access list result
 in emitting of an info-level log message.
 
-#### More information
-
-More documentation of the various configuration options might be available
-under `src/config.rs` in directories `aquatic_udp`, `aquatic_http` and
-`aquatic_ws`.
-
 ## Details on implementations
 
 ### aquatic_udp: UDP BitTorrent tracker
