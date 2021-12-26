@@ -1,12 +1,14 @@
 use std::net::SocketAddr;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// aquatic_udp_load_test configuration
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Server address
@@ -15,6 +17,7 @@ pub struct Config {
     /// address here.
     pub server_address: SocketAddr,
     pub log_level: LogLevel,
+    /// Number of workers sending requests
     pub workers: u8,
     /// Run duration (quit and generate report after this many seconds)
     pub duration: usize,
@@ -39,7 +42,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// True means bind to one localhost IP per socket.
@@ -59,12 +62,10 @@ pub struct NetworkConfig {
     ///
     /// This setting can have a big impact on dropped packages. It might
     /// require changing system defaults. Some examples of commands to set
-    /// recommended values for different operating systems:
+    /// values for different operating systems:
     ///
     /// macOS:
     /// $ sudo sysctl net.inet.udp.recvspace=6000000
-    /// $ sudo sysctl net.inet.udp.maxdgram=500000 # Not necessary, but recommended
-    /// $ sudo sysctl kern.ipc.maxsockbuf=8388608 # Not necessary, but recommended
     ///
     /// Linux:
     /// $ sudo sysctl -w net.core.rmem_max=104857600
@@ -84,7 +85,7 @@ impl Default for NetworkConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct RequestConfig {
     /// Number of torrents to simulate
@@ -124,4 +125,11 @@ impl Default for RequestConfig {
             additional_request_probability: 0.5,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }

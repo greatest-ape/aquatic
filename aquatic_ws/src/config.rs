@@ -4,16 +4,18 @@ use std::path::PathBuf;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// aquatic_ws configuration
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the request handler. They then recieve responses from the
-    /// request handler, encode them and send them back over the socket.
+    /// them on to the request workers. They then receive responses from the
+    /// request workers, encode them and send them back over the socket.
     pub socket_workers: usize,
     /// Request workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
@@ -38,17 +40,21 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    /// Only allow access over IPv6
     pub ipv6_only: bool,
+
+    /// Path to TLS certificate (DER-encoded X.509)
+    pub tls_certificate_path: PathBuf,
+    /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
+    pub tls_private_key_path: PathBuf,
+
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
-
-    pub tls_certificate_path: PathBuf,
-    pub tls_private_key_path: PathBuf,
 
     #[cfg(feature = "with-mio")]
     pub poll_event_capacity: usize,
@@ -56,7 +62,7 @@ pub struct NetworkConfig {
     pub poll_timeout_microseconds: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
@@ -68,7 +74,7 @@ pub struct ProtocolConfig {
 }
 
 #[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct HandlerConfig {
     /// Maximum number of requests to receive from channel before locking
@@ -77,12 +83,12 @@ pub struct HandlerConfig {
     pub channel_recv_timeout_microseconds: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,
-    /// Remove peers that haven't announced for this long (seconds)
+    /// Remove peers that have not announced for this long (seconds)
     pub max_peer_age: u64,
 
     // Clean connections this often (seconds)
@@ -98,10 +104,10 @@ pub struct CleaningConfig {
 }
 
 #[cfg(feature = "with-mio")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
-    /// Print statistics this often (seconds). Don't print when set to zero.
+    /// Print statistics this often (seconds). Do not print when set to zero.
     pub interval: u64,
 }
 
@@ -131,11 +137,12 @@ impl Default for NetworkConfig {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             ipv6_only: false,
-            websocket_max_message_size: 64 * 1024,
-            websocket_max_frame_size: 16 * 1024,
 
             tls_certificate_path: "".into(),
             tls_private_key_path: "".into(),
+
+            websocket_max_message_size: 64 * 1024,
+            websocket_max_frame_size: 16 * 1024,
 
             #[cfg(feature = "with-mio")]
             poll_event_capacity: 4096,
@@ -186,4 +193,11 @@ impl Default for StatisticsConfig {
     fn default() -> Self {
         Self { interval: 0 }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }

@@ -1,15 +1,17 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// aquatic_udp configuration
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the request workers. They then recieve responses from the
+    /// them on to the request workers. They then receive responses from the
     /// request workers, encode them and send them back over the socket.
     pub socket_workers: usize,
     /// Request workers receive a number of requests from socket workers,
@@ -62,22 +64,21 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
+    /// Only allow access over IPv6
     pub only_ipv6: bool,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
     /// require changing system defaults. Some examples of commands to set
-    /// recommended values for different operating systems:
+    /// values for different operating systems:
     ///
     /// macOS:
     /// $ sudo sysctl net.inet.udp.recvspace=6000000
-    /// $ sudo sysctl net.inet.udp.maxdgram=500000 # Not necessary, but recommended
-    /// $ sudo sysctl kern.ipc.maxsockbuf=8388608 # Not necessary, but recommended
     ///
     /// Linux:
     /// $ sudo sysctl -w net.core.rmem_max=104857600
@@ -108,7 +109,7 @@ impl Default for NetworkConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
@@ -129,7 +130,7 @@ impl Default for ProtocolConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
@@ -138,7 +139,7 @@ pub struct StatisticsConfig {
     pub print_to_stdout: bool,
     /// Save statistics as HTML to a file
     pub write_html_to_file: bool,
-    /// Path to save HTML file
+    /// Path to save HTML file to
     pub html_file_path: PathBuf,
 }
 
@@ -159,7 +160,7 @@ impl Default for StatisticsConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean connections this often (seconds)
@@ -174,9 +175,9 @@ pub struct CleaningConfig {
     pub pending_scrape_cleaning_interval: u64,
     /// Remove connections that are older than this (seconds)
     pub max_connection_age: u64,
-    /// Remove peers that haven't announced for this long (seconds)
+    /// Remove peers who have not announced for this long (seconds)
     pub max_peer_age: u64,
-    /// Remove pending scrape responses that haven't been returned from request
+    /// Remove pending scrape responses that have not been returned from request
     /// workers for this long (seconds)
     pub max_pending_scrape_age: u64,
 }
@@ -192,4 +193,11 @@ impl Default for CleaningConfig {
             max_pending_scrape_age: 60,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }

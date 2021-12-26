@@ -36,6 +36,7 @@ slab = "0.4"
 signal-hook = { version = "0.3" }
 socket2 = { version = "0.4", features = ["all"] }
 tinytemplate = "1"
+toml_config = "0.1.0"
 
 [dev-dependencies]
 quickcheck = "1"

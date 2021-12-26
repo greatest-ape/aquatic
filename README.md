@@ -66,8 +66,9 @@ Begin by generating configuration files. They differ between protocols.
 Make adjustments to the files. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
-`aquatic_http` and `aquatic_ws` both require configuring a TLS certificate file as well as a
-private key file to run. More information is available below.
+Note that both `aquatic_http` and `aquatic_ws` require configuring TLS
+certificate and private key files. More details are available in the
+respective configuration files.
 
 Once done, run the tracker:
 
@@ -79,25 +80,12 @@ Once done, run the tracker:
 
 ### Configuration values
 
-Starting more socket workers than request workers is recommended. All
+Starting more `socket_workers` than `request_workers` is recommended. All
 implementations are quite IO-bound and spend a lot of their time reading from
-and writing to sockets. This is handled by the `socket_workers`, which
+and writing to sockets. This is handled by the socket workers, which
 also do parsing, serialisation and access control. They pass announce and
-scrape requests to the `request_workers`, which update internal tracker state
-and pass back responses.
-
-#### TLS
-
-`aquatic_ws` and `aquatic_http` both require access to a TLS certificate file
-(DER-encoded X.509) and a corresponding private key file (DER-encoded ASN.1 in
-either PKCS#8 or PKCS#1 format) to run. Set their paths in the configuration file, e.g.:
-
-```toml
-[network]
-address = '0.0.0.0:3000'
-tls_certificate_path = './cert.pem'
-tls_private_key_path = './key.pem'
-```
+scrape requests to the request workers, which update internal tracker state
+and pass back responses for sending.
 
 #### Access control
 
@@ -106,20 +94,16 @@ of configuration is:
 
 ```toml
 [access_list]
-mode = 'off' # Change to 'black' (blacklist) or 'white' (whitelist)
-path = '' # Path to text file with newline-delimited hex-encoded info hashes
+# Access list mode. Available modes are white, black and off.
+mode = "off"
+# Path to access list file consisting of newline-separated hex-encoded info hashes.
+path = ""
 ```
 
 The file is read on start and when the program receives `SIGUSR1`. If initial
 parsing fails, the program exits. Later failures result in in emitting of
 an error-level log message, while successful updates of the access list result
 in emitting of an info-level log message.
-
-#### More information
-
-More documentation of the various configuration options might be available
-under `src/config.rs` in directories `aquatic_udp`, `aquatic_http` and
-`aquatic_ws`.
 
 ## Details on implementations
 
@@ -146,6 +130,7 @@ More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.p
 * Using glommio
 * Using io-uring
 * Using zerocopy + vectored sends for responses
+* Using sendmmsg
 
 ### aquatic_http: HTTP BitTorrent tracker
 

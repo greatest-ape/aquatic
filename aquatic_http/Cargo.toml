@@ -38,6 +38,7 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 smartstring = "0.2"
+toml_config = "0.1.0"
 
 [dev-dependencies]
 quickcheck = "1"

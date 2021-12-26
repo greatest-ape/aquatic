@@ -1,15 +1,17 @@
 [package]
-name = "aquatic_cli_helpers"
+name = "toml_config_derive"
 version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
-description = "aquatic BitTorrent tracker CLI helpers"
+description = "WebTorrent tracker protocol"
 repository = "https://github.com/greatest-ape/aquatic"
+exclude = ["target"]
+
+[lib]
+proc-macro = true
 
 [dependencies]
-anyhow = "1"
-serde = { version = "1", features = ["derive"] }
-simplelog = "0.11"
-toml = "0.5"
-toml_config = "0.1.0"
+proc-macro2 = "1"
+quote = "1"
+syn = "1"

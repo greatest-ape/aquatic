@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use toml_config::TomlConfig;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 pub struct BenchConfig {
     pub num_rounds: usize,
     pub num_threads: usize,
@@ -24,3 +25,10 @@ impl Default for BenchConfig {
 }
 
 impl aquatic_cli_helpers::Config for BenchConfig {}
+
+#[cfg(test)]
+mod tests {
+    use super::BenchConfig;
+
+    ::toml_config::gen_serialize_deserialize_test!(BenchConfig);
+}

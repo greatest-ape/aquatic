@@ -1,16 +1,18 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use toml_config::TomlConfig;
 
 use aquatic_cli_helpers::LogLevel;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// aquatic_http configuration
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the request handler. They then recieve responses from the
-    /// request handler, encode them and send them back over the socket.
+    /// them on to the request workers. They then receive responses from the
+    /// request workers, encode them and send them back over the socket.
     pub socket_workers: usize,
     /// Request workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
@@ -31,18 +33,22 @@ impl aquatic_cli_helpers::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
-    pub tls_certificate_path: PathBuf,
-    pub tls_private_key_path: PathBuf,
+    /// Only allow access over IPv6
     pub ipv6_only: bool,
+    /// Path to TLS certificate (DER-encoded X.509)
+    pub tls_certificate_path: PathBuf,
+    /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
+    pub tls_private_key_path: PathBuf,
+    /// Keep connections alive
     pub keep_alive: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
@@ -53,12 +59,12 @@ pub struct ProtocolConfig {
     pub peer_announce_interval: usize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,
-    /// Remove peers that haven't announced for this long (seconds)
+    /// Remove peers that have not announced for this long (seconds)
     pub max_peer_age: u64,
 }
 
@@ -108,4 +114,11 @@ impl Default for CleaningConfig {
             max_peer_age: 1800,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    ::toml_config::gen_serialize_deserialize_test!(Config);
 }
