@@ -11,7 +11,7 @@ use toml_config::TomlConfig;
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the request workers. They then recieve responses from the
+    /// them on to the request workers. They then receive responses from the
     /// request workers, encode them and send them back over the socket.
     pub socket_workers: usize,
     /// Request workers receive a number of requests from socket workers,
