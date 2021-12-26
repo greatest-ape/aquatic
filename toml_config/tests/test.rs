@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use toml_config::{TomlConfig, gen_serialize_deserialize_test};
+use toml_config::{gen_serialize_deserialize_test, TomlConfig};
 
 #[derive(Clone, Debug, PartialEq, Eq, TomlConfig, Deserialize)]
 struct TestConfigInnerA {

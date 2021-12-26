@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
-use serde::{Deserialize};
+use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
 use toml_config::TomlConfig;

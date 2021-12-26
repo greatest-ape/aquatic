@@ -7,7 +7,7 @@ use std::{
 };
 
 use privdrop::PrivDrop;
-use serde::{Deserialize};
+use serde::Deserialize;
 use toml_config::TomlConfig;
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]

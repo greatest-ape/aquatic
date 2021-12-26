@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
-use serde::{Deserialize};
+use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
 use toml_config::TomlConfig;

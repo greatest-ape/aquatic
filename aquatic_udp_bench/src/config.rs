@@ -1,4 +1,4 @@
-use serde::{Deserialize};
+use serde::Deserialize;
 use toml_config::TomlConfig;
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
@@ -32,4 +32,3 @@ mod tests {
 
     ::toml_config::gen_serialize_deserialize_test!(BenchConfig);
 }
-

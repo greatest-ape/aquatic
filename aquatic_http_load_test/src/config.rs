@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use aquatic_cli_helpers::LogLevel;
-use serde::{Deserialize};
+use serde::Deserialize;
 use toml_config::TomlConfig;
 
 /// aquatic_http_load_test configuration

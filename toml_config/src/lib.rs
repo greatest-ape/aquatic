@@ -7,7 +7,7 @@ pub use toml_config_derive::TomlConfig;
 macro_rules! gen_serialize_deserialize_test {
     ($ident:ident) => {
         #[test]
-        fn test_cargo_toml_serialize_deserialize(){
+        fn test_cargo_toml_serialize_deserialize() {
             use ::toml_config::TomlConfig;
             let serialized = $ident::default_to_string();
             let deserialized = ::toml_config::toml::de::from_str(&serialized).unwrap();
@@ -18,14 +18,14 @@ macro_rules! gen_serialize_deserialize_test {
 }
 
 /// Export structs to toml, converting Rust doc strings to comments.
-/// 
+///
 /// Supports one level of nesting. Fields containing structs must come
 /// after regular fields.
-/// 
+///
 /// Usage:
 /// ```
 /// use toml_config::TomlConfig;
-/// 
+///
 /// #[derive(TomlConfig)]
 /// struct SubConfig {
 ///     /// A
@@ -33,7 +33,7 @@ macro_rules! gen_serialize_deserialize_test {
 ///     /// B
 ///     b: String,
 /// }
-/// 
+///
 /// impl Default for SubConfig {
 ///     fn default() -> Self {
 ///         Self {
@@ -42,7 +42,7 @@ macro_rules! gen_serialize_deserialize_test {
 ///         }
 ///     }
 /// }
-/// 
+///
 /// #[derive(TomlConfig)]
 /// struct Config {
 ///     /// A
@@ -52,7 +52,7 @@ macro_rules! gen_serialize_deserialize_test {
 ///     /// C
 ///     c: SubConfig,
 /// }
-/// 
+///
 /// impl Default for Config {
 ///     fn default() -> Self {
 ///         Self {
@@ -62,9 +62,9 @@ macro_rules! gen_serialize_deserialize_test {
 ///         }
 ///     }
 /// }
-/// 
+///
 /// let expected = "# A\na = 100\n# B\nb = \"hello\"\n\n# C\n[c]\n# A\na = 200\n# B\nb = \"subconfig hello\"\n";
-/// 
+///
 /// assert_eq!(
 ///     Config::default_to_string(),
 ///     expected,
@@ -75,8 +75,8 @@ pub trait TomlConfig: Default {
 }
 
 pub mod __private {
-    use std::path::PathBuf;
     use std::net::SocketAddr;
+    use std::path::PathBuf;
 
     pub trait Private {
         fn __to_string(&self, comment: Option<String>, field_name: String) -> String;

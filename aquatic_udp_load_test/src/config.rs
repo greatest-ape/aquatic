@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use serde::{Deserialize};
+use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
 #[cfg(feature = "cpu-pinning")]
