@@ -17,7 +17,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
             extract_from_struct(ident.clone(), struct_data, &mut output_stream);
 
-            let expanded = quote! {
+            proc_macro::TokenStream::from(quote! {
                 impl ::toml_config::TomlConfig for #ident {
                     fn default_to_string() -> String {
                         let mut output = String::new();
@@ -62,12 +62,10 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         output
                     }
                 }
-            };
-
-            proc_macro::TokenStream::from(expanded)
+            })
         }
         Data::Enum(_) => {
-            let expanded = quote! {
+            proc_macro::TokenStream::from(quote! {
                 impl ::toml_config::__private::Private for #ident {
                     fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
                         let mut output = String::new();
@@ -91,9 +89,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         output
                     }
                 }
-            };
-
-            proc_macro::TokenStream::from(expanded)
+            })
         }
         Data::Union(_) => panic!("Unions are not supported"),
     }
@@ -154,19 +150,17 @@ fn extract_comment_string(attrs: Vec<Attribute>) -> TokenStream {
         for token_tree in attr.tokens {
             match token_tree {
                 TokenTree::Literal(literal) => {
-                    {
-                        let mut comment = format!("{}", literal);
+                    let mut comment = format!("{}", literal);
 
-                        // Strip leading and trailing quotation marks
-                        comment.remove(comment.len() - 1);
-                        comment.remove(0);
+                    // Strip leading and trailing quotation marks
+                    comment.remove(comment.len() - 1);
+                    comment.remove(0);
 
-                        // Add toml comment indicator
-                        comment.insert(0, '#');
+                    // Add toml comment indicator
+                    comment.insert(0, '#');
 
-                        output.push_str(&comment);
-                        output.push('\n');
-                    }
+                    output.push_str(&comment);
+                    output.push('\n');
                 }
                 _ => {}
             }
