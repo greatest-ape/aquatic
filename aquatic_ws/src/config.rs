@@ -47,11 +47,14 @@ pub struct NetworkConfig {
     pub address: SocketAddr,
     /// Only allow access over IPv6
     pub ipv6_only: bool,
+
+    /// Path to TLS certificate (DER-encoded X.509)
+    pub tls_certificate_path: PathBuf,
+    /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
+    pub tls_private_key_path: PathBuf,
+
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
-
-    pub tls_certificate_path: PathBuf,
-    pub tls_private_key_path: PathBuf,
 
     #[cfg(feature = "with-mio")]
     pub poll_event_capacity: usize,
@@ -134,11 +137,12 @@ impl Default for NetworkConfig {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             ipv6_only: false,
-            websocket_max_message_size: 64 * 1024,
-            websocket_max_frame_size: 16 * 1024,
 
             tls_certificate_path: "".into(),
             tls_private_key_path: "".into(),
+
+            websocket_max_message_size: 64 * 1024,
+            websocket_max_frame_size: 16 * 1024,
 
             #[cfg(feature = "with-mio")]
             poll_event_capacity: 4096,

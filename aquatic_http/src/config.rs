@@ -38,10 +38,12 @@ impl aquatic_cli_helpers::Config for Config {
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
-    pub tls_certificate_path: PathBuf,
-    pub tls_private_key_path: PathBuf,
     /// Only allow access over IPv6
     pub ipv6_only: bool,
+    /// Path to TLS certificate (DER-encoded X.509)
+    pub tls_certificate_path: PathBuf,
+    /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
+    pub tls_private_key_path: PathBuf,
     /// Keep connections alive
     pub keep_alive: bool,
 }
