@@ -391,6 +391,7 @@ fn handle_scrape_request(
     }
 
     PendingScrapeResponse {
+        connection_id: request.connection_id,
         transaction_id: request.transaction_id,
         torrent_stats,
     }

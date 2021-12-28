@@ -41,6 +41,7 @@ pub fn bench_scrape_handler(
         for request_chunk in requests.chunks(p) {
             for (request, src) in request_chunk {
                 let request = ConnectedRequest::Scrape(PendingScrapeRequest {
+                    connection_id: request.connection_id,
                     transaction_id: request.transaction_id,
                     info_hashes: request
                         .info_hashes
