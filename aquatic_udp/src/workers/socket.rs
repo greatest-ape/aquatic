@@ -48,6 +48,7 @@ impl ConnectionMap {
     }
 }
 
+#[derive(Debug)]
 pub struct PendingScrapeResponseMeta {
     num_pending: usize,
     valid_until: ValidUntil,
@@ -66,6 +67,12 @@ impl PendingScrapeResponseMap {
         num_pending: usize,
         valid_until: ValidUntil,
     ) {
+        if num_pending == 0 {
+            ::log::warn!("Attempted to prepare PendingScrapeResponseMap entry with num_pending=0");
+
+            return;
+        }
+
         let meta = PendingScrapeResponseMeta {
             num_pending,
             valid_until,
@@ -89,7 +96,7 @@ impl PendingScrapeResponseMap {
 
             r.0.num_pending == 0
         } else {
-            ::log::warn!("PendingScrapeResponses.add didn't find PendingScrapeResponse in map");
+            ::log::warn!("PendingScrapeResponseMap.add didn't find entry for key {:?}", key);
 
             false
         };
@@ -109,7 +116,19 @@ impl PendingScrapeResponseMap {
     pub fn clean(&mut self) {
         let now = Instant::now();
 
-        self.0.retain(|_, v| v.0.valid_until.0 > now);
+        self.0.retain(|k, v| {
+            let keep = v.0.valid_until.0 > now;
+            
+            if !keep {
+                ::log::warn!(
+                    "Removing PendingScrapeResponseMap entry while cleaning: k={:?}; v={:?}",
+                    k,
+                    v
+                );
+            }
+
+            keep
+        });
         self.0.shrink_to_fit();
     }
 }
