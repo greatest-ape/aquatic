@@ -304,6 +304,7 @@ impl Request {
 
 #[cfg(test)]
 mod tests {
+    use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
 
     use super::*;
@@ -386,7 +387,11 @@ mod tests {
     }
 
     #[quickcheck]
-    fn test_scrape_request_convert_identity(request: ScrapeRequest) -> bool {
-        same_after_conversion(request.into())
+    fn test_scrape_request_convert_identity(request: ScrapeRequest) -> TestResult {
+        if request.info_hashes.is_empty() {
+            return TestResult::discard();
+        }
+
+        TestResult::from_bool(same_after_conversion(request.into()))
     }
 }
