@@ -61,24 +61,43 @@ pub struct PendingScrapeResponseMap(
 );
 
 impl PendingScrapeResponseMap {
-    pub fn prepare(
+    pub fn prepare_split_requests(
         &mut self,
-        connection_id: ConnectionId,
-        transaction_id: TransactionId,
+        config: &Config,
+        request: ScrapeRequest,
         addr: SocketAddr,
-        num_pending: usize,
         valid_until: ValidUntil,
-    ) {
-        if num_pending == 0 {
-            ::log::warn!("Attempted to prepare PendingScrapeResponseMap entry with num_pending=0");
+    ) -> impl IntoIterator<Item = (RequestWorkerIndex, PendingScrapeRequest)> {
+        let mut split_requests: AHashIndexMap<RequestWorkerIndex, PendingScrapeRequest> =
+            Default::default();
 
-            return;
+        if request.info_hashes.is_empty() {
+            ::log::warn!(
+                "Attempted to prepare PendingScrapeResponseMap entry with zero info hashes"
+            );
+
+            return split_requests;
+        }
+
+        let connection_id = request.connection_id;
+        let transaction_id = request.transaction_id;
+
+        for (i, info_hash) in request.info_hashes.into_iter().enumerate() {
+            let split_request = split_requests
+                .entry(RequestWorkerIndex::from_info_hash(&config, info_hash))
+                .or_insert_with(|| PendingScrapeRequest {
+                    connection_id,
+                    transaction_id,
+                    info_hashes: BTreeMap::new(),
+                });
+
+            split_request.info_hashes.insert(i, info_hash);
         }
 
         let key = (connection_id, transaction_id, addr);
 
         let entry = PendingScrapeResponseMapEntry {
-            num_pending,
+            num_pending: split_requests.len(),
             valid_until,
             torrent_stats: Default::default(),
         };
@@ -90,6 +109,8 @@ impl PendingScrapeResponseMap {
                 key
             );
         }
+
+        split_requests
     }
 
     pub fn add_and_get_finished(
@@ -405,33 +426,14 @@ pub fn handle_request(
         }
         Ok(Request::Scrape(request)) => {
             if connections.contains(request.connection_id, src) {
-                let mut requests: AHashIndexMap<RequestWorkerIndex, PendingScrapeRequest> =
-                    Default::default();
-
-                let connection_id = request.connection_id;
-                let transaction_id = request.transaction_id;
-
-                for (i, info_hash) in request.info_hashes.into_iter().enumerate() {
-                    let pending = requests
-                        .entry(RequestWorkerIndex::from_info_hash(&config, info_hash))
-                        .or_insert_with(|| PendingScrapeRequest {
-                            connection_id,
-                            transaction_id,
-                            info_hashes: BTreeMap::new(),
-                        });
-
-                    pending.info_hashes.insert(i, info_hash);
-                }
-
-                pending_scrape_responses.prepare(
-                    connection_id,
-                    transaction_id,
+                let split_requests = pending_scrape_responses.prepare_split_requests(
+                    config,
+                    request,
                     src,
-                    requests.len(),
                     pending_scrape_valid_until,
                 );
 
-                for (request_worker_index, request) in requests {
+                for (request_worker_index, request) in split_requests {
                     request_sender.try_send_to(
                         request_worker_index,
                         ConnectedRequest::Scrape(request),
