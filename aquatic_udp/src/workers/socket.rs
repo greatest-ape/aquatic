@@ -92,17 +92,26 @@ impl PendingScrapeResponseMap {
         }
     }
 
-    pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse, addr: SocketAddr) -> Option<Response> {
+    pub fn add_and_get_finished(
+        &mut self,
+        response: PendingScrapeResponse,
+        addr: SocketAddr,
+    ) -> Option<Response> {
         let key = (response.connection_id, response.transaction_id, addr);
 
         let finished = if let Some(entry) = self.0.get_mut(&key) {
             entry.num_pending -= 1;
 
-            entry.torrent_stats.extend(response.torrent_stats.into_iter());
+            entry
+                .torrent_stats
+                .extend(response.torrent_stats.into_iter());
 
             entry.num_pending == 0
         } else {
-            ::log::warn!("PendingScrapeResponseMap.add didn't find entry for key {:?}", key);
+            ::log::warn!(
+                "PendingScrapeResponseMap.add didn't find entry for key {:?}",
+                key
+            );
 
             false
         };
@@ -124,7 +133,7 @@ impl PendingScrapeResponseMap {
 
         self.0.retain(|k, v| {
             let keep = v.valid_until.0 > now;
-            
+
             if !keep {
                 ::log::warn!(
                     "Removing PendingScrapeResponseMap entry while cleaning. {:?}: {:?}",

@@ -276,12 +276,12 @@ impl Request {
                     .take(max_scrape_torrents as usize)
                     .map(|chunk| InfoHash(chunk.try_into().unwrap()))
                     .collect();
-                
+
                 if info_hashes.is_empty() {
                     Err(RequestParseError::sendable_text(
                         "Full scrapes are not allowed",
                         connection_id,
-                        transaction_id
+                        transaction_id,
                     ))
                 } else {
                     Ok((ScrapeRequest {
