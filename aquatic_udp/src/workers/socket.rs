@@ -628,3 +628,111 @@ pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
 
     socket.into()
 }
+
+#[cfg(test)]
+mod tests {
+    use quickcheck::TestResult;
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[quickcheck]
+    fn test_pending_scrape_response_map(
+        request_data: Vec<(i32, i64, SocketAddr, u8)>,
+        request_workers: u8,
+    ) -> TestResult {
+        if request_workers == 0 {
+            return TestResult::discard();
+        }
+
+        let mut config = Config::default();
+
+        config.request_workers = request_workers as usize;
+
+        let valid_until = ValidUntil::new(1);
+
+        let mut map = PendingScrapeResponseMap::default();
+
+        let mut requests = Vec::new();
+
+        for (t, c, a, b) in request_data {
+            if b == 0 {
+                return TestResult::discard();
+            }
+
+            let mut info_hashes = Vec::new();
+
+            for i in 0..b {
+                let info_hash = InfoHash([i; 20]);
+
+                info_hashes.push(info_hash);
+            }
+
+            let request = ScrapeRequest {
+                transaction_id: TransactionId(t),
+                connection_id: ConnectionId(c),
+                info_hashes,
+            };
+
+            requests.push((request, a));
+        }
+
+        let mut all_split_requests = Vec::new();
+
+        for (request, addr) in requests.iter() {
+            let split_requests = map.prepare_split_requests(
+                &config,
+                request.to_owned(),
+                addr.to_owned(),
+                valid_until,
+            );
+
+            all_split_requests.push((
+                addr,
+                split_requests
+                    .into_iter()
+                    .collect::<Vec<(RequestWorkerIndex, PendingScrapeRequest)>>(),
+            ));
+        }
+
+        assert_eq!(map.0.len(), requests.len());
+
+        let mut responses = Vec::new();
+
+        for (addr, split_requests) in all_split_requests {
+            for (worker_index, split_request) in split_requests {
+                assert!(worker_index.0 < request_workers as usize);
+
+                let torrent_stats = split_request
+                    .info_hashes
+                    .into_iter()
+                    .map(|(i, info_hash)| {
+                        (
+                            i,
+                            TorrentScrapeStatistics {
+                                seeders: NumberOfPeers((info_hash.0[0]) as i32),
+                                leechers: NumberOfPeers(0),
+                                completed: NumberOfDownloads(0),
+                            },
+                        )
+                    })
+                    .collect();
+
+                let response = PendingScrapeResponse {
+                    transaction_id: split_request.transaction_id,
+                    connection_id: split_request.connection_id,
+                    torrent_stats,
+                };
+
+                if let Some(response) = map.add_and_get_finished(response, addr.to_owned()) {
+                    responses.push(response);
+                }
+            }
+        }
+
+        assert!(map.0.is_empty());
+        assert_eq!(responses.len(), requests.len());
+
+        TestResult::from_bool(true)
+    }
+}
