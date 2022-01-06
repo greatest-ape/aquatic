@@ -271,18 +271,26 @@ impl Request {
                 let position = cursor.position() as usize;
                 let inner = cursor.into_inner();
 
-                let info_hashes = (&inner[position..])
+                let info_hashes: Vec<InfoHash> = (&inner[position..])
                     .chunks_exact(20)
                     .take(max_scrape_torrents as usize)
                     .map(|chunk| InfoHash(chunk.try_into().unwrap()))
                     .collect();
 
-                Ok((ScrapeRequest {
-                    connection_id: ConnectionId(connection_id),
-                    transaction_id: TransactionId(transaction_id),
-                    info_hashes,
-                })
-                .into())
+                if info_hashes.is_empty() {
+                    Err(RequestParseError::sendable_text(
+                        "Full scrapes are not allowed",
+                        connection_id,
+                        transaction_id,
+                    ))
+                } else {
+                    Ok((ScrapeRequest {
+                        connection_id: ConnectionId(connection_id),
+                        transaction_id: TransactionId(transaction_id),
+                        info_hashes,
+                    })
+                    .into())
+                }
             }
 
             _ => Err(RequestParseError::sendable_text(
@@ -296,6 +304,7 @@ impl Request {
 
 #[cfg(test)]
 mod tests {
+    use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
 
     use super::*;
@@ -378,7 +387,11 @@ mod tests {
     }
 
     #[quickcheck]
-    fn test_scrape_request_convert_identity(request: ScrapeRequest) -> bool {
-        same_after_conversion(request.into())
+    fn test_scrape_request_convert_identity(request: ScrapeRequest) -> TestResult {
+        if request.info_hashes.is_empty() {
+            return TestResult::discard();
+        }
+
+        TestResult::from_bool(same_after_conversion(request.into()))
     }
 }
