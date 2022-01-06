@@ -271,18 +271,26 @@ impl Request {
                 let position = cursor.position() as usize;
                 let inner = cursor.into_inner();
 
-                let info_hashes = (&inner[position..])
+                let info_hashes: Vec<InfoHash> = (&inner[position..])
                     .chunks_exact(20)
                     .take(max_scrape_torrents as usize)
                     .map(|chunk| InfoHash(chunk.try_into().unwrap()))
                     .collect();
-
-                Ok((ScrapeRequest {
-                    connection_id: ConnectionId(connection_id),
-                    transaction_id: TransactionId(transaction_id),
-                    info_hashes,
-                })
-                .into())
+                
+                if info_hashes.is_empty() {
+                    Err(RequestParseError::sendable_text(
+                        "Full scrapes are not allowed",
+                        connection_id,
+                        transaction_id
+                    ))
+                } else {
+                    Ok((ScrapeRequest {
+                        connection_id: ConnectionId(connection_id),
+                        transaction_id: TransactionId(transaction_id),
+                        info_hashes,
+                    })
+                    .into())
+                }
             }
 
             _ => Err(RequestParseError::sendable_text(
