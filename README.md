@@ -174,7 +174,7 @@ To fairly compare HTTP performance to opentracker, set keepalive to false in
 
 ## Copyright and license
 
-Copyright (c) 2020-2021 Joakim Frostegård
+Copyright (c) 2020-2022 Joakim Frostegård
 
 Distributed under Apache 2.0 license (details in `LICENSE` file.)
 
