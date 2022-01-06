@@ -49,14 +49,15 @@ impl ConnectionMap {
 }
 
 #[derive(Debug)]
-pub struct PendingScrapeResponseMeta {
+pub struct PendingScrapeResponseMapEntry {
     num_pending: usize,
     valid_until: ValidUntil,
+    torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
 }
 
 #[derive(Default)]
 pub struct PendingScrapeResponseMap(
-    AHashIndexMap<(ConnectionId, TransactionId), (PendingScrapeResponseMeta, PendingScrapeResponse)>,
+    AHashIndexMap<(ConnectionId, TransactionId), PendingScrapeResponseMapEntry>,
 );
 
 impl PendingScrapeResponseMap {
@@ -73,28 +74,24 @@ impl PendingScrapeResponseMap {
             return;
         }
 
-        let meta = PendingScrapeResponseMeta {
+        let entry = PendingScrapeResponseMapEntry {
             num_pending,
             valid_until,
-        };
-        let response = PendingScrapeResponse {
-            connection_id,
-            transaction_id,
-            torrent_stats: BTreeMap::new(),
+            torrent_stats: Default::default(),
         };
 
-        self.0.insert((connection_id, transaction_id), (meta, response));
+        self.0.insert((connection_id, transaction_id), entry);
     }
 
     pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse) -> Option<Response> {
         let key = (response.connection_id, response.transaction_id);
 
-        let finished = if let Some(r) = self.0.get_mut(&key) {
-            r.0.num_pending -= 1;
+        let finished = if let Some(entry) = self.0.get_mut(&key) {
+            entry.num_pending -= 1;
 
-            r.1.torrent_stats.extend(response.torrent_stats.into_iter());
+            entry.torrent_stats.extend(response.torrent_stats.into_iter());
 
-            r.0.num_pending == 0
+            entry.num_pending == 0
         } else {
             ::log::warn!("PendingScrapeResponseMap.add didn't find entry for key {:?}", key);
 
@@ -102,11 +99,11 @@ impl PendingScrapeResponseMap {
         };
 
         if finished {
-            let response = self.0.remove(&key).unwrap().1;
+            let entry = self.0.remove(&key).unwrap();
 
             Some(Response::Scrape(ScrapeResponse {
                 transaction_id: response.transaction_id,
-                torrent_stats: response.torrent_stats.into_values().collect(),
+                torrent_stats: entry.torrent_stats.into_values().collect(),
             }))
         } else {
             None
@@ -117,11 +114,11 @@ impl PendingScrapeResponseMap {
         let now = Instant::now();
 
         self.0.retain(|k, v| {
-            let keep = v.0.valid_until.0 > now;
+            let keep = v.valid_until.0 > now;
             
             if !keep {
                 ::log::warn!(
-                    "Removing PendingScrapeResponseMap entry while cleaning: k={:?}; v={:?}",
+                    "Removing PendingScrapeResponseMap entry while cleaning. {:?}: {:?}",
                     k,
                     v
                 );
