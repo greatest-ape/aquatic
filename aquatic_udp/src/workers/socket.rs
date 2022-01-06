@@ -74,13 +74,21 @@ impl PendingScrapeResponseMap {
             return;
         }
 
+        let key = (connection_id, transaction_id);
+
         let entry = PendingScrapeResponseMapEntry {
             num_pending,
             valid_until,
             torrent_stats: Default::default(),
         };
 
-        self.0.insert((connection_id, transaction_id), entry);
+        if let Some(previous_entry) = self.0.insert(key, entry) {
+            ::log::warn!(
+                "PendingScrapeResponseMap.prepare replaced previous entry {:?} for key {:?}",
+                previous_entry,
+                key
+            );
+        }
     }
 
     pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse) -> Option<Response> {
