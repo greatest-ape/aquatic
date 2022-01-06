@@ -57,7 +57,7 @@ pub struct PendingScrapeResponseMapEntry {
 
 #[derive(Default)]
 pub struct PendingScrapeResponseMap(
-    AHashIndexMap<(ConnectionId, TransactionId), PendingScrapeResponseMapEntry>,
+    AHashIndexMap<(ConnectionId, TransactionId, SocketAddr), PendingScrapeResponseMapEntry>,
 );
 
 impl PendingScrapeResponseMap {
@@ -65,6 +65,7 @@ impl PendingScrapeResponseMap {
         &mut self,
         connection_id: ConnectionId,
         transaction_id: TransactionId,
+        addr: SocketAddr,
         num_pending: usize,
         valid_until: ValidUntil,
     ) {
@@ -74,7 +75,7 @@ impl PendingScrapeResponseMap {
             return;
         }
 
-        let key = (connection_id, transaction_id);
+        let key = (connection_id, transaction_id, addr);
 
         let entry = PendingScrapeResponseMapEntry {
             num_pending,
@@ -91,8 +92,8 @@ impl PendingScrapeResponseMap {
         }
     }
 
-    pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse) -> Option<Response> {
-        let key = (response.connection_id, response.transaction_id);
+    pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse, addr: SocketAddr) -> Option<Response> {
+        let key = (response.connection_id, response.transaction_id, addr);
 
         let finished = if let Some(entry) = self.0.get_mut(&key) {
             entry.num_pending -= 1;
@@ -416,6 +417,7 @@ pub fn handle_request(
                 pending_scrape_responses.prepare(
                     connection_id,
                     transaction_id,
+                    src,
                     requests.len(),
                     pending_scrape_valid_until,
                 );
@@ -482,7 +484,7 @@ fn send_responses(
 
     for (response, addr) in response_receiver.try_iter() {
         let opt_response = match response {
-            ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r),
+            ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r, addr),
             ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
             ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
         };
