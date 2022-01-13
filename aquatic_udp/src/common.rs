@@ -31,15 +31,13 @@ impl Ip for Ipv6Addr {
 
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
-    pub connection_id: ConnectionId,
-    pub transaction_id: TransactionId,
+    pub slab_key: usize,
     pub info_hashes: BTreeMap<usize, InfoHash>,
 }
 
 #[derive(Debug)]
 pub struct PendingScrapeResponse {
-    pub connection_id: ConnectionId,
-    pub transaction_id: TransactionId,
+    pub slab_key: usize,
     pub torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
 }
 
