@@ -24,7 +24,10 @@ const STYLESHEET_CONTENTS: &str = concat!(
 #[derive(Clone, Copy, Debug)]
 struct CollectedStatistics {
     requests_per_second: f64,
-    responses_per_second: f64,
+    responses_per_second_connect: f64,
+    responses_per_second_announce: f64,
+    responses_per_second_scrape: f64,
+    responses_per_second_error: f64,
     bytes_received_per_second: f64,
     bytes_sent_per_second: f64,
     num_torrents: usize,
@@ -33,10 +36,13 @@ struct CollectedStatistics {
 
 impl CollectedStatistics {
     fn from_shared(statistics: &Arc<Statistics>, last: &mut Instant) -> Self {
-        let requests_received = statistics.requests_received.fetch_and(0, Ordering::AcqRel) as f64;
-        let responses_sent = statistics.responses_sent.fetch_and(0, Ordering::AcqRel) as f64;
-        let bytes_received = statistics.bytes_received.fetch_and(0, Ordering::AcqRel) as f64;
-        let bytes_sent = statistics.bytes_sent.fetch_and(0, Ordering::AcqRel) as f64;
+        let requests_received = statistics.requests_received.fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_connect = statistics.responses_sent_connect.fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_announce = statistics.responses_sent_announce.fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_scrape = statistics.responses_sent_scrape.fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_error = statistics.responses_sent_error.fetch_and(0, Ordering::Relaxed) as f64;
+        let bytes_received = statistics.bytes_received.fetch_and(0, Ordering::Relaxed) as f64;
+        let bytes_sent = statistics.bytes_sent.fetch_and(0, Ordering::Relaxed) as f64;
         let num_torrents = Self::sum_atomic_usizes(&statistics.torrents);
         let num_peers = Self::sum_atomic_usizes(&statistics.peers);
 
@@ -48,7 +54,10 @@ impl CollectedStatistics {
 
         Self {
             requests_per_second: requests_received / elapsed,
-            responses_per_second: responses_sent / elapsed,
+            responses_per_second_connect: responses_sent_connect / elapsed,
+            responses_per_second_announce: responses_sent_announce / elapsed,
+            responses_per_second_scrape: responses_sent_scrape / elapsed,
+            responses_per_second_error: responses_sent_error / elapsed,
             bytes_received_per_second: bytes_received / elapsed,
             bytes_sent_per_second: bytes_sent / elapsed,
             num_torrents,
@@ -57,7 +66,7 @@ impl CollectedStatistics {
     }
 
     fn sum_atomic_usizes(values: &[AtomicUsize]) -> usize {
-        values.iter().map(|n| n.load(Ordering::Acquire)).sum()
+        values.iter().map(|n| n.load(Ordering::Relaxed)).sum()
     }
 }
 
@@ -66,10 +75,20 @@ impl Into<FormattedStatistics> for CollectedStatistics {
         let rx_mbits = self.bytes_received_per_second * 8.0 / 1_000_000.0;
         let tx_mbits = self.bytes_sent_per_second * 8.0 / 1_000_000.0;
 
+        let responses_per_second_total = self.responses_per_second_connect + self.responses_per_second_announce + self.responses_per_second_scrape + self.responses_per_second_error;
+
         FormattedStatistics {
             requests_per_second: (self.requests_per_second as usize)
                 .to_formatted_string(&Locale::en),
-            responses_per_second: (self.responses_per_second as usize)
+            responses_per_second_total: (responses_per_second_total as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_connect: (self.responses_per_second_connect as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_announce: (self.responses_per_second_announce as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_scrape: (self.responses_per_second_scrape as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_error: (self.responses_per_second_error as usize)
                 .to_formatted_string(&Locale::en),
             rx_mbits: format!("{:.2}", rx_mbits),
             tx_mbits: format!("{:.2}", tx_mbits),
@@ -82,7 +101,11 @@ impl Into<FormattedStatistics> for CollectedStatistics {
 #[derive(Clone, Debug, Serialize)]
 struct FormattedStatistics {
     requests_per_second: String,
-    responses_per_second: String,
+    responses_per_second_total: String,
+    responses_per_second_connect: String,
+    responses_per_second_announce: String,
+    responses_per_second_scrape: String,
+    responses_per_second_error: String,
     rx_mbits: String,
     tx_mbits: String,
     num_torrents: String,
@@ -161,10 +184,13 @@ pub fn run_statistics_worker(config: Config, state: State) {
 }
 
 fn print_to_stdout(config: &Config, statistics: &FormattedStatistics) {
-    println!(
-        "  requests/second: {:>10}, responses/second: {:>10}",
-        statistics.requests_per_second, statistics.responses_per_second
-    );
+    println!("  requests/second: {:>10}", statistics.requests_per_second);
+    println!("  responses/second");
+    println!("    total:         {:>10}", statistics.responses_per_second_total);
+    println!("    connect:       {:>10}", statistics.responses_per_second_connect);
+    println!("    announce:      {:>10}", statistics.responses_per_second_announce);
+    println!("    scrape:        {:>10}", statistics.responses_per_second_scrape);
+    println!("    error:         {:>10}", statistics.responses_per_second_error);
     println!(
         "  bandwidth: {:>7} Mbit/s in, {:7} Mbit/s out",
         statistics.rx_mbits, statistics.tx_mbits,

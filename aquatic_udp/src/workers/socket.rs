@@ -458,20 +458,12 @@ fn send_responses(
     pending_scrape_responses: &mut PendingScrapeResponseSlab,
     local_responses: Drain<(Response, SocketAddr)>,
 ) {
-    let mut responses_sent_ipv4: usize = 0;
-    let mut responses_sent_ipv6: usize = 0;
-    let mut bytes_sent_ipv4: usize = 0;
-    let mut bytes_sent_ipv6: usize = 0;
-
     for (response, addr) in local_responses {
         send_response(
+            state,
             config,
             socket,
             buffer,
-            &mut responses_sent_ipv4,
-            &mut responses_sent_ipv6,
-            &mut bytes_sent_ipv4,
-            &mut bytes_sent_ipv6,
             response,
             addr,
         );
@@ -486,47 +478,22 @@ fn send_responses(
 
         if let Some(response) = opt_response {
             send_response(
+                state,
                 config,
                 socket,
                 buffer,
-                &mut responses_sent_ipv4,
-                &mut responses_sent_ipv6,
-                &mut bytes_sent_ipv4,
-                &mut bytes_sent_ipv6,
                 response,
                 addr,
             );
         }
     }
-
-    if config.statistics.active() {
-        state
-            .statistics_ipv4
-            .responses_sent
-            .fetch_add(responses_sent_ipv4, Ordering::Release);
-        state
-            .statistics_ipv6
-            .responses_sent
-            .fetch_add(responses_sent_ipv6, Ordering::Release);
-        state
-            .statistics_ipv4
-            .bytes_sent
-            .fetch_add(bytes_sent_ipv4, Ordering::Release);
-        state
-            .statistics_ipv6
-            .bytes_sent
-            .fetch_add(bytes_sent_ipv6, Ordering::Release);
-    }
 }
 
 fn send_response(
+    state: &State,
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    responses_sent_ipv4: &mut usize,
-    responses_sent_ipv6: &mut usize,
-    bytes_sent_ipv4: &mut usize,
-    bytes_sent_ipv6: &mut usize,
     response: Response,
     addr: SocketAddr,
 ) {
@@ -556,15 +523,31 @@ fn send_response(
             let amt = cursor.position() as usize;
 
             match socket.send_to(&cursor.get_ref()[..amt], addr) {
-                Ok(amt) => {
-                    if addr_is_ipv4 {
-                        *responses_sent_ipv4 += 1;
-                        *bytes_sent_ipv4 += amt;
+                Ok(amt) if config.statistics.active() => {
+                    let stats = if addr_is_ipv4 {
+                        &state.statistics_ipv4
                     } else {
-                        *responses_sent_ipv6 += 1;
-                        *bytes_sent_ipv6 += amt;
+                        &state.statistics_ipv6
+                    };
+
+                    stats.bytes_sent.fetch_add(amt, Ordering::Relaxed);
+
+                    match response {
+                        Response::Connect(_) => {
+                            stats.responses_sent_connect.fetch_add(1, Ordering::Relaxed);
+                        },
+                        Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => {
+                            stats.responses_sent_announce.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Response::Scrape(_) => {
+                            stats.responses_sent_scrape.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Response::Error(_) => {
+                            stats.responses_sent_error.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                 }
+                Ok(_) => {},
                 Err(err) => {
                     ::log::info!("send_to error: {}", err);
                 }
