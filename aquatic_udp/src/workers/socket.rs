@@ -58,9 +58,7 @@ pub struct PendingScrapeResponseSlabEntry {
 }
 
 #[derive(Default)]
-pub struct PendingScrapeResponseSlab(
-    Slab<PendingScrapeResponseSlabEntry>,
-);
+pub struct PendingScrapeResponseSlab(Slab<PendingScrapeResponseSlabEntry>);
 
 impl PendingScrapeResponseSlab {
     pub fn prepare_split_requests(
@@ -459,14 +457,7 @@ fn send_responses(
     local_responses: Drain<(Response, SocketAddr)>,
 ) {
     for (response, addr) in local_responses {
-        send_response(
-            state,
-            config,
-            socket,
-            buffer,
-            response,
-            addr,
-        );
+        send_response(state, config, socket, buffer, response, addr);
     }
 
     for (response, addr) in response_receiver.try_iter() {
@@ -477,14 +468,7 @@ fn send_responses(
         };
 
         if let Some(response) = opt_response {
-            send_response(
-                state,
-                config,
-                socket,
-                buffer,
-                response,
-                addr,
-            );
+            send_response(state, config, socket, buffer, response, addr);
         }
     }
 }
@@ -535,9 +519,11 @@ fn send_response(
                     match response {
                         Response::Connect(_) => {
                             stats.responses_sent_connect.fetch_add(1, Ordering::Relaxed);
-                        },
+                        }
                         Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => {
-                            stats.responses_sent_announce.fetch_add(1, Ordering::Relaxed);
+                            stats
+                                .responses_sent_announce
+                                .fetch_add(1, Ordering::Relaxed);
                         }
                         Response::Scrape(_) => {
                             stats.responses_sent_scrape.fetch_add(1, Ordering::Relaxed);
@@ -547,7 +533,7 @@ fn send_response(
                         }
                     }
                 }
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(err) => {
                     ::log::info!("send_to error: {}", err);
                 }
@@ -647,11 +633,8 @@ mod tests {
         let mut all_split_requests = Vec::new();
 
         for request in requests.iter() {
-            let split_requests = map.prepare_split_requests(
-                &config,
-                request.to_owned(),
-                valid_until,
-            );
+            let split_requests =
+                map.prepare_split_requests(&config, request.to_owned(), valid_until);
 
             all_split_requests.push(
                 split_requests

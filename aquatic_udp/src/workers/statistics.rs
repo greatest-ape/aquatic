@@ -37,10 +37,18 @@ struct CollectedStatistics {
 impl CollectedStatistics {
     fn from_shared(statistics: &Arc<Statistics>, last: &mut Instant) -> Self {
         let requests_received = statistics.requests_received.fetch_and(0, Ordering::Relaxed) as f64;
-        let responses_sent_connect = statistics.responses_sent_connect.fetch_and(0, Ordering::Relaxed) as f64;
-        let responses_sent_announce = statistics.responses_sent_announce.fetch_and(0, Ordering::Relaxed) as f64;
-        let responses_sent_scrape = statistics.responses_sent_scrape.fetch_and(0, Ordering::Relaxed) as f64;
-        let responses_sent_error = statistics.responses_sent_error.fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_connect = statistics
+            .responses_sent_connect
+            .fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_announce = statistics
+            .responses_sent_announce
+            .fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_scrape = statistics
+            .responses_sent_scrape
+            .fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_sent_error = statistics
+            .responses_sent_error
+            .fetch_and(0, Ordering::Relaxed) as f64;
         let bytes_received = statistics.bytes_received.fetch_and(0, Ordering::Relaxed) as f64;
         let bytes_sent = statistics.bytes_sent.fetch_and(0, Ordering::Relaxed) as f64;
         let num_torrents = Self::sum_atomic_usizes(&statistics.torrents);
@@ -75,7 +83,10 @@ impl Into<FormattedStatistics> for CollectedStatistics {
         let rx_mbits = self.bytes_received_per_second * 8.0 / 1_000_000.0;
         let tx_mbits = self.bytes_sent_per_second * 8.0 / 1_000_000.0;
 
-        let responses_per_second_total = self.responses_per_second_connect + self.responses_per_second_announce + self.responses_per_second_scrape + self.responses_per_second_error;
+        let responses_per_second_total = self.responses_per_second_connect
+            + self.responses_per_second_announce
+            + self.responses_per_second_scrape
+            + self.responses_per_second_error;
 
         FormattedStatistics {
             requests_per_second: (self.requests_per_second as usize)
@@ -186,11 +197,26 @@ pub fn run_statistics_worker(config: Config, state: State) {
 fn print_to_stdout(config: &Config, statistics: &FormattedStatistics) {
     println!("  requests/second: {:>10}", statistics.requests_per_second);
     println!("  responses/second");
-    println!("    total:         {:>10}", statistics.responses_per_second_total);
-    println!("    connect:       {:>10}", statistics.responses_per_second_connect);
-    println!("    announce:      {:>10}", statistics.responses_per_second_announce);
-    println!("    scrape:        {:>10}", statistics.responses_per_second_scrape);
-    println!("    error:         {:>10}", statistics.responses_per_second_error);
+    println!(
+        "    total:         {:>10}",
+        statistics.responses_per_second_total
+    );
+    println!(
+        "    connect:       {:>10}",
+        statistics.responses_per_second_connect
+    );
+    println!(
+        "    announce:      {:>10}",
+        statistics.responses_per_second_announce
+    );
+    println!(
+        "    scrape:        {:>10}",
+        statistics.responses_per_second_scrape
+    );
+    println!(
+        "    error:         {:>10}",
+        statistics.responses_per_second_error
+    );
     println!(
         "  bandwidth: {:>7} Mbit/s in, {:7} Mbit/s out",
         statistics.rx_mbits, statistics.tx_mbits,
