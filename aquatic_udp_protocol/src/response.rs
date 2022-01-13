@@ -97,7 +97,7 @@ impl Response {
     /// addresses. Clients seem not to support it very well, but due to a lack
     /// of alternative solutions, it is implemented here.
     #[inline]
-    pub fn write(self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
             Response::Connect(r) => {
                 bytes.write_i32::<NetworkEndian>(0)?;
@@ -111,7 +111,7 @@ impl Response {
                 bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
                 bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
 
-                for peer in r.peers {
+                for peer in r.peers.iter() {
                     bytes.write_all(&peer.ip_address.octets())?;
                     bytes.write_u16::<NetworkEndian>(peer.port.0)?;
                 }
@@ -120,7 +120,7 @@ impl Response {
                 bytes.write_i32::<NetworkEndian>(2)?;
                 bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
 
-                for torrent_stat in r.torrent_stats {
+                for torrent_stat in r.torrent_stats.iter() {
                     bytes.write_i32::<NetworkEndian>(torrent_stat.seeders.0)?;
                     bytes.write_i32::<NetworkEndian>(torrent_stat.completed.0)?;
                     bytes.write_i32::<NetworkEndian>(torrent_stat.leechers.0)?;
@@ -139,7 +139,7 @@ impl Response {
                 bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
                 bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
 
-                for peer in r.peers {
+                for peer in r.peers.iter() {
                     bytes.write_all(&peer.ip_address.octets())?;
                     bytes.write_u16::<NetworkEndian>(peer.port.0)?;
                 }

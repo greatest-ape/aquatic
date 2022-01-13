@@ -31,15 +31,13 @@ impl Ip for Ipv6Addr {
 
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
-    pub connection_id: ConnectionId,
-    pub transaction_id: TransactionId,
+    pub slab_key: usize,
     pub info_hashes: BTreeMap<usize, InfoHash>,
 }
 
 #[derive(Debug)]
 pub struct PendingScrapeResponse {
-    pub connection_id: ConnectionId,
-    pub transaction_id: TransactionId,
+    pub slab_key: usize,
     pub torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
 }
 
@@ -151,7 +149,10 @@ impl PeerStatus {
 
 pub struct Statistics {
     pub requests_received: AtomicUsize,
-    pub responses_sent: AtomicUsize,
+    pub responses_sent_connect: AtomicUsize,
+    pub responses_sent_announce: AtomicUsize,
+    pub responses_sent_scrape: AtomicUsize,
+    pub responses_sent_error: AtomicUsize,
     pub bytes_received: AtomicUsize,
     pub bytes_sent: AtomicUsize,
     pub torrents: Vec<AtomicUsize>,
@@ -162,7 +163,10 @@ impl Statistics {
     pub fn new(num_request_workers: usize) -> Self {
         Self {
             requests_received: Default::default(),
-            responses_sent: Default::default(),
+            responses_sent_connect: Default::default(),
+            responses_sent_announce: Default::default(),
+            responses_sent_scrape: Default::default(),
+            responses_sent_error: Default::default(),
             bytes_received: Default::default(),
             bytes_sent: Default::default(),
             torrents: Self::create_atomic_usize_vec(num_request_workers),

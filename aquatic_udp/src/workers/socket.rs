@@ -12,6 +12,7 @@ use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
 use rand::prelude::{Rng, SeedableRng, StdRng};
+use slab::Slab;
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListCache;
@@ -49,23 +50,21 @@ impl ConnectionMap {
 }
 
 #[derive(Debug)]
-pub struct PendingScrapeResponseMapEntry {
+pub struct PendingScrapeResponseSlabEntry {
     num_pending: usize,
     valid_until: ValidUntil,
     torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
+    transaction_id: TransactionId,
 }
 
 #[derive(Default)]
-pub struct PendingScrapeResponseMap(
-    AHashIndexMap<(ConnectionId, TransactionId, SocketAddr), PendingScrapeResponseMapEntry>,
-);
+pub struct PendingScrapeResponseSlab(Slab<PendingScrapeResponseSlabEntry>);
 
-impl PendingScrapeResponseMap {
+impl PendingScrapeResponseSlab {
     pub fn prepare_split_requests(
         &mut self,
         config: &Config,
         request: ScrapeRequest,
-        addr: SocketAddr,
         valid_until: ValidUntil,
     ) -> impl IntoIterator<Item = (RequestWorkerIndex, PendingScrapeRequest)> {
         let mut split_requests: AHashIndexMap<RequestWorkerIndex, PendingScrapeRequest> =
@@ -73,54 +72,38 @@ impl PendingScrapeResponseMap {
 
         if request.info_hashes.is_empty() {
             ::log::warn!(
-                "Attempted to prepare PendingScrapeResponseMap entry with zero info hashes"
+                "Attempted to prepare PendingScrapeResponseSlab entry with zero info hashes"
             );
 
             return split_requests;
         }
 
-        let connection_id = request.connection_id;
-        let transaction_id = request.transaction_id;
+        let vacant_entry = self.0.vacant_entry();
+        let slab_key = vacant_entry.key();
 
         for (i, info_hash) in request.info_hashes.into_iter().enumerate() {
             let split_request = split_requests
                 .entry(RequestWorkerIndex::from_info_hash(&config, info_hash))
                 .or_insert_with(|| PendingScrapeRequest {
-                    connection_id,
-                    transaction_id,
+                    slab_key,
                     info_hashes: BTreeMap::new(),
                 });
 
             split_request.info_hashes.insert(i, info_hash);
         }
 
-        let key = (connection_id, transaction_id, addr);
-
-        let entry = PendingScrapeResponseMapEntry {
+        vacant_entry.insert(PendingScrapeResponseSlabEntry {
             num_pending: split_requests.len(),
             valid_until,
             torrent_stats: Default::default(),
-        };
-
-        if let Some(previous_entry) = self.0.insert(key, entry) {
-            ::log::warn!(
-                "PendingScrapeResponseMap.prepare replaced previous entry {:?} for key {:?}",
-                previous_entry,
-                key
-            );
-        }
+            transaction_id: request.transaction_id,
+        });
 
         split_requests
     }
 
-    pub fn add_and_get_finished(
-        &mut self,
-        response: PendingScrapeResponse,
-        addr: SocketAddr,
-    ) -> Option<Response> {
-        let key = (response.connection_id, response.transaction_id, addr);
-
-        let finished = if let Some(entry) = self.0.get_mut(&key) {
+    pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse) -> Option<Response> {
+        let finished = if let Some(entry) = self.0.get_mut(response.slab_key) {
             entry.num_pending -= 1;
 
             entry
@@ -130,18 +113,18 @@ impl PendingScrapeResponseMap {
             entry.num_pending == 0
         } else {
             ::log::warn!(
-                "PendingScrapeResponseMap.add didn't find entry for key {:?}",
-                key
+                "PendingScrapeResponseSlab.add didn't find entry for key {:?}",
+                response.slab_key
             );
 
             false
         };
 
         if finished {
-            let entry = self.0.remove(&key).unwrap();
+            let entry = self.0.remove(response.slab_key);
 
             Some(Response::Scrape(ScrapeResponse {
-                transaction_id: response.transaction_id,
+                transaction_id: entry.transaction_id,
                 torrent_stats: entry.torrent_stats.into_values().collect(),
             }))
         } else {
@@ -157,7 +140,7 @@ impl PendingScrapeResponseMap {
 
             if !keep {
                 ::log::warn!(
-                    "Removing PendingScrapeResponseMap entry while cleaning. {:?}: {:?}",
+                    "Removing PendingScrapeResponseSlab entry while cleaning. {:?}: {:?}",
                     k,
                     v
                 );
@@ -193,7 +176,7 @@ pub fn run_socket_worker(
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut connections = ConnectionMap::default();
-    let mut pending_scrape_responses = PendingScrapeResponseMap::default();
+    let mut pending_scrape_responses = PendingScrapeResponseSlab::default();
     let mut access_list_cache = create_access_list_cache(&state.access_list);
 
     let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
@@ -278,7 +261,7 @@ fn read_requests(
     config: &Config,
     state: &State,
     connections: &mut ConnectionMap,
-    pending_scrape_responses: &mut PendingScrapeResponseMap,
+    pending_scrape_responses: &mut PendingScrapeResponseSlab,
     access_list_cache: &mut AccessListCache,
     rng: &mut StdRng,
     socket: &mut UdpSocket,
@@ -375,7 +358,7 @@ fn read_requests(
 pub fn handle_request(
     config: &Config,
     connections: &mut ConnectionMap,
-    pending_scrape_responses: &mut PendingScrapeResponseMap,
+    pending_scrape_responses: &mut PendingScrapeResponseSlab,
     access_list_cache: &mut AccessListCache,
     rng: &mut StdRng,
     request_sender: &ConnectedRequestSender,
@@ -429,7 +412,6 @@ pub fn handle_request(
                 let split_requests = pending_scrape_responses.prepare_split_requests(
                     config,
                     request,
-                    src,
                     pending_scrape_valid_until,
                 );
 
@@ -471,78 +453,31 @@ fn send_responses(
     socket: &mut UdpSocket,
     buffer: &mut [u8],
     response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
-    pending_scrape_responses: &mut PendingScrapeResponseMap,
+    pending_scrape_responses: &mut PendingScrapeResponseSlab,
     local_responses: Drain<(Response, SocketAddr)>,
 ) {
-    let mut responses_sent_ipv4: usize = 0;
-    let mut responses_sent_ipv6: usize = 0;
-    let mut bytes_sent_ipv4: usize = 0;
-    let mut bytes_sent_ipv6: usize = 0;
-
     for (response, addr) in local_responses {
-        send_response(
-            config,
-            socket,
-            buffer,
-            &mut responses_sent_ipv4,
-            &mut responses_sent_ipv6,
-            &mut bytes_sent_ipv4,
-            &mut bytes_sent_ipv6,
-            response,
-            addr,
-        );
+        send_response(state, config, socket, buffer, response, addr);
     }
 
     for (response, addr) in response_receiver.try_iter() {
         let opt_response = match response {
-            ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r, addr),
+            ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r),
             ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
             ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
         };
 
         if let Some(response) = opt_response {
-            send_response(
-                config,
-                socket,
-                buffer,
-                &mut responses_sent_ipv4,
-                &mut responses_sent_ipv6,
-                &mut bytes_sent_ipv4,
-                &mut bytes_sent_ipv6,
-                response,
-                addr,
-            );
+            send_response(state, config, socket, buffer, response, addr);
         }
-    }
-
-    if config.statistics.active() {
-        state
-            .statistics_ipv4
-            .responses_sent
-            .fetch_add(responses_sent_ipv4, Ordering::Release);
-        state
-            .statistics_ipv6
-            .responses_sent
-            .fetch_add(responses_sent_ipv6, Ordering::Release);
-        state
-            .statistics_ipv4
-            .bytes_sent
-            .fetch_add(bytes_sent_ipv4, Ordering::Release);
-        state
-            .statistics_ipv6
-            .bytes_sent
-            .fetch_add(bytes_sent_ipv6, Ordering::Release);
     }
 }
 
 fn send_response(
+    state: &State,
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    responses_sent_ipv4: &mut usize,
-    responses_sent_ipv6: &mut usize,
-    bytes_sent_ipv4: &mut usize,
-    bytes_sent_ipv6: &mut usize,
     response: Response,
     addr: SocketAddr,
 ) {
@@ -572,15 +507,33 @@ fn send_response(
             let amt = cursor.position() as usize;
 
             match socket.send_to(&cursor.get_ref()[..amt], addr) {
-                Ok(amt) => {
-                    if addr_is_ipv4 {
-                        *responses_sent_ipv4 += 1;
-                        *bytes_sent_ipv4 += amt;
+                Ok(amt) if config.statistics.active() => {
+                    let stats = if addr_is_ipv4 {
+                        &state.statistics_ipv4
                     } else {
-                        *responses_sent_ipv6 += 1;
-                        *bytes_sent_ipv6 += amt;
+                        &state.statistics_ipv6
+                    };
+
+                    stats.bytes_sent.fetch_add(amt, Ordering::Relaxed);
+
+                    match response {
+                        Response::Connect(_) => {
+                            stats.responses_sent_connect.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => {
+                            stats
+                                .responses_sent_announce
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                        Response::Scrape(_) => {
+                            stats.responses_sent_scrape.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Response::Error(_) => {
+                            stats.responses_sent_error.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                 }
+                Ok(_) => {}
                 Err(err) => {
                     ::log::info!("send_to error: {}", err);
                 }
@@ -638,7 +591,7 @@ mod tests {
 
     #[quickcheck]
     fn test_pending_scrape_response_map(
-        request_data: Vec<(i32, i64, SocketAddr, u8)>,
+        request_data: Vec<(i32, i64, u8)>,
         request_workers: u8,
     ) -> TestResult {
         if request_workers == 0 {
@@ -651,11 +604,11 @@ mod tests {
 
         let valid_until = ValidUntil::new(1);
 
-        let mut map = PendingScrapeResponseMap::default();
+        let mut map = PendingScrapeResponseSlab::default();
 
         let mut requests = Vec::new();
 
-        for (t, c, a, b) in request_data {
+        for (t, c, b) in request_data {
             if b == 0 {
                 return TestResult::discard();
             }
@@ -674,32 +627,27 @@ mod tests {
                 info_hashes,
             };
 
-            requests.push((request, a));
+            requests.push(request);
         }
 
         let mut all_split_requests = Vec::new();
 
-        for (request, addr) in requests.iter() {
-            let split_requests = map.prepare_split_requests(
-                &config,
-                request.to_owned(),
-                addr.to_owned(),
-                valid_until,
-            );
+        for request in requests.iter() {
+            let split_requests =
+                map.prepare_split_requests(&config, request.to_owned(), valid_until);
 
-            all_split_requests.push((
-                addr,
+            all_split_requests.push(
                 split_requests
                     .into_iter()
                     .collect::<Vec<(RequestWorkerIndex, PendingScrapeRequest)>>(),
-            ));
+            );
         }
 
         assert_eq!(map.0.len(), requests.len());
 
         let mut responses = Vec::new();
 
-        for (addr, split_requests) in all_split_requests {
+        for split_requests in all_split_requests {
             for (worker_index, split_request) in split_requests {
                 assert!(worker_index.0 < request_workers as usize);
 
@@ -719,12 +667,11 @@ mod tests {
                     .collect();
 
                 let response = PendingScrapeResponse {
-                    transaction_id: split_request.transaction_id,
-                    connection_id: split_request.connection_id,
+                    slab_key: split_request.slab_key,
                     torrent_stats,
                 };
 
-                if let Some(response) = map.add_and_get_finished(response, addr.to_owned()) {
+                if let Some(response) = map.add_and_get_finished(response) {
                     responses.push(response);
                 }
             }
