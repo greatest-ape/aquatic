@@ -101,6 +101,7 @@ dependencies = [
  "log",
  "memchr",
  "mimalloc",
+ "once_cell",
  "parking_lot",
  "privdrop",
  "quickcheck",
