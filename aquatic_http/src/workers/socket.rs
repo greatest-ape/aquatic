@@ -22,6 +22,7 @@ use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
+use once_cell::sync::Lazy;
 use slab::Slab;
 
 use crate::common::*;
@@ -29,6 +30,14 @@ use crate::config::Config;
 
 const INTERMEDIATE_BUFFER_SIZE: usize = 1024;
 const MAX_REQUEST_SIZE: usize = 2048;
+const MAX_RESPONSE_SIZE: usize = 4096;
+
+const RESPONSE_HEADER_A: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: ";
+const RESPONSE_HEADER_B: &[u8] = b"        ";
+const RESPONSE_HEADER_C: &[u8] = b"\r\n\r\n";
+
+static RESPONSE_HEADER: Lazy<Vec<u8>> =
+    Lazy::new(|| [RESPONSE_HEADER_A, RESPONSE_HEADER_B, RESPONSE_HEADER_C].concat());
 
 struct PendingScrapeResponse {
     pending_worker_responses: usize,
@@ -166,6 +175,7 @@ struct Connection {
     connection_id: ConnectionId,
     request_buffer: [u8; MAX_REQUEST_SIZE],
     request_buffer_position: usize,
+    response_buffer: [u8; MAX_RESPONSE_SIZE],
 }
 
 impl Connection {
@@ -186,6 +196,10 @@ impl Connection {
         let tls_acceptor: TlsAcceptor = tls_config.into();
         let stream = tls_acceptor.accept(stream).await?;
 
+        let mut response_buffer = [0; MAX_RESPONSE_SIZE];
+
+        response_buffer[..RESPONSE_HEADER.len()].copy_from_slice(&RESPONSE_HEADER);
+
         let mut conn = Connection {
             config: config.clone(),
             access_list_cache: create_access_list_cache(&access_list),
@@ -195,8 +209,9 @@ impl Connection {
             stream,
             peer_addr,
             connection_id,
-            request_buffer: [0u8; MAX_REQUEST_SIZE],
+            request_buffer: [0; MAX_REQUEST_SIZE],
             request_buffer_position: 0,
+            response_buffer,
         };
 
         conn.run_request_response_loop().await?;
@@ -406,22 +421,44 @@ impl Connection {
     }
 
     async fn write_response(&mut self, response: &Response) -> anyhow::Result<()> {
-        let mut body = Vec::new();
+        // Write body and final newline to response buffer
 
-        response.write(&mut body).unwrap();
+        let mut position = RESPONSE_HEADER.len();
 
-        let content_len = body.len() + 2; // 2 is for newlines at end
-        let content_len_num_digits = num_digits_in_usize(content_len);
+        let body_len = response.write(&mut &mut self.response_buffer[position..])?;
 
-        let mut response_bytes = Vec::with_capacity(39 + content_len_num_digits + body.len());
+        position += body_len;
 
-        response_bytes.extend_from_slice(b"HTTP/1.1 200 OK\r\nContent-Length: ");
-        ::itoa::write(&mut response_bytes, content_len)?;
-        response_bytes.extend_from_slice(b"\r\n\r\n");
-        response_bytes.append(&mut body);
-        response_bytes.extend_from_slice(b"\r\n");
+        (&mut self.response_buffer[position..position + 2]).copy_from_slice(b"\r\n");
 
-        self.stream.write(&response_bytes[..]).await?;
+        position += 2;
+
+        let content_len = body_len + 2;
+
+        // Clear content-len header value
+
+        {
+            let start = RESPONSE_HEADER_A.len();
+            let end = start + RESPONSE_HEADER_B.len();
+
+            (&mut self.response_buffer[start..end]).copy_from_slice(RESPONSE_HEADER_B);
+        }
+
+        // Set content-len header value
+
+        {
+            let mut buf = ::itoa::Buffer::new();
+            let content_len_bytes = buf.format(content_len).as_bytes();
+
+            let start = RESPONSE_HEADER_A.len();
+            let end = start + content_len_bytes.len();
+
+            (&mut self.response_buffer[start..end]).copy_from_slice(content_len_bytes);
+        }
+
+        // Write buffer to stream
+
+        self.stream.write(&self.response_buffer[..position]).await?;
         self.stream.flush().await?;
 
         Ok(())

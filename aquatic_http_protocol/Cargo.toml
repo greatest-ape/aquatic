@@ -26,7 +26,7 @@ anyhow = "1"
 hashbrown = "0.11"
 hex = { version = "0.4", default-features = false }
 httparse = "1"
-itoa = "0.4"
+itoa = "1"
 log = "0.4"
 memchr = "2"
 rand = { version = "0.8", features = ["small_rng"] }
