@@ -416,7 +416,7 @@ impl Connection {
         let mut response_bytes = Vec::with_capacity(39 + content_len_num_digits + body.len());
 
         response_bytes.extend_from_slice(b"HTTP/1.1 200 OK\r\nContent-Length: ");
-        ::itoa::write(&mut response_bytes, content_len)?;
+        response_bytes.extend_from_slice(::itoa::Buffer::new().format(content_len).as_bytes());
         response_bytes.extend_from_slice(b"\r\n\r\n");
         response_bytes.append(&mut body);
         response_bytes.extend_from_slice(b"\r\n");
