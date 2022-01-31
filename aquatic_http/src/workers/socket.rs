@@ -429,6 +429,12 @@ impl Connection {
 
         position += body_len;
 
+        if position + 2 > self.response_buffer.len() {
+            ::log::error!("Response buffer is too short for response");
+
+            return Err(anyhow::anyhow!("Response buffer is too short for response"));
+        }
+
         (&mut self.response_buffer[position..position + 2]).copy_from_slice(b"\r\n");
 
         position += 2;
