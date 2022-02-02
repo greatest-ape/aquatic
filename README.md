@@ -105,6 +105,10 @@ parsing fails, the program exits. Later failures result in in emitting of
 an error-level log message, while successful updates of the access list result
 in emitting of an info-level log message.
 
+## Architectural overview
+
+![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
+
 ## Details on implementations
 
 ### aquatic_udp: UDP BitTorrent tracker
@@ -170,11 +174,6 @@ IPv4 and IPv6 peers are tracked separately.
 
 `aquatic_ws` has not been tested as much as `aquatic_udp` but likely works
 fine.
-
-## Architectural overview
-
-![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
-
 
 ## Load testing
 
