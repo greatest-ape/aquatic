@@ -12,6 +12,7 @@ name = "aquatic_udp_bench"
 [dependencies]
 anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
+aquatic_common = "0.1.0"
 aquatic_udp = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
 crossbeam-channel = "0.5"

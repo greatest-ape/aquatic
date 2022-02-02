@@ -1,6 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::{Duration, Instant};
 
+use aquatic_common::CanonicalSocketAddr;
 use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressIterator;
 use rand::Rng;
@@ -14,8 +15,8 @@ use crate::config::BenchConfig;
 
 pub fn bench_scrape_handler(
     bench_config: &BenchConfig,
-    request_sender: &Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
-    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
+    request_sender: &Sender<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
+    response_receiver: &Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
     rng: &mut impl Rng,
     info_hashes: &[InfoHash],
 ) -> (usize, Duration) {
@@ -91,7 +92,7 @@ pub fn create_requests(
     info_hashes: &[InfoHash],
     number: usize,
     hashes_per_request: usize,
-) -> Vec<(ScrapeRequest, SocketAddr)> {
+) -> Vec<(ScrapeRequest, CanonicalSocketAddr)> {
     let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
 
     let max_index = info_hashes.len() - 1;
@@ -114,7 +115,7 @@ pub fn create_requests(
 
         requests.push((
             request,
-            SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 1)),
+            CanonicalSocketAddr::new(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 1))),
         ));
     }
 

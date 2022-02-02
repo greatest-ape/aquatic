@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
-use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,6 +10,7 @@ use std::time::Instant;
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListArcSwap;
 use aquatic_common::AHashIndexMap;
+use aquatic_common::CanonicalSocketAddr;
 use aquatic_common::ValidUntil;
 use crossbeam_channel::Receiver;
 use rand::{rngs::SmallRng, SeedableRng};
@@ -176,7 +176,7 @@ impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv6Addr> {
 pub fn run_request_worker(
     config: Config,
     state: State,
-    request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>,
+    request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
     response_sender: ConnectedResponseSender,
     worker_index: RequestWorkerIndex,
 ) {
@@ -254,10 +254,10 @@ fn handle_announce_request(
     rng: &mut SmallRng,
     torrents: &mut TorrentMaps,
     request: AnnounceRequest,
-    src: SocketAddr,
+    src: CanonicalSocketAddr,
     peer_valid_until: ValidUntil,
 ) -> ConnectedResponse {
-    match src.ip() {
+    match src.get().ip() {
         IpAddr::V4(ip) => handle_announce_request_inner(
             config,
             rng,
@@ -355,14 +355,14 @@ fn calc_max_num_peers_to_take(config: &Config, peers_wanted: i32) -> usize {
 
 fn handle_scrape_request(
     torrents: &mut TorrentMaps,
-    src: SocketAddr,
+    src: CanonicalSocketAddr,
     request: PendingScrapeRequest,
 ) -> PendingScrapeResponse {
     const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
 
     let mut torrent_stats: BTreeMap<usize, TorrentScrapeStatistics> = BTreeMap::new();
 
-    if src.ip().is_ipv4() {
+    if src.is_ipv4() {
         torrent_stats.extend(request.info_hashes.into_iter().map(|(i, info_hash)| {
             let s = if let Some(torrent_data) = torrents.ipv4.get(&info_hash) {
                 create_torrent_scrape_statistics(

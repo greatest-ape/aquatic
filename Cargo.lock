@@ -193,6 +193,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
+ "aquatic_common",
  "aquatic_udp",
  "aquatic_udp_protocol",
  "crossbeam-channel",
