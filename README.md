@@ -109,15 +109,18 @@ in emitting of an info-level log message.
 
 ### aquatic_udp: UDP BitTorrent tracker
 
-Aims to implements the
-[UDP BitTorrent protocol](https://libtorrent.org/udp_tracker_protocol.html),
-except that it:
+[BEP 015]: https://www.bittorrent.org/beps/bep_0015.html
 
-  * Doesn't care about IP addresses sent in announce requests. The packet
-    source IP is always used.
-  * Doesn't track of the number of torrent downloads (0 is always sent). 
+Implements:
+  * [BEP 015]: UDP BitTorrent tracker protocol ([more details](https://libtorrent.org/udp_tracker_protocol.html)). Exceptions:
+    * Doesn't care about IP addresses sent in announce requests. The packet
+      source IP is always used.
+    * Doesn't track of the number of torrent downloads (0 is always sent). 
+  * [IPv6 support](https://web.archive.org/web/20170503181830/http://opentracker.blog.h3q.com/2007/12/28/the-ipv6-situation/)
+  
+IPv4 and IPv6 peers are tracked separately.
 
-Supports IPv4 and IPv6.
+This is the most mature of the implementations. I consider it ready for production use.
 
 #### Performance
 
@@ -134,13 +137,22 @@ More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.p
 
 ### aquatic_http: HTTP BitTorrent tracker
 
-[HTTP BitTorrent protocol]: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol
+[BEP 003]: https://www.bittorrent.org/beps/bep_0003.html
+[BEP 007]: https://www.bittorrent.org/beps/bep_0007.html
+[BEP 023]: https://www.bittorrent.org/beps/bep_0023.html
+[BEP 048]: https://www.bittorrent.org/beps/bep_0048.html
 
-Aims for compatibility with the [HTTP BitTorrent protocol], with some exceptions:
+Implements:
+  * [BEP 003]: HTTP BitTorrent protocol ([more details](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol)). Exceptions:
+    * Only runs over TLS
+    * Doesn't track of the number of torrent downloads (0 is always sent)
+    * Only compact responses are supported
+  * [BEP 023]: Compact HTTP responses
+  * [BEP 007]: IPv6 support
+  * [BEP 048]: HTTP scrape support. Notes:
+    * Doesn't allow full scrapes, i.e. of all registered info hashes
 
-  * Only runs over TLS
-  * Doesn't track of the number of torrent downloads (0 is always sent)
-  * Doesn't allow full scrapes, i.e. of all registered info hashes
+IPv4 and IPv6 peers are tracked separately.
 
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
 fine.
@@ -148,11 +160,16 @@ fine.
 ### aquatic_ws: WebTorrent tracker
 
 Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
-clients, with some exceptions:
+clients. Notes:
 
   * Only runs over TLS
   * Doesn't track of the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
+
+IPv4 and IPv6 peers are tracked separately.
+
+`aquatic_ws` has not been tested as much as `aquatic_udp` but likely works
+fine.
 
 ## Load testing
 
