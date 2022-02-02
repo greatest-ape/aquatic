@@ -107,10 +107,6 @@ in emitting of an info-level log message.
 
 ## Details on implementations
 
-### Architectural overview
-
-![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
-
 ### aquatic_udp: UDP BitTorrent tracker
 
 [BEP 015]: https://www.bittorrent.org/beps/bep_0015.html
@@ -174,6 +170,11 @@ IPv4 and IPv6 peers are tracked separately.
 
 `aquatic_ws` has not been tested as much as `aquatic_udp` but likely works
 fine.
+
+## Architectural overview
+
+![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
+
 
 ## Load testing
 
