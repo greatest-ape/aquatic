@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::io::{Cursor, ErrorKind};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -16,8 +15,8 @@ use slab::Slab;
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListCache;
-use aquatic_common::AHashIndexMap;
 use aquatic_common::ValidUntil;
+use aquatic_common::{AHashIndexMap, CanonicalSocketAddr};
 use aquatic_udp_protocol::*;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -25,19 +24,19 @@ use crate::common::*;
 use crate::config::Config;
 
 #[derive(Default)]
-pub struct ConnectionMap(AHashIndexMap<(ConnectionId, SocketAddr), ValidUntil>);
+pub struct ConnectionMap(AHashIndexMap<(ConnectionId, CanonicalSocketAddr), ValidUntil>);
 
 impl ConnectionMap {
     pub fn insert(
         &mut self,
         connection_id: ConnectionId,
-        socket_addr: SocketAddr,
+        socket_addr: CanonicalSocketAddr,
         valid_until: ValidUntil,
     ) {
         self.0.insert((connection_id, socket_addr), valid_until);
     }
 
-    pub fn contains(&self, connection_id: ConnectionId, socket_addr: SocketAddr) -> bool {
+    pub fn contains(&self, connection_id: ConnectionId, socket_addr: CanonicalSocketAddr) -> bool {
         self.0.contains_key(&(connection_id, socket_addr))
     }
 
@@ -157,7 +156,7 @@ pub fn run_socket_worker(
     config: Config,
     token_num: usize,
     request_sender: ConnectedRequestSender,
-    response_receiver: Receiver<(ConnectedResponse, SocketAddr)>,
+    response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
     let mut rng = StdRng::from_entropy();
@@ -179,7 +178,7 @@ pub fn run_socket_worker(
     let mut pending_scrape_responses = PendingScrapeResponseSlab::default();
     let mut access_list_cache = create_access_list_cache(&state.access_list);
 
-    let mut local_responses: Vec<(Response, SocketAddr)> = Vec::new();
+    let mut local_responses: Vec<(Response, CanonicalSocketAddr)> = Vec::new();
 
     let poll_timeout = Duration::from_millis(config.network.poll_timeout_ms);
 
@@ -267,7 +266,7 @@ fn read_requests(
     socket: &mut UdpSocket,
     buffer: &mut [u8],
     request_sender: &ConnectedRequestSender,
-    local_responses: &mut Vec<(Response, SocketAddr)>,
+    local_responses: &mut Vec<(Response, CanonicalSocketAddr)>,
     connection_valid_until: ValidUntil,
     pending_scrape_valid_until: ValidUntil,
 ) {
@@ -282,21 +281,7 @@ fn read_requests(
                 let res_request =
                     Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
 
-                let src = match src {
-                    src @ SocketAddr::V4(_) => src,
-                    SocketAddr::V6(src) => {
-                        match src.ip().octets() {
-                            // Convert IPv4-mapped address (available in std but nightly-only)
-                            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, a, b, c, d] => {
-                                SocketAddr::V4(SocketAddrV4::new(
-                                    Ipv4Addr::new(a, b, c, d),
-                                    src.port(),
-                                ))
-                            }
-                            _ => src.into(),
-                        }
-                    }
-                };
+                let src = CanonicalSocketAddr::new(src);
 
                 // Update statistics for converted address
                 if src.is_ipv4() {
@@ -362,11 +347,11 @@ pub fn handle_request(
     access_list_cache: &mut AccessListCache,
     rng: &mut StdRng,
     request_sender: &ConnectedRequestSender,
-    local_responses: &mut Vec<(Response, SocketAddr)>,
+    local_responses: &mut Vec<(Response, CanonicalSocketAddr)>,
     connection_valid_until: ValidUntil,
     pending_scrape_valid_until: ValidUntil,
     res_request: Result<Request, RequestParseError>,
-    src: SocketAddr,
+    src: CanonicalSocketAddr,
 ) {
     let access_list_mode = config.access_list.mode;
 
@@ -452,9 +437,9 @@ fn send_responses(
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    response_receiver: &Receiver<(ConnectedResponse, SocketAddr)>,
+    response_receiver: &Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
     pending_scrape_responses: &mut PendingScrapeResponseSlab,
-    local_responses: Drain<(Response, SocketAddr)>,
+    local_responses: Drain<(Response, CanonicalSocketAddr)>,
 ) {
     for (response, addr) in local_responses {
         send_response(state, config, socket, buffer, response, addr);
@@ -479,27 +464,17 @@ fn send_response(
     socket: &mut UdpSocket,
     buffer: &mut [u8],
     response: Response,
-    addr: SocketAddr,
+    addr: CanonicalSocketAddr,
 ) {
     let mut cursor = Cursor::new(buffer);
 
-    let addr_is_ipv4 = addr.is_ipv4();
+    let canonical_addr_is_ipv4 = addr.is_ipv4();
 
     let addr = if config.network.address.is_ipv4() {
-        if let SocketAddr::V4(addr) = addr {
-            SocketAddr::V4(addr)
-        } else {
-            unreachable!()
-        }
+        addr.get_ipv4()
+            .expect("found peer ipv6 address while running bound to ipv4 address")
     } else {
-        match addr {
-            SocketAddr::V4(addr) => {
-                let ip = addr.ip().to_ipv6_mapped();
-
-                SocketAddr::V6(SocketAddrV6::new(ip, addr.port(), 0, 0))
-            }
-            addr => addr,
-        }
+        addr.get_ipv6_mapped()
     };
 
     match response.write(&mut cursor) {
@@ -508,7 +483,7 @@ fn send_response(
 
             match socket.send_to(&cursor.get_ref()[..amt], addr) {
                 Ok(amt) if config.statistics.active() => {
-                    let stats = if addr_is_ipv4 {
+                    let stats = if canonical_addr_is_ipv4 {
                         &state.statistics_ipv4
                     } else {
                         &state.statistics_ipv6

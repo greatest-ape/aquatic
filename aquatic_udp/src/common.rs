@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
+use aquatic_common::CanonicalSocketAddr;
 use crossbeam_channel::{Sender, TrySendError};
 
 use aquatic_common::access_list::AccessListArcSwap;
@@ -68,13 +69,13 @@ impl RequestWorkerIndex {
 
 pub struct ConnectedRequestSender {
     index: SocketWorkerIndex,
-    senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>>,
+    senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>>,
 }
 
 impl ConnectedRequestSender {
     pub fn new(
         index: SocketWorkerIndex,
-        senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, SocketAddr)>>,
+        senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>>,
     ) -> Self {
         Self { index, senders }
     }
@@ -83,7 +84,7 @@ impl ConnectedRequestSender {
         &self,
         index: RequestWorkerIndex,
         request: ConnectedRequest,
-        addr: SocketAddr,
+        addr: CanonicalSocketAddr,
     ) {
         match self.senders[index.0].try_send((self.index, request, addr)) {
             Ok(()) => {}
@@ -98,11 +99,11 @@ impl ConnectedRequestSender {
 }
 
 pub struct ConnectedResponseSender {
-    senders: Vec<Sender<(ConnectedResponse, SocketAddr)>>,
+    senders: Vec<Sender<(ConnectedResponse, CanonicalSocketAddr)>>,
 }
 
 impl ConnectedResponseSender {
-    pub fn new(senders: Vec<Sender<(ConnectedResponse, SocketAddr)>>) -> Self {
+    pub fn new(senders: Vec<Sender<(ConnectedResponse, CanonicalSocketAddr)>>) -> Self {
         Self { senders }
     }
 
@@ -110,7 +111,7 @@ impl ConnectedResponseSender {
         &self,
         index: SocketWorkerIndex,
         response: ConnectedResponse,
-        addr: SocketAddr,
+        addr: CanonicalSocketAddr,
     ) {
         match self.senders[index.0].try_send((response, addr)) {
             Ok(()) => {}

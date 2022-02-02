@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::time::{Duration, Instant};
 
 use ahash::RandomState;
@@ -102,5 +102,52 @@ pub fn convert_ipv4_mapped_ipv6(ip_address: IpAddr) -> IpAddr {
         }
     } else {
         ip_address
+    }
+}
+
+/// SocketAddr that is not an IPv6-mapped IPv4 address
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct CanonicalSocketAddr(SocketAddr);
+
+impl CanonicalSocketAddr {
+    pub fn new(addr: SocketAddr) -> Self {
+        match addr {
+            addr @ SocketAddr::V4(_) => Self(addr),
+            SocketAddr::V6(addr) => {
+                match addr.ip().octets() {
+                    // Convert IPv4-mapped address (available in std but nightly-only)
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, a, b, c, d] => Self(SocketAddr::V4(
+                        SocketAddrV4::new(Ipv4Addr::new(a, b, c, d), addr.port()),
+                    )),
+                    _ => Self(addr.into()),
+                }
+            }
+        }
+    }
+
+    pub fn get_ipv6_mapped(self) -> SocketAddr {
+        match self.0 {
+            SocketAddr::V4(addr) => {
+                let ip = addr.ip().to_ipv6_mapped();
+
+                SocketAddr::V6(SocketAddrV6::new(ip, addr.port(), 0, 0))
+            }
+            addr => addr,
+        }
+    }
+
+    pub fn get(self) -> SocketAddr {
+        self.0
+    }
+
+    pub fn get_ipv4(self) -> Option<SocketAddr> {
+        match self.0 {
+            addr @ SocketAddr::V4(_) => Some(addr),
+            _ => None,
+        }
+    }
+
+    pub fn is_ipv4(&self) -> bool {
+        self.0.is_ipv4()
     }
 }
