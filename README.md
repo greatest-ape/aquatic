@@ -107,6 +107,10 @@ in emitting of an info-level log message.
 
 ## Details on implementations
 
+### Architectural overview
+
+![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
+
 ### aquatic_udp: UDP BitTorrent tracker
 
 [BEP 015]: https://www.bittorrent.org/beps/bep_0015.html
