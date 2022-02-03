@@ -2,12 +2,11 @@ pub mod handlers;
 
 use std::fs::File;
 use std::io::BufReader;
-use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Instant;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
-use aquatic_common::AHashIndexMap;
+use aquatic_common::{AHashIndexMap, CanonicalSocketAddr};
 
 pub use aquatic_common::ValidUntil;
 
@@ -30,10 +29,7 @@ pub struct ConnectionMeta {
     /// sending back response through correct channel to correct worker.
     pub out_message_consumer_id: ConsumerId,
     pub connection_id: ConnectionId,
-    /// Peer address as received from socket, meaning it wasn't converted to
-    /// an IPv4 address if it was a IPv4-mapped IPv6 address
-    pub naive_peer_addr: SocketAddr,
-    pub converted_peer_ip: IpAddr,
+    pub peer_addr: CanonicalSocketAddr,
     pub pending_scrape_id: Option<PendingScrapeId>,
 }
 

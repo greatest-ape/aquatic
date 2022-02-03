@@ -1,13 +1,13 @@
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 use std::time::Instant;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
-use aquatic_common::AHashIndexMap;
+use aquatic_common::{AHashIndexMap, CanonicalSocketAddr};
 use either::Either;
 use smartstring::{LazyCompact, SmartString};
 
-pub use aquatic_common::{convert_ipv4_mapped_ipv6, ValidUntil};
+pub use aquatic_common::ValidUntil;
 
 use aquatic_http_protocol::common::*;
 use aquatic_http_protocol::response::ResponsePeer;
@@ -31,13 +31,13 @@ pub struct ConnectionId(pub usize);
 pub enum ChannelRequest {
     Announce {
         request: AnnounceRequest,
-        peer_addr: SocketAddr,
+        peer_addr: CanonicalSocketAddr,
         connection_id: ConnectionId,
         response_consumer_id: ConsumerId,
     },
     Scrape {
         request: ScrapeRequest,
-        peer_addr: SocketAddr,
+        peer_addr: CanonicalSocketAddr,
         connection_id: ConnectionId,
         response_consumer_id: ConsumerId,
     },
@@ -47,12 +47,12 @@ pub enum ChannelRequest {
 pub enum ChannelResponse {
     Announce {
         response: AnnounceResponse,
-        peer_addr: SocketAddr,
+        peer_addr: CanonicalSocketAddr,
         connection_id: ConnectionId,
     },
     Scrape {
         response: ScrapeResponse,
-        peer_addr: SocketAddr,
+        peer_addr: CanonicalSocketAddr,
         connection_id: ConnectionId,
     },
 }
@@ -64,7 +64,7 @@ impl ChannelResponse {
             Self::Scrape { connection_id, .. } => *connection_id,
         }
     }
-    pub fn get_peer_addr(&self) -> SocketAddr {
+    pub fn get_peer_addr(&self) -> CanonicalSocketAddr {
         match self {
             Self::Announce { peer_addr, .. } => *peer_addr,
             Self::Scrape { peer_addr, .. } => *peer_addr,
@@ -82,7 +82,7 @@ pub struct ConnectionMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
     pub response_consumer_id: ConsumerId,
-    pub peer_addr: SocketAddr,
+    pub peer_addr: CanonicalSocketAddr,
     /// Connection id local to socket worker
     pub connection_id: ConnectionId,
 }

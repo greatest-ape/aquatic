@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
+use aquatic_common::CanonicalSocketAddr;
 use aquatic_http_protocol::common::InfoHash;
 use aquatic_http_protocol::request::{Request, RequestParseError, ScrapeRequest};
 use aquatic_http_protocol::response::{
@@ -170,7 +170,7 @@ struct Connection {
     response_receiver: LocalReceiver<ChannelResponse>,
     response_consumer_id: ConsumerId,
     stream: TlsStream<TcpStream>,
-    peer_addr: SocketAddr,
+    peer_addr: CanonicalSocketAddr,
     connection_id: ConnectionId,
     request_buffer: [u8; REQUEST_BUFFER_SIZE],
     request_buffer_position: usize,
@@ -191,6 +191,7 @@ impl Connection {
         let peer_addr = stream
             .peer_addr()
             .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
+        let peer_addr = CanonicalSocketAddr::new(peer_addr);
 
         let tls_acceptor: TlsAcceptor = tls_config.into();
         let stream = tls_acceptor.accept(stream).await?;
