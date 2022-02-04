@@ -4,13 +4,13 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use aquatic_common::access_list::AccessListQuery;
+use aquatic_common::CanonicalSocketAddr;
 use hashbrown::HashMap;
 use mio::net::TcpListener;
 use mio::{Events, Interest, Poll, Token};
 use socket2::{Domain, Protocol, Socket, Type};
 use tungstenite::protocol::WebSocketConfig;
 
-use aquatic_common::convert_ipv4_mapped_ipv6;
 use aquatic_ws_protocol::*;
 
 use crate::common::*;
@@ -263,20 +263,17 @@ fn accept_new_streams(
     loop {
         match listener.accept() {
             Ok((stream, _)) => {
-                let naive_peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
-                    peer_addr
+                let peer_addr = if let Ok(peer_addr) = stream.peer_addr() {
+                    CanonicalSocketAddr::new(peer_addr)
                 } else {
                     continue;
                 };
 
                 connections.insert_and_register_new(poll, move |token| {
-                    let converted_peer_ip = convert_ipv4_mapped_ipv6(naive_peer_addr.ip());
-
                     let meta = ConnectionMeta {
                         out_message_consumer_id: ConsumerId(socket_worker_index),
                         connection_id: ConnectionId(token.0),
-                        naive_peer_addr,
-                        converted_peer_ip,
+                        peer_addr,
                         pending_scrape_id: None, // FIXME
                     };
 
@@ -348,11 +345,11 @@ where
         let mut remove_connection = false;
 
         if let Some(connection) = connections.get_mut(&token) {
-            if connection.get_meta().naive_peer_addr != meta.naive_peer_addr {
+            if connection.get_meta().peer_addr != meta.peer_addr {
                 ::log::warn!(
                     "socket worker error: connection socket addr {} didn't match channel {}. Token: {}.",
-                    connection.get_meta().naive_peer_addr,
-                    meta.naive_peer_addr,
+                    connection.get_meta().peer_addr.get(),
+                    meta.peer_addr.get(),
                     token.0
                 );
 

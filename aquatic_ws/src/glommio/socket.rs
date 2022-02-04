@@ -1,14 +1,13 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
-use aquatic_common::convert_ipv4_mapped_ipv6;
+use aquatic_common::CanonicalSocketAddr;
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
@@ -221,6 +220,7 @@ async fn run_connection(
     let peer_addr = stream
         .peer_addr()
         .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
+    let peer_addr = CanonicalSocketAddr::new(peer_addr);
 
     let tls_acceptor: TlsAcceptor = tls_config.into();
     let stream = tls_acceptor.accept(stream).await?;
@@ -293,7 +293,7 @@ struct ConnectionReader {
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
     out_message_consumer_id: ConsumerId,
     ws_in: SplitStream<WebSocketStream<TlsStream<TcpStream>>>,
-    peer_addr: SocketAddr,
+    peer_addr: CanonicalSocketAddr,
     connection_id: ConnectionId,
 }
 
@@ -432,8 +432,7 @@ impl ConnectionReader {
         ConnectionMeta {
             connection_id: self.connection_id,
             out_message_consumer_id: self.out_message_consumer_id,
-            naive_peer_addr: self.peer_addr,
-            converted_peer_ip: convert_ipv4_mapped_ipv6(self.peer_addr.ip()),
+            peer_addr: self.peer_addr,
             pending_scrape_id,
         }
     }
@@ -445,7 +444,7 @@ struct ConnectionWriter {
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     ws_out: SplitSink<WebSocketStream<TlsStream<TcpStream>>, tungstenite::Message>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
-    peer_addr: SocketAddr,
+    peer_addr: CanonicalSocketAddr,
     connection_id: ConnectionId,
 }
 
@@ -456,7 +455,7 @@ impl ConnectionWriter {
                 anyhow::anyhow!("ConnectionWriter couldn't receive message, sender is closed")
             })?;
 
-            if meta.naive_peer_addr != self.peer_addr {
+            if meta.peer_addr != self.peer_addr {
                 return Err(anyhow::anyhow!("peer addresses didn't match"));
             }
 
@@ -530,7 +529,7 @@ impl ConnectionWriter {
             Err(err) => {
                 ::log::info!(
                     "send_out_message: send to {} took to long: {}",
-                    self.peer_addr,
+                    self.peer_addr.get(),
                     err
                 );
 

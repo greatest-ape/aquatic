@@ -11,6 +11,8 @@
 
 * implement socket_recv_size and ipv6_only in glommio implementations
 
+* newer glommio versions might use SIGUSR1 internally, see glommio fe33e30
+
 * CI
   * file transfer CI for all implementations
   * test access lists?

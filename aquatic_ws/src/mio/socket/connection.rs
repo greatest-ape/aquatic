@@ -153,7 +153,7 @@ impl Connection<NotRegistered> {
     }
 
     pub fn close(self) {
-        ::log::debug!("will close connection to {}", self.meta.naive_peer_addr);
+        ::log::debug!("will close connection to {}", self.meta.peer_addr.get());
 
         match self.state {
             ConnectionState::TlsHandshaking(inner) => inner.close(),

@@ -159,11 +159,7 @@ pub fn handle_announce_request(
     meta: ConnectionMeta,
     request: AnnounceRequest,
 ) -> AnnounceResponse {
-    let peer_ip = convert_ipv4_mapped_ipv6(meta.peer_addr.ip());
-
-    ::log::debug!("peer ip: {:?}", peer_ip);
-
-    match peer_ip {
+    match meta.peer_addr.get().ip() {
         IpAddr::V4(peer_ip_address) => {
             let torrent_data: &mut TorrentData<Ipv4Addr> =
                 torrent_maps.ipv4.entry(request.info_hash).or_default();
@@ -323,7 +319,7 @@ pub fn handle_scrape_request(
         files: BTreeMap::new(),
     };
 
-    let peer_ip = convert_ipv4_mapped_ipv6(meta.peer_addr.ip());
+    let peer_ip = meta.peer_addr.get().ip();
 
     // If request.info_hashes is empty, don't return scrape for all
     // torrents, even though reference server does it. It is too expensive.

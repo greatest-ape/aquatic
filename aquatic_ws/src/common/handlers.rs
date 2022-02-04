@@ -16,7 +16,7 @@ pub fn handle_announce_request(
     request_sender_meta: ConnectionMeta,
     request: AnnounceRequest,
 ) {
-    let torrent_data: &mut TorrentData = if request_sender_meta.converted_peer_ip.is_ipv4() {
+    let torrent_data: &mut TorrentData = if request_sender_meta.peer_addr.is_ipv4() {
         torrent_maps.ipv4.entry(request.info_hash).or_default()
     } else {
         torrent_maps.ipv6.entry(request.info_hash).or_default()
@@ -25,11 +25,9 @@ pub fn handle_announce_request(
     // If there is already a peer with this peer_id, check that socket
     // addr is same as that of request sender. Otherwise, ignore request.
     // Since peers have access to each others peer_id's, they could send
-    // requests using them, causing all sorts of issues. Checking naive
-    // (non-converted) socket addresses is enough, since state is split
-    // on converted peer ip.
+    // requests using them, causing all sorts of issues.
     if let Some(previous_peer) = torrent_data.peers.get(&request.peer_id) {
-        if request_sender_meta.naive_peer_addr != previous_peer.connection_meta.naive_peer_addr {
+        if request_sender_meta.peer_addr != previous_peer.connection_meta.peer_addr {
             return;
         }
     }
@@ -167,7 +165,7 @@ pub fn handle_scrape_request(
         files: HashMap::with_capacity(num_to_take),
     };
 
-    let torrent_map: &mut TorrentMap = if meta.converted_peer_ip.is_ipv4() {
+    let torrent_map: &mut TorrentMap = if meta.peer_addr.is_ipv4() {
         &mut torrent_maps.ipv4
     } else {
         &mut torrent_maps.ipv6

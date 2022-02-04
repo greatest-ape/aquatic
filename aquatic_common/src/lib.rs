@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::time::{Duration, Instant};
 
 use ahash::RandomState;
@@ -89,19 +89,6 @@ where
         }
 
         peers
-    }
-}
-
-#[inline]
-pub fn convert_ipv4_mapped_ipv6(ip_address: IpAddr) -> IpAddr {
-    if let IpAddr::V6(ip) = ip_address {
-        if let [0, 0, 0, 0, 0, 0xffff, ..] = ip.segments() {
-            ip.to_ipv4().expect("convert ipv4-mapped ip").into()
-        } else {
-            ip_address
-        }
-    } else {
-        ip_address
     }
 }
 
