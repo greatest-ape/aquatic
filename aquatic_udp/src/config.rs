@@ -188,7 +188,7 @@ impl Default for CleaningConfig {
             connection_cleaning_interval: 60,
             torrent_cleaning_interval: 60 * 2,
             pending_scrape_cleaning_interval: 60 * 10,
-            max_connection_age: 60 * 5,
+            max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
             max_pending_scrape_age: 60,
         }
