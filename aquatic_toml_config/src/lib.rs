@@ -1,5 +1,5 @@
 pub use toml;
-pub use toml_config_derive::TomlConfig;
+pub use aquatic_toml_config_derive::TomlConfig;
 
 /// Run this on your struct implementing TomlConfig to generate a
 /// serialization/deserialization test for it.
@@ -8,9 +8,9 @@ macro_rules! gen_serialize_deserialize_test {
     ($ident:ident) => {
         #[test]
         fn test_cargo_toml_serialize_deserialize() {
-            use ::toml_config::TomlConfig;
+            use ::aquatic_toml_config::TomlConfig;
             let serialized = $ident::default_to_string();
-            let deserialized = ::toml_config::toml::de::from_str(&serialized).unwrap();
+            let deserialized = ::aquatic_toml_config::toml::de::from_str(&serialized).unwrap();
 
             assert_eq!($ident::default(), deserialized);
         }
@@ -24,7 +24,7 @@ macro_rules! gen_serialize_deserialize_test {
 ///
 /// Usage:
 /// ```
-/// use toml_config::TomlConfig;
+/// use aquatic_toml_config::TomlConfig;
 ///
 /// #[derive(TomlConfig)]
 /// struct SubConfig {

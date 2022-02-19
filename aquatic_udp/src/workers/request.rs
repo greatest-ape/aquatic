@@ -221,7 +221,7 @@ pub fn run_request_worker(
             if now > last_cleaning + cleaning_interval {
                 torrents.clean(&config, &state.access_list);
 
-                if !statistics_update_interval.is_zero() {
+                if config.statistics.active() {
                     let peers_ipv4 = torrents.ipv4.values().map(|t| t.peers.len()).sum();
                     let peers_ipv6 = torrents.ipv6.values().map(|t| t.peers.len()).sum();
 
@@ -233,7 +233,7 @@ pub fn run_request_worker(
 
                 last_cleaning = now;
             }
-            if !statistics_update_interval.is_zero()
+            if config.statistics.active()
                 && now > last_statistics_update + statistics_update_interval
             {
                 state.statistics_ipv4.torrents[worker_index.0]

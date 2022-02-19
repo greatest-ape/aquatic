@@ -60,6 +60,9 @@
   * general
     * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
 
+* extract_response_peers
+  * don't assume requesting peer is in list
+
 # Less important
 
 * extract response peers: extract "one extra" to compensate for removal,

@@ -18,7 +18,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             extract_from_struct(ident.clone(), struct_data, &mut output_stream);
 
             proc_macro::TokenStream::from(quote! {
-                impl ::toml_config::TomlConfig for #ident {
+                impl ::aquatic_toml_config::TomlConfig for #ident {
                     fn default_to_string() -> String {
                         let mut output = String::new();
 
@@ -40,7 +40,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         output
                     }
                 }
-                impl ::toml_config::__private::Private for #ident {
+                impl ::aquatic_toml_config::__private::Private for #ident {
                     fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
                         let mut output = String::new();
 
@@ -65,7 +65,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             })
         }
         Data::Enum(_) => proc_macro::TokenStream::from(quote! {
-            impl ::toml_config::__private::Private for #ident {
+            impl ::aquatic_toml_config::__private::Private for #ident {
                 fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
                     let mut output = String::new();
                     let wrapping_comment: Option<String> = #comment;
@@ -78,7 +78,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         output.push_str(&comment);
                     }
 
-                    let value = match ::toml_config::toml::ser::to_string(self) {
+                    let value = match ::aquatic_toml_config::toml::ser::to_string(self) {
                         Ok(value) => value,
                         Err(err) => panic!("Couldn't serialize enum to toml: {:#}", err),
                     };
@@ -119,7 +119,7 @@ fn extract_from_struct(
                     let comment: Option<String> = #comment;
                     let field_default: #path = struct_default.#ident;
 
-                    let s: String = ::toml_config::__private::Private::__to_string(
+                    let s: String = ::aquatic_toml_config::__private::Private::__to_string(
                         &field_default,
                         comment,
                         #ident_string.to_string()

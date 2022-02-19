@@ -7,6 +7,8 @@ members = [
     "aquatic_http",
     "aquatic_http_load_test",
     "aquatic_http_protocol",
+    "aquatic_toml_config",
+    "aquatic_toml_config_derive",
     "aquatic_udp",
     "aquatic_udp_bench",
     "aquatic_udp_load_test",
@@ -14,26 +16,24 @@ members = [
     "aquatic_ws",
     "aquatic_ws_load_test",
     "aquatic_ws_protocol",
-    "toml_config",
-    "toml_config_derive",
 ]
 
 [patch.crates-io]
 aquatic = { path = "aquatic" }
 aquatic_cli_helpers = { path = "aquatic_cli_helpers" }
 aquatic_common = { path = "aquatic_common" }
-aquatic_http = { path = "aquatic_http" }
 aquatic_http_load_test = { path = "aquatic_http_load_test" }
+aquatic_http = { path = "aquatic_http" }
 aquatic_http_protocol = { path = "aquatic_http_protocol" }
-aquatic_udp = { path = "aquatic_udp" }
+aquatic_toml_config_derive = { path = "aquatic_toml_config_derive" }
+aquatic_toml_config = { path = "aquatic_toml_config" }
 aquatic_udp_bench = { path = "aquatic_udp_bench" }
 aquatic_udp_load_test = { path = "aquatic_udp_load_test" }
+aquatic_udp = { path = "aquatic_udp" }
 aquatic_udp_protocol = { path = "aquatic_udp_protocol" }
-aquatic_ws = { path = "aquatic_ws" }
 aquatic_ws_load_test = { path = "aquatic_ws_load_test" }
+aquatic_ws = { path = "aquatic_ws" }
 aquatic_ws_protocol = { path = "aquatic_ws_protocol" }
-toml_config = { path = "toml_config" }
-toml_config_derive = { path = "toml_config_derive" }
 
 [profile.release]
 debug = true

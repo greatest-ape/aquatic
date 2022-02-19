@@ -4,7 +4,7 @@ use std::io::Read;
 use anyhow::Context;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 /// Log level. Available values are off, error, warn, info, debug and trace.
 #[derive(Debug, Clone, Copy, PartialEq, TomlConfig, Serialize, Deserialize)]

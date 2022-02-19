@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 pub struct BenchConfig {
@@ -30,5 +30,5 @@ impl aquatic_cli_helpers::Config for BenchConfig {}
 mod tests {
     use super::BenchConfig;
 
-    ::toml_config::gen_serialize_deserialize_test!(BenchConfig);
+    ::aquatic_toml_config::gen_serialize_deserialize_test!(BenchConfig);
 }

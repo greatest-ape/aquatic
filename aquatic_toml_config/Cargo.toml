@@ -1,5 +1,5 @@
 [package]
-name = "toml_config"
+name = "aquatic_toml_config"
 version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
@@ -9,11 +9,11 @@ repository = "https://github.com/greatest-ape/aquatic"
 exclude = ["target"]
 
 [lib]
-name = "toml_config"
+name = "aquatic_toml_config"
 
 [dependencies]
 toml = "0.5"
-toml_config_derive = { path = "../toml_config_derive" }
+aquatic_toml_config_derive = { path = "../aquatic_toml_config_derive" }
 
 [dev-dependencies]
 serde = { version = "1.0", features = ["derive"] }

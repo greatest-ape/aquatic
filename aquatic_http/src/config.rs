@@ -2,7 +2,7 @@ use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::Deserialize;
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 use aquatic_cli_helpers::LogLevel;
 
@@ -120,5 +120,5 @@ impl Default for CleaningConfig {
 mod tests {
     use super::Config;
 
-    ::toml_config::gen_serialize_deserialize_test!(Config);
+    ::aquatic_toml_config::gen_serialize_deserialize_test!(Config);
 }
