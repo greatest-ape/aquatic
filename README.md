@@ -120,7 +120,6 @@ Implements:
     * Doesn't care about IP addresses sent in announce requests. The packet
       source IP is always used.
     * Doesn't track of the number of torrent downloads (0 is always sent). 
-  * [IPv6 support](https://web.archive.org/web/20170503181830/http://opentracker.blog.h3q.com/2007/12/28/the-ipv6-situation/)
   
 IPv4 and IPv6 peers are tracked separately.
 

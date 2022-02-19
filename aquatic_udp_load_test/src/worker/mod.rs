@@ -56,7 +56,7 @@ pub fn run_worker_thread(
         for event in events.iter() {
             if (event.token() == token) & event.is_readable() {
                 while let Ok(amt) = socket.recv(&mut buffer) {
-                    match Response::from_bytes(&buffer[0..amt]) {
+                    match Response::from_bytes(&buffer[0..amt], addr.is_ipv4()) {
                         Ok(response) => {
                             match response {
                                 Response::AnnounceIpv4(ref r) => {
