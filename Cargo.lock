@@ -72,7 +72,7 @@ dependencies = [
  "ahash",
  "anyhow",
  "arc-swap",
- "hashbrown 0.11.2",
+ "hashbrown 0.12.0",
  "hex",
  "hwloc",
  "indexmap-amortized",
@@ -124,7 +124,7 @@ dependencies = [
  "aquatic_http_protocol",
  "futures-lite",
  "glommio 0.6.0 (git+https://github.com/DataDog/glommio.git?rev=4e6b14772da2f4325271fbcf12d24cf91ed466e5)",
- "hashbrown 0.11.2",
+ "hashbrown 0.12.0",
  "log",
  "mimalloc",
  "quickcheck",
@@ -211,7 +211,7 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_udp_protocol",
- "hashbrown 0.11.2",
+ "hashbrown 0.12.0",
  "mimalloc",
  "mio",
  "quickcheck",
@@ -249,7 +249,7 @@ dependencies = [
  "futures-lite",
  "futures-rustls",
  "glommio 0.6.0 (git+https://github.com/DataDog/glommio.git?rev=2efe2f2a08f54394a435b674e8e0125057cbff03)",
- "hashbrown 0.11.2",
+ "hashbrown 0.12.0",
  "histogram",
  "log",
  "mimalloc",
@@ -300,7 +300,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "criterion",
- "hashbrown 0.11.2",
+ "hashbrown 0.12.0",
  "quickcheck",
  "quickcheck_macros",
  "serde",
@@ -1017,6 +1017,15 @@ name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c21d40587b92fa6a6c6e3c1bdbf87d75511db5672f9c93175574b3a00df1758"
 dependencies = [
  "ahash",
  "serde",
