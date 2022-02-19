@@ -51,7 +51,7 @@ async-tungstenite = { version = "0.17", optional = true }
 futures-lite = { version = "1", optional = true }
 futures = { version = "0.3", optional = true }
 futures-rustls = { version = "0.22", optional = true }
-glommio = { git = "https://github.com/DataDog/glommio.git", rev = "2efe2f2a08f54394a435b674e8e0125057cbff03", optional = true }
+glommio = { version = "0.7", optional = true }
 
 [dev-dependencies]
 quickcheck = "1"

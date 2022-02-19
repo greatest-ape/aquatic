@@ -25,7 +25,7 @@ cfg-if = "1"
 either = "1"
 futures-lite = "1"
 futures-rustls = "0.22"
-glommio = { git = "https://github.com/DataDog/glommio.git", rev = "4e6b14772da2f4325271fbcf12d24cf91ed466e5" }
+glommio = "0.7"
 itoa = "1"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
