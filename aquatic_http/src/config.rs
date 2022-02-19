@@ -1,8 +1,8 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
-use serde::Deserialize;
 use aquatic_toml_config::TomlConfig;
+use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
 

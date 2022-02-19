@@ -1,5 +1,5 @@
-pub use toml;
 pub use aquatic_toml_config_derive::TomlConfig;
+pub use toml;
 
 /// Run this on your struct implementing TomlConfig to generate a
 /// serialization/deserialization test for it.

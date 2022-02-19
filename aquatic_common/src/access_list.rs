@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
+use aquatic_toml_config::TomlConfig;
 use arc_swap::{ArcSwap, Cache};
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
-use aquatic_toml_config::TomlConfig;
 
 /// Access list mode. Available modes are white, black and off.
 #[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
