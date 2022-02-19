@@ -1,5 +1,5 @@
 [package]
-name = "toml_config_derive"
+name = "aquatic_toml_config_derive"
 version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"

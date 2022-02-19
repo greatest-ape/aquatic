@@ -1,6 +1,6 @@
 use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
 use serde::{Deserialize, Serialize};
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

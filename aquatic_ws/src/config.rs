@@ -7,7 +7,7 @@ use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig}
 use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 /// aquatic_ws configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
@@ -199,5 +199,5 @@ impl Default for StatisticsConfig {
 mod tests {
     use super::Config;
 
-    ::toml_config::gen_serialize_deserialize_test!(Config);
+    ::aquatic_toml_config::gen_serialize_deserialize_test!(Config);
 }

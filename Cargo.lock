@@ -59,10 +59,10 @@ name = "aquatic_cli_helpers"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aquatic_toml_config",
  "serde",
  "simplelog",
  "toml",
- "toml_config",
 ]
 
 [[package]]
@@ -71,6 +71,7 @@ version = "0.1.0"
 dependencies = [
  "ahash",
  "anyhow",
+ "aquatic_toml_config",
  "arc-swap",
  "hashbrown 0.12.0",
  "hex",
@@ -81,7 +82,6 @@ dependencies = [
  "privdrop",
  "rand",
  "serde",
- "toml_config",
 ]
 
 [[package]]
@@ -92,6 +92,7 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_http_protocol",
+ "aquatic_toml_config",
  "cfg-if",
  "either",
  "futures-lite",
@@ -111,7 +112,6 @@ dependencies = [
  "signal-hook",
  "slab",
  "smartstring",
- "toml_config",
 ]
 
 [[package]]
@@ -122,6 +122,7 @@ dependencies = [
  "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_http_protocol",
+ "aquatic_toml_config",
  "futures-lite",
  "glommio 0.6.0 (git+https://github.com/DataDog/glommio.git?rev=4e6b14772da2f4325271fbcf12d24cf91ed466e5)",
  "hashbrown 0.12.0",
@@ -133,7 +134,6 @@ dependencies = [
  "rand_distr",
  "rustls",
  "serde",
- "toml_config",
 ]
 
 [[package]]
@@ -158,12 +158,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "aquatic_toml_config"
+version = "0.1.0"
+dependencies = [
+ "aquatic_toml_config_derive",
+ "quickcheck",
+ "quickcheck_macros",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "aquatic_toml_config_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "aquatic_udp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_common",
+ "aquatic_toml_config",
  "aquatic_udp_protocol",
  "cfg-if",
  "chrono",
@@ -181,7 +202,6 @@ dependencies = [
  "slab",
  "socket2 0.4.4",
  "tinytemplate",
- "toml_config",
 ]
 
 [[package]]
@@ -191,6 +211,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_common",
+ "aquatic_toml_config",
  "aquatic_udp",
  "aquatic_udp_protocol",
  "crossbeam-channel",
@@ -200,7 +221,6 @@ dependencies = [
  "rand",
  "rand_distr",
  "serde",
- "toml_config",
 ]
 
 [[package]]
@@ -210,6 +230,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_common",
+ "aquatic_toml_config",
  "aquatic_udp_protocol",
  "hashbrown 0.12.0",
  "mimalloc",
@@ -220,7 +241,6 @@ dependencies = [
  "rand_distr",
  "serde",
  "socket2 0.4.4",
- "toml_config",
 ]
 
 [[package]]
@@ -240,6 +260,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_common",
+ "aquatic_toml_config",
  "aquatic_ws_protocol",
  "async-tungstenite",
  "cfg-if",
@@ -265,7 +286,6 @@ dependencies = [
  "signal-hook",
  "slab",
  "socket2 0.4.4",
- "toml_config",
  "tungstenite",
 ]
 
@@ -276,6 +296,7 @@ dependencies = [
  "anyhow",
  "aquatic_cli_helpers",
  "aquatic_common",
+ "aquatic_toml_config",
  "aquatic_ws_protocol",
  "async-tungstenite",
  "futures",
@@ -290,7 +311,6 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
- "toml_config",
  "tungstenite",
 ]
 
@@ -2071,26 +2091,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "toml_config"
-version = "0.1.0"
-dependencies = [
- "quickcheck",
- "quickcheck_macros",
- "serde",
- "toml",
- "toml_config_derive",
-]
-
-[[package]]
-name = "toml_config_derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

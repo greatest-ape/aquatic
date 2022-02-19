@@ -5,7 +5,7 @@ use serde::Deserialize;
 use aquatic_cli_helpers::LogLevel;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 /// aquatic_udp_load_test configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
@@ -131,5 +131,5 @@ impl Default for RequestConfig {
 mod tests {
     use super::Config;
 
-    ::toml_config::gen_serialize_deserialize_test!(Config);
+    ::aquatic_toml_config::gen_serialize_deserialize_test!(Config);
 }

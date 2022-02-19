@@ -7,7 +7,7 @@ use anyhow::Context;
 use arc_swap::{ArcSwap, Cache};
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 /// Access list mode. Available modes are white, black and off.
 #[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]

@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use aquatic_cli_helpers::LogLevel;
 use serde::Deserialize;
-use toml_config::TomlConfig;
+use aquatic_toml_config::TomlConfig;
 
 /// aquatic_http_load_test configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
@@ -80,5 +80,5 @@ impl Default for TorrentConfig {
 mod tests {
     use super::Config;
 
-    ::toml_config::gen_serialize_deserialize_test!(Config);
+    ::aquatic_toml_config::gen_serialize_deserialize_test!(Config);
 }
