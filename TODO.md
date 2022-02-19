@@ -1,22 +1,39 @@
 # TODO
 
-* readme
-  * document privilege dropping and cpu pinning
+## High priority
+
+## Medium priority
+
+* newer glommio versions might use SIGUSR1 internally, see glommio fe33e30
+* quit whole program if any thread panics
+* implement socket_recv_size and ipv6_only in glommio implementations
+* config: fail on unrecognized keys?
+* Run cargo-deny in CI
+
+* aquatic_http:
+  * clean out connections regularly
+    * handle like in aquatic_ws
+    * Rc<RefCell<ValidUntil>> which get set on successful request parsing and
+      successful response sending. Clone kept in connection slab which gets cleaned
+      periodically (= cancel tasks). Means that task handle will need to be stored in slab.
+      Config vars kill_idle_connections: bool, max_idle_connection_time. Remove keepalive.
+    * handle panicked/cancelled tasks?
+
+* aquatic_ws
+  * remove mio implementation when glommio issues fixed
+  * glommio
+    * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
+      * replacing indexmap_amortized / simd_json with equivalents doesn't help
+    * SinkExt::send maybe doesn't wake up properly?
+      * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
+
+* extract_response_peers
+  * don't assume requesting peer is in list?
+
+## Low priority
 
 * config
   * add flag to print parsed config when starting
-  * fail on unrecognized keys
-
-* quit whole program if any thread panics
-
-* implement socket_recv_size and ipv6_only in glommio implementations
-
-* newer glommio versions might use SIGUSR1 internally, see glommio fe33e30
-
-* CI
-  * file transfer CI for all implementations
-  * test access lists?
-  * cargo-deny
 
 * aquatic_udp
   * look at proper cpu pinning (check that one thread gets bound per core)
@@ -27,19 +44,27 @@
       * move additional request sending to for each received response, maybe
         with probability 0.2
 
+* aquatic_ws
+  * glommio
+    * proper cpu set pinning
+  * general
+    * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
+
+* extract response peers: extract "one extra" to compensate for removal,
+  of sender if present in selection?
+
+# Not important
+
 * aquatic_http:
-  * clean out connections regularly
-    * Rc<RefCell<ValidUntil>> which get set on successful request parsing and
-      successful response sending. Clone kept in connection slab which gets cleaned
-      periodically (= cancel tasks). Means that task handle will need to be stored in slab.
-      Config vars kill_idle_connections: bool, max_idle_connection_time. Remove keepalive.
-    * handle panicked/cancelled tasks?
   * optimize?
     * get_peer_addr only once (takes 1.2% of runtime)
     * queue response: allocating takes 2.8% of runtime
-  * use futures-rustls for load test
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
+  * test torrent transfer with real clients
+    * scrape: does it work (serialization etc), and with multiple hashes?
+    * 'left' optional in magnet requests? Probably not. Transmission sends huge
+      positive number.
 
 * aquatic_ws
   * mio
@@ -51,49 +76,8 @@
     * deregistering before closing is required by mio, but it hurts performance
       * blocked on https://github.com/snapview/tungstenite-rs/issues/51
     * connection closing: send tls close message etc?
-  * glommio
-    * proper cpu set pinning
-    * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
-      * replacing indexmap_amortized / simd_json with equivalents doesn't help
-    * SinkExt::send maybe doesn't wake up properly?
-      * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
-  * general
-    * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
-
-* extract_response_peers
-  * don't assume requesting peer is in list
-
-# Less important
-
-* extract response peers: extract "one extra" to compensate for removal,
-  of sender if present in selection? maybe make criterion benchmark,
-  optimize
-
-## aquatic_http_load_test
-* how handle large number of peers for "popular" torrents in keepalive mode?
-  maybe it is ok
-
-## aquatic_http
-* test torrent transfer with real clients
-  * scrape: does it work (serialization etc), and with multiple hashes?
-  * 'left' optional in magnet requests? Probably not. Transmission sends huge
-    positive number.
-* compact=0 should result in error response
-
-## aquatic_ws_load_test
-* very small amount of connections means very small number of peers per
-  torrents, so tracker handling of large number is not really assessed
-
-# Not important
-
-## aquatic_ws
-* write new version of extract_response_peers which checks for equality with
-  peer sending request? It could return an arrayvec or smallvec by the way
-  (but then the size needs to be adjusted together with the corresponding
-  config var, or the config var needs to be removed)
-
-## aquatic_cli_helpers
-* Include config field comments in exported toml (likely quite a bit of work)
+  * write new version of extract_response_peers which checks for equality with
+    peer sending request???
 
 # Don't do
 
