@@ -123,8 +123,8 @@ pub struct ProtocolConfig {
 impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
-            max_scrape_torrents: 255,
-            max_response_peers: 255,
+            max_scrape_torrents: 70,
+            max_response_peers: 50,
             peer_announce_interval: 60 * 15,
         }
     }
