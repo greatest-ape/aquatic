@@ -17,10 +17,12 @@ name = "aquatic_http"
 cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [dependencies]
-anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
 aquatic_http_protocol = "0.1.0"
+aquatic_toml_config = "0.1.0"
+
+anyhow = "1"
 cfg-if = "1"
 either = "1"
 futures-lite = "1"
@@ -38,7 +40,6 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 smartstring = "0.2"
-aquatic_toml_config = "0.1.0"
 
 [dev-dependencies]
 quickcheck = "1"

@@ -13,11 +13,13 @@ name = "aquatic_ws_load_test"
 cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [dependencies]
-anyhow = "1"
 async-tungstenite = "0.17"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
+aquatic_toml_config = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
+
+anyhow = "1"
 futures = "0.3"
 futures-rustls = "0.22"
 glommio = "0.7"
@@ -28,7 +30,6 @@ rand_distr = "0.4"
 rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-aquatic_toml_config = "0.1.0"
 tungstenite = "0.17"
 
 [dev-dependencies]
