@@ -114,21 +114,21 @@ fn create_random_request(
     transaction_id: TransactionId,
     torrent_peer: &TorrentPeer,
 ) -> Request {
-    let weights = vec![
-        config.requests.weight_announce as u32,
-        config.requests.weight_connect as u32,
-        config.requests.weight_scrape as u32,
-    ];
-
-    let items = vec![
+    const ITEMS: [RequestType; 3] = [
         RequestType::Announce,
         RequestType::Connect,
         RequestType::Scrape,
     ];
 
-    let dist = WeightedIndex::new(&weights).expect("random request weighted index");
+    let weights = [
+        config.requests.weight_announce as u32,
+        config.requests.weight_connect as u32,
+        config.requests.weight_scrape as u32,
+    ];
 
-    match items[dist.sample(rng)] {
+    let dist = WeightedIndex::new(weights).expect("random request weighted index");
+
+    match ITEMS[dist.sample(rng)] {
         RequestType::Announce => create_announce_request(config, rng, torrent_peer, transaction_id),
         RequestType::Connect => create_connect_request(transaction_id),
         RequestType::Scrape => create_scrape_request(&info_hashes, torrent_peer, transaction_id),
@@ -209,7 +209,7 @@ fn create_torrent_peer(
         scrape_hash_indeces,
         connection_id,
         peer_id: generate_peer_id(),
-        port: Port(rand::random()),
+        port: Port(rng.gen()),
     }
 }
 

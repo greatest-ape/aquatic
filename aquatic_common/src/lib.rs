@@ -52,16 +52,14 @@ where
     if peer_map_len <= max_num_peers_to_take + 1 {
         let mut peers = Vec::with_capacity(peer_map_len);
 
-        peers.extend(peer_map
-            .iter()
-            .filter_map(|(k, v)| {
-                if *k == sender_peer_map_key {
-                    None
-                } else {
-                    Some(peer_conversion_function(v))
-                }
-            }));
-        
+        peers.extend(peer_map.iter().filter_map(|(k, v)| {
+            if *k == sender_peer_map_key {
+                None
+            } else {
+                Some(peer_conversion_function(v))
+            }
+        }));
+
         peers
     } else {
         let half_num_to_take = max_num_peers_to_take / 2;

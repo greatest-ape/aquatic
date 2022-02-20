@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
@@ -13,22 +13,6 @@ use aquatic_udp_protocol::*;
 use crate::config::Config;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
-
-pub trait Ip: Hash + PartialEq + Eq + Clone + Copy {
-    fn ip_addr(self) -> IpAddr;
-}
-
-impl Ip for Ipv4Addr {
-    fn ip_addr(self) -> IpAddr {
-        IpAddr::V4(self)
-    }
-}
-
-impl Ip for Ipv6Addr {
-    fn ip_addr(self) -> IpAddr {
-        IpAddr::V6(self)
-    }
-}
 
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
@@ -50,8 +34,8 @@ pub enum ConnectedRequest {
 
 #[derive(Debug)]
 pub enum ConnectedResponse {
-    AnnounceIpv4(AnnounceResponseIpv4),
-    AnnounceIpv6(AnnounceResponseIpv6),
+    AnnounceIpv4(AnnounceResponse<Ipv4Addr>),
+    AnnounceIpv6(AnnounceResponse<Ipv6Addr>),
     Scrape(PendingScrapeResponse),
 }
 
@@ -234,14 +218,14 @@ mod tests {
 
         let config = Config::default();
 
-        let peers = ::std::iter::repeat(ResponsePeerIpv6 {
+        let peers = ::std::iter::repeat(ResponsePeer {
             ip_address: Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1),
             port: Port(1),
         })
         .take(config.protocol.max_response_peers)
         .collect();
 
-        let response = Response::AnnounceIpv6(AnnounceResponseIpv6 {
+        let response = Response::AnnounceIpv6(AnnounceResponse {
             transaction_id: TransactionId(1),
             announce_interval: AnnounceInterval(1),
             seeders: NumberOfPeers(1),

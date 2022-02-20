@@ -8,8 +8,9 @@ description = "aquatic BitTorrent tracker CLI helpers"
 repository = "https://github.com/greatest-ape/aquatic"
 
 [dependencies]
+aquatic_toml_config = "0.1.0"
+
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 simplelog = "0.11"
 toml = "0.5"
-aquatic_toml_config = "0.1.0"

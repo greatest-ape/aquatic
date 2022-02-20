@@ -6,9 +6,9 @@ use std::{
     time::Duration,
 };
 
+use aquatic_toml_config::TomlConfig;
 use privdrop::PrivDrop;
 use serde::Deserialize;
-use aquatic_toml_config::TomlConfig;
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]

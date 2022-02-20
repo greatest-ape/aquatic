@@ -30,6 +30,15 @@ struct Peer<I: Ip> {
     pub valid_until: ValidUntil,
 }
 
+impl<I: Ip> Peer<I> {
+    fn to_response_peer(&self) -> ResponsePeer<I> {
+        ResponsePeer {
+            ip_address: self.ip_address,
+            port: self.port,
+        }
+    }
+}
+
 type PeerMap<I> = AHashIndexMap<PeerId, Peer<I>>;
 
 struct TorrentData<I: Ip> {
@@ -108,68 +117,6 @@ impl TorrentMaps {
         torrent.peers.shrink_to_fit();
 
         !torrent.peers.is_empty()
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct ProtocolResponsePeer<I> {
-    pub ip_address: I,
-    pub port: Port,
-}
-
-impl<I: Ip> ProtocolResponsePeer<I> {
-    #[inline(always)]
-    fn from_peer(peer: &Peer<I>) -> Self {
-        Self {
-            ip_address: peer.ip_address,
-            port: peer.port,
-        }
-    }
-}
-
-pub struct ProtocolAnnounceResponse<I> {
-    pub transaction_id: TransactionId,
-    pub announce_interval: AnnounceInterval,
-    pub leechers: NumberOfPeers,
-    pub seeders: NumberOfPeers,
-    pub peers: Vec<ProtocolResponsePeer<I>>,
-}
-
-impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv4Addr> {
-    fn into(self) -> ConnectedResponse {
-        ConnectedResponse::AnnounceIpv4(AnnounceResponseIpv4 {
-            transaction_id: self.transaction_id,
-            announce_interval: self.announce_interval,
-            leechers: self.leechers,
-            seeders: self.seeders,
-            peers: self
-                .peers
-                .into_iter()
-                .map(|peer| ResponsePeerIpv4 {
-                    ip_address: peer.ip_address,
-                    port: peer.port,
-                })
-                .collect(),
-        })
-    }
-}
-
-impl Into<ConnectedResponse> for ProtocolAnnounceResponse<Ipv6Addr> {
-    fn into(self) -> ConnectedResponse {
-        ConnectedResponse::AnnounceIpv6(AnnounceResponseIpv6 {
-            transaction_id: self.transaction_id,
-            announce_interval: self.announce_interval,
-            leechers: self.leechers,
-            seeders: self.seeders,
-            peers: self
-                .peers
-                .into_iter()
-                .map(|peer| ResponsePeerIpv6 {
-                    ip_address: peer.ip_address,
-                    port: peer.port,
-                })
-                .collect(),
-        })
     }
 }
 
@@ -258,24 +205,22 @@ fn handle_announce_request(
     peer_valid_until: ValidUntil,
 ) -> ConnectedResponse {
     match src.get().ip() {
-        IpAddr::V4(ip) => handle_announce_request_inner(
+        IpAddr::V4(ip) => ConnectedResponse::AnnounceIpv4(handle_announce_request_inner(
             config,
             rng,
             &mut torrents.ipv4,
             request,
             ip,
             peer_valid_until,
-        )
-        .into(),
-        IpAddr::V6(ip) => handle_announce_request_inner(
+        )),
+        IpAddr::V6(ip) => ConnectedResponse::AnnounceIpv6(handle_announce_request_inner(
             config,
             rng,
             &mut torrents.ipv6,
             request,
             ip,
             peer_valid_until,
-        )
-        .into(),
+        )),
     }
 }
 
@@ -286,7 +231,7 @@ fn handle_announce_request_inner<I: Ip>(
     request: AnnounceRequest,
     peer_ip: I,
     peer_valid_until: ValidUntil,
-) -> ProtocolAnnounceResponse<I> {
+) -> AnnounceResponse<I> {
     let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
 
     let peer = Peer {
@@ -329,10 +274,10 @@ fn handle_announce_request_inner<I: Ip>(
         &torrent_data.peers,
         max_num_peers_to_take,
         request.peer_id,
-        ProtocolResponsePeer::from_peer,
+        Peer::to_response_peer,
     );
 
-    ProtocolAnnounceResponse {
+    AnnounceResponse {
         transaction_id: request.transaction_id,
         announce_interval: AnnounceInterval(config.protocol.peer_announce_interval),
         leechers: NumberOfPeers(torrent_data.num_leechers as i32),
@@ -448,7 +393,7 @@ mod tests {
 
                 if i == 0 {
                     opt_sender_key = Some(key);
-                    opt_sender_peer = Some(ProtocolResponsePeer::from_peer(&peer));
+                    opt_sender_peer = Some(peer.to_response_peer());
                 }
 
                 peer_map.insert(key, peer);
@@ -461,7 +406,7 @@ mod tests {
                 &peer_map,
                 req_num_peers,
                 opt_sender_key.unwrap_or_else(|| gen_peer_id(1)),
-                ProtocolResponsePeer::from_peer,
+                Peer::to_response_peer,
             );
 
             // Check that number of returned peers is correct

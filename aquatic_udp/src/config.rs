@@ -123,8 +123,8 @@ pub struct ProtocolConfig {
 impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
-            max_scrape_torrents: 255,
-            max_response_peers: 255,
+            max_scrape_torrents: 70,
+            max_response_peers: 50,
             peer_announce_interval: 60 * 15,
         }
     }
@@ -188,7 +188,7 @@ impl Default for CleaningConfig {
             connection_cleaning_interval: 60,
             torrent_cleaning_interval: 60 * 2,
             pending_scrape_cleaning_interval: 60 * 10,
-            max_connection_age: 60 * 5,
+            max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
             max_pending_scrape_age: 60,
         }

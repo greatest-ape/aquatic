@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::Read;
 
 use anyhow::Context;
+use aquatic_toml_config::TomlConfig;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use aquatic_toml_config::TomlConfig;
 
 /// Log level. Available values are off, error, warn, info, debug and trace.
 #[derive(Debug, Clone, Copy, PartialEq, TomlConfig, Serialize, Deserialize)]

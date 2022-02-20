@@ -20,10 +20,12 @@ with-glommio = ["cpu-pinning", "async-tungstenite", "futures-lite", "futures", "
 with-mio = ["crossbeam-channel", "histogram", "mio", "parking_lot", "socket2"]
 
 [dependencies]
-anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
+aquatic_toml_config = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
+
+anyhow = "1"
 cfg-if = "1"
 either = "1"
 hashbrown = { version = "0.12", features = ["serde"] }
@@ -36,7 +38,6 @@ rustls-pemfile = "0.3"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
-aquatic_toml_config = "0.1.0"
 tungstenite = "0.17"
 
 # mio

@@ -1,4 +1,10 @@
+use std::fmt::Debug;
 use std::net::{Ipv4Addr, Ipv6Addr};
+
+pub trait Ip: Clone + Copy + Debug + PartialEq + Eq {}
+
+impl Ip for Ipv4Addr {}
+impl Ip for Ipv6Addr {}
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct AnnounceInterval(pub i32);
@@ -30,15 +36,9 @@ pub struct PeerId(pub [u8; 20]);
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct PeerKey(pub u32);
 
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct ResponsePeerIpv4 {
-    pub ip_address: Ipv4Addr,
-    pub port: Port,
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct ResponsePeerIpv6 {
-    pub ip_address: Ipv6Addr,
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct ResponsePeer<I: Ip> {
+    pub ip_address: I,
     pub port: Port,
 }
 
@@ -69,17 +69,7 @@ impl quickcheck::Arbitrary for PeerId {
 }
 
 #[cfg(test)]
-impl quickcheck::Arbitrary for ResponsePeerIpv4 {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        Self {
-            ip_address: quickcheck::Arbitrary::arbitrary(g),
-            port: Port(u16::arbitrary(g).into()),
-        }
-    }
-}
-
-#[cfg(test)]
-impl quickcheck::Arbitrary for ResponsePeerIpv6 {
+impl<I: Ip + quickcheck::Arbitrary> quickcheck::Arbitrary for ResponsePeer<I> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
             ip_address: quickcheck::Arbitrary::arbitrary(g),

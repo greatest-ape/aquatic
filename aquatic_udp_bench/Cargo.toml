@@ -10,16 +10,17 @@ repository = "https://github.com/greatest-ape/aquatic"
 name = "aquatic_udp_bench"
 
 [dependencies]
-anyhow = "1"
 aquatic_cli_helpers = "0.1.0"
 aquatic_common = "0.1.0"
+aquatic_toml_config = "0.1.0"
 aquatic_udp = "0.1.0"
 aquatic_udp_protocol = "0.1.0"
+
+anyhow = "1"
 crossbeam-channel = "0.5"
 indicatif = "0.16"
 mimalloc = { version = "0.1", default-features = false }
 num-format = "0.4"
-rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
+rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
-aquatic_toml_config = "0.1.0"
