@@ -119,7 +119,7 @@ Implements:
   * [BEP 015]: UDP BitTorrent tracker protocol ([more details](https://libtorrent.org/udp_tracker_protocol.html)). Exceptions:
     * Doesn't care about IP addresses sent in announce requests. The packet
       source IP is always used.
-    * Doesn't track of the number of torrent downloads (0 is always sent). 
+    * Doesn't track the number of torrent downloads (0 is always sent). 
   
 IPv4 and IPv6 peers are tracked separately.
 
@@ -148,7 +148,7 @@ More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.p
 Implements:
   * [BEP 003]: HTTP BitTorrent protocol ([more details](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol)). Exceptions:
     * Only runs over TLS
-    * Doesn't track of the number of torrent downloads (0 is always sent)
+    * Doesn't track the number of torrent downloads (0 is always sent)
     * Only compact responses are supported
   * [BEP 023]: Compact HTTP responses
   * [BEP 007]: IPv6 support
@@ -166,7 +166,7 @@ Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
 clients. Notes:
 
   * Only runs over TLS
-  * Doesn't track of the number of torrent downloads (0 is always sent). 
+  * Doesn't track the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 IPv4 and IPv6 peers are tracked separately.
