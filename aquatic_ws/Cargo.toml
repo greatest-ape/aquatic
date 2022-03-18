@@ -23,8 +23,13 @@ aquatic_toml_config = "0.1.0"
 aquatic_ws_protocol = "0.1.0"
 
 anyhow = "1"
+async-tungstenite = "0.17"
 cfg-if = "1"
 either = "1"
+futures = "0.3"
+futures-lite = "1"
+futures-rustls = "0.22"
+glommio = "0.7"
 hashbrown = { version = "0.12", features = ["serde"] }
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
@@ -36,11 +41,6 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 tungstenite = "0.17"
-async-tungstenite = "0.17"
-futures-lite = "1"
-futures = "0.3"
-futures-rustls = "0.22"
-glommio = "0.7"
 
 [dev-dependencies]
 quickcheck = "1"
