@@ -13,11 +13,11 @@ of sub-implementations for different protocols:
 [mio]: https://github.com/tokio-rs/mio
 [glommio]: https://github.com/DataDog/glommio
 
-| Name         | Protocol                                   | OS requirements                                            |
-|--------------|--------------------------------------------|------------------------------------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]                      | Unix-like                                                  |
-| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+                                                 |
-| aquatic_ws   | [WebTorrent] over TLS ([rustls])           | Unix-like with [mio] (default) / Linux 5.8+ with [glommio] |
+| Name         | Protocol                                   | OS requirements              |
+|--------------|--------------------------------------------|------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]                      | Unix-like (using [mio])      |
+| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+ (using [glommio]) |
+| aquatic_ws   | [WebTorrent] over TLS ([rustls])           | Linux 5.8+ (using [glommio]) |
 
 ## Usage
 
@@ -25,10 +25,9 @@ of sub-implementations for different protocols:
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- Unless you're planning to only run the cross-platform mio based
-  implementations, make sure locked memory limits are sufficient.
-  You can do this by adding the following lines to `/etc/security/limits.conf`,
-  and then logging out and back in:
+- Unless you're planning to only run `aquatic_udp`, make sure locked memory
+  limits are sufficient. You can do this by adding the following lines to
+  `/etc/security/limits.conf`, and then logging out and back in:
 
 ```
 *    hard    memlock    512
@@ -50,7 +49,6 @@ Compile the implementations that you are interested in:
 cargo build --release -p aquatic_udp
 cargo build --release -p aquatic_http
 cargo build --release -p aquatic_ws
-cargo build --release -p aquatic_ws --features "with-glommio" --no-default-features
 ```
 
 ### Running
