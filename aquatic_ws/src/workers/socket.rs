@@ -29,8 +29,6 @@ use crate::config::Config;
 
 use crate::common::*;
 
-use super::common::*;
-
 const LOCAL_CHANNEL_SIZE: usize = 16;
 
 struct PendingScrapeResponse {
