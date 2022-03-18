@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::SHARED_IN_CHANNEL_SIZE;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum PeerStatus {
+enum PeerStatus {
     Seeding,
     Leeching,
     Stopped,
@@ -31,7 +31,7 @@ impl PeerStatus {
     ///
     /// Likely, the last branch will be taken most of the time.
     #[inline]
-    pub fn from_event_and_bytes_left(event: AnnounceEvent, opt_bytes_left: Option<usize>) -> Self {
+    fn from_event_and_bytes_left(event: AnnounceEvent, opt_bytes_left: Option<usize>) -> Self {
         if let AnnounceEvent::Stopped = event {
             Self::Stopped
         } else if let Some(0) = opt_bytes_left {
@@ -43,15 +43,15 @@ impl PeerStatus {
 }
 
 #[derive(Clone, Copy)]
-pub struct Peer {
+struct Peer {
     pub connection_meta: ConnectionMeta,
     pub status: PeerStatus,
     pub valid_until: ValidUntil,
 }
 
-pub type PeerMap = AHashIndexMap<PeerId, Peer>;
+type PeerMap = AHashIndexMap<PeerId, Peer>;
 
-pub struct TorrentData {
+struct TorrentData {
     pub peers: PeerMap,
     pub num_seeders: usize,
     pub num_leechers: usize,
@@ -68,16 +68,16 @@ impl Default for TorrentData {
     }
 }
 
-pub type TorrentMap = AHashIndexMap<InfoHash, TorrentData>;
+type TorrentMap = AHashIndexMap<InfoHash, TorrentData>;
 
 #[derive(Default)]
-pub struct TorrentMaps {
+struct TorrentMaps {
     pub ipv4: TorrentMap,
     pub ipv6: TorrentMap,
 }
 
 impl TorrentMaps {
-    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
+    fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
         let mut access_list_cache = create_access_list_cache(access_list);
 
         Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4);
@@ -236,7 +236,7 @@ async fn handle_request_stream<S>(
         .await;
 }
 
-pub fn handle_announce_request(
+fn handle_announce_request(
     config: &Config,
     rng: &mut SmallRng,
     torrent_maps: &mut TorrentMaps,
@@ -374,7 +374,7 @@ pub fn handle_announce_request(
     out_messages.push((request_sender_meta, out_message));
 }
 
-pub fn handle_scrape_request(
+fn handle_scrape_request(
     config: &Config,
     torrent_maps: &mut TorrentMaps,
     out_messages: &mut Vec<(ConnectionMeta, OutMessage)>,

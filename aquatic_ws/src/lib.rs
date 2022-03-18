@@ -54,7 +54,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     Ok(())
 }
 
-pub fn run_workers(config: Config, state: State) -> anyhow::Result<()> {
+fn run_workers(config: Config, state: State) -> anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE);
@@ -150,7 +150,7 @@ pub fn run_workers(config: Config, state: State) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
+fn create_tls_config(config: &Config) -> anyhow::Result<rustls::ServerConfig> {
     let certs = {
         let f = File::open(&config.network.tls_certificate_path)?;
         let mut f = BufReader::new(f);
