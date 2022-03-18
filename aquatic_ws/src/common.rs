@@ -1,5 +1,3 @@
-pub mod handlers;
-
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
@@ -13,6 +11,13 @@ pub use aquatic_common::ValidUntil;
 use aquatic_ws_protocol::*;
 
 use crate::config::Config;
+
+pub type TlsConfig = futures_rustls::rustls::ServerConfig;
+
+#[derive(Default, Clone)]
+pub struct State {
+    pub access_list: Arc<AccessListArcSwap>,
+}
 
 #[derive(Copy, Clone, Debug)]
 pub struct PendingScrapeId(pub usize);

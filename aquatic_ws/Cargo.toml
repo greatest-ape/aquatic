@@ -14,10 +14,7 @@ name = "aquatic_ws"
 name = "aquatic_ws"
 
 [features]
-default = ["with-mio"]
 cpu-pinning = ["aquatic_common/cpu-pinning"]
-with-glommio = ["cpu-pinning", "async-tungstenite", "futures-lite", "futures", "futures-rustls", "glommio"]
-with-mio = ["crossbeam-channel", "histogram", "mio", "parking_lot", "socket2"]
 
 [dependencies]
 aquatic_cli_helpers = "0.1.0"
@@ -39,20 +36,11 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 tungstenite = "0.17"
-
-# mio
-crossbeam-channel = { version = "0.5", optional = true }
-histogram = { version = "0.6", optional = true }
-mio = { version = "0.8", features = ["net", "os-poll"], optional = true }
-parking_lot = { version = "0.12", optional = true }
-socket2 = { version = "0.4", features = ["all"], optional = true }
-
-# glommio
-async-tungstenite = { version = "0.17", optional = true }
-futures-lite = { version = "1", optional = true }
-futures = { version = "0.3", optional = true }
-futures-rustls = { version = "0.22", optional = true }
-glommio = { version = "0.7", optional = true }
+async-tungstenite = "0.17"
+futures-lite = "1"
+futures = "0.3"
+futures-rustls = "0.22"
+glommio = "0.7"
 
 [dev-dependencies]
 quickcheck = "1"
