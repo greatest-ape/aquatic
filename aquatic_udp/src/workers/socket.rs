@@ -16,7 +16,7 @@ use slab::Slab;
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ValidUntil;
-use aquatic_common::{AHashIndexMap, CanonicalSocketAddr};
+use aquatic_common::{AmortizedIndexMap, CanonicalSocketAddr};
 use aquatic_udp_protocol::*;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -24,7 +24,7 @@ use crate::common::*;
 use crate::config::Config;
 
 #[derive(Default)]
-pub struct ConnectionMap(AHashIndexMap<(ConnectionId, CanonicalSocketAddr), ValidUntil>);
+pub struct ConnectionMap(AmortizedIndexMap<(ConnectionId, CanonicalSocketAddr), ValidUntil>);
 
 impl ConnectionMap {
     pub fn insert(
@@ -66,7 +66,7 @@ impl PendingScrapeResponseSlab {
         request: ScrapeRequest,
         valid_until: ValidUntil,
     ) -> impl IntoIterator<Item = (RequestWorkerIndex, PendingScrapeRequest)> {
-        let mut split_requests: AHashIndexMap<RequestWorkerIndex, PendingScrapeRequest> =
+        let mut split_requests: AmortizedIndexMap<RequestWorkerIndex, PendingScrapeRequest> =
             Default::default();
 
         if request.info_hashes.is_empty() {
