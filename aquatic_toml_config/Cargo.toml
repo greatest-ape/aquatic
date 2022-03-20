@@ -4,9 +4,10 @@ version = "0.1.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
-description = "WebTorrent tracker protocol"
+description = "Serialize toml with comments"
 repository = "https://github.com/greatest-ape/aquatic"
 exclude = ["target"]
+keywords = ["toml"]
 
 [lib]
 name = "aquatic_toml_config"

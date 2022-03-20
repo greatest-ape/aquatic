@@ -7,6 +7,7 @@ license = "Apache-2.0"
 repository = "https://github.com/greatest-ape/aquatic"
 description = "HTTP BitTorrent tracker protocol"
 exclude = ["target"]
+keywords = ["http", "protocol", "peer-to-peer", "torrent", "bittorrent"]
 
 [lib]
 name = "aquatic_http_protocol"
