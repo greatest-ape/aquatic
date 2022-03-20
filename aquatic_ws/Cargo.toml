@@ -40,6 +40,7 @@ rustls-pemfile = "0.3"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
+socket2 = { version = "0.4", features = ["all"] }
 tungstenite = "0.17"
 
 [dev-dependencies]

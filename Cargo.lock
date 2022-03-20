@@ -281,6 +281,7 @@ dependencies = [
  "serde",
  "signal-hook",
  "slab",
+ "socket2 0.4.4",
  "tungstenite",
 ]
 
