@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 description = "Blazingly fast, multi-threaded HTTP BitTorrent tracker"
 repository = "https://github.com/greatest-ape/aquatic"
+keywords = ["http", "server", "peer-to-peer", "torrent", "bittorrent"]
 
 [lib]
 name = "aquatic_http"
@@ -40,6 +41,7 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 smartstring = "1"
+socket2 = { version = "0.4", features = ["all"] }
 
 [dev-dependencies]
 quickcheck = "1"

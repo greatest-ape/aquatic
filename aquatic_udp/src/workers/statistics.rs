@@ -5,9 +5,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use chrono::Utc;
 use num_format::{Locale, ToFormattedString};
 use serde::Serialize;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 use tinytemplate::TinyTemplate;
 
 use crate::common::*;
@@ -183,7 +184,9 @@ pub fn run_statistics_worker(config: Config, state: State) {
                 ipv6_active: config.network.ipv6_active(),
                 ipv4: statistics_ipv4,
                 ipv6: statistics_ipv6,
-                last_updated: Utc::now().to_rfc2822(),
+                last_updated: OffsetDateTime::now_utc()
+                    .format(&Rfc2822)
+                    .unwrap_or("(formatting error)".into()),
                 peer_update_interval: format!("{}", config.cleaning.torrent_cleaning_interval),
             };
 

@@ -12,7 +12,7 @@ use glommio::timer::TimerActionRepeat;
 use hashbrown::HashMap;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::{extract_response_peers, AHashIndexMap};
+use aquatic_common::{extract_response_peers, AmortizedIndexMap};
 use aquatic_ws_protocol::*;
 
 use crate::common::*;
@@ -49,7 +49,7 @@ struct Peer {
     pub valid_until: ValidUntil,
 }
 
-type PeerMap = AHashIndexMap<PeerId, Peer>;
+type PeerMap = AmortizedIndexMap<PeerId, Peer>;
 
 struct TorrentData {
     pub peers: PeerMap,
@@ -68,7 +68,7 @@ impl Default for TorrentData {
     }
 }
 
-type TorrentMap = AHashIndexMap<InfoHash, TorrentData>;
+type TorrentMap = AmortizedIndexMap<InfoHash, TorrentData>;
 
 #[derive(Default)]
 struct TorrentMaps {

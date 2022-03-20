@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 description = "Blazingly fast, multi-threaded UDP BitTorrent tracker"
 repository = "https://github.com/greatest-ape/aquatic"
+keywords = ["udp", "server", "peer-to-peer", "torrent", "bittorrent"]
 
 [lib]
 name = "aquatic_udp"
@@ -24,7 +25,6 @@ aquatic_udp_protocol = "0.1.0"
 
 anyhow = "1"
 cfg-if = "1"
-chrono = "0.4"
 crossbeam-channel = "0.5"
 hex = "0.4"
 log = "0.4"
@@ -36,6 +36,7 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 socket2 = { version = "0.4", features = ["all"] }
+time = { version = "0.3", features = ["formatting"] }
 tinytemplate = "1"
 
 [dev-dependencies]

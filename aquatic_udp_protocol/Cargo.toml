@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 description = "UDP BitTorrent tracker protocol"
 repository = "https://github.com/greatest-ape/aquatic"
+keywords = ["udp", "protocol", "peer-to-peer", "torrent", "bittorrent"]
 
 [dependencies]
 byteorder = "1"

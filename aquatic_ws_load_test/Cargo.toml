@@ -5,6 +5,7 @@ authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/greatest-ape/aquatic"
+keywords = ["webtorrent", "websocket", "benchmark", "torrent", "bittorrent"]
 
 [[bin]]
 name = "aquatic_ws_load_test"

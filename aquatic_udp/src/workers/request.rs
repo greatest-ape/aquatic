@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListArcSwap;
-use aquatic_common::AHashIndexMap;
+use aquatic_common::AmortizedIndexMap;
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_common::ValidUntil;
 use crossbeam_channel::Receiver;
@@ -39,7 +39,7 @@ impl<I: Ip> Peer<I> {
     }
 }
 
-type PeerMap<I> = AHashIndexMap<PeerId, Peer<I>>;
+type PeerMap<I> = AmortizedIndexMap<PeerId, Peer<I>>;
 
 struct TorrentData<I: Ip> {
     pub peers: PeerMap<I>,
@@ -57,7 +57,7 @@ impl<I: Ip> Default for TorrentData<I> {
     }
 }
 
-type TorrentMap<I> = AHashIndexMap<InfoHash, TorrentData<I>>;
+type TorrentMap<I> = AmortizedIndexMap<InfoHash, TorrentData<I>>;
 
 #[derive(Default)]
 struct TorrentMaps {

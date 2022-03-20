@@ -25,14 +25,6 @@ of sub-implementations for different protocols:
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- Unless you're planning to only run `aquatic_udp`, make sure locked memory
-  limits are sufficient. You can do this by adding the following lines to
-  `/etc/security/limits.conf`, and then logging out and back in:
-
-```
-*    hard    memlock    512
-*    soft    memlock    512
-```
 
 - Clone this git repository and enter it
 
@@ -53,7 +45,16 @@ cargo build --release -p aquatic_ws
 
 ### Running
 
-Begin by generating configuration files. They differ between protocols.
+Unless you're planning to only run `aquatic_udp`, make sure locked memory
+limits are sufficient. You can do this by adding the following lines to
+`/etc/security/limits.conf`, and then logging out and back in:
+
+```
+*    hard    memlock    512
+*    soft    memlock    512
+```
+
+Generate configuration files. They come with comments and differ between protocols.
 
 ```sh
 ./target/release/aquatic_udp -p > "aquatic-udp-config.toml"
