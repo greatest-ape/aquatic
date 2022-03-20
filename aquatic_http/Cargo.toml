@@ -40,6 +40,7 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 smartstring = "1"
+socket2 = { version = "0.4", features = ["all"] }
 
 [dev-dependencies]
 quickcheck = "1"

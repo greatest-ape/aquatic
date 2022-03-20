@@ -112,6 +112,7 @@ dependencies = [
  "signal-hook",
  "slab",
  "smartstring",
+ "socket2 0.4.4",
 ]
 
 [[package]]

@@ -39,7 +39,9 @@ pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
     /// Only allow access over IPv6
-    pub ipv6_only: bool,
+    pub only_ipv6: bool,
+    /// Maximum number of pending TCP connections
+    pub tcp_backlog: i32,
     /// Path to TLS certificate (DER-encoded X.509)
     pub tls_certificate_path: PathBuf,
     /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
@@ -91,7 +93,8 @@ impl Default for NetworkConfig {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             tls_certificate_path: "".into(),
             tls_private_key_path: "".into(),
-            ipv6_only: false,
+            only_ipv6: false,
+            tcp_backlog: 1024,
             keep_alive: true,
         }
     }

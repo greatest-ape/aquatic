@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -58,7 +59,7 @@ pub async fn run_socket_worker(
     let config = Rc::new(config);
     let access_list = state.access_list;
 
-    let listener = TcpListener::bind(config.network.address).expect("bind socket");
+    let listener = create_tcp_listener(&config);
     num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
@@ -463,4 +464,31 @@ impl Connection {
 
 fn calculate_request_consumer_index(config: &Config, info_hash: InfoHash) -> usize {
     (info_hash.0[0] as usize) % config.request_workers
+}
+
+fn create_tcp_listener(config: &Config) -> TcpListener {
+    let domain = if config.network.address.is_ipv4() {
+        socket2::Domain::IPV4
+    } else {
+        socket2::Domain::IPV6
+    };
+
+    let socket = socket2::Socket::new(domain, socket2::Type::STREAM, Some(socket2::Protocol::TCP))
+        .expect("create socket");
+
+    if config.network.only_ipv6 {
+        socket.set_only_v6(true).expect("socket: set only ipv6");
+    }
+
+    socket.set_reuse_port(true).expect("socket: set reuse port");
+
+    socket
+        .bind(&config.network.address.into())
+        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", config.network.address, err));
+
+    socket
+        .listen(config.network.tcp_backlog)
+        .unwrap_or_else(|err| panic!("socket: listen {}: {:?}", config.network.address, err));
+
+    unsafe { TcpListener::from_raw_fd(socket.into_raw_fd()) }
 }
