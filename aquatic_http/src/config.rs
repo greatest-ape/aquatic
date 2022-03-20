@@ -46,7 +46,7 @@ pub struct NetworkConfig {
     pub tls_certificate_path: PathBuf,
     /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
     pub tls_private_key_path: PathBuf,
-    /// Keep connections alive
+    /// Keep connections alive after sending a response
     pub keep_alive: bool,
 }
 
@@ -66,8 +66,12 @@ pub struct ProtocolConfig {
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,
+    /// Clean connections this often (seconds)
+    pub connection_cleaning_interval: u64,
     /// Remove peers that have not announced for this long (seconds)
     pub max_peer_age: u64,
+    /// Remove connections that haven't seen valid requests for this long (seconds)
+    pub max_connection_idle: u64,
 }
 
 impl Default for Config {
@@ -114,7 +118,9 @@ impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             torrent_cleaning_interval: 30,
+            connection_cleaning_interval: 60,
             max_peer_age: 1800,
+            max_connection_idle: 180,
         }
     }
 }

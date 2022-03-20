@@ -4,7 +4,7 @@ use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::CanonicalSocketAddr;
@@ -21,6 +21,7 @@ use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::{TcpListener, TcpStream};
+use glommio::task::JoinHandle;
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
 use once_cell::sync::Lazy;
@@ -45,7 +46,9 @@ struct PendingScrapeResponse {
 }
 
 struct ConnectionReference {
+    task_handle: Option<JoinHandle<()>>,
     response_sender: LocalSender<ChannelResponse>,
+    valid_until: ValidUntil,
 }
 
 pub async fn run_socket_worker(
@@ -69,18 +72,14 @@ pub async fn run_socket_worker(
     let response_consumer_id = ConsumerId(response_receivers.consumer_id().unwrap());
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
-    let connections_to_remove = Rc::new(RefCell::new(Vec::new()));
 
     // Periodically remove closed connections
-    TimerActionRepeat::repeat(
-        enclose!((config, connection_slab, connections_to_remove) move || {
-            remove_closed_connections(
-                config.clone(),
-                connection_slab.clone(),
-                connections_to_remove.clone(),
-            )
-        }),
-    );
+    TimerActionRepeat::repeat(enclose!((config, connection_slab) move || {
+        clean_connections(
+            config.clone(),
+            connection_slab.clone(),
+        )
+    }));
 
     for (_, response_receiver) in response_receivers.streams() {
         spawn_local(receive_responses(
@@ -96,11 +95,14 @@ pub async fn run_socket_worker(
         match stream {
             Ok(stream) => {
                 let (response_sender, response_receiver) = new_bounded(config.request_workers);
-                let key = connection_slab
-                    .borrow_mut()
-                    .insert(ConnectionReference { response_sender });
 
-                spawn_local(enclose!((config, access_list, request_senders, tls_config, connections_to_remove) async move {
+                let key = connection_slab.borrow_mut().insert(ConnectionReference {
+                    task_handle: None,
+                    response_sender,
+                    valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
+                });
+
+                let task_handle = spawn_local(enclose!((config, access_list, request_senders, tls_config, connection_slab) async move {
                     if let Err(err) = Connection::run(
                         config,
                         access_list,
@@ -109,14 +111,19 @@ pub async fn run_socket_worker(
                         response_consumer_id,
                         ConnectionId(key),
                         tls_config,
+                        connection_slab.clone(),
                         stream
                     ).await {
                         ::log::debug!("Connection::run() error: {:?}", err);
                     }
 
-                    connections_to_remove.borrow_mut().push(key);
+                    connection_slab.borrow_mut().try_remove(key);
                 }))
                 .detach();
+
+                if let Some(reference) = connection_slab.borrow_mut().get_mut(key) {
+                    reference.task_handle = Some(task_handle);
+                }
             }
             Err(err) => {
                 ::log::error!("accept connection: {:?}", err);
@@ -125,26 +132,28 @@ pub async fn run_socket_worker(
     }
 }
 
-async fn remove_closed_connections(
+async fn clean_connections(
     config: Rc<Config>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    connections_to_remove: Rc<RefCell<Vec<usize>>>,
 ) -> Option<Duration> {
-    let connections_to_remove = connections_to_remove.replace(Vec::new());
+    let now = Instant::now();
 
-    for connection_id in connections_to_remove {
-        if let Some(_) = connection_slab.borrow_mut().try_remove(connection_id) {
-            ::log::debug!("removed connection with id {}", connection_id);
-        } else {
-            ::log::error!(
-                "couldn't remove connection with id {}, it is not in connection slab",
-                connection_id
-            );
+    connection_slab.borrow_mut().retain(|_, reference| {
+        let keep = reference.valid_until.0 > now;
+
+        if !keep {
+            if let Some(ref handle) = reference.task_handle {
+                handle.cancel();
+            }
         }
-    }
+
+        keep
+    });
+
+    connection_slab.borrow_mut().shrink_to_fit();
 
     Some(Duration::from_secs(
-        config.cleaning.torrent_cleaning_interval,
+        config.cleaning.connection_cleaning_interval,
     ))
 }
 
@@ -170,6 +179,7 @@ struct Connection {
     request_senders: Rc<Senders<ChannelRequest>>,
     response_receiver: LocalReceiver<ChannelResponse>,
     response_consumer_id: ConsumerId,
+    connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     stream: TlsStream<TcpStream>,
     peer_addr: CanonicalSocketAddr,
     connection_id: ConnectionId,
@@ -187,6 +197,7 @@ impl Connection {
         response_consumer_id: ConsumerId,
         connection_id: ConnectionId,
         tls_config: Arc<TlsConfig>,
+        connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
         stream: TcpStream,
     ) -> anyhow::Result<()> {
         let peer_addr = stream
@@ -207,6 +218,7 @@ impl Connection {
             request_senders: request_senders.clone(),
             response_receiver,
             response_consumer_id,
+            connection_slab,
             stream,
             peer_addr,
             connection_id,
@@ -289,12 +301,19 @@ impl Connection {
     }
 
     /// Take a request and:
+    /// - Update connection ValidUntil
     /// - Return error response if request is not allowed
     /// - If it is an announce request, send it to request workers an await a
     ///   response
     /// - If it is a scrape requests, split it up, pass on the parts to
     ///   relevant request workers and await a response
     async fn handle_request(&mut self, request: Request) -> anyhow::Result<Response> {
+        if let Ok(mut slab) = self.connection_slab.try_borrow_mut() {
+            if let Some(reference) = slab.get_mut(self.connection_id.0) {
+                reference.valid_until = ValidUntil::new(self.config.cleaning.max_connection_idle);
+            }
+        }
+
         match request {
             Request::Announce(request) => {
                 let info_hash = request.info_hash;
