@@ -3,8 +3,9 @@ use std::io::Read;
 
 use anyhow::Context;
 use aquatic_toml_config::TomlConfig;
+use log::LevelFilter;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
+use simple_logger::SimpleLogger;
 
 /// Log level. Available values are off, error, warn, info, debug and trace.
 #[derive(Debug, Clone, Copy, PartialEq, TomlConfig, Serialize, Deserialize)]
@@ -186,19 +187,11 @@ fn start_logger(log_level: LogLevel) -> ::anyhow::Result<()> {
         LogLevel::Trace => LevelFilter::Trace,
     };
 
-    // Note: logger doesn't seem to pick up thread names. Not a huge loss.
-    let simplelog_config = ConfigBuilder::new()
-        .set_time_to_local(true)
-        .set_location_level(LevelFilter::Off)
-        .build();
-
-    TermLogger::init(
-        level_filter,
-        simplelog_config,
-        TerminalMode::Stderr,
-        ColorChoice::Auto,
-    )
-    .context("Couldn't initialize logger")?;
+    SimpleLogger::new()
+        .with_level(level_filter)
+        .with_utc_timestamps()
+        .init()
+        .context("Couldn't initialize logger")?;
 
     Ok(())
 }
