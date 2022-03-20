@@ -27,6 +27,23 @@ pub struct Config {
     pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            socket_workers: 1,
+            request_workers: 1,
+            log_level: LogLevel::default(),
+            network: NetworkConfig::default(),
+            protocol: ProtocolConfig::default(),
+            cleaning: CleaningConfig::default(),
+            privileges: PrivilegeConfig::default(),
+            access_list: AccessListConfig::default(),
+            #[cfg(feature = "cpu-pinning")]
+            cpu_pinning: Default::default(),
+        }
+    }
+}
+
 impl aquatic_cli_helpers::Config for Config {
     fn get_log_level(&self) -> Option<LogLevel> {
         Some(self.log_level)
@@ -50,47 +67,6 @@ pub struct NetworkConfig {
     pub keep_alive: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
-pub struct ProtocolConfig {
-    /// Maximum number of torrents to accept in scrape request
-    pub max_scrape_torrents: usize,
-    /// Maximum number of requested peers to accept in announce request
-    pub max_peers: usize,
-    /// Ask peers to announce this often (seconds)
-    pub peer_announce_interval: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
-pub struct CleaningConfig {
-    /// Clean peers this often (seconds)
-    pub torrent_cleaning_interval: u64,
-    /// Clean connections this often (seconds)
-    pub connection_cleaning_interval: u64,
-    /// Remove peers that have not announced for this long (seconds)
-    pub max_peer_age: u64,
-    /// Remove connections that haven't seen valid requests for this long (seconds)
-    pub max_connection_idle: u64,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            socket_workers: 1,
-            request_workers: 1,
-            log_level: LogLevel::default(),
-            network: NetworkConfig::default(),
-            protocol: ProtocolConfig::default(),
-            cleaning: CleaningConfig::default(),
-            privileges: PrivilegeConfig::default(),
-            access_list: AccessListConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: Default::default(),
-        }
-    }
-}
-
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
@@ -104,6 +80,17 @@ impl Default for NetworkConfig {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(default)]
+pub struct ProtocolConfig {
+    /// Maximum number of torrents to accept in scrape request
+    pub max_scrape_torrents: usize,
+    /// Maximum number of requested peers to accept in announce request
+    pub max_peers: usize,
+    /// Ask peers to announce this often (seconds)
+    pub peer_announce_interval: usize,
+}
+
 impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
@@ -112,6 +99,19 @@ impl Default for ProtocolConfig {
             peer_announce_interval: 120,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(default)]
+pub struct CleaningConfig {
+    /// Clean peers this often (seconds)
+    pub torrent_cleaning_interval: u64,
+    /// Clean connections this often (seconds)
+    pub connection_cleaning_interval: u64,
+    /// Remove peers that have not announced for this long (seconds)
+    pub max_peer_age: u64,
+    /// Remove connections that haven't seen valid requests for this long (seconds)
+    pub max_connection_idle: u64,
 }
 
 impl Default for CleaningConfig {
