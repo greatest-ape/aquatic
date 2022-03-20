@@ -94,7 +94,7 @@ pub struct ProtocolConfig {
 impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
-            max_scrape_torrents: 255, // FIXME: what value is reasonable?
+            max_scrape_torrents: 100,
             max_peers: 50,
             peer_announce_interval: 120,
         }
