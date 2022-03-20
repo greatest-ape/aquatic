@@ -6,7 +6,6 @@
 
 * newer glommio versions might use SIGUSR1 internally, see glommio fe33e30
 * quit whole program if any thread panics
-* implement socket_recv_size and ipv6_only in glommio implementations
 * config: fail on unrecognized keys?
 * Run cargo-deny in CI
 
@@ -20,12 +19,10 @@
     * handle panicked/cancelled tasks?
 
 * aquatic_ws
-  * remove mio implementation when glommio issues fixed
-  * glommio
-    * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
-      * replacing indexmap_amortized / simd_json with equivalents doesn't help
-    * SinkExt::send maybe doesn't wake up properly?
-      * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
+  * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
+    * replacing indexmap_amortized / simd_json with equivalents doesn't help
+  * SinkExt::send maybe doesn't wake up properly?
+    * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
 
 * extract_response_peers
   * don't assume requesting peer is in list?
