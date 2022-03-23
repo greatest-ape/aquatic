@@ -156,15 +156,15 @@ async fn clean_connections(
     let now = Instant::now();
 
     connection_slab.borrow_mut().retain(|_, reference| {
-        let keep = reference.valid_until.0 > now;
-
-        if !keep {
+        if reference.valid_until.0 > now {
+            true
+        } else {
             if let Some(ref handle) = reference.task_handle {
                 handle.cancel();
             }
-        }
 
-        keep
+            false
+        }
     });
 
     connection_slab.borrow_mut().shrink_to_fit();

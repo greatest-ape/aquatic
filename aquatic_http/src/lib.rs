@@ -18,7 +18,7 @@ mod common;
 pub mod config;
 mod workers;
 
-pub const APP_NAME: &str = "aquatic_http: HTTP/TLS BitTorrent tracker";
+pub const APP_NAME: &str = "aquatic_http: BitTorrent tracker (HTTP over TLS)";
 
 const SHARED_CHANNEL_SIZE: usize = 1024;
 
