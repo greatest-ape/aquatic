@@ -43,16 +43,19 @@ fn run() -> Result<(), Option<String>> {
     match protocol.as_str() {
         "udp" => run_app_with_cli_and_config::<UdpConfig>(
             aquatic_udp::APP_NAME,
+            aquatic_udp::APP_VERSION,
             aquatic_udp::run,
             Some(options),
         ),
         "http" => run_app_with_cli_and_config::<HttpConfig>(
             aquatic_http::APP_NAME,
+            aquatic_http::APP_VERSION,
             aquatic_http::run,
             Some(options),
         ),
         "ws" => run_app_with_cli_and_config::<WsConfig>(
             aquatic_ws::APP_NAME,
+            aquatic_ws::APP_VERSION,
             aquatic_ws::run,
             Some(options),
         ),

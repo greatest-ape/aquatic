@@ -5,5 +5,5 @@ use aquatic_http::config::Config;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() {
-    run_app_with_cli_and_config::<Config>(aquatic_http::APP_NAME, aquatic_http::run, None)
+    run_app_with_cli_and_config::<Config>(aquatic_http::APP_NAME, aquatic_http::APP_VERSION, aquatic_http::run, None)
 }

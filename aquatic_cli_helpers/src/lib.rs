@@ -3,6 +3,7 @@ use std::io::Read;
 
 use anyhow::Context;
 use aquatic_toml_config::TomlConfig;
+use git_testament::{git_testament, CommitKind};
 use log::LevelFilter;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use simple_logger::SimpleLogger;
@@ -35,6 +36,7 @@ pub trait Config: Default + TomlConfig + DeserializeOwned {
 pub struct Options {
     config_file: Option<String>,
     print_config: bool,
+    print_version: bool,
 }
 
 impl Options {
@@ -57,6 +59,9 @@ impl Options {
                     "-p" | "--print-config" => {
                         options.print_config = true;
                     }
+                    "-v" | "--version" => {
+                        options.print_version = true;
+                    }
                     "-h" | "--help" => {
                         return Err(None);
                     }
@@ -75,13 +80,14 @@ impl Options {
 
 pub fn run_app_with_cli_and_config<T>(
     app_title: &str,
+    crate_version: &str,
     // Function that takes config file and runs application
     app_fn: fn(T) -> anyhow::Result<()>,
     opts: Option<Options>,
 ) where
     T: Config,
 {
-    ::std::process::exit(match run_inner(app_title, app_fn, opts) {
+    ::std::process::exit(match run_inner(app_title, crate_version, app_fn, opts) {
         Ok(()) => 0,
         Err(err) => {
             eprintln!("Error: {:#}", err);
@@ -93,6 +99,7 @@ pub fn run_app_with_cli_and_config<T>(
 
 fn run_inner<T>(
     app_title: &str,
+    crate_version: &str,
     // Function that takes config file and runs application
     app_fn: fn(T) -> anyhow::Result<()>,
     // Possibly preparsed options
@@ -120,7 +127,13 @@ where
         }
     };
 
-    if options.print_config {
+    if options.print_version {
+        let commit_info = get_commit_info();
+
+        println!("{}{}", crate_version, commit_info);
+
+        Ok(())
+    } else if options.print_config {
         print!("{}", default_config_as_toml::<T>());
 
         Ok(())
@@ -147,8 +160,9 @@ where
 
     println!("\nOptions:");
     println!("    -c, --config-file     Load config from this path");
-    println!("    -p, --print-config    Print default config");
     println!("    -h, --help            Print this help message");
+    println!("    -p, --print-config    Print default config");
+    println!("    -v, --version         Print version information");
 
     if let Some(error) = opt_error {
         println!("\nError: {}.", error);
@@ -194,4 +208,22 @@ fn start_logger(log_level: LogLevel) -> ::anyhow::Result<()> {
         .context("Couldn't initialize logger")?;
 
     Ok(())
+}
+
+fn get_commit_info() -> String {
+    git_testament!(TESTAMENT);
+
+    match TESTAMENT.commit {
+        CommitKind::NoTags(hash, date) => {
+            format!(" ({} - {})", first_8_chars(hash), date)
+        }
+        CommitKind::FromTag(_tag, hash, date, _tag_distance) => {
+            format!(" ({} - {})", first_8_chars(hash), date)
+        }
+        _ => String::new(),
+    }
+}
+
+fn first_8_chars(input: &str) -> String {
+    input.chars().take(8).collect()
 }

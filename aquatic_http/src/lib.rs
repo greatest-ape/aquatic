@@ -19,6 +19,7 @@ pub mod config;
 mod workers;
 
 pub const APP_NAME: &str = "aquatic_http: BitTorrent tracker (HTTP over TLS)";
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const SHARED_CHANNEL_SIZE: usize = 1024;
 

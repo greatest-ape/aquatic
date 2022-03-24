@@ -60,6 +60,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aquatic_toml_config",
+ "git-testament",
  "log",
  "serde",
  "simple_logger",
@@ -963,6 +964,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78cc372d058dcf6d5ecd98510e7fbc9e5aec4d21de70f65fea8fecebcd881bd4"
 
 [[package]]
+name = "git-testament"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "080c47ef3c243fb13474429c14dce386021cd64de731c353998a745c2fa2435b"
+dependencies = [
+ "git-testament-derive",
+ "no-std-compat",
+]
+
+[[package]]
+name = "git-testament-derive"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0803898541a48d6f0809fa681bc8d38603f727d191f179631d85ddc3b6a9a2c"
+dependencies = [
+ "log",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "time",
+]
+
+[[package]]
 name = "glommio"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1337,6 +1361,12 @@ dependencies = [
  "libc",
  "memoffset 0.6.5",
 ]
+
+[[package]]
+name = "no-std-compat"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b93853da6d84c2e3c7d730d6473e8817692dd89be387eb01b94d7f108ecb5b8c"
 
 [[package]]
 name = "nodrop"

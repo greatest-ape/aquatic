@@ -26,6 +26,7 @@ const MBITS_FACTOR: f64 = 1.0 / ((1024.0 * 1024.0) / 8.0);
 pub fn main() {
     aquatic_cli_helpers::run_app_with_cli_and_config::<Config>(
         "aquatic_http_load_test: BitTorrent load tester",
+        env!("CARGO_PKG_VERSION"),
         run,
         None,
     )
