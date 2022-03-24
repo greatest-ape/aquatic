@@ -6,7 +6,6 @@
 
 * Use thin LTO?
 * Add release-debug profile?
-* newer glommio versions might use SIGUSR1 internally, see glommio fe33e30
 * quit whole program if any thread panics
 * config: fail on unrecognized keys?
 * Run cargo-deny in CI
