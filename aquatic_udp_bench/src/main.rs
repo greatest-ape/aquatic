@@ -31,6 +31,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 fn main() {
     run_app_with_cli_and_config::<BenchConfig>(
         "aquatic_udp_bench: Run aquatic_udp benchmarks",
+        env!("CARGO_PKG_VERSION"),
         run,
         None,
     )

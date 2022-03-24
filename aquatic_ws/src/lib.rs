@@ -18,6 +18,7 @@ use common::*;
 use config::Config;
 
 pub const APP_NAME: &str = "aquatic_ws: WebTorrent tracker";
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const SHARED_IN_CHANNEL_SIZE: usize = 1024;
 

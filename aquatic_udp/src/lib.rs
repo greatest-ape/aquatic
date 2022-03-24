@@ -23,6 +23,7 @@ use common::{ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex,
 use crate::common::RequestWorkerIndex;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let state = State::new(config.request_workers);
