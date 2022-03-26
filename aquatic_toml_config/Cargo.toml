@@ -1,20 +1,20 @@
 [package]
 name = "aquatic_toml_config"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "Serialize toml with comments"
 repository = "https://github.com/greatest-ape/aquatic"
-exclude = ["target"]
 keywords = ["toml"]
+readme = "../README.md"
 
 [lib]
 name = "aquatic_toml_config"
 
 [dependencies]
 toml = "0.5"
-aquatic_toml_config_derive = { path = "../aquatic_toml_config_derive" }
+aquatic_toml_config_derive = { version = "0.2.0", path = "../aquatic_toml_config_derive" }
 
 [dev-dependencies]
 serde = { version = "1.0", features = ["derive"] }

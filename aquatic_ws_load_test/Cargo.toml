@@ -1,11 +1,13 @@
 [package]
 name = "aquatic_ws_load_test"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
+description = "WebTorrent over TLS load tester"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["webtorrent", "websocket", "benchmark", "torrent", "bittorrent"]
+readme = "../README.md"
 
 [[bin]]
 name = "aquatic_ws_load_test"
@@ -15,10 +17,10 @@ cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [dependencies]
 async-tungstenite = "0.17"
-aquatic_cli_helpers = "0.1.0"
-aquatic_common = "0.1.0"
-aquatic_toml_config = "0.1.0"
-aquatic_ws_protocol = "0.1.0"
+aquatic_cli_helpers = "0.2.0"
+aquatic_common = "0.2.0"
+aquatic_toml_config = "0.2.0"
+aquatic_ws_protocol = "0.2.0"
 
 anyhow = "1"
 futures = "0.3"

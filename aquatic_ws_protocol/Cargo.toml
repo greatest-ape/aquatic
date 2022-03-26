@@ -1,6 +1,6 @@
 [package]
 name = "aquatic_ws_protocol"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -8,6 +8,7 @@ description = "WebTorrent tracker protocol"
 repository = "https://github.com/greatest-ape/aquatic"
 exclude = ["target"]
 keywords = ["webtorrent", "protocol", "peer-to-peer", "torrent", "bittorrent"]
+readme = "../README.md"
 
 [lib]
 name = "aquatic_ws_protocol"

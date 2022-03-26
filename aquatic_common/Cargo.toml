@@ -1,11 +1,12 @@
 [package]
 name = "aquatic_common"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "aquatic BitTorrent tracker common code"
 repository = "https://github.com/greatest-ape/aquatic"
+readme = "../README.md"
 
 [lib]
 name = "aquatic_common"
@@ -14,7 +15,7 @@ name = "aquatic_common"
 cpu-pinning = ["hwloc", "libc"]
 
 [dependencies]
-aquatic_toml_config = "0.1.0"
+aquatic_toml_config = "0.2.0"
 
 ahash = "0.7"
 anyhow = "1"

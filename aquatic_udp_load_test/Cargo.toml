@@ -1,11 +1,13 @@
 [package]
 name = "aquatic_udp_load_test"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
+description = "BitTorrent (UDP) load tester"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["udp", "benchmark", "peer-to-peer", "torrent", "bittorrent"]
+readme = "../README.md"
 
 [[bin]]
 name = "aquatic_udp_load_test"
@@ -14,10 +16,10 @@ name = "aquatic_udp_load_test"
 cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [dependencies]
-aquatic_cli_helpers = "0.1.0"
-aquatic_common = "0.1.0"
-aquatic_toml_config = "0.1.0"
-aquatic_udp_protocol = "0.1.0"
+aquatic_cli_helpers = "0.2.0"
+aquatic_common = "0.2.0"
+aquatic_toml_config = "0.2.0"
+aquatic_udp_protocol = "0.2.0"
 
 anyhow = "1"
 hashbrown = "0.12"
