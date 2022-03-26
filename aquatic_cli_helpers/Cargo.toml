@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 description = "aquatic BitTorrent tracker CLI helpers"
 repository = "https://github.com/greatest-ape/aquatic"
+readme = "../README.md"
 
 [dependencies]
 aquatic_toml_config = "0.1.0"

@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["webtorrent", "websocket", "benchmark", "torrent", "bittorrent"]
+readme = "../README.md"
 
 [[bin]]
 name = "aquatic_ws_load_test"

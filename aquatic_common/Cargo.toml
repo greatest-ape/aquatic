@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 description = "aquatic BitTorrent tracker common code"
 repository = "https://github.com/greatest-ape/aquatic"
+readme = "../README.md"
 
 [lib]
 name = "aquatic_common"

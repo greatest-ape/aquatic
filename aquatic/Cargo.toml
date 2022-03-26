@@ -7,6 +7,7 @@ license = "Apache-2.0"
 description = "Blazingly fast, multi-threaded BitTorrent tracker (UDP, HTTP, WebTorrent)"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["bittorrent", "torrent", "webtorrent"]
+readme = "../README.md"
 
 [[bin]]
 name = "aquatic"

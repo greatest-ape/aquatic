@@ -8,6 +8,7 @@ description = "WebTorrent tracker protocol"
 repository = "https://github.com/greatest-ape/aquatic"
 exclude = ["target"]
 keywords = ["webtorrent", "protocol", "peer-to-peer", "torrent", "bittorrent"]
+readme = "../README.md"
 
 [lib]
 name = "aquatic_ws_protocol"

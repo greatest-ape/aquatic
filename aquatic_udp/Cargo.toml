@@ -7,6 +7,7 @@ license = "Apache-2.0"
 description = "Blazingly fast, multi-threaded UDP BitTorrent tracker"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["udp", "server", "peer-to-peer", "torrent", "bittorrent"]
+readme = "../README.md"
 
 [lib]
 name = "aquatic_udp"

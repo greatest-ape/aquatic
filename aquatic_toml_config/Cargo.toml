@@ -6,8 +6,8 @@ edition = "2021"
 license = "Apache-2.0"
 description = "Serialize toml with comments"
 repository = "https://github.com/greatest-ape/aquatic"
-exclude = ["target"]
 keywords = ["toml"]
+readme = "../README.md"
 
 [lib]
 name = "aquatic_toml_config"

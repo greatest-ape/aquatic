@@ -8,6 +8,7 @@ description = "Serialize toml with comments"
 repository = "https://github.com/greatest-ape/aquatic"
 exclude = ["target"]
 keywords = ["toml"]
+readme = "../README.md"
 
 [lib]
 proc-macro = true
