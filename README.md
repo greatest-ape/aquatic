@@ -1,8 +1,8 @@
-# aquatic: high-performance BitTorrent tracker
+# aquatic: high-performance open BitTorrent tracker
 
 [![CargoBuildAndTest](https://github.com/greatest-ape/aquatic/actions/workflows/cargo-build-and-test.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/cargo-build-and-test.yml) [![Test HTTP, UDP and WSS file transfer](https://github.com/greatest-ape/aquatic/actions/workflows/test-transfer.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/test-transfer.yml)
 
-Blazingly fast, multi-threaded BitTorrent tracker written in Rust, consisting
+High-performance open BitTorrent tracker, consisting
 of sub-implementations for different protocols:
 
 [BitTorrent over UDP]: https://libtorrent.org/udp_tracker_protocol.html
@@ -19,13 +19,20 @@ of sub-implementations for different protocols:
 | aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+ (using [glommio]) |
 | aquatic_ws   | [WebTorrent] over TLS ([rustls])           | Linux 5.8+ (using [glommio]) |
 
+Features at a glance:
+
+- IPv4 and IPv6 support
+- Optional access control (info hash filtering)
+- Built-in TLS support (HTTP and WebTorrent protocols)
+- Multithreaded design for handling large amounts of traffic
+- All data is stored in-memory, so there is no need to configure a database
+
 ## Usage
 
 ### Prerequisites
 
 - Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-
 - Clone this git repository and enter it
 
 ### Compiling
