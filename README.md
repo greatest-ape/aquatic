@@ -21,11 +21,11 @@ of sub-implementations for different protocols:
 
 Features at a glance:
 
+- Multithreaded design scales with large amounts of traffic
+- No database needed (all state is stored in-memory)
 - IPv4 and IPv6 support
-- Optional access control (info hash filtering)
-- Built-in TLS support (HTTP and WebTorrent protocols)
-- Multithreaded design for handling large amounts of traffic
-- All data is stored in-memory, so there is no need to configure a database
+- Supports only allowing certain torrents, or forbiddding certain torrents
+- Built-in TLS support for HTTP and WebTorrent (no reverse proxy needed)
 
 ## Usage
 
