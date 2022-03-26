@@ -1,8 +1,7 @@
 #!/bin/bash
 # 
-# Test that file transfers work with aquatic_http (with and without TLS)
-# aquatic_udp and experimentally aquatic_ws (with TLS).
-# 
+# Test that file transfers work over all protocols.
+#
 # IPv6 is unfortunately disabled by default in Docker
 # (see sysctl net.ipv6.conf.lo.disable_ipv6)
 
