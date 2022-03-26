@@ -26,6 +26,7 @@ Features at a glance:
 - IPv4 and IPv6 support
 - Supports only allowing certain torrents, or forbiddding certain torrents
 - Built-in TLS support for HTTP and WebTorrent (no reverse proxy needed)
+- Licensed under Apache-2.0
 
 ## Usage
 
@@ -84,7 +85,7 @@ Once done, run the tracker:
 ./target/release/aquatic_ws -c "aquatic-ws-config.toml"
 ```
 
-### Configuration values
+### Notes on configuration values
 
 Starting more `socket_workers` than `request_workers` is recommended. All
 implementations are quite IO-bound and spend a lot of their time reading from
@@ -110,10 +111,6 @@ The file is read on start and when the program receives `SIGUSR1`. If initial
 parsing fails, the program exits. Later failures result in in emitting of
 an error-level log message, while successful updates of the access list result
 in emitting of an info-level log message.
-
-## Architectural overview
-
-![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
 
 ## Details on implementations
 
@@ -195,8 +192,12 @@ corresponding load test binary:
 ./scripts/run-load-test-ws.sh
 ```
 
-To fairly compare HTTP performance to opentracker, set keepalive to false in
+To fairly compare HTTP performance to opentracker, set `keep_alive` to false in
 `aquatic_http` settings.
+
+## Architectural overview
+
+![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
 
 ## Copyright and license
 
