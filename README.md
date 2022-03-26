@@ -21,24 +21,21 @@ of sub-implementations for different protocols:
 
 Features at a glance:
 
-- Multithreaded design scales with large amounts of traffic
-- No database needed (all state is stored in-memory)
+- Multithreaded design for handling large amounts of traffic
+- All data is stored in-memory (no database needed)
 - IPv4 and IPv6 support
-- Supports only allowing certain torrents, or forbiddding certain torrents
-- Built-in TLS support for HTTP and WebTorrent (no reverse proxy needed)
+- Supports forbidding/allowing info hashes
+- Built-in TLS support (no reverse proxy needed)
 - Licensed under Apache-2.0
 
 ## Usage
 
-### Prerequisites
-
-- Install Rust with [rustup](https://rustup.rs/) (stable is recommended)
-- Install cmake with your package manager (e.g., `apt-get install cmake`)
-- Clone this git repository and enter it
-
 ### Compiling
 
-Compile the implementations that you are interested in:
+- Install Rust with [rustup](https://rustup.rs/) (latest stable release is recommended)
+- Install cmake with your package manager (e.g., `apt-get install cmake`)
+- Clone this git repository and enter the directory
+- Build the implementations that you are interested in:
 
 ```sh
 # Tell Rust to enable support for all CPU extensions present on current CPU
@@ -51,16 +48,7 @@ cargo build --release -p aquatic_http
 cargo build --release -p aquatic_ws
 ```
 
-### Running
-
-Unless you're planning to only run `aquatic_udp`, make sure locked memory
-limits are sufficient. You can do this by adding the following lines to
-`/etc/security/limits.conf`, and then logging out and back in:
-
-```
-*    hard    memlock    512
-*    soft    memlock    512
-```
+### Configuring
 
 Generate configuration files. They come with comments and differ between protocols.
 
@@ -77,22 +65,8 @@ Note that both `aquatic_http` and `aquatic_ws` require configuring TLS
 certificate and private key files. More details are available in the
 respective configuration files.
 
-Once done, run the tracker:
-
-```sh
-./target/release/aquatic_udp -c "aquatic-udp-config.toml"
-./target/release/aquatic_http -c "aquatic-http-config.toml"
-./target/release/aquatic_ws -c "aquatic-ws-config.toml"
-```
-
-### Notes on configuration values
-
-Starting more `socket_workers` than `request_workers` is recommended. All
-implementations are quite IO-bound and spend a lot of their time reading from
-and writing to sockets. This is handled by the socket workers, which
-also do parsing, serialisation and access control. They pass announce and
-scrape requests to the request workers, which update internal tracker state
-and pass back responses for sending.
+For optimal performance, start at least as many `request_workers` as
+`socket_workers`.
 
 #### Access control
 
@@ -111,6 +85,25 @@ The file is read on start and when the program receives `SIGUSR1`. If initial
 parsing fails, the program exits. Later failures result in in emitting of
 an error-level log message, while successful updates of the access list result
 in emitting of an info-level log message.
+
+### Running
+
+If you're running `aquatic_http` or `aquatic_ws`, make sure locked memory
+limits are sufficient. You can do this by adding the following lines to
+`/etc/security/limits.conf`, and then logging out and back in:
+
+```
+*    hard    memlock    512
+*    soft    memlock    512
+```
+
+Once done, start the application:
+
+```sh
+./target/release/aquatic_udp -c "aquatic-udp-config.toml"
+./target/release/aquatic_http -c "aquatic-http-config.toml"
+./target/release/aquatic_ws -c "aquatic-ws-config.toml"
+```
 
 ## Details on implementations
 
