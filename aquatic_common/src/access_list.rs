@@ -9,14 +9,14 @@ use arc_swap::{ArcSwap, Cache};
 use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
 
-/// Access list mode. Available modes are white, black and off.
+/// Access list mode. Available modes are allow, deny and off.
 #[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AccessListMode {
     /// Only serve torrents with info hash present in file
-    White,
+    Allow,
     /// Do not serve torrents if info hash present in file
-    Black,
+    Deny,
     /// Turn off access list functionality
     Off,
 }
@@ -74,8 +74,8 @@ impl AccessList {
 
     pub fn allows(&self, mode: AccessListMode, info_hash: &[u8; 20]) -> bool {
         match mode {
-            AccessListMode::White => self.0.contains(info_hash),
-            AccessListMode::Black => !self.0.contains(info_hash),
+            AccessListMode::Allow => self.0.contains(info_hash),
+            AccessListMode::Deny => !self.0.contains(info_hash),
             AccessListMode::Off => true,
         }
     }
@@ -102,8 +102,8 @@ impl AccessListQuery for AccessListArcSwap {
 
     fn allows(&self, mode: AccessListMode, info_hash_bytes: &[u8; 20]) -> bool {
         match mode {
-            AccessListMode::White => self.load().0.contains(info_hash_bytes),
-            AccessListMode::Black => !self.load().0.contains(info_hash_bytes),
+            AccessListMode::Allow => self.load().0.contains(info_hash_bytes),
+            AccessListMode::Deny => !self.load().0.contains(info_hash_bytes),
             AccessListMode::Off => true,
         }
     }
@@ -170,13 +170,13 @@ mod tests {
 
         let mut access_list_cache = Cache::new(Arc::clone(&access_list));
 
-        assert!(access_list_cache.load().allows(AccessListMode::White, &a));
-        assert!(access_list_cache.load().allows(AccessListMode::White, &b));
-        assert!(!access_list_cache.load().allows(AccessListMode::White, &c));
+        assert!(access_list_cache.load().allows(AccessListMode::Allow, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::Allow, &b));
+        assert!(!access_list_cache.load().allows(AccessListMode::Allow, &c));
 
-        assert!(!access_list_cache.load().allows(AccessListMode::Black, &a));
-        assert!(!access_list_cache.load().allows(AccessListMode::Black, &b));
-        assert!(access_list_cache.load().allows(AccessListMode::Black, &c));
+        assert!(!access_list_cache.load().allows(AccessListMode::Deny, &a));
+        assert!(!access_list_cache.load().allows(AccessListMode::Deny, &b));
+        assert!(access_list_cache.load().allows(AccessListMode::Deny, &c));
 
         assert!(access_list_cache.load().allows(AccessListMode::Off, &a));
         assert!(access_list_cache.load().allows(AccessListMode::Off, &b));
@@ -184,7 +184,7 @@ mod tests {
 
         access_list.store(Arc::new(AccessList::default()));
 
-        assert!(access_list_cache.load().allows(AccessListMode::Black, &a));
-        assert!(access_list_cache.load().allows(AccessListMode::Black, &b));
+        assert!(access_list_cache.load().allows(AccessListMode::Deny, &a));
+        assert!(access_list_cache.load().allows(AccessListMode::Deny, &b));
     }
 }

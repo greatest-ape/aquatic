@@ -93,7 +93,7 @@ of configuration is:
 
 ```toml
 [access_list]
-# Access list mode. Available modes are white, black and off.
+# Access list mode. Available modes are allow, deny and off.
 mode = "off"
 # Path to access list file consisting of newline-separated hex-encoded info hashes.
 path = ""
