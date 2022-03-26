@@ -24,7 +24,8 @@ Features at a glance:
 - IPv4 and IPv6 support
 - Optional access control (info hash filtering)
 - Built-in TLS support (HTTP and WebTorrent protocols)
-- All data is stored in-memory, so there is no need to setup a database
+- Multithreaded design for handling large amounts of traffic
+- All data is stored in-memory, so there is no need to configure a database
 
 ## Usage
 
