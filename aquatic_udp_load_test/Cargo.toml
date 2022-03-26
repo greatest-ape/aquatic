@@ -4,6 +4,7 @@ version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
+description = "BitTorrent (UDP) load tester"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["udp", "benchmark", "peer-to-peer", "torrent", "bittorrent"]
 readme = "../README.md"

@@ -4,6 +4,7 @@ version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
+description = "WebTorrent over TLS load tester"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["webtorrent", "websocket", "benchmark", "torrent", "bittorrent"]
 readme = "../README.md"
