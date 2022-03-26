@@ -14,7 +14,7 @@ name = "aquatic_toml_config"
 
 [dependencies]
 toml = "0.5"
-aquatic_toml_config_derive = { path = "../aquatic_toml_config_derive" }
+aquatic_toml_config_derive = { version = "0.2.0", path = "../aquatic_toml_config_derive" }
 
 [dev-dependencies]
 serde = { version = "1.0", features = ["derive"] }
