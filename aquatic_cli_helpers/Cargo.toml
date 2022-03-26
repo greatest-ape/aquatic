@@ -1,6 +1,6 @@
 [package]
 name = "aquatic_cli_helpers"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -9,7 +9,7 @@ repository = "https://github.com/greatest-ape/aquatic"
 readme = "../README.md"
 
 [dependencies]
-aquatic_toml_config = "0.1.0"
+aquatic_toml_config = "0.2.0"
 
 anyhow = "1"
 git-testament = "0.2"
