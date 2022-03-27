@@ -66,8 +66,39 @@ Note that both `aquatic_http` and `aquatic_ws` require configuring TLS
 certificate and private key files. More details are available in the
 respective configuration files.
 
-For optimal performance, start at least as many `request_workers` as
-`socket_workers`.
+#### Workers
+
+The sum of `socket_workers` and `request_workers` should equal the total
+number of CPU cores that you want to use.
+
+Recommended proportions:
+
+<table>
+ <tr>
+  <th colspan="5">aquatic_udp</th>
+ </tr>
+ <tr>
+  <th scope="row">CPU cores</th>
+  <td>2-5</td>
+  <td>6-9</td>
+  <td>10-15</td>
+  <td>>=16</td>
+ </tr>
+ <tr>
+  <th scope="row">request_workers</th>
+  <td>1</td>
+  <td>2</td>
+  <td>3</td>
+  <td>4</td>
+ </tr>
+ <tr>
+  <th scope="row">socket_workers</th>
+  <td>1-4</td>
+  <td>4-7</td>
+  <td>7-12</td>
+  <td>>=12</td>
+ </tr>
+</table>
 
 #### Access control
 
