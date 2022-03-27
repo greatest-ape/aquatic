@@ -7,7 +7,8 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, Sender};
+use hdrhistogram::Histogram;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
 use rand::prelude::{Rng, SeedableRng, StdRng};
@@ -54,6 +55,7 @@ pub struct PendingScrapeResponseSlabEntry {
     valid_until: ValidUntil,
     torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
     transaction_id: TransactionId,
+    tag: RequestTag,
 }
 
 #[derive(Default)]
@@ -64,6 +66,7 @@ impl PendingScrapeResponseSlab {
         &mut self,
         config: &Config,
         request: ScrapeRequest,
+        tag: RequestTag,
         valid_until: ValidUntil,
     ) -> impl IntoIterator<Item = (RequestWorkerIndex, PendingScrapeRequest)> {
         let mut split_requests: AmortizedIndexMap<RequestWorkerIndex, PendingScrapeRequest> =
@@ -96,12 +99,16 @@ impl PendingScrapeResponseSlab {
             valid_until,
             torrent_stats: Default::default(),
             transaction_id: request.transaction_id,
+            tag,
         });
 
         split_requests
     }
 
-    pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse) -> Option<Response> {
+    pub fn add_and_get_finished(
+        &mut self,
+        response: PendingScrapeResponse,
+    ) -> Option<(Response, RequestTag)> {
         let finished = if let Some(entry) = self.0.get_mut(response.slab_key) {
             entry.num_pending -= 1;
 
@@ -122,10 +129,13 @@ impl PendingScrapeResponseSlab {
         if finished {
             let entry = self.0.remove(response.slab_key);
 
-            Some(Response::Scrape(ScrapeResponse {
-                transaction_id: entry.transaction_id,
-                torrent_stats: entry.torrent_stats.into_values().collect(),
-            }))
+            Some((
+                Response::Scrape(ScrapeResponse {
+                    transaction_id: entry.transaction_id,
+                    torrent_stats: entry.torrent_stats.into_values().collect(),
+                }),
+                entry.tag,
+            ))
         } else {
             None
         }
@@ -151,12 +161,56 @@ impl PendingScrapeResponseSlab {
     }
 }
 
+pub struct LatencyRecorder {
+    instants: Slab<Instant>,
+    // Tracks latency in microseconds
+    histogram: Histogram<u64>,
+}
+
+impl LatencyRecorder {
+    fn create_histogram() -> Histogram<u64> {
+        Histogram::new_with_max(10u64.pow(12), 3).unwrap()
+    }
+
+    fn new() -> Self {
+        Self {
+            instants: Default::default(),
+            histogram: Self::create_histogram(),
+        }
+    }
+
+    fn request_received(&mut self) -> RequestTag {
+        RequestTag(self.instants.insert(Instant::now()))
+    }
+
+    fn response_sent(&mut self, tag: RequestTag) {
+        if let Some(insert_time) = self.instants.try_remove(tag.0) {
+            let latency = (Instant::now() - insert_time).as_micros() as u64;
+
+            self.histogram.saturating_record(latency);
+        }
+    }
+
+    fn remove_tag(&mut self, tag: RequestTag) {
+        self.instants.try_remove(tag.0);
+    }
+
+    fn extract_histogram(&mut self) -> Histogram<u64> {
+        let mut histogram = Self::create_histogram();
+
+        ::std::mem::swap(&mut self.histogram, &mut histogram);
+
+        histogram
+    }
+}
+
 pub fn run_socket_worker(
     state: State,
     config: Config,
     token_num: usize,
     request_sender: ConnectedRequestSender,
     response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
+    histogram_sender: Sender<Histogram<u64>>,
     num_bound_sockets: Arc<AtomicUsize>,
 ) {
     let mut rng = StdRng::from_entropy();
@@ -177,8 +231,9 @@ pub fn run_socket_worker(
     let mut connections = ConnectionMap::default();
     let mut pending_scrape_responses = PendingScrapeResponseSlab::default();
     let mut access_list_cache = create_access_list_cache(&state.access_list);
+    let mut latency_recorder = LatencyRecorder::new();
 
-    let mut local_responses: Vec<(Response, CanonicalSocketAddr)> = Vec::new();
+    let mut local_responses: Vec<(Response, RequestTag, CanonicalSocketAddr)> = Vec::new();
 
     let poll_timeout = Duration::from_millis(config.network.poll_timeout_ms);
 
@@ -186,12 +241,14 @@ pub fn run_socket_worker(
         Duration::from_secs(config.cleaning.connection_cleaning_interval);
     let pending_scrape_cleaning_duration =
         Duration::from_secs(config.cleaning.pending_scrape_cleaning_interval);
+    let statistics_update_interval = Duration::from_secs(config.statistics.interval);
 
     let mut connection_valid_until = ValidUntil::new(config.cleaning.max_connection_age);
     let mut pending_scrape_valid_until = ValidUntil::new(config.cleaning.max_pending_scrape_age);
 
     let mut last_connection_cleaning = Instant::now();
     let mut last_pending_scrape_cleaning = Instant::now();
+    let mut last_histogram_sending = Instant::now();
 
     let mut iter_counter = 0usize;
 
@@ -209,6 +266,7 @@ pub fn run_socket_worker(
                     &mut connections,
                     &mut pending_scrape_responses,
                     &mut access_list_cache,
+                    &mut latency_recorder,
                     &mut rng,
                     &mut socket,
                     &mut buffer,
@@ -227,6 +285,7 @@ pub fn run_socket_worker(
             &mut buffer,
             &response_receiver,
             &mut pending_scrape_responses,
+            &mut latency_recorder,
             local_responses.drain(..),
         );
 
@@ -249,6 +308,13 @@ pub fn run_socket_worker(
 
                 last_pending_scrape_cleaning = now;
             }
+            if now > last_histogram_sending + statistics_update_interval {
+                if let Err(err) = histogram_sender.try_send(latency_recorder.extract_histogram()) {
+                    ::log::error!("Couldn't send latency data to statistics worker: {:#}", err);
+                }
+
+                last_histogram_sending = now;
+            }
         }
 
         iter_counter = iter_counter.wrapping_add(1);
@@ -262,11 +328,12 @@ fn read_requests(
     connections: &mut ConnectionMap,
     pending_scrape_responses: &mut PendingScrapeResponseSlab,
     access_list_cache: &mut AccessListCache,
+    latency_recorder: &mut LatencyRecorder,
     rng: &mut StdRng,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
     request_sender: &ConnectedRequestSender,
-    local_responses: &mut Vec<(Response, CanonicalSocketAddr)>,
+    local_responses: &mut Vec<(Response, RequestTag, CanonicalSocketAddr)>,
     connection_valid_until: ValidUntil,
     pending_scrape_valid_until: ValidUntil,
 ) {
@@ -278,6 +345,8 @@ fn read_requests(
     loop {
         match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
+                let request_tag = latency_recorder.request_received();
+
                 let res_request =
                     Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
 
@@ -301,6 +370,7 @@ fn read_requests(
                     connections,
                     pending_scrape_responses,
                     access_list_cache,
+                    latency_recorder,
                     rng,
                     request_sender,
                     local_responses,
@@ -308,6 +378,7 @@ fn read_requests(
                     pending_scrape_valid_until,
                     res_request,
                     src,
+                    request_tag,
                 );
             }
             Err(err) => {
@@ -345,13 +416,15 @@ pub fn handle_request(
     connections: &mut ConnectionMap,
     pending_scrape_responses: &mut PendingScrapeResponseSlab,
     access_list_cache: &mut AccessListCache,
+    latency_recorder: &mut LatencyRecorder,
     rng: &mut StdRng,
     request_sender: &ConnectedRequestSender,
-    local_responses: &mut Vec<(Response, CanonicalSocketAddr)>,
+    local_responses: &mut Vec<(Response, RequestTag, CanonicalSocketAddr)>,
     connection_valid_until: ValidUntil,
     pending_scrape_valid_until: ValidUntil,
     res_request: Result<Request, RequestParseError>,
     src: CanonicalSocketAddr,
+    tag: RequestTag,
 ) {
     let access_list_mode = config.access_list.mode;
 
@@ -366,7 +439,7 @@ pub fn handle_request(
                 transaction_id: request.transaction_id,
             });
 
-            local_responses.push((response, src))
+            local_responses.push((response, tag, src))
         }
         Ok(Request::Announce(request)) => {
             if connections.contains(request.connection_id, src) {
@@ -379,7 +452,7 @@ pub fn handle_request(
 
                     request_sender.try_send_to(
                         worker_index,
-                        ConnectedRequest::Announce(request),
+                        ConnectedRequest::Announce(request, tag),
                         src,
                     );
                 } else {
@@ -388,7 +461,7 @@ pub fn handle_request(
                         message: "Info hash not allowed".into(),
                     });
 
-                    local_responses.push((response, src))
+                    local_responses.push((response, tag, src))
                 }
             }
         }
@@ -397,6 +470,7 @@ pub fn handle_request(
                 let split_requests = pending_scrape_responses.prepare_split_requests(
                     config,
                     request,
+                    tag,
                     pending_scrape_valid_until,
                 );
 
@@ -424,8 +498,10 @@ pub fn handle_request(
                         message: err.right_or("Parse error").into(),
                     };
 
-                    local_responses.push((response.into(), src));
+                    local_responses.push((response.into(), tag, src));
                 }
+            } else {
+                latency_recorder.remove_tag(tag);
             }
         }
     }
@@ -439,21 +515,40 @@ fn send_responses(
     buffer: &mut [u8],
     response_receiver: &Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
     pending_scrape_responses: &mut PendingScrapeResponseSlab,
-    local_responses: Drain<(Response, CanonicalSocketAddr)>,
+    latency_recorder: &mut LatencyRecorder,
+    local_responses: Drain<(Response, RequestTag, CanonicalSocketAddr)>,
 ) {
-    for (response, addr) in local_responses {
-        send_response(state, config, socket, buffer, response, addr);
+    for (response, tag, addr) in local_responses {
+        send_response(
+            state,
+            config,
+            socket,
+            buffer,
+            latency_recorder,
+            response,
+            tag,
+            addr,
+        );
     }
 
     for (response, addr) in response_receiver.try_iter() {
         let opt_response = match response {
             ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r),
-            ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
-            ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
+            ConnectedResponse::AnnounceIpv4(r, tag) => Some((Response::AnnounceIpv4(r), tag)),
+            ConnectedResponse::AnnounceIpv6(r, tag) => Some((Response::AnnounceIpv6(r), tag)),
         };
 
-        if let Some(response) = opt_response {
-            send_response(state, config, socket, buffer, response, addr);
+        if let Some((response, tag)) = opt_response {
+            send_response(
+                state,
+                config,
+                socket,
+                buffer,
+                latency_recorder,
+                response,
+                tag,
+                addr,
+            );
         }
     }
 }
@@ -463,7 +558,9 @@ fn send_response(
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
+    latency_recorder: &mut LatencyRecorder,
     response: Response,
+    tag: RequestTag,
     addr: CanonicalSocketAddr,
 ) {
     let mut cursor = Cursor::new(buffer);
@@ -483,6 +580,8 @@ fn send_response(
 
             match socket.send_to(&cursor.get_ref()[..amt], addr) {
                 Ok(amt) if config.statistics.active() => {
+                    latency_recorder.response_sent(tag);
+
                     let stats = if canonical_addr_is_ipv4 {
                         &state.statistics_ipv4
                     } else {
@@ -609,7 +708,7 @@ mod tests {
 
         for request in requests.iter() {
             let split_requests =
-                map.prepare_split_requests(&config, request.to_owned(), valid_until);
+                map.prepare_split_requests(&config, request.to_owned(), RequestTag(0), valid_until);
 
             all_split_requests.push(
                 split_requests

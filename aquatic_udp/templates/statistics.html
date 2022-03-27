@@ -20,6 +20,31 @@
         <strong>Updated:</strong> { last_updated } (UTC)
     </p>
 
+    <h2>Response latencies</h2>
+
+    <table>
+        <tr>
+            <th scope="row">Mean</th>
+            <td>{ latency.mean } ms</td>
+        </tr>
+        <tr>
+            <th scope="row">Standard deviation</th>
+            <td>{ latency.stdev } ms</td>
+        </tr>
+        <tr>
+            <th scope="row">95:th percentile</th>
+            <td>{ latency.p95 } ms</td>
+        </tr>
+        <tr>
+            <th scope="row">99:th percentile</th>
+            <td>{ latency.p99 } ms</td>
+        </tr>
+        <tr>
+            <th scope="row">99.9:th percentile</th>
+            <td>{ latency.p999 } ms</td>
+        </tr>
+    </table>
+
     {{ if ipv4_active }}
 
     <h2>IPv4</h2>

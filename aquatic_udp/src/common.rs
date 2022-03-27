@@ -14,6 +14,9 @@ use crate::config::Config;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
 
+#[derive(Clone, Copy, Debug)]
+pub struct RequestTag(pub usize);
+
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
     pub slab_key: usize,
@@ -28,14 +31,14 @@ pub struct PendingScrapeResponse {
 
 #[derive(Debug)]
 pub enum ConnectedRequest {
-    Announce(AnnounceRequest),
+    Announce(AnnounceRequest, RequestTag),
     Scrape(PendingScrapeRequest),
 }
 
 #[derive(Debug)]
 pub enum ConnectedResponse {
-    AnnounceIpv4(AnnounceResponse<Ipv4Addr>),
-    AnnounceIpv6(AnnounceResponse<Ipv6Addr>),
+    AnnounceIpv4(AnnounceResponse<Ipv4Addr>, RequestTag),
+    AnnounceIpv6(AnnounceResponse<Ipv6Addr>, RequestTag),
     Scrape(PendingScrapeResponse),
 }
 

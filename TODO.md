@@ -2,6 +2,12 @@
 
 ## High priority
 
+latency histogram
+  * use SyncHistogram?
+  * avoid reporting zero (send more often?)
+  * add config flag, don't calculate when turned off
+  * cleaning
+
 ## Medium priority
 
 * Use thin LTO?

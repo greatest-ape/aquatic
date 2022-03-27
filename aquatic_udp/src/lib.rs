@@ -40,6 +40,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut response_senders = Vec::new();
     let mut response_receivers = BTreeMap::new();
 
+    let mut histogram_receivers = Vec::new();
+
     for i in 0..config.request_workers {
         let (request_sender, request_receiver) = if config.worker_channel_size == 0 {
             unbounded()
@@ -90,6 +92,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     for i in 0..config.socket_workers {
+        let (histogram_sender, histogram_receiver) = unbounded();
+
+        histogram_receivers.push(histogram_receiver);
+
         let state = state.clone();
         let config = config.clone();
         let request_sender =
@@ -113,6 +119,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     i,
                     request_sender,
                     response_receiver,
+                    histogram_sender,
                     num_bound_sockets,
                 );
             })
@@ -133,7 +140,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Other,
                 );
 
-                workers::statistics::run_statistics_worker(config, state);
+                workers::statistics::run_statistics_worker(config, state, histogram_receivers);
             })
             .with_context(|| "spawn statistics worker")?;
     }

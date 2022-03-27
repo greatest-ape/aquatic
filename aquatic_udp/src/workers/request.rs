@@ -144,11 +144,12 @@ pub fn run_request_worker(
     loop {
         if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
             let response = match request {
-                ConnectedRequest::Announce(request) => handle_announce_request(
+                ConnectedRequest::Announce(request, tag) => handle_announce_request(
                     &config,
                     &mut small_rng,
                     &mut torrents,
                     request,
+                    tag,
                     src,
                     peer_valid_until,
                 ),
@@ -201,26 +202,33 @@ fn handle_announce_request(
     rng: &mut SmallRng,
     torrents: &mut TorrentMaps,
     request: AnnounceRequest,
+    tag: RequestTag,
     src: CanonicalSocketAddr,
     peer_valid_until: ValidUntil,
 ) -> ConnectedResponse {
     match src.get().ip() {
-        IpAddr::V4(ip) => ConnectedResponse::AnnounceIpv4(handle_announce_request_inner(
-            config,
-            rng,
-            &mut torrents.ipv4,
-            request,
-            ip,
-            peer_valid_until,
-        )),
-        IpAddr::V6(ip) => ConnectedResponse::AnnounceIpv6(handle_announce_request_inner(
-            config,
-            rng,
-            &mut torrents.ipv6,
-            request,
-            ip,
-            peer_valid_until,
-        )),
+        IpAddr::V4(ip) => ConnectedResponse::AnnounceIpv4(
+            handle_announce_request_inner(
+                config,
+                rng,
+                &mut torrents.ipv4,
+                request,
+                ip,
+                peer_valid_until,
+            ),
+            tag,
+        ),
+        IpAddr::V6(ip) => ConnectedResponse::AnnounceIpv6(
+            handle_announce_request_inner(
+                config,
+                rng,
+                &mut torrents.ipv6,
+                request,
+                ip,
+                peer_valid_until,
+            ),
+            tag,
+        ),
     }
 }
 

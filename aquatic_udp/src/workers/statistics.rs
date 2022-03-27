@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use std::fs::File;
 use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -5,6 +6,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
+use crossbeam_channel::Receiver;
+use hdrhistogram::Histogram;
 use num_format::{Locale, ToFormattedString};
 use serde::Serialize;
 use time::format_description::well_known::Rfc2822;
@@ -124,6 +127,43 @@ struct FormattedStatistics {
     num_peers: String,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct LatencyData {
+    mean: String,
+    stdev: String,
+    p95: String,
+    p99: String,
+    p999: String,
+}
+
+impl ::std::fmt::Display for LatencyData {
+    fn fmt(&self, f: &mut Formatter) -> ::std::fmt::Result {
+        write!(
+            f,
+            "response latencies: mean={}±{}ms, p95={}ms, p99={}ms, p999={}ms",
+            self.mean, self.stdev, self.p95, self.p99, self.p999
+        )
+    }
+}
+
+impl From<Histogram<u64>> for LatencyData {
+    fn from(histogram: Histogram<u64>) -> LatencyData {
+        let mean = histogram.mean() / 1000.0;
+        let stdev = histogram.stdev() / 1000.0;
+        let p95 = histogram.value_at_percentile(95.0) as f64 / 1000.0;
+        let p99 = histogram.value_at_percentile(99.0) as f64 / 1000.0;
+        let p999 = histogram.value_at_percentile(99.9) as f64 / 1000.0;
+
+        Self {
+            mean: format!("{mean:.2}"),
+            stdev: format!("{stdev:.2}"),
+            p95: format!("{p95:.2}"),
+            p99: format!("{p99:.2}"),
+            p999: format!("{p999:.2}"),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct TemplateData {
     stylesheet: String,
@@ -131,11 +171,16 @@ struct TemplateData {
     ipv6_active: bool,
     ipv4: FormattedStatistics,
     ipv6: FormattedStatistics,
+    latency: LatencyData,
     last_updated: String,
     peer_update_interval: String,
 }
 
-pub fn run_statistics_worker(config: Config, state: State) {
+pub fn run_statistics_worker(
+    config: Config,
+    state: State,
+    histogram_receivers: Vec<Receiver<Histogram<u64>>>,
+) {
     let tt = if config.statistics.write_html_to_file {
         let mut tt = TinyTemplate::new();
 
@@ -156,6 +201,12 @@ pub fn run_statistics_worker(config: Config, state: State) {
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
 
+        let latency_data: LatencyData = histogram_receivers
+            .iter()
+            .filter_map(|receiver| receiver.try_recv().ok())
+            .sum::<Histogram<u64>>()
+            .into();
+
         let statistics_ipv4 =
             CollectedStatistics::from_shared(&state.statistics_ipv4, &mut last_ipv4).into();
         let statistics_ipv6 =
@@ -164,6 +215,7 @@ pub fn run_statistics_worker(config: Config, state: State) {
         if config.statistics.print_to_stdout {
             println!("General:");
             println!("  access list entries: {}", state.access_list.load().len());
+            println!("  {}", latency_data);
 
             if config.network.ipv4_active() {
                 println!("IPv4:");
@@ -184,6 +236,7 @@ pub fn run_statistics_worker(config: Config, state: State) {
                 ipv6_active: config.network.ipv6_active(),
                 ipv4: statistics_ipv4,
                 ipv6: statistics_ipv6,
+                latency: latency_data,
                 last_updated: OffsetDateTime::now_utc()
                     .format(&Rfc2822)
                     .unwrap_or("(formatting error)".into()),
