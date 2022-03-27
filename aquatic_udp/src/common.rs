@@ -17,6 +17,12 @@ pub const MAX_PACKET_SIZE: usize = 8192;
 #[derive(Clone, Copy, Debug)]
 pub struct RequestTag(pub usize);
 
+impl RequestTag {
+    pub fn placeholder() -> Self {
+        Self(0)
+    }
+}
+
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
     pub slab_key: usize,

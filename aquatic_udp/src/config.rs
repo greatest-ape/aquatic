@@ -141,6 +141,8 @@ pub struct StatisticsConfig {
     pub write_html_to_file: bool,
     /// Path to save HTML file to
     pub html_file_path: PathBuf,
+    /// Report response latencies
+    pub latencies: bool,
 }
 
 impl StatisticsConfig {
@@ -156,6 +158,7 @@ impl Default for StatisticsConfig {
             print_to_stdout: false,
             write_html_to_file: false,
             html_file_path: "tmp/statistics.html".into(),
+            latencies: true,
         }
     }
 }

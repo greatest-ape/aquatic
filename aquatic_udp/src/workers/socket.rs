@@ -308,7 +308,9 @@ pub fn run_socket_worker(
 
                 last_pending_scrape_cleaning = now;
             }
-            if now > last_histogram_sending + statistics_update_interval {
+            if config.statistics.latencies
+                & (now > last_histogram_sending + statistics_update_interval)
+            {
                 if let Err(err) = histogram_sender.try_send(latency_recorder.extract_histogram()) {
                     ::log::error!("Couldn't send latency data to statistics worker: {:#}", err);
                 }
@@ -345,7 +347,11 @@ fn read_requests(
     loop {
         match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
-                let request_tag = latency_recorder.request_received();
+                let request_tag = if config.statistics.latencies {
+                    latency_recorder.request_received()
+                } else {
+                    RequestTag::placeholder()
+                };
 
                 let res_request =
                     Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
@@ -580,7 +586,9 @@ fn send_response(
 
             match socket.send_to(&cursor.get_ref()[..amt], addr) {
                 Ok(amt) if config.statistics.active() => {
-                    latency_recorder.response_sent(tag);
+                    if config.statistics.latencies {
+                        latency_recorder.response_sent(tag);
+                    }
 
                     let stats = if canonical_addr_is_ipv4 {
                         &state.statistics_ipv4

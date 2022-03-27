@@ -171,7 +171,8 @@ struct TemplateData {
     ipv6_active: bool,
     ipv4: FormattedStatistics,
     ipv6: FormattedStatistics,
-    latency: LatencyData,
+    latencies_active: bool,
+    latencies: LatencyData,
     last_updated: String,
     peer_update_interval: String,
 }
@@ -201,7 +202,7 @@ pub fn run_statistics_worker(
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
 
-        let latency_data: LatencyData = histogram_receivers
+        let latency_data = histogram_receivers
             .iter()
             .filter_map(|receiver| receiver.try_recv().ok())
             .sum::<Histogram<u64>>()
@@ -215,7 +216,10 @@ pub fn run_statistics_worker(
         if config.statistics.print_to_stdout {
             println!("General:");
             println!("  access list entries: {}", state.access_list.load().len());
-            println!("  {}", latency_data);
+
+            if config.statistics.latencies {
+                println!("  {}", latency_data);
+            }
 
             if config.network.ipv4_active() {
                 println!("IPv4:");
@@ -236,7 +240,8 @@ pub fn run_statistics_worker(
                 ipv6_active: config.network.ipv6_active(),
                 ipv4: statistics_ipv4,
                 ipv6: statistics_ipv6,
-                latency: latency_data,
+                latencies_active: config.statistics.latencies,
+                latencies: latency_data,
                 last_updated: OffsetDateTime::now_utc()
                     .format(&Rfc2822)
                     .unwrap_or("(formatting error)".into()),
