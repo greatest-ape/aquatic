@@ -5,7 +5,7 @@
 latency histogram
   * use SyncHistogram?
   * avoid reporting zero (send more often?)
-  * cleaning
+  * cleaning (including reporting when responses were not sent?)
 
 ## Medium priority
 
