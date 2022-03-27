@@ -39,13 +39,14 @@ pub fn bench_announce_handler(
                 request_sender
                     .send((
                         SocketWorkerIndex(0),
-                        ConnectedRequest::Announce(request.clone()),
+                        ConnectedRequest::Announce(request.clone(), RequestTag::placeholder()),
                         *src,
                     ))
                     .unwrap();
             }
 
-            while let Ok((ConnectedResponse::AnnounceIpv4(r), _)) = response_receiver.try_recv() {
+            while let Ok((ConnectedResponse::AnnounceIpv4(r, _), _)) = response_receiver.try_recv()
+            {
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {
@@ -57,7 +58,7 @@ pub fn bench_announce_handler(
         let total = bench_config.num_announce_requests * (round + 1);
 
         while num_responses < total {
-            if let Ok((ConnectedResponse::AnnounceIpv4(r), _)) = response_receiver.recv() {
+            if let Ok((ConnectedResponse::AnnounceIpv4(r, _), _)) = response_receiver.recv() {
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {
