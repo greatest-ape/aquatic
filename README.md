@@ -68,14 +68,14 @@ respective configuration files.
 
 #### Workers
 
-The sum of `socket_workers` and `request_workers` should equal the total
-number of CPU cores that you want to use.
-
-Recommended proportions:
+To increase performance, number of worker threads can be increased. The sum of
+`socket_workers` and `request_workers` should equal the total number of CPU cores
+that you want to use. Recommended proportions:
 
 <table>
  <tr>
-  <th colspan="5">aquatic_udp</th>
+  <td></td>
+  <th colspan="4">aquatic_udp</th>
  </tr>
  <tr>
   <th scope="row">CPU cores</th>
@@ -85,14 +85,14 @@ Recommended proportions:
   <td>>=16</td>
  </tr>
  <tr>
-  <th scope="row">request_workers</th>
+  <th scope="row">Request workers</th>
   <td>1</td>
   <td>2</td>
   <td>3</td>
   <td>4</td>
  </tr>
  <tr>
-  <th scope="row">socket_workers</th>
+  <th scope="row">Socket workers</th>
   <td>1-4</td>
   <td>4-7</td>
   <td>7-12</td>
