@@ -76,6 +76,7 @@ that you want to use. Recommended proportions:
  <tr>
   <td></td>
   <th colspan="4">aquatic_udp</th>
+  <th colspan="3">aquatic_ws</th>
  </tr>
  <tr>
   <th scope="row">CPU cores</th>
@@ -83,6 +84,9 @@ that you want to use. Recommended proportions:
   <td>6-9</td>
   <td>10-15</td>
   <td>>=16</td>
+  <td>2-11</td>
+  <td>12-19</td>
+  <td>>=20</td>
  </tr>
  <tr>
   <th scope="row">Request workers</th>
@@ -90,6 +94,9 @@ that you want to use. Recommended proportions:
   <td>2</td>
   <td>3</td>
   <td>4</td>
+  <td>1</td>
+  <td>2</td>
+  <td>3</td>
  </tr>
  <tr>
   <th scope="row">Socket workers</th>
@@ -97,6 +104,9 @@ that you want to use. Recommended proportions:
   <td>4-7</td>
   <td>7-12</td>
   <td>>=12</td>
+  <td>1-10</td>
+  <td>10-17</td>
+  <td>>=17</td>
  </tr>
 </table>
 
