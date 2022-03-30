@@ -15,12 +15,9 @@ name = "aquatic_http"
 [[bin]]
 name = "aquatic_http"
 
-[features]
-cpu-pinning = ["aquatic_common/cpu-pinning"]
-
 [dependencies]
 aquatic_cli_helpers = "0.2.0"
-aquatic_common = "0.2.0"
+aquatic_common = { version = "0.2.0", features = ["with-glommio"] }
 aquatic_http_protocol = "0.2.0"
 aquatic_toml_config = "0.2.0"
 
@@ -31,6 +28,7 @@ futures-lite = "1"
 futures-rustls = "0.22"
 glommio = "0.7"
 itoa = "1"
+libc = "0.2"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 memchr = "2"

@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-#[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::CpuPinningConfig;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::Deserialize;
@@ -26,7 +25,6 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
-    #[cfg(feature = "cpu-pinning")]
     pub cpu_pinning: CpuPinningConfig,
 }
 
@@ -41,7 +39,6 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
             cpu_pinning: Default::default(),
         }
     }

@@ -5,7 +5,6 @@ use ahash::RandomState;
 use rand::Rng;
 
 pub mod access_list;
-#[cfg(feature = "cpu-pinning")]
 pub mod cpu_pinning;
 pub mod privileges;
 

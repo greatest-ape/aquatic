@@ -12,13 +12,10 @@ readme = "../README.md"
 [[bin]]
 name = "aquatic_ws_load_test"
 
-[features]
-cpu-pinning = ["aquatic_common/cpu-pinning"]
-
 [dependencies]
 async-tungstenite = "0.17"
 aquatic_cli_helpers = "0.2.0"
-aquatic_common = "0.2.0"
+aquatic_common = { version = "0.2.0", features = ["with-glommio"] }
 aquatic_toml_config = "0.2.0"
 aquatic_ws_protocol = "0.2.0"
 

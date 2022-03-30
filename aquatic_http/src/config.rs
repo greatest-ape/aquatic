@@ -23,7 +23,6 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
-    #[cfg(feature = "cpu-pinning")]
     pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
 }
 
@@ -38,7 +37,6 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
             cpu_pinning: Default::default(),
         }
     }

@@ -6,12 +6,12 @@ use std::fs::File;
 use std::io::BufReader;
 use std::sync::{atomic::AtomicUsize, Arc};
 
+use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
+use aquatic_common::cpu_pinning::WorkerIndex;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 use signal_hook::{consts::SIGUSR1, iterator::Signals};
 
 use aquatic_common::access_list::update_access_list;
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::drop_privileges_after_socket_binding;
 
 use common::*;
@@ -36,12 +36,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         ::std::thread::spawn(move || run_workers(config, state));
     }
 
-    #[cfg(feature = "cpu-pinning")]
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        WorkerIndex::Other,
-    );
+    if config.cpu_pinning.active {
+        set_affinity_for_util_worker(
+            &config.cpu_pinning,
+            config.socket_workers,
+            config.request_workers,
+        )?;
+    }
 
     for signal in &mut signals {
         match signal {
@@ -75,16 +76,15 @@ fn run_workers(config: Config, state: State) -> anyhow::Result<()> {
         let response_mesh_builder = response_mesh_builder.clone();
         let num_bound_sockets = num_bound_sockets.clone();
 
-        let builder = LocalExecutorBuilder::default().name("socket");
+        let placement = get_worker_placement(
+            &config.cpu_pinning,
+            config.socket_workers,
+            config.request_workers,
+            WorkerIndex::SocketWorker(i),
+        )?;
+        let builder = LocalExecutorBuilder::new(placement).name("socket");
 
         let executor = builder.spawn(move || async move {
-            #[cfg(feature = "cpu-pinning")]
-            pin_current_if_configured_to(
-                &config.cpu_pinning,
-                config.socket_workers,
-                WorkerIndex::SocketWorker(i),
-            );
-
             workers::socket::run_socket_worker(
                 config,
                 state,
@@ -105,16 +105,15 @@ fn run_workers(config: Config, state: State) -> anyhow::Result<()> {
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
 
-        let builder = LocalExecutorBuilder::default().name("request");
+        let placement = get_worker_placement(
+            &config.cpu_pinning,
+            config.socket_workers,
+            config.request_workers,
+            WorkerIndex::RequestWorker(i),
+        )?;
+        let builder = LocalExecutorBuilder::new(placement).name("request");
 
         let executor = builder.spawn(move || async move {
-            #[cfg(feature = "cpu-pinning")]
-            pin_current_if_configured_to(
-                &config.cpu_pinning,
-                config.socket_workers,
-                WorkerIndex::RequestWorker(i),
-            );
-
             workers::request::run_request_worker(
                 config,
                 state,
@@ -134,12 +133,13 @@ fn run_workers(config: Config, state: State) -> anyhow::Result<()> {
     )
     .unwrap();
 
-    #[cfg(feature = "cpu-pinning")]
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        WorkerIndex::Other,
-    );
+    if config.cpu_pinning.active {
+        set_affinity_for_util_worker(
+            &config.cpu_pinning,
+            config.socket_workers,
+            config.request_workers,
+        )?;
+    }
 
     for executor in executors {
         executor

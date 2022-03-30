@@ -12,12 +12,9 @@ readme = "../README.md"
 [[bin]]
 name = "aquatic_http_load_test"
 
-[features]
-cpu-pinning = ["aquatic_common/cpu-pinning"]
-
 [dependencies]
 aquatic_cli_helpers = "0.2.0"
-aquatic_common = "0.2.0"
+aquatic_common = { version = "0.2.0", features = ["with-glommio"] }
 aquatic_http_protocol = "0.2.0"
 aquatic_toml_config = "0.2.0"
 

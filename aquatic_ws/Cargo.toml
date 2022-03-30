@@ -9,19 +9,15 @@ repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["webtorrent", "websocket", "peer-to-peer", "torrent", "bittorrent"]
 readme = "../README.md"
 
-
 [lib]
 name = "aquatic_ws"
 
 [[bin]]
 name = "aquatic_ws"
 
-[features]
-cpu-pinning = ["aquatic_common/cpu-pinning"]
-
 [dependencies]
 aquatic_cli_helpers = "0.2.0"
-aquatic_common = "0.2.0"
+aquatic_common = { version = "0.2.0", features = ["with-glommio"] }
 aquatic_toml_config = "0.2.0"
 aquatic_ws_protocol = "0.2.0"
 
