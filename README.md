@@ -120,13 +120,15 @@ in emitting of an info-level log message.
 
 ### Running
 
-If you're running `aquatic_http` or `aquatic_ws`, make sure locked memory
-limits are sufficient. You can do this by adding the following lines to
-`/etc/security/limits.conf`, and then logging out and back in:
+If you're running `aquatic_http` or `aquatic_ws`, please make sure locked memory
+limits are sufficient:
+- If you're using a systemd service file, add `LimitMEMLOCK=65536000` to it
+- Otherwise, add the following lines to
+`/etc/security/limits.conf`, and then log out and back in:
 
 ```
-*    hard    memlock    512
-*    soft    memlock    512
+*    hard    memlock    65536
+*    soft    memlock    65536
 ```
 
 Once done, start the application:
