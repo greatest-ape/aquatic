@@ -214,6 +214,12 @@ IPv4 and IPv6 peers are tracked separately.
 `aquatic_ws` has not been tested as much as `aquatic_udp` but likely works
 fine.
 
+#### Performance
+
+![WebTorrent tracker throughput comparison](./documents/aquatic-ws-load-test-illustration-2022-03-29.png)
+
+More details are available [here](./documents/aquatic-ws-load-test-2022-03-29.pdf).
+
 ## Load testing
 
 There are load test binaries for all protocols. They use a CLI structure
