@@ -11,6 +11,7 @@
 * Run cargo-deny in CI
 
 * aquatic_ws
+  * remove peer from all torrent maps when connection is closed
   * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
   * SinkExt::send maybe doesn't wake up properly?
