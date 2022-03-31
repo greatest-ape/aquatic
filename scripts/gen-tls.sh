@@ -1,18 +1,17 @@
 #/bin/bash
+# Generate self-signed TLS cert and private key for local testing
 
 set -e
 
-mkdir -p tmp/tls
+TLS_DIR="./tmp/tls"
 
-cd tmp/tls
+mkdir -p "$TLS_DIR"
+cd "$TLS_DIR"
 
 openssl ecparam -genkey -name prime256v1 -out key.pem
 openssl req -new -sha256 -key key.pem -out csr.csr -subj "/C=GB/ST=Test/L=Test/O=Test/OU=Test/CN=example.com"
 openssl req -x509 -sha256 -nodes -days 365 -key key.pem -in csr.csr -out cert.crt
-
-sudo cp cert.crt /usr/local/share/ca-certificates/snakeoil.crt
-sudo update-ca-certificates
-
 openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8
 
-# openssl pkcs12 -export -passout "pass:p" -out identity.pfx -inkey key.pem -in cert.crt
+echo "tls_certificate_path = \"$TLS_DIR/cert.crt\""
+echo "tls_private_key_path = \"$TLS_DIR/key.pk8\""
