@@ -11,6 +11,8 @@ pub struct AnnounceRequest {
     pub info_hash: InfoHash,
     pub peer_id: PeerId,
     pub port: u16,
+    pub bytes_uploaded: usize,
+    pub bytes_downloaded: usize,
     pub bytes_left: usize,
     pub event: AnnounceEvent,
     pub compact: bool,
@@ -65,6 +67,8 @@ impl AnnounceRequest {
         let mut opt_peer_id = None;
         let mut opt_port = None;
         let mut opt_bytes_left = None;
+        let mut opt_bytes_uploaded = None;
+        let mut opt_bytes_downloaded = None;
         let mut event = AnnounceEvent::default();
         let mut opt_numwant = None;
         let mut opt_key = None;
@@ -103,6 +107,12 @@ impl AnnounceRequest {
                 "left" => {
                     opt_bytes_left = Some(value.parse::<usize>().with_context(|| "parse left")?);
                 }
+                "uploaded" => {
+                    opt_bytes_uploaded = Some(value.parse::<usize>().with_context(|| "parse uploaded")?);
+                }
+                "downloaded" => {
+                    opt_bytes_downloaded = Some(value.parse::<usize>().with_context(|| "parse downloaded")?);
+                }
                 "event" => {
                     event = value
                         .parse::<AnnounceEvent>()
@@ -138,6 +148,8 @@ impl AnnounceRequest {
             info_hash: opt_info_hash.with_context(|| "no info_hash")?,
             peer_id: opt_peer_id.with_context(|| "no peer_id")?,
             port: opt_port.with_context(|| "no port")?,
+            bytes_uploaded: opt_bytes_uploaded.with_context(|| "no uploaded")?,
+            bytes_downloaded: opt_bytes_downloaded.with_context(|| "no downloaded")?,
             bytes_left: opt_bytes_left.with_context(|| "no left")?,
             event,
             compact: true,
@@ -324,7 +336,9 @@ mod tests {
             info_hash: InfoHash(REFERENCE_INFO_HASH),
             peer_id: PeerId(REFERENCE_PEER_ID),
             port: 12345,
-            bytes_left: 1,
+            bytes_uploaded: 1,
+            bytes_downloaded: 2,
+            bytes_left: 3,
             event: AnnounceEvent::Started,
             compact: true,
             numwant: Some(0),
@@ -370,6 +384,8 @@ mod tests {
                 info_hash: Arbitrary::arbitrary(g),
                 peer_id: Arbitrary::arbitrary(g),
                 port: Arbitrary::arbitrary(g),
+                bytes_uploaded: Arbitrary::arbitrary(g),
+                bytes_downloaded: Arbitrary::arbitrary(g),
                 bytes_left: Arbitrary::arbitrary(g),
                 event: Arbitrary::arbitrary(g),
                 compact: true,
