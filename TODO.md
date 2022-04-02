@@ -3,9 +3,8 @@
 ## High priority
 
 * aquatic_http_private
-  * test passing data between runtimes
+  * utf8 responses
   * stored procedure
-    * should source ip be canonical?
     * handle/document lack of NOT NULL
     * event can be null
     * test ip format
