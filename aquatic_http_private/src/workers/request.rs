@@ -107,9 +107,9 @@ impl TorrentMaps {
             let num_leechers = &mut torrent_data.num_leechers;
 
             torrent_data.peers.retain(|_, peer| {
-                let keep = peer.valid_until.0 >= now;
-
-                if !keep {
+                if peer.valid_until.0 >= now {
+                    true
+                } else {
                     match peer.status {
                         PeerStatus::Seeding => {
                             *num_seeders -= 1;
@@ -119,9 +119,9 @@ impl TorrentMaps {
                         }
                         _ => (),
                     };
-                }
 
-                keep
+                    false
+                }
             });
 
             !torrent_data.peers.is_empty()
