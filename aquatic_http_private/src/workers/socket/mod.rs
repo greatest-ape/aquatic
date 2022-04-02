@@ -1,27 +1,37 @@
 pub mod db;
 mod routes;
 
-use std::net::{SocketAddr, TcpListener};
+use std::{
+    net::{SocketAddr, TcpListener},
+    sync::Arc,
+};
 
 use anyhow::Context;
 use axum::{routing::get, Extension, Router};
 use sqlx::mysql::MySqlPoolOptions;
 
-use crate::config::Config;
+use crate::{common::ChannelRequestSender, config::Config};
 
-pub fn run_socket_worker(config: Config) -> anyhow::Result<()> {
+pub fn run_socket_worker(
+    config: Config,
+    request_sender: ChannelRequestSender,
+) -> anyhow::Result<()> {
     let tcp_listener = create_tcp_listener(config.network.address)?;
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
 
-    runtime.block_on(run_app(tcp_listener))?;
+    runtime.block_on(run_app(config, tcp_listener, request_sender))?;
 
     Ok(())
 }
 
-async fn run_app(tcp_listener: TcpListener) -> anyhow::Result<()> {
+async fn run_app(
+    config: Config,
+    tcp_listener: TcpListener,
+    request_sender: ChannelRequestSender,
+) -> anyhow::Result<()> {
     let db_url = ::std::env::var("DATABASE_URL").expect("env var DATABASE_URL");
 
     let pool = MySqlPoolOptions::new()
@@ -31,7 +41,9 @@ async fn run_app(tcp_listener: TcpListener) -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/:user_token/announce/", get(routes::announce))
-        .layer(Extension(pool));
+        .layer(Extension(Arc::new(config)))
+        .layer(Extension(pool))
+        .layer(Extension(Arc::new(request_sender)));
 
     axum::Server::from_tcp(tcp_listener)?
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())

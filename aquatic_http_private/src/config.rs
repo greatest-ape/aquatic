@@ -17,6 +17,7 @@ pub struct Config {
     /// Request workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
     pub request_workers: usize,
+    pub worker_channel_size: usize,
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
@@ -29,6 +30,7 @@ impl Default for Config {
         Self {
             socket_workers: 1,
             request_workers: 1,
+            worker_channel_size: 128,
             log_level: LogLevel::default(),
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),

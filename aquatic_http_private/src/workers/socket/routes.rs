@@ -7,60 +7,90 @@ use axum::{
     Extension, TypedHeader,
 };
 use sqlx::mysql::MySqlPool;
-use std::net::SocketAddr;
-use tokio::sync::oneshot;
+use std::{borrow::Cow, net::SocketAddr, sync::Arc};
 
 use aquatic_http_protocol::{
     request::AnnounceRequest,
-    response::{AnnounceResponse, FailureResponse, Response},
+    response::{FailureResponse, Response},
 };
 
-use crate::workers::common::ChannelAnnounceRequest;
+use crate::{
+    common::{ChannelRequestSender, RequestWorkerIndex},
+    config::Config,
+};
 
 use super::db;
 
 pub async fn announce(
+    Extension(config): Extension<Arc<Config>>,
     Extension(pool): Extension<MySqlPool>,
+    Extension(request_sender): Extension<Arc<ChannelRequestSender>>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     opt_user_agent: Option<TypedHeader<UserAgent>>,
     Path(user_token): Path<String>,
     RawQuery(query): RawQuery,
-) -> Result<(StatusCode, impl IntoResponse), (StatusCode, impl IntoResponse)> {
-    let request = AnnounceRequest::from_query_string(&query.unwrap_or_else(|| "".into()))
-        .map_err(|err| build_response(Response::Failure(FailureResponse::new("Internal error"))))?;
+) -> Result<axum::response::Response, axum::response::Response> {
+    let query = query.ok_or_else(|| create_failure_response("Empty query string"))?;
 
+    let request = AnnounceRequest::from_query_string(&query)
+        .map_err(|_| create_failure_response("Malformed request"))?;
+
+    let request_worker_index = RequestWorkerIndex::from_info_hash(&config, request.info_hash);
     let opt_user_agent = opt_user_agent.map(|header| header.as_str().to_owned());
 
     let validated_request =
         db::validate_announce_request(&pool, peer_addr, opt_user_agent, user_token, request)
             .await
-            .map_err(|r| build_response(Response::Failure(r)))?;
-
-    let (response_sender, response_receiver) = oneshot::channel();
+            .map_err(|r| create_response(Response::Failure(r)))?;
 
     let canonical_socket_addr = CanonicalSocketAddr::new(peer_addr);
 
-    let channel_request = ChannelAnnounceRequest {
-        request: validated_request,
-        source_addr: canonical_socket_addr,
-        response_sender,
-    };
-
-    // TODO: send request to request worker
+    let response_receiver = request_sender
+        .send_to(
+            request_worker_index,
+            validated_request,
+            canonical_socket_addr,
+        )
+        .await
+        .map_err(|err| internal_error(format!("Sending request over channel failed: {:#}", err)))?;
 
     let response = response_receiver.await.map_err(|err| {
-        ::log::error!("channel response sender closed: {}", err);
-
-        build_response(Response::Failure(FailureResponse::new("Internal error")))
+        internal_error(format!("Receiving response over channel failed: {:#}", err))
     })?;
 
-    Ok(build_response(Response::Announce(response)))
+    Ok(create_response(response))
 }
 
-fn build_response(response: Response) -> (StatusCode, impl IntoResponse) {
-    let mut response_bytes = Vec::with_capacity(512);
+fn create_response(response: Response) -> axum::response::Response {
+    let mut response_bytes = Vec::with_capacity(64);
 
-    response.write(&mut response_bytes);
+    response.write(&mut response_bytes).unwrap();
 
-    (StatusCode::OK, response_bytes)
+    (
+        StatusCode::OK,
+        [("Content-type", "text/plain; charset=utf-8")],
+        response_bytes,
+    )
+        .into_response()
+}
+
+fn create_failure_response<R: Into<Cow<'static, str>>>(reason: R) -> axum::response::Response {
+    let mut response_bytes = Vec::with_capacity(32);
+
+    FailureResponse::new(reason)
+        .write(&mut response_bytes)
+        .unwrap();
+
+    (
+        StatusCode::OK,
+        [("Content-type", "text/plain; charset=utf-8")],
+        response_bytes,
+    )
+        .into_response()
+}
+
+fn internal_error(error: String) -> axum::response::Response {
+    ::log::error!("{}", error);
+
+    create_failure_response("Internal error")
 }
