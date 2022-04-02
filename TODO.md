@@ -2,6 +2,15 @@
 
 ## High priority
 
+* aquatic_http_private
+  * test passing data between runtimes
+  * stored procedure
+    * should source ip be canonical?
+    * handle/document lack of NOT NULL
+    * event can be null
+    * test ip format
+  * site will likely want num_seeders and num_leechers for all torrents..
+
 ## Medium priority
 
 * Use thin LTO?
