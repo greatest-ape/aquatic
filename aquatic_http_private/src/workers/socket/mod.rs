@@ -46,6 +46,7 @@ async fn run_app(
         .layer(Extension(Arc::new(request_sender)));
 
     axum::Server::from_tcp(tcp_listener)?
+        .http1_keepalive(false)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .await?;
 

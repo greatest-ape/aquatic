@@ -55,8 +55,6 @@ pub struct NetworkConfig {
     pub tls_certificate_path: PathBuf,
     /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
     pub tls_private_key_path: PathBuf,
-    /// Keep connections alive after sending a response
-    pub keep_alive: bool,
 }
 
 impl Default for NetworkConfig {
@@ -65,7 +63,6 @@ impl Default for NetworkConfig {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             tls_certificate_path: "".into(),
             tls_private_key_path: "".into(),
-            keep_alive: false,
         }
     }
 }
