@@ -47,4 +47,4 @@ Run application:
 cargo run -p aquatic_http_private
 ```
 
-Test by visiting `localhost:3000/abcd/announce/?info_hash=abcdeabcdeabcdeabcde&peer_id=abcdeabcdeabcdeabcde&port=1000&left=0`
+Test by visiting `localhost:3000/announce/abcd/?info_hash=abcdeabcdeabcdeabcde&peer_id=abcdeabcdeabcdeabcde&port=1000&left=0`

@@ -41,7 +41,7 @@ async fn run_app(
         .await?;
 
     let app = Router::new()
-        .route("/:user_token/announce/", get(routes::announce))
+        .route("/announce/:user_token/", get(routes::announce))
         .layer(Extension(Arc::new(config)))
         .layer(Extension(pool))
         .layer(Extension(Arc::new(request_sender)));
