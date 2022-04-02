@@ -61,7 +61,7 @@ impl AnnounceRequest {
     pub fn from_query_string(query_string: &str) -> anyhow::Result<Self> {
         // -- Parse key-value pairs
 
-        let mut opt_info_hash= None;
+        let mut opt_info_hash = None;
         let mut opt_peer_id = None;
         let mut opt_port = None;
         let mut opt_bytes_left = None;
@@ -283,9 +283,13 @@ impl Request {
         let query_string = split_parts.next().with_context(|| "no query string")?;
 
         if location == "/announce" {
-            Ok(Request::Announce(AnnounceRequest::from_query_string(query_string)?))
+            Ok(Request::Announce(AnnounceRequest::from_query_string(
+                query_string,
+            )?))
         } else {
-            Ok(Request::Scrape(ScrapeRequest::from_query_string(query_string)?))
+            Ok(Request::Scrape(ScrapeRequest::from_query_string(
+                query_string,
+            )?))
         }
     }
 

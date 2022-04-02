@@ -52,6 +52,17 @@ impl FromStr for AnnounceEvent {
     }
 }
 
+impl AnnounceEvent {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::Started => Some("started"),
+            Self::Stopped => Some("stopped"),
+            Self::Completed => Some("completed"),
+            Self::Empty => None,
+        }
+    }
+}
+
 #[cfg(test)]
 impl quickcheck::Arbitrary for InfoHash {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
