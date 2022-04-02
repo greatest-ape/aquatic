@@ -57,6 +57,94 @@ impl AnnounceRequest {
 
         Ok(())
     }
+
+    pub fn from_query_string(query_string: &str) -> anyhow::Result<Self> {
+        // -- Parse key-value pairs
+
+        let mut opt_info_hash= None;
+        let mut opt_peer_id = None;
+        let mut opt_port = None;
+        let mut opt_bytes_left = None;
+        let mut event = AnnounceEvent::default();
+        let mut opt_numwant = None;
+        let mut opt_key = None;
+
+        let query_string_bytes = query_string.as_bytes();
+
+        let mut ampersand_iter = ::memchr::memchr_iter(b'&', query_string_bytes);
+        let mut position = 0usize;
+
+        for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes) {
+            let segment_end = ampersand_iter.next().unwrap_or_else(|| query_string.len());
+
+            let key = query_string
+                .get(position..equal_sign_index)
+                .with_context(|| format!("no key at {}..{}", position, equal_sign_index))?;
+            let value = query_string
+                .get(equal_sign_index + 1..segment_end)
+                .with_context(|| {
+                    format!("no value at {}..{}", equal_sign_index + 1, segment_end)
+                })?;
+
+            match key {
+                "info_hash" => {
+                    let value = urldecode_20_bytes(value)?;
+
+                    opt_info_hash = Some(InfoHash(value));
+                }
+                "peer_id" => {
+                    let value = urldecode_20_bytes(value)?;
+
+                    opt_peer_id = Some(PeerId(value));
+                }
+                "port" => {
+                    opt_port = Some(value.parse::<u16>().with_context(|| "parse port")?);
+                }
+                "left" => {
+                    opt_bytes_left = Some(value.parse::<usize>().with_context(|| "parse left")?);
+                }
+                "event" => {
+                    event = value
+                        .parse::<AnnounceEvent>()
+                        .map_err(|err| anyhow::anyhow!("invalid event: {}", err))?;
+                }
+                "compact" => {
+                    if value != "1" {
+                        return Err(anyhow::anyhow!("compact set, but not to 1"));
+                    }
+                }
+                "numwant" => {
+                    opt_numwant = Some(value.parse::<usize>().with_context(|| "parse numwant")?);
+                }
+                "key" => {
+                    if value.len() > 100 {
+                        return Err(anyhow::anyhow!("'key' is too long"));
+                    }
+                    opt_key = Some(::urlencoding::decode(value)?.into());
+                }
+                k => {
+                    ::log::debug!("ignored unrecognized key: {}", k)
+                }
+            }
+
+            if segment_end == query_string.len() {
+                break;
+            } else {
+                position = segment_end + 1;
+            }
+        }
+
+        Ok(AnnounceRequest {
+            info_hash: opt_info_hash.with_context(|| "no info_hash")?,
+            peer_id: opt_peer_id.with_context(|| "no peer_id")?,
+            port: opt_port.with_context(|| "no port")?,
+            bytes_left: opt_bytes_left.with_context(|| "no left")?,
+            event,
+            compact: true,
+            numwant: opt_numwant,
+            key: opt_key,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,6 +172,53 @@ impl ScrapeRequest {
         output.write_all(b" HTTP/1.1\r\nHost: localhost\r\n\r\n")?;
 
         Ok(())
+    }
+
+    pub fn from_query_string(query_string: &str) -> anyhow::Result<Self> {
+        // -- Parse key-value pairs
+
+        let mut info_hashes = Vec::new();
+
+        let query_string_bytes = query_string.as_bytes();
+
+        let mut ampersand_iter = ::memchr::memchr_iter(b'&', query_string_bytes);
+        let mut position = 0usize;
+
+        for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes) {
+            let segment_end = ampersand_iter.next().unwrap_or_else(|| query_string.len());
+
+            let key = query_string
+                .get(position..equal_sign_index)
+                .with_context(|| format!("no key at {}..{}", position, equal_sign_index))?;
+            let value = query_string
+                .get(equal_sign_index + 1..segment_end)
+                .with_context(|| {
+                    format!("no value at {}..{}", equal_sign_index + 1, segment_end)
+                })?;
+
+            match key {
+                "info_hash" => {
+                    let value = urldecode_20_bytes(value)?;
+
+                    info_hashes.push(InfoHash(value));
+                }
+                k => {
+                    ::log::debug!("ignored unrecognized key: {}", k)
+                }
+            }
+
+            if segment_end == query_string.len() {
+                break;
+            } else {
+                position = segment_end + 1;
+            }
+        }
+
+        if info_hashes.is_empty() {
+            return Err(anyhow::anyhow!("No info hashes sent"));
+        }
+
+        Ok(ScrapeRequest { info_hashes })
     }
 }
 
@@ -147,104 +282,10 @@ impl Request {
         let location = split_parts.next().with_context(|| "no location")?;
         let query_string = split_parts.next().with_context(|| "no query string")?;
 
-        // -- Parse key-value pairs
-
-        let mut info_hashes = Vec::new();
-        let mut opt_peer_id = None;
-        let mut opt_port = None;
-        let mut opt_bytes_left = None;
-        let mut event = AnnounceEvent::default();
-        let mut opt_numwant = None;
-        let mut opt_key = None;
-
-        let query_string_bytes = query_string.as_bytes();
-
-        let mut ampersand_iter = ::memchr::memchr_iter(b'&', query_string_bytes);
-        let mut position = 0usize;
-
-        for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes) {
-            let segment_end = ampersand_iter.next().unwrap_or_else(|| query_string.len());
-
-            let key = query_string
-                .get(position..equal_sign_index)
-                .with_context(|| format!("no key at {}..{}", position, equal_sign_index))?;
-            let value = query_string
-                .get(equal_sign_index + 1..segment_end)
-                .with_context(|| {
-                    format!("no value at {}..{}", equal_sign_index + 1, segment_end)
-                })?;
-
-            match key {
-                "info_hash" => {
-                    let value = urldecode_20_bytes(value)?;
-
-                    info_hashes.push(InfoHash(value));
-                }
-                "peer_id" => {
-                    let value = urldecode_20_bytes(value)?;
-
-                    opt_peer_id = Some(PeerId(value));
-                }
-                "port" => {
-                    opt_port = Some(value.parse::<u16>().with_context(|| "parse port")?);
-                }
-                "left" => {
-                    opt_bytes_left = Some(value.parse::<usize>().with_context(|| "parse left")?);
-                }
-                "event" => {
-                    event = value
-                        .parse::<AnnounceEvent>()
-                        .map_err(|err| anyhow::anyhow!("invalid event: {}", err))?;
-                }
-                "compact" => {
-                    if value != "1" {
-                        return Err(anyhow::anyhow!("compact set, but not to 1"));
-                    }
-                }
-                "numwant" => {
-                    opt_numwant = Some(value.parse::<usize>().with_context(|| "parse numwant")?);
-                }
-                "key" => {
-                    if value.len() > 100 {
-                        return Err(anyhow::anyhow!("'key' is too long"));
-                    }
-                    opt_key = Some(::urlencoding::decode(value)?.into());
-                }
-                k => {
-                    ::log::debug!("ignored unrecognized key: {}", k)
-                }
-            }
-
-            if segment_end == query_string.len() {
-                break;
-            } else {
-                position = segment_end + 1;
-            }
-        }
-
-        // -- Put together request
-
         if location == "/announce" {
-            let request = AnnounceRequest {
-                info_hash: info_hashes.pop().with_context(|| "no info_hash")?,
-                peer_id: opt_peer_id.with_context(|| "no peer_id")?,
-                port: opt_port.with_context(|| "no port")?,
-                bytes_left: opt_bytes_left.with_context(|| "no left")?,
-                event,
-                compact: true,
-                numwant: opt_numwant,
-                key: opt_key,
-            };
-
-            Ok(Request::Announce(request))
+            Ok(Request::Announce(AnnounceRequest::from_query_string(query_string)?))
         } else {
-            if info_hashes.is_empty() {
-                return Err(anyhow::anyhow!("No info hashes sent"));
-            }
-
-            let request = ScrapeRequest { info_hashes };
-
-            Ok(Request::Scrape(request))
+            Ok(Request::Scrape(ScrapeRequest::from_query_string(query_string)?))
         }
     }
 
