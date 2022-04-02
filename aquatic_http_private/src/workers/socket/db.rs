@@ -1,5 +1,6 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 
+use aquatic_common::CanonicalSocketAddr;
 use aquatic_http_protocol::{
     common::AnnounceEvent, request::AnnounceRequest, response::FailureResponse,
 };
@@ -30,14 +31,14 @@ struct AnnounceProcedureParameters {
 
 impl AnnounceProcedureParameters {
     fn new(
-        source_addr: SocketAddr,
+        source_addr: CanonicalSocketAddr,
         user_agent: Option<String>,
         user_token: String, // FIXME: length
         request: &AnnounceRequest,
     ) -> Self {
         Self {
-            source_ip: source_addr.ip(),
-            source_port: source_addr.port(),
+            source_ip: source_addr.get().ip(),
+            source_port: source_addr.get().port(),
             user_agent,
             user_token,
             info_hash: hex::encode(request.info_hash.0),
@@ -59,7 +60,7 @@ struct AnnounceProcedureResults {
 
 pub async fn validate_announce_request(
     pool: &Pool<MySql>,
-    source_addr: SocketAddr,
+    source_addr: CanonicalSocketAddr,
     user_agent: Option<String>,
     user_token: String,
     request: AnnounceRequest,
