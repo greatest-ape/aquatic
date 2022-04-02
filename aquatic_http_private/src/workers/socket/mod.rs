@@ -22,7 +22,7 @@ pub fn run_socket_worker() -> anyhow::Result<()> {
 }
 
 async fn run_app(tcp_listener: TcpListener) -> anyhow::Result<()> {
-    let db_url = ::std::env::var("DATABASE_URL").unwrap();
+    let db_url = ::std::env::var("DATABASE_URL").expect("env var DATABASE_URL");
 
     let pool = MySqlPoolOptions::new()
         .max_connections(5)
@@ -34,7 +34,7 @@ async fn run_app(tcp_listener: TcpListener) -> anyhow::Result<()> {
         .layer(Extension(pool));
 
     axum::Server::from_tcp(tcp_listener)?
-        .serve(app.into_make_service())
+        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .await?;
 
     Ok(())

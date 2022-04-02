@@ -1,7 +1,9 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, SocketAddr};
 
+use aquatic_http_protocol::{common::AnnounceEvent, request::AnnounceRequest};
 use sqlx::{Executor, MySql, Pool};
 
+#[derive(Debug)]
 pub struct DbAnnounceRequest {
     source_ip: IpAddr,
     source_port: u16,
@@ -9,9 +11,30 @@ pub struct DbAnnounceRequest {
     user_token: String,
     info_hash: String,
     peer_id: String,
-    event: String,
+    event: AnnounceEvent,
     uploaded: u64,
     downloaded: u64,
+}
+
+impl DbAnnounceRequest {
+    pub fn new(
+        source_addr: SocketAddr,
+        user_agent: Option<String>,
+        user_token: String, // FIXME: length
+        request: AnnounceRequest,
+    ) -> Self {
+        Self {
+            source_ip: source_addr.ip(),
+            source_port: source_addr.port(),
+            user_agent,
+            user_token,
+            info_hash: hex::encode(request.info_hash.0),
+            peer_id: hex::encode(request.peer_id.0),
+            event: request.event,
+            uploaded: 0,   // FIXME
+            downloaded: 0, // FIXME
+        }
+    }
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -21,28 +44,10 @@ pub struct DbAnnounceResponse {
     pub warning_message: Option<String>,
 }
 
-pub async fn announce(pool: &Pool<MySql>) -> Result<DbAnnounceResponse, sqlx::Error> {
-    let request = DbAnnounceRequest {
-        source_ip: IpAddr::V4(Ipv4Addr::LOCALHOST),
-        source_port: 1000,
-        user_agent: Some("rtorrent".into()),
-        user_token: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
-        info_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
-        peer_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
-        event: "started".into(),
-        uploaded: 50,
-        downloaded: 100,
-    };
-
-    let announce_response = get_announce_response(&pool, request).await?;
-
-    Ok(announce_response)
-}
-
-async fn get_announce_response(
+pub async fn get_announce_response(
     pool: &Pool<MySql>,
     request: DbAnnounceRequest,
-) -> Result<DbAnnounceResponse, sqlx::Error> {
+) -> anyhow::Result<DbAnnounceResponse> {
     let source_ip_bytes: Vec<u8> = match request.source_ip {
         IpAddr::V4(ip) => ip.octets().into(),
         IpAddr::V6(ip) => ip.octets().into(),
@@ -78,7 +83,7 @@ async fn get_announce_response(
     .bind(request.user_token)
     .bind(request.info_hash)
     .bind(request.peer_id)
-    .bind(request.event)
+    .bind(request.event.as_str())
     .bind(request.uploaded)
     .bind(request.downloaded);
 
@@ -94,9 +99,9 @@ async fn get_announce_response(
         ",
     )
     .fetch_one(&mut t)
-    .await;
+    .await?;
 
     t.commit().await?;
 
-    response
+    Ok(response)
 }

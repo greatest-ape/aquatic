@@ -4,9 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+aquatic_http_protocol = "0.2.0"
+
 anyhow = "1"
 axum = { version = "0.5", default-features = false, features = ["headers", "http1", "matched-path", "original-uri"] }
 dotenv = "0.15"
+hex = "0.4"
 socket2 = { version = "0.4", features = ["all"] }
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "mysql" ] }
 tokio = { version = "1", features = ["full"] }

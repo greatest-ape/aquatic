@@ -144,8 +144,10 @@ name = "aquatic_http_private"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aquatic_http_protocol",
  "axum",
  "dotenv",
+ "hex",
  "socket2 0.4.4",
  "sqlx",
  "tokio",

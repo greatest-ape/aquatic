@@ -16,7 +16,7 @@ Create stored procedure (`OR REPLACE` keeps privileges in place and is supported
 ```sql
 CREATE OR REPLACE PROCEDURE aquatic_announce_v1 (
     IN p_source_ip VARBINARY(16),
-    IN p_source_port SMALLINT,
+    IN p_source_port SMALLINT UNSIGNED,
     IN p_user_agent TEXT,
     IN p_user_token VARCHAR(255),
     IN p_info_hash CHAR(40),
@@ -39,3 +39,11 @@ Create `.env` file:
 ```sh
 DATABASE_URL="mysql://aquatic:aquatic@localhost/aquatic"
 ```
+
+Run application:
+
+```sh
+cargo run -p aquatic_http_private
+```
+
+Test by visiting `localhost:3000/abcd/announce/?info_hash=abcdeabcdeabcdeabcde&peer_id=abcdeabcdeabcdeabcde&port=1000&left=0`
