@@ -3,13 +3,24 @@ name = "aquatic_http_private"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "aquatic_http_private"
+
+[[bin]]
+name = "aquatic_http_private"
+
 [dependencies]
+aquatic_cli_helpers = "0.2.0"
+aquatic_common = "0.2.0"
 aquatic_http_protocol = "0.2.0"
+aquatic_toml_config = "0.2.0"
 
 anyhow = "1"
 axum = { version = "0.5", default-features = false, features = ["headers", "http1", "matched-path", "original-uri"] }
 dotenv = "0.15"
 hex = "0.4"
+mimalloc = { version = "0.1", default-features = false }
+serde = { version = "1", features = ["derive"] }
 socket2 = { version = "0.4", features = ["all"] }
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "mysql" ] }
 tokio = { version = "1", features = ["full"] }

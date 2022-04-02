@@ -1,24 +1,14 @@
-mod workers;
-use dotenv::dotenv;
+use aquatic_cli_helpers::run_app_with_cli_and_config;
+use aquatic_http_private::config::Config;
 
-fn main() -> anyhow::Result<()> {
-    dotenv().ok();
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-    let mut handles = Vec::new();
-
-    for _ in 0..2 {
-        let handle = ::std::thread::Builder::new()
-            .name("socket".into())
-            .spawn(move || workers::socket::run_socket_worker())?;
-
-        handles.push(handle);
-    }
-
-    for handle in handles {
-        handle
-            .join()
-            .map_err(|err| anyhow::anyhow!("thread join error: {:?}", err))??;
-    }
-
-    Ok(())
+fn main() {
+    run_app_with_cli_and_config::<Config>(
+        aquatic_http_private::APP_NAME,
+        aquatic_http_private::APP_VERSION,
+        aquatic_http_private::run,
+        None,
+    )
 }
