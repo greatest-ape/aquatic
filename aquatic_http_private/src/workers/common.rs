@@ -5,7 +5,7 @@ use tokio::sync::oneshot::Sender;
 use super::socket::db::ValidatedAnnounceRequest;
 
 pub struct ChannelAnnounceRequest {
-    request: ValidatedAnnounceRequest,
-    source_addr: CanonicalSocketAddr,
-    response_sender: Sender<AnnounceResponse>,
+    pub request: ValidatedAnnounceRequest,
+    pub source_addr: CanonicalSocketAddr,
+    pub response_sender: Sender<AnnounceResponse>,
 }

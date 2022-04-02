@@ -1,13 +1,21 @@
+use aquatic_common::CanonicalSocketAddr;
 use axum::{
     extract::{ConnectInfo, Path, RawQuery},
     headers::UserAgent,
     http::StatusCode,
+    response::IntoResponse,
     Extension, TypedHeader,
 };
 use sqlx::mysql::MySqlPool;
 use std::net::SocketAddr;
+use tokio::sync::oneshot;
 
-use aquatic_http_protocol::{request::AnnounceRequest, response::FailureResponse};
+use aquatic_http_protocol::{
+    request::AnnounceRequest,
+    response::{AnnounceResponse, FailureResponse, Response},
+};
+
+use crate::workers::common::ChannelAnnounceRequest;
 
 use super::db;
 
@@ -17,23 +25,42 @@ pub async fn announce(
     opt_user_agent: Option<TypedHeader<UserAgent>>,
     Path(user_token): Path<String>,
     RawQuery(query): RawQuery,
-) -> Result<String, (StatusCode, String)> {
+) -> Result<(StatusCode, impl IntoResponse), (StatusCode, impl IntoResponse)> {
     let request = AnnounceRequest::from_query_string(&query.unwrap_or_else(|| "".into()))
-        .map_err(anyhow_error)?;
+        .map_err(|err| build_response(Response::Failure(FailureResponse::new("Internal error"))))?;
 
     let opt_user_agent = opt_user_agent.map(|header| header.as_str().to_owned());
 
-    let validated_request = db::validate_announce_request(&pool, peer_addr, opt_user_agent, user_token, request).await.map_err(failure_response)?;
+    let validated_request =
+        db::validate_announce_request(&pool, peer_addr, opt_user_agent, user_token, request)
+            .await
+            .map_err(|r| build_response(Response::Failure(r)))?;
 
-    // TODO: send request to request worker, await oneshot channel response
+    let (response_sender, response_receiver) = oneshot::channel();
 
-    Ok(format!("{:?}", validated_request))
+    let canonical_socket_addr = CanonicalSocketAddr::new(peer_addr);
+
+    let channel_request = ChannelAnnounceRequest {
+        request: validated_request,
+        source_addr: canonical_socket_addr,
+        response_sender,
+    };
+
+    // TODO: send request to request worker
+
+    let response = response_receiver.await.map_err(|err| {
+        ::log::error!("channel response sender closed: {}", err);
+
+        build_response(Response::Failure(FailureResponse::new("Internal error")))
+    })?;
+
+    Ok(build_response(Response::Announce(response)))
 }
 
-fn anyhow_error(err: anyhow::Error) -> (StatusCode, String) {
-    (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
-}
+fn build_response(response: Response) -> (StatusCode, impl IntoResponse) {
+    let mut response_bytes = Vec::with_capacity(512);
 
-fn failure_response(response: FailureResponse) -> (StatusCode, String) {
-    (StatusCode::OK, format!("{:?}", response))
+    response.write(&mut response_bytes);
+
+    (StatusCode::OK, response_bytes)
 }

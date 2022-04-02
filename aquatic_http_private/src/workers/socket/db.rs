@@ -1,6 +1,8 @@
 use std::net::{IpAddr, SocketAddr};
 
-use aquatic_http_protocol::{common::AnnounceEvent, request::AnnounceRequest, response::FailureResponse};
+use aquatic_http_protocol::{
+    common::AnnounceEvent, request::AnnounceRequest, response::FailureResponse,
+};
 use sqlx::{Executor, MySql, Pool};
 
 #[derive(Debug)]
@@ -62,19 +64,19 @@ pub async fn validate_announce_request(
     user_token: String,
     request: AnnounceRequest,
 ) -> Result<ValidatedAnnounceRequest, FailureResponse> {
-    let parameters = AnnounceProcedureParameters::new(
-        source_addr,
-        user_agent,
-        user_token,
-        &request,
-    );
+    let parameters =
+        AnnounceProcedureParameters::new(source_addr, user_agent, user_token, &request);
 
     match call_announce_procedure(pool, parameters).await {
         Ok(results) => {
             if results.announce_allowed {
                 Ok(ValidatedAnnounceRequest(request))
             } else {
-                Err(FailureResponse::new(results.failure_reason.unwrap_or_else(|| "Not allowed".into())))
+                Err(FailureResponse::new(
+                    results
+                        .failure_reason
+                        .unwrap_or_else(|| "Not allowed".into()),
+                ))
             }
         }
         Err(err) => {
