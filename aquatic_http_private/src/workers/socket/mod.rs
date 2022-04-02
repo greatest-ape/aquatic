@@ -32,7 +32,8 @@ async fn run_app(
     tcp_listener: TcpListener,
     request_sender: ChannelRequestSender,
 ) -> anyhow::Result<()> {
-    let db_url = ::std::env::var("DATABASE_URL").expect("env var DATABASE_URL");
+    let db_url =
+        ::std::env::var("DATABASE_URL").with_context(|| "Retrieve env var DATABASE_URL")?;
 
     let pool = MySqlPoolOptions::new()
         .max_connections(5)
