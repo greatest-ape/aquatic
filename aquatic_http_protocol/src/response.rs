@@ -51,6 +51,8 @@ pub struct AnnounceResponse {
     pub peers: ResponsePeerListV4,
     #[serde(default)]
     pub peers6: ResponsePeerListV6,
+    #[serde(rename = "warning message")]
+    pub warning_message: Option<String>,
 }
 
 impl AnnounceResponse {
@@ -94,6 +96,17 @@ impl AnnounceResponse {
             bytes_written += output.write(&peer.port.to_be_bytes())?;
         }
         bytes_written += output.write(b"e")?;
+
+        if let Some(ref warning_message) = self.warning_message {
+            let message_bytes = warning_message.as_bytes();
+
+            bytes_written += output.write(b"d15:warning message")?;
+            bytes_written +=
+                output.write(itoa::Buffer::new().format(message_bytes.len()).as_bytes())?;
+            bytes_written += output.write(b":")?;
+            bytes_written += output.write(message_bytes)?;
+            bytes_written += output.write(b"e")?;
+        }
 
         Ok(bytes_written)
     }
@@ -232,6 +245,7 @@ impl quickcheck::Arbitrary for AnnounceResponse {
             incomplete: usize::arbitrary(g),
             peers: ResponsePeerListV4::arbitrary(g),
             peers6: ResponsePeerListV6::arbitrary(g),
+            warning_message: quickcheck::Arbitrary::arbitrary(g),
         }
     }
 }

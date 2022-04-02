@@ -21,6 +21,7 @@ pub fn bench(c: &mut Criterion) {
         incomplete: 500,
         peers: ResponsePeerListV4(peers),
         peers6: ResponsePeerListV6(Vec::new()),
+        warning_message: None,
     };
 
     let response = Response::Announce(announce_response);

@@ -40,7 +40,7 @@ pub async fn announce(
 
     let source_addr = CanonicalSocketAddr::new(source_addr);
 
-    let validated_request =
+    let (validated_request, opt_warning_message) =
         db::validate_announce_request(&pool, source_addr, opt_user_agent, user_token, request)
             .await
             .map_err(|r| create_response(Response::Failure(r)))?;
@@ -50,9 +50,13 @@ pub async fn announce(
         .await
         .map_err(|err| internal_error(format!("Sending request over channel failed: {:#}", err)))?;
 
-    let response = response_receiver.await.map_err(|err| {
+    let mut response = response_receiver.await.map_err(|err| {
         internal_error(format!("Receiving response over channel failed: {:#}", err))
     })?;
+
+    if let Response::Announce(ref mut r) = response {
+        r.warning_message = opt_warning_message;
+    }
 
     Ok(create_response(response))
 }

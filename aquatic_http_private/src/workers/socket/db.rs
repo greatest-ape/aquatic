@@ -64,14 +64,14 @@ pub async fn validate_announce_request(
     user_agent: Option<String>,
     user_token: String,
     request: AnnounceRequest,
-) -> Result<ValidatedAnnounceRequest, FailureResponse> {
+) -> Result<(ValidatedAnnounceRequest, Option<String>), FailureResponse> {
     let parameters =
         AnnounceProcedureParameters::new(source_addr, user_agent, user_token, &request);
 
     match call_announce_procedure(pool, parameters).await {
         Ok(results) => {
             if results.announce_allowed {
-                Ok(ValidatedAnnounceRequest(request))
+                Ok((ValidatedAnnounceRequest(request), results.warning_message))
             } else {
                 Err(FailureResponse::new(
                     results
