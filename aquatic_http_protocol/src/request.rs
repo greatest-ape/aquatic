@@ -108,10 +108,12 @@ impl AnnounceRequest {
                     opt_bytes_left = Some(value.parse::<usize>().with_context(|| "parse left")?);
                 }
                 "uploaded" => {
-                    opt_bytes_uploaded = Some(value.parse::<usize>().with_context(|| "parse uploaded")?);
+                    opt_bytes_uploaded =
+                        Some(value.parse::<usize>().with_context(|| "parse uploaded")?);
                 }
                 "downloaded" => {
-                    opt_bytes_downloaded = Some(value.parse::<usize>().with_context(|| "parse downloaded")?);
+                    opt_bytes_downloaded =
+                        Some(value.parse::<usize>().with_context(|| "parse downloaded")?);
                 }
                 "event" => {
                     event = value
