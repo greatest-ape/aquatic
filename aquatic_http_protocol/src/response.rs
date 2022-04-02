@@ -54,7 +54,7 @@ pub struct AnnounceResponse {
 }
 
 impl AnnounceResponse {
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d8:completei")?;
@@ -106,7 +106,7 @@ pub struct ScrapeResponse {
 }
 
 impl ScrapeResponse {
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d5:filesd")?;
@@ -142,7 +142,7 @@ impl FailureResponse {
         }
     }
 
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         let reason_bytes = self.failure_reason.as_bytes();
