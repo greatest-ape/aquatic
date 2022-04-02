@@ -31,8 +31,8 @@ impl DbAnnounceRequest {
             info_hash: hex::encode(request.info_hash.0),
             peer_id: hex::encode(request.peer_id.0),
             event: request.event,
-            uploaded: 0,   // FIXME
-            downloaded: 0, // FIXME
+            uploaded: request.bytes_uploaded as u64,
+            downloaded: request.bytes_downloaded as u64,
         }
     }
 }
