@@ -62,7 +62,7 @@ pub async fn announce(
 }
 
 fn create_response(response: Response) -> axum::response::Response {
-    let mut response_bytes = Vec::with_capacity(64);
+    let mut response_bytes = Vec::with_capacity(128);
 
     response.write(&mut response_bytes).unwrap();
 
@@ -75,7 +75,7 @@ fn create_response(response: Response) -> axum::response::Response {
 }
 
 fn create_failure_response<R: Into<Cow<'static, str>>>(reason: R) -> axum::response::Response {
-    let mut response_bytes = Vec::with_capacity(32);
+    let mut response_bytes = Vec::with_capacity(64);
 
     FailureResponse::new(reason)
         .write(&mut response_bytes)
