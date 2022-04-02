@@ -2,9 +2,8 @@ use tokio::sync::mpsc::Receiver;
 
 use aquatic_http_protocol::response::{FailureResponse, Response};
 
+use crate::common::ChannelAnnounceRequest;
 use crate::config::Config;
-
-use super::common::ChannelAnnounceRequest;
 
 pub fn run_request_worker(
     config: Config,

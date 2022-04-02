@@ -3,10 +3,14 @@ use tokio::sync::{mpsc, oneshot};
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_http_protocol::{common::InfoHash, response::Response};
 
-use crate::{
-    config::Config,
-    workers::{common::ChannelAnnounceRequest, socket::db::ValidatedAnnounceRequest},
-};
+use crate::{config::Config, workers::socket::db::ValidatedAnnounceRequest};
+
+#[derive(Debug)]
+pub struct ChannelAnnounceRequest {
+    pub request: ValidatedAnnounceRequest,
+    pub source_addr: CanonicalSocketAddr,
+    pub response_sender: oneshot::Sender<Response>,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct RequestWorkerIndex(pub usize);
