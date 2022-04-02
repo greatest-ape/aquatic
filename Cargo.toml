@@ -6,6 +6,7 @@ members = [
     "aquatic_common",
     "aquatic_http",
     "aquatic_http_load_test",
+    "aquatic_http_private",
     "aquatic_http_protocol",
     "aquatic_toml_config",
     "aquatic_toml_config_derive",
@@ -24,6 +25,7 @@ aquatic_cli_helpers = { path = "aquatic_cli_helpers" }
 aquatic_common = { path = "aquatic_common" }
 aquatic_http_load_test = { path = "aquatic_http_load_test" }
 aquatic_http = { path = "aquatic_http" }
+aquatic_http_private = { path = "aquatic_http_private" }
 aquatic_http_protocol = { path = "aquatic_http_protocol" }
 aquatic_toml_config_derive = { path = "aquatic_toml_config_derive" }
 aquatic_toml_config = { path = "aquatic_toml_config" }
