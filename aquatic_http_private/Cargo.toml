@@ -19,6 +19,7 @@ anyhow = "1"
 axum = { version = "0.5", default-features = false, features = ["headers", "http1", "matched-path", "original-uri"] }
 dotenv = "0.15"
 hex = "0.4"
+log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 serde = { version = "1", features = ["derive"] }
 socket2 = { version = "0.4", features = ["all"] }

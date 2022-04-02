@@ -7,7 +7,7 @@ use axum::{
 use sqlx::mysql::MySqlPool;
 use std::net::SocketAddr;
 
-use aquatic_http_protocol::request::AnnounceRequest;
+use aquatic_http_protocol::{request::AnnounceRequest, response::FailureResponse};
 
 use super::db;
 
@@ -23,16 +23,17 @@ pub async fn announce(
 
     let opt_user_agent = opt_user_agent.map(|header| header.as_str().to_owned());
 
-    let db_announce_request =
-        db::DbAnnounceRequest::new(peer_addr, opt_user_agent, user_token, request);
+    let validated_request = db::validate_announce_request(&pool, peer_addr, opt_user_agent, user_token, request).await.map_err(failure_response)?;
 
-    let db_announce_result = db::get_announce_response(&pool, db_announce_request)
-        .await
-        .map_err(anyhow_error)?;
+    // TODO: send request to request worker, await oneshot channel response
 
-    Ok(format!("{:?}", db_announce_result))
+    Ok(format!("{:?}", validated_request))
 }
 
 fn anyhow_error(err: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+}
+
+fn failure_response(response: FailureResponse) -> (StatusCode, String) {
+    (StatusCode::OK, format!("{:?}", response))
 }

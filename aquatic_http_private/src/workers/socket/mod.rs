@@ -1,4 +1,4 @@
-mod db;
+pub mod db;
 mod routes;
 
 use std::net::{SocketAddr, TcpListener};

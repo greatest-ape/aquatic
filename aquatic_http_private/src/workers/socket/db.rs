@@ -1,10 +1,19 @@
 use std::net::{IpAddr, SocketAddr};
 
-use aquatic_http_protocol::{common::AnnounceEvent, request::AnnounceRequest};
+use aquatic_http_protocol::{common::AnnounceEvent, request::AnnounceRequest, response::FailureResponse};
 use sqlx::{Executor, MySql, Pool};
 
 #[derive(Debug)]
-pub struct DbAnnounceRequest {
+pub struct ValidatedAnnounceRequest(AnnounceRequest);
+
+impl Into<AnnounceRequest> for ValidatedAnnounceRequest {
+    fn into(self) -> AnnounceRequest {
+        self.0
+    }
+}
+
+#[derive(Debug)]
+struct AnnounceProcedureParameters {
     source_ip: IpAddr,
     source_port: u16,
     user_agent: Option<String>,
@@ -17,12 +26,12 @@ pub struct DbAnnounceRequest {
     left: u64,
 }
 
-impl DbAnnounceRequest {
-    pub fn new(
+impl AnnounceProcedureParameters {
+    fn new(
         source_addr: SocketAddr,
         user_agent: Option<String>,
         user_token: String, // FIXME: length
-        request: AnnounceRequest,
+        request: &AnnounceRequest,
     ) -> Self {
         Self {
             source_ip: source_addr.ip(),
@@ -40,17 +49,47 @@ impl DbAnnounceRequest {
 }
 
 #[derive(Debug, sqlx::FromRow)]
-pub struct DbAnnounceResponse {
-    pub announce_allowed: bool,
-    pub failure_reason: Option<String>,
-    pub warning_message: Option<String>,
+struct AnnounceProcedureResults {
+    announce_allowed: bool,
+    failure_reason: Option<String>,
+    warning_message: Option<String>,
 }
 
-pub async fn get_announce_response(
+pub async fn validate_announce_request(
     pool: &Pool<MySql>,
-    request: DbAnnounceRequest,
-) -> anyhow::Result<DbAnnounceResponse> {
-    let source_ip_bytes: Vec<u8> = match request.source_ip {
+    source_addr: SocketAddr,
+    user_agent: Option<String>,
+    user_token: String,
+    request: AnnounceRequest,
+) -> Result<ValidatedAnnounceRequest, FailureResponse> {
+    let parameters = AnnounceProcedureParameters::new(
+        source_addr,
+        user_agent,
+        user_token,
+        &request,
+    );
+
+    match call_announce_procedure(pool, parameters).await {
+        Ok(results) => {
+            if results.announce_allowed {
+                Ok(ValidatedAnnounceRequest(request))
+            } else {
+                Err(FailureResponse::new(results.failure_reason.unwrap_or_else(|| "Not allowed".into())))
+            }
+        }
+        Err(err) => {
+            ::log::error!("announce procedure error: {:#}", err);
+
+            Err(FailureResponse::new("Internal error"))
+        }
+    }
+}
+
+async fn call_announce_procedure(
+    pool: &Pool<MySql>,
+    parameters: AnnounceProcedureParameters,
+) -> anyhow::Result<AnnounceProcedureResults> {
+    let source_ip_bytes: Vec<u8> = match parameters.source_ip {
         IpAddr::V4(ip) => ip.octets().into(),
         IpAddr::V6(ip) => ip.octets().into(),
     };
@@ -81,19 +120,19 @@ pub async fn get_announce_response(
         ",
     )
     .bind(source_ip_bytes)
-    .bind(request.source_port)
-    .bind(request.user_agent)
-    .bind(request.user_token)
-    .bind(request.info_hash)
-    .bind(request.peer_id)
-    .bind(request.event.as_str())
-    .bind(request.uploaded)
-    .bind(request.downloaded)
-    .bind(request.left);
+    .bind(parameters.source_port)
+    .bind(parameters.user_agent)
+    .bind(parameters.user_token)
+    .bind(parameters.info_hash)
+    .bind(parameters.peer_id)
+    .bind(parameters.event.as_str())
+    .bind(parameters.uploaded)
+    .bind(parameters.downloaded)
+    .bind(parameters.left);
 
     t.execute(q).await?;
 
-    let response = sqlx::query_as::<_, DbAnnounceResponse>(
+    let response = sqlx::query_as::<_, AnnounceProcedureResults>(
         "
         SELECT
             @p_announce_allowed as announce_allowed,
