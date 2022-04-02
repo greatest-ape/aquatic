@@ -24,7 +24,7 @@ pub struct InfoHash(
     pub [u8; 20],
 );
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnnounceEvent {
     Started,
     Stopped,
