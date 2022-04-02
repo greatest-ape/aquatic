@@ -14,6 +14,7 @@ pub struct DbAnnounceRequest {
     event: AnnounceEvent,
     uploaded: u64,
     downloaded: u64,
+    left: u64,
 }
 
 impl DbAnnounceRequest {
@@ -33,6 +34,7 @@ impl DbAnnounceRequest {
             event: request.event,
             uploaded: request.bytes_uploaded as u64,
             downloaded: request.bytes_downloaded as u64,
+            left: request.bytes_left as u64,
         }
     }
 }
@@ -71,6 +73,7 @@ pub async fn get_announce_response(
             ?,
             ?,
             ?,
+            ?,
             @p_announce_allowed,
             @p_failure_reason,
             @p_warning_message
@@ -85,7 +88,8 @@ pub async fn get_announce_response(
     .bind(request.peer_id)
     .bind(request.event.as_str())
     .bind(request.uploaded)
-    .bind(request.downloaded);
+    .bind(request.downloaded)
+    .bind(request.left);
 
     t.execute(q).await?;
 

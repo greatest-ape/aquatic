@@ -22,8 +22,9 @@ CREATE OR REPLACE PROCEDURE aquatic_announce_v1 (
     IN p_info_hash CHAR(40),
     IN p_peer_id CHAR(40),
     IN p_event VARCHAR(9),
-    IN p_uploaded BIGINT,
-    IN p_downloaded BIGINT,
+    IN p_uploaded BIGINT UNSIGNED,
+    IN p_downloaded BIGINT UNSIGNED,
+    IN p_left BIGINT UNSIGNED,
     OUT p_announce_allowed BOOLEAN,
     OUT p_failure_reason TEXT,
     OUT p_warning_message TEXT
