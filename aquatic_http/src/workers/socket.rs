@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
+use aquatic_common::rustls_config::RustlsConfig;
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_http_protocol::common::InfoHash;
 use aquatic_http_protocol::request::{Request, RequestParseError, ScrapeRequest};
@@ -54,7 +55,7 @@ struct ConnectionReference {
 pub async fn run_socket_worker(
     config: Config,
     state: State,
-    tls_config: Arc<TlsConfig>,
+    tls_config: Arc<RustlsConfig>,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     response_mesh_builder: MeshBuilder<ChannelResponse, Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
@@ -195,7 +196,7 @@ impl Connection {
         response_receiver: LocalReceiver<ChannelResponse>,
         response_consumer_id: ConsumerId,
         connection_id: ConnectionId,
-        tls_config: Arc<TlsConfig>,
+        tls_config: Arc<RustlsConfig>,
         connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
         stream: TcpStream,
     ) -> anyhow::Result<()> {
