@@ -59,12 +59,12 @@ async fn run_app(
 
     let app = Router::new()
         .route("/announce/:user_token/", get(routes::announce))
-        .layer(Extension(Arc::new(config)))
+        .layer(Extension(Arc::new(config.clone())))
         .layer(Extension(pool))
         .layer(Extension(Arc::new(request_sender)));
 
     axum::Server::builder(tls_acceptor)
-        .http1_keepalive(false)
+        .http1_keepalive(config.network.keep_alive)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .await?;
 
