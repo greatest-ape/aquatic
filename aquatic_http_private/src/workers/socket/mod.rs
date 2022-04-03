@@ -1,5 +1,6 @@
 pub mod db;
 mod routes;
+mod tls;
 
 use std::{
     net::{SocketAddr, TcpListener},
@@ -7,13 +8,23 @@ use std::{
 };
 
 use anyhow::Context;
-use axum::{routing::get, Extension, Router};
+use aquatic_common::rustls_config::RustlsConfig;
+use axum::{extract::connect_info::Connected, routing::get, Extension, Router};
+use hyper::server::conn::AddrIncoming;
 use sqlx::mysql::MySqlPoolOptions;
 
+use self::tls::{TlsAcceptor, TlsStream};
 use crate::{common::ChannelRequestSender, config::Config};
+
+impl<'a> Connected<&'a tls::TlsStream> for SocketAddr {
+    fn connect_info(target: &'a TlsStream) -> Self {
+        target.get_remote_addr()
+    }
+}
 
 pub fn run_socket_worker(
     config: Config,
+    tls_config: Arc<RustlsConfig>,
     request_sender: ChannelRequestSender,
 ) -> anyhow::Result<()> {
     let tcp_listener = create_tcp_listener(config.network.address)?;
@@ -22,18 +33,24 @@ pub fn run_socket_worker(
         .enable_all()
         .build()?;
 
-    runtime.block_on(run_app(config, tcp_listener, request_sender))?;
+    runtime.block_on(run_app(config, tls_config, tcp_listener, request_sender))?;
 
     Ok(())
 }
 
 async fn run_app(
     config: Config,
+    tls_config: Arc<RustlsConfig>,
     tcp_listener: TcpListener,
     request_sender: ChannelRequestSender,
 ) -> anyhow::Result<()> {
     let db_url =
         ::std::env::var("DATABASE_URL").with_context(|| "Retrieve env var DATABASE_URL")?;
+
+    let tls_acceptor = TlsAcceptor::new(
+        tls_config,
+        AddrIncoming::from_listener(tokio::net::TcpListener::from_std(tcp_listener)?)?,
+    );
 
     let pool = MySqlPoolOptions::new()
         .max_connections(5)
@@ -46,7 +63,7 @@ async fn run_app(
         .layer(Extension(pool))
         .layer(Extension(Arc::new(request_sender)));
 
-    axum::Server::from_tcp(tcp_listener)?
+    axum::Server::builder(tls_acceptor)
         .http1_keepalive(false)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .await?;
@@ -66,6 +83,9 @@ fn create_tcp_listener(addr: SocketAddr) -> anyhow::Result<TcpListener> {
     socket
         .set_reuse_port(true)
         .with_context(|| "set_reuse_port")?;
+    socket
+        .set_nonblocking(true)
+        .with_context(|| "set_nonblocking")?;
     socket
         .bind(&addr.into())
         .with_context(|| format!("bind to {}", addr))?;

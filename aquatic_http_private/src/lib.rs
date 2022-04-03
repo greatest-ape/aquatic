@@ -2,17 +2,25 @@ mod common;
 pub mod config;
 mod workers;
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
+use aquatic_common::rustls_config::create_rustls_config;
 use common::ChannelRequestSender;
 use dotenv::dotenv;
 use tokio::sync::mpsc::channel;
 
+use config::Config;
+
 pub const APP_NAME: &str = "aquatic_http_private: private HTTP/TLS BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn run(config: config::Config) -> anyhow::Result<()> {
+pub fn run(config: Config) -> anyhow::Result<()> {
     dotenv().ok();
+
+    let tls_config = Arc::new(create_rustls_config(
+        &config.network.tls_certificate_path,
+        &config.network.tls_private_key_path,
+    )?);
 
     let mut request_senders = Vec::new();
     let mut request_receivers = VecDeque::new();
@@ -28,11 +36,14 @@ pub fn run(config: config::Config) -> anyhow::Result<()> {
 
     for _ in 0..config.socket_workers {
         let config = config.clone();
+        let tls_config = tls_config.clone();
         let request_sender = ChannelRequestSender::new(request_senders.clone());
 
         let handle = ::std::thread::Builder::new()
             .name("socket".into())
-            .spawn(move || workers::socket::run_socket_worker(config, request_sender))?;
+            .spawn(move || {
+                workers::socket::run_socket_worker(config, tls_config, request_sender)
+            })?;
 
         handles.push(handle);
     }
