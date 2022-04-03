@@ -13,6 +13,7 @@ name = "aquatic_common"
 
 [features]
 cpu-pinning = ["hwloc", "libc"]
+rustls-config = ["rustls", "rustls-pemfile"]
 
 [dependencies]
 aquatic_toml_config = "0.2.0"
@@ -31,3 +32,7 @@ serde = { version = "1", features = ["derive"] }
 # cpu-pinning
 hwloc = { version = "0.5", optional = true }
 libc = { version = "0.2", optional = true }
+
+# rustls-config
+rustls = { version = "0.20", optional = true }
+rustls-pemfile = { version = "0.3", optional = true }
