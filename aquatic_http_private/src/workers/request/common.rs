@@ -1,19 +1,9 @@
-use std::cell::RefCell;
 use std::net::{Ipv4Addr, Ipv6Addr};
-use std::rc::Rc;
 use std::time::Instant;
 
-use tokio::sync::mpsc::Receiver;
-use tokio::task::LocalSet;
-use tokio::time;
-
-use aquatic_common::{AmortizedIndexMap, CanonicalSocketAddr, ValidUntil};
+use aquatic_common::{AmortizedIndexMap, ValidUntil};
 use aquatic_http_protocol::common::{AnnounceEvent, InfoHash, PeerId};
-use aquatic_http_protocol::request::AnnounceRequest;
-use aquatic_http_protocol::response::{FailureResponse, Response, ResponsePeer};
-
-use crate::common::ChannelAnnounceRequest;
-use crate::config::Config;
+use aquatic_http_protocol::response::ResponsePeer;
 
 pub trait Ip: ::std::fmt::Debug + Copy + Eq + ::std::hash::Hash {}
 
@@ -63,7 +53,7 @@ impl<I: Ip> Peer<I> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PeerMapKey<I: Ip> {
     pub peer_id: PeerId,
-    pub ip: I,
+    pub ip_address: I,
 }
 
 pub type PeerMap<I> = AmortizedIndexMap<PeerMapKey<I>, Peer<I>>;
@@ -128,67 +118,5 @@ impl TorrentMaps {
         });
 
         torrent_map.shrink_to_fit();
-    }
-}
-
-pub fn run_request_worker(
-    config: Config,
-    request_receiver: Receiver<ChannelAnnounceRequest>,
-) -> anyhow::Result<()> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-
-    runtime.block_on(run_inner(config, request_receiver))?;
-
-    Ok(())
-}
-
-async fn run_inner(
-    config: Config,
-    mut request_receiver: Receiver<ChannelAnnounceRequest>,
-) -> anyhow::Result<()> {
-    let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
-
-    LocalSet::new().spawn_local(periodically_clean_torrents(
-        config.clone(),
-        torrents.clone(),
-    ));
-
-    loop {
-        let request = request_receiver
-            .recv()
-            .await
-            .ok_or_else(|| anyhow::anyhow!("request channel closed"))?;
-
-        let response = handle_announce_request(
-            &config,
-            &torrents,
-            request.source_addr,
-            request.request.into(),
-        );
-
-        let _ = request.response_sender.send(response);
-    }
-}
-
-fn handle_announce_request(
-    config: &Config,
-    torrents: &Rc<RefCell<TorrentMaps>>,
-    source_addr: CanonicalSocketAddr,
-    request: AnnounceRequest,
-) -> Response {
-    Response::Failure(FailureResponse::new("actually successful"))
-}
-
-async fn periodically_clean_torrents(config: Config, torrents: Rc<RefCell<TorrentMaps>>) {
-    let mut interval = time::interval(time::Duration::from_secs(
-        config.cleaning.torrent_cleaning_interval,
-    ));
-
-    loop {
-        interval.tick().await;
-
-        torrents.borrow_mut().clean();
     }
 }

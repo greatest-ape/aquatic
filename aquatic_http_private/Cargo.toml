@@ -21,6 +21,7 @@ dotenv = "0.15"
 hex = "0.4"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
+rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 socket2 = { version = "0.4", features = ["all"] }
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "mysql" ] }

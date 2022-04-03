@@ -153,6 +153,7 @@ dependencies = [
  "hex",
  "log",
  "mimalloc",
+ "rand",
  "serde",
  "socket2 0.4.4",
  "sqlx",
