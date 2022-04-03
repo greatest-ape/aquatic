@@ -53,7 +53,7 @@ async fn run_app(
     );
 
     let pool = MySqlPoolOptions::new()
-        .max_connections(5)
+        .max_connections(config.db_connections_per_worker)
         .connect(&db_url)
         .await?;
 
