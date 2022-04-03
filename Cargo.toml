@@ -37,6 +37,8 @@ aquatic_ws_load_test = { path = "aquatic_ws_load_test" }
 aquatic_ws = { path = "aquatic_ws" }
 aquatic_ws_protocol = { path = "aquatic_ws_protocol" }
 
+membarrier = { git = "https://github.com/glommer/membarrier-rs.git", branch = "issue-22" }
+
 [profile.release]
 debug = true
 lto = true

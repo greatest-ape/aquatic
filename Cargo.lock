@@ -1560,8 +1560,7 @@ checksum = "73cbba799671b762df5a175adf59ce145165747bb891505c43d09aefbbf38beb"
 [[package]]
 name = "membarrier"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "925b0811d7e5fb2b666b5906c5047b7ec23aab78edc4d51b7b0f82dc5c955b1c"
+source = "git+https://github.com/glommer/membarrier-rs.git?branch=issue-22#a79ea2d9b6e976b83b7fd709073cf977b1e47581"
 dependencies = [
  "cfg-if",
  "kernel32-sys",
