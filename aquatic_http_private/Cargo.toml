@@ -12,7 +12,7 @@ name = "aquatic_http_private"
 [dependencies]
 aquatic_cli_helpers = "0.2.0"
 aquatic_common = { version = "0.2.0", features = ["rustls-config"] }
-aquatic_http_protocol = "0.2.0"
+aquatic_http_protocol = { version = "0.2.0", features = ["with-axum"] }
 aquatic_toml_config = "0.2.0"
 
 anyhow = "1"

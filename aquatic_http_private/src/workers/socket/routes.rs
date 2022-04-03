@@ -2,12 +2,10 @@ use aquatic_common::CanonicalSocketAddr;
 use axum::{
     extract::{ConnectInfo, Path, RawQuery},
     headers::UserAgent,
-    http::StatusCode,
-    response::IntoResponse,
     Extension, TypedHeader,
 };
 use sqlx::mysql::MySqlPool;
-use std::{borrow::Cow, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use aquatic_http_protocol::{
     request::AnnounceRequest,
@@ -29,11 +27,11 @@ pub async fn announce(
     opt_user_agent: Option<TypedHeader<UserAgent>>,
     Path(user_token): Path<String>,
     RawQuery(query): RawQuery,
-) -> Result<axum::response::Response, axum::response::Response> {
-    let query = query.ok_or_else(|| create_failure_response("Empty query string"))?;
+) -> Result<Response, FailureResponse> {
+    let query = query.ok_or_else(|| FailureResponse::new("Empty query string"))?;
 
     let request = AnnounceRequest::from_query_string(&query)
-        .map_err(|_| create_failure_response("Malformed request"))?;
+        .map_err(|_| FailureResponse::new("Malformed request"))?;
 
     let request_worker_index = RequestWorkerIndex::from_info_hash(&config, request.info_hash);
     let opt_user_agent = opt_user_agent.map(|header| header.as_str().to_owned());
@@ -42,8 +40,7 @@ pub async fn announce(
 
     let (validated_request, opt_warning_message) =
         db::validate_announce_request(&pool, source_addr, opt_user_agent, user_token, request)
-            .await
-            .map_err(|r| create_response(Response::Failure(r)))?;
+            .await?;
 
     let response_receiver = request_sender
         .send_to(request_worker_index, validated_request, source_addr)
@@ -58,39 +55,11 @@ pub async fn announce(
         r.warning_message = opt_warning_message;
     }
 
-    Ok(create_response(response))
+    Ok(response)
 }
 
-fn create_response(response: Response) -> axum::response::Response {
-    let mut response_bytes = Vec::with_capacity(128);
-
-    response.write(&mut response_bytes).unwrap();
-
-    (
-        StatusCode::OK,
-        [("Content-type", "text/plain; charset=utf-8")],
-        response_bytes,
-    )
-        .into_response()
-}
-
-fn create_failure_response<R: Into<Cow<'static, str>>>(reason: R) -> axum::response::Response {
-    let mut response_bytes = Vec::with_capacity(64);
-
-    FailureResponse::new(reason)
-        .write(&mut response_bytes)
-        .unwrap();
-
-    (
-        StatusCode::OK,
-        [("Content-type", "text/plain; charset=utf-8")],
-        response_bytes,
-    )
-        .into_response()
-}
-
-fn internal_error(error: String) -> axum::response::Response {
+fn internal_error(error: String) -> FailureResponse {
     ::log::error!("{}", error);
 
-    create_failure_response("Internal error")
+    FailureResponse::new("Internal error")
 }

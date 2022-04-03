@@ -171,6 +171,7 @@ name = "aquatic_http_protocol"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "axum",
  "bendy",
  "criterion",
  "hex",

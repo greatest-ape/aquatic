@@ -11,7 +11,6 @@
   * site will likely want num_seeders and num_leechers for all torrents..
 
 * aquatic_http_protocol
-  * Implement axum IntoResponse behind feature gate
   * don't require compact=1?
 
 ## Medium priority
