@@ -213,9 +213,7 @@ impl Connection {
                 }
 
                 if let Some(body_start_index) = opt_body_start_index {
-                    let interesting_bytes = &interesting_bytes[body_start_index..];
-
-                    match Response::from_bytes(interesting_bytes) {
+                    match Response::from_bytes(&interesting_bytes[body_start_index..]) {
                         Ok(response) => {
                             match response {
                                 Response::Announce(_) => {
