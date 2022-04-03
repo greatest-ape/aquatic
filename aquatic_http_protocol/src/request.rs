@@ -22,8 +22,10 @@ pub struct AnnounceRequest {
 }
 
 impl AnnounceRequest {
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
-        output.write_all(b"GET /announce?info_hash=")?;
+    fn write<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
+        output.write_all(b"GET /announce")?;
+        output.write_all(url_suffix)?;
+        output.write_all(b"?info_hash=")?;
         urlencode_20_bytes(self.info_hash.0, output)?;
 
         output.write_all(b"&peer_id=")?;
@@ -167,8 +169,10 @@ pub struct ScrapeRequest {
 }
 
 impl ScrapeRequest {
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
+    fn write<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
         output.write_all(b"GET /scrape?")?;
+        output.write_all(url_suffix)?;
+        output.write_all(b"?")?;
 
         let mut first = true;
 
@@ -307,10 +311,10 @@ impl Request {
         }
     }
 
-    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<()> {
+    pub fn write<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
         match self {
-            Self::Announce(r) => r.write(output),
-            Self::Scrape(r) => r.write(output),
+            Self::Announce(r) => r.write(output, url_suffix),
+            Self::Scrape(r) => r.write(output, url_suffix),
         }
     }
 }
@@ -436,7 +440,7 @@ mod tests {
 
             let mut bytes = Vec::new();
 
-            request.write(&mut bytes).unwrap();
+            request.write(&mut bytes, &[]).unwrap();
 
             let parsed_request = Request::from_bytes(&bytes[..]).unwrap();
 

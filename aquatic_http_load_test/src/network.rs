@@ -135,7 +135,7 @@ impl Connection {
                 let request =
                     create_random_request(&self.config, &self.load_test_state, &mut self.rng);
 
-                request.write(&mut self.tls.writer())?;
+                request.write(&mut self.tls.writer(), self.config.url_suffix.as_bytes())?;
                 self.queued_responses += 1;
 
                 self.send_new_request = false;
