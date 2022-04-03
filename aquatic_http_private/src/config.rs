@@ -93,21 +93,15 @@ impl Default for ProtocolConfig {
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,
-    /// Clean connections this often (seconds)
-    pub connection_cleaning_interval: u64,
     /// Remove peers that have not announced for this long (seconds)
     pub max_peer_age: u64,
-    /// Remove connections that haven't seen valid requests for this long (seconds)
-    pub max_connection_idle: u64,
 }
 
 impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             torrent_cleaning_interval: 30,
-            connection_cleaning_interval: 60,
             max_peer_age: 360,
-            max_connection_idle: 180,
         }
     }
 }
