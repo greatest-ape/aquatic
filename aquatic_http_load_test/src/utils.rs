@@ -48,6 +48,8 @@ fn create_announce_request(config: &Config, state: &LoadTestState, rng: &mut imp
         numwant: None,
         compact: true,
         port: rng.gen(),
+        bytes_uploaded: 0,
+        bytes_downloaded: 0,
     })
 }
 
