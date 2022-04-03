@@ -5,8 +5,6 @@ use aquatic_common::CanonicalSocketAddr;
 
 pub use aquatic_common::ValidUntil;
 
-pub type TlsConfig = futures_rustls::rustls::ServerConfig;
-
 #[derive(Default, Clone)]
 pub struct State {
     pub access_list: Arc<AccessListArcSwap>,
