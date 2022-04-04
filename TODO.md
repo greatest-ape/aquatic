@@ -10,8 +10,6 @@
 
 ## Medium priority
 
-* Use thin LTO?
-* Add release-debug profile?
 * quit whole program if any thread panics
 * config: fail on unrecognized keys?
 * Run cargo-deny in CI

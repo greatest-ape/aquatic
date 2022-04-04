@@ -40,13 +40,16 @@ aquatic_ws_protocol = { path = "aquatic_ws_protocol" }
 membarrier = { git = "https://github.com/glommer/membarrier-rs.git", branch = "issue-22" }
 
 [profile.release]
-debug = true
-lto = true
+debug = false
+lto = "thin"
+opt-level = 3
 
 [profile.test]
-opt-level = 3
+inherits = "release-debug"
 
 [profile.bench]
+inherits = "release-debug"
+
+[profile.release-debug]
+inherits = "release"
 debug = true
-opt-level = 3
-lto = true
