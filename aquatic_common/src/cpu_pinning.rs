@@ -35,6 +35,7 @@ impl Default for HyperThreadMapping {
 pub trait CpuPinningConfig {
     fn active(&self) -> bool;
     fn mode(&self) -> CpuPinningMode;
+    #[cfg(feature = "with-glommio")]
     fn hyperthread(&self) -> HyperThreadMapping;
     fn core_offset(&self) -> usize;
 }
@@ -75,6 +76,7 @@ pub mod mod_name {
         fn mode(&self) -> CpuPinningMode {
             self.mode
         }
+        #[cfg(feature = "with-glommio")]
         fn hyperthread(&self) -> HyperThreadMapping {
             self.hyperthread
         }
