@@ -2,6 +2,10 @@
 name = "aquatic_http_private"
 version = "0.2.0"
 edition = "2021"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/greatest-ape/aquatic"
+keywords = ["http", "benchmark", "peer-to-peer", "torrent", "bittorrent"]
 
 [lib]
 name = "aquatic_http_private"
