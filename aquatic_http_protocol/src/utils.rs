@@ -58,6 +58,17 @@ pub fn urldecode_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
 }
 
 #[inline]
+pub fn serialize_optional_string<S>(v: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match v {
+        Some(s) => serializer.serialize_str(s.as_str()),
+        None => Err(serde::ser::Error::custom("use skip_serializing_if")),
+    }
+}
+
+#[inline]
 pub fn serialize_20_bytes<S>(bytes: &[u8; 20], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

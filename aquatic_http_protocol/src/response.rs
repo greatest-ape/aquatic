@@ -51,7 +51,12 @@ pub struct AnnounceResponse {
     pub peers: ResponsePeerListV4,
     #[serde(default)]
     pub peers6: ResponsePeerListV6,
-    #[serde(rename = "warning message", skip_serializing_if = "Option::is_none")]
+    // Serialize as string if Some, otherwise skip
+    #[serde(
+        rename = "warning message",
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_string"
+    )]
     pub warning_message: Option<String>,
 }
 
@@ -95,18 +100,18 @@ impl AnnounceResponse {
             bytes_written += output.write(&u128::from(peer.ip_address).to_be_bytes())?;
             bytes_written += output.write(&peer.port.to_be_bytes())?;
         }
-        bytes_written += output.write(b"e")?;
 
         if let Some(ref warning_message) = self.warning_message {
             let message_bytes = warning_message.as_bytes();
 
-            bytes_written += output.write(b"d15:warning message")?;
+            bytes_written += output.write(b"15:warning message")?;
             bytes_written +=
                 output.write(itoa::Buffer::new().format(message_bytes.len()).as_bytes())?;
             bytes_written += output.write(b":")?;
             bytes_written += output.write(message_bytes)?;
-            bytes_written += output.write(b"e")?;
         }
+
+        bytes_written += output.write(b"e")?;
 
         Ok(bytes_written)
     }
@@ -334,11 +339,18 @@ mod tests {
     fn test_announce_response_to_bytes(response: AnnounceResponse) -> bool {
         let reference = bendy::serde::to_bytes(&Response::Announce(response.clone())).unwrap();
 
-        let mut output = Vec::new();
+        let mut hand_written = Vec::new();
 
-        response.write(&mut output).unwrap();
+        response.write(&mut hand_written).unwrap();
 
-        output == reference
+        let success = hand_written == reference;
+
+        if !success {
+            println!("reference:    {}", String::from_utf8_lossy(&reference));
+            println!("hand_written: {}", String::from_utf8_lossy(&hand_written));
+        }
+
+        success
     }
 
     #[quickcheck]
