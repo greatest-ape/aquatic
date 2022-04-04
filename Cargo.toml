@@ -6,6 +6,7 @@ members = [
     "aquatic_common",
     "aquatic_http",
     "aquatic_http_load_test",
+    "aquatic_http_private",
     "aquatic_http_protocol",
     "aquatic_toml_config",
     "aquatic_toml_config_derive",
@@ -19,30 +20,19 @@ members = [
 ]
 
 [patch.crates-io]
-aquatic = { path = "aquatic" }
-aquatic_cli_helpers = { path = "aquatic_cli_helpers" }
-aquatic_common = { path = "aquatic_common" }
-aquatic_http_load_test = { path = "aquatic_http_load_test" }
-aquatic_http = { path = "aquatic_http" }
-aquatic_http_protocol = { path = "aquatic_http_protocol" }
-aquatic_toml_config_derive = { path = "aquatic_toml_config_derive" }
-aquatic_toml_config = { path = "aquatic_toml_config" }
-aquatic_udp_bench = { path = "aquatic_udp_bench" }
-aquatic_udp_load_test = { path = "aquatic_udp_load_test" }
-aquatic_udp = { path = "aquatic_udp" }
-aquatic_udp_protocol = { path = "aquatic_udp_protocol" }
-aquatic_ws_load_test = { path = "aquatic_ws_load_test" }
-aquatic_ws = { path = "aquatic_ws" }
-aquatic_ws_protocol = { path = "aquatic_ws_protocol" }
+membarrier = { git = "https://github.com/glommer/membarrier-rs.git", branch = "issue-22" }
 
 [profile.release]
-debug = true
-lto = true
+debug = false
+lto = "thin"
+opt-level = 3
 
 [profile.test]
-opt-level = 3
+inherits = "release-debug"
 
 [profile.bench]
+inherits = "release-debug"
+
+[profile.release-debug]
+inherits = "release"
 debug = true
-opt-level = 3
-lto = true

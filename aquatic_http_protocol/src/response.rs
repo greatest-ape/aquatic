@@ -51,10 +51,17 @@ pub struct AnnounceResponse {
     pub peers: ResponsePeerListV4,
     #[serde(default)]
     pub peers6: ResponsePeerListV6,
+    // Serialize as string if Some, otherwise skip
+    #[serde(
+        rename = "warning message",
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_string"
+    )]
+    pub warning_message: Option<String>,
 }
 
 impl AnnounceResponse {
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d8:completei")?;
@@ -93,9 +100,31 @@ impl AnnounceResponse {
             bytes_written += output.write(&u128::from(peer.ip_address).to_be_bytes())?;
             bytes_written += output.write(&peer.port.to_be_bytes())?;
         }
+
+        if let Some(ref warning_message) = self.warning_message {
+            let message_bytes = warning_message.as_bytes();
+
+            bytes_written += output.write(b"15:warning message")?;
+            bytes_written +=
+                output.write(itoa::Buffer::new().format(message_bytes.len()).as_bytes())?;
+            bytes_written += output.write(b":")?;
+            bytes_written += output.write(message_bytes)?;
+        }
+
         bytes_written += output.write(b"e")?;
 
         Ok(bytes_written)
+    }
+}
+
+#[cfg(feature = "with-axum")]
+impl axum::response::IntoResponse for AnnounceResponse {
+    fn into_response(self) -> axum::response::Response {
+        let mut response_bytes = Vec::with_capacity(128);
+
+        self.write(&mut response_bytes).unwrap();
+
+        ([("Content-type", "text/plain")], response_bytes).into_response()
     }
 }
 
@@ -106,7 +135,7 @@ pub struct ScrapeResponse {
 }
 
 impl ScrapeResponse {
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d5:filesd")?;
@@ -129,6 +158,17 @@ impl ScrapeResponse {
     }
 }
 
+#[cfg(feature = "with-axum")]
+impl axum::response::IntoResponse for ScrapeResponse {
+    fn into_response(self) -> axum::response::Response {
+        let mut response_bytes = Vec::with_capacity(128);
+
+        self.write(&mut response_bytes).unwrap();
+
+        ([("Content-type", "text/plain")], response_bytes).into_response()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FailureResponse {
     #[serde(rename = "failure reason")]
@@ -142,7 +182,7 @@ impl FailureResponse {
         }
     }
 
-    fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         let reason_bytes = self.failure_reason.as_bytes();
@@ -154,6 +194,17 @@ impl FailureResponse {
         bytes_written += output.write(b"e")?;
 
         Ok(bytes_written)
+    }
+}
+
+#[cfg(feature = "with-axum")]
+impl axum::response::IntoResponse for FailureResponse {
+    fn into_response(self) -> axum::response::Response {
+        let mut response_bytes = Vec::with_capacity(64);
+
+        self.write(&mut response_bytes).unwrap();
+
+        ([("Content-type", "text/plain")], response_bytes).into_response()
     }
 }
 
@@ -175,6 +226,17 @@ impl Response {
     }
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ::serde_bencode::Error> {
         ::serde_bencode::from_bytes(bytes)
+    }
+}
+
+#[cfg(feature = "with-axum")]
+impl axum::response::IntoResponse for Response {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            Self::Announce(r) => r.into_response(),
+            Self::Scrape(r) => r.into_response(),
+            Self::Failure(r) => r.into_response(),
+        }
     }
 }
 
@@ -232,6 +294,7 @@ impl quickcheck::Arbitrary for AnnounceResponse {
             incomplete: usize::arbitrary(g),
             peers: ResponsePeerListV4::arbitrary(g),
             peers6: ResponsePeerListV6::arbitrary(g),
+            warning_message: quickcheck::Arbitrary::arbitrary(g),
         }
     }
 }
@@ -264,11 +327,18 @@ mod tests {
     fn test_announce_response_to_bytes(response: AnnounceResponse) -> bool {
         let reference = bendy::serde::to_bytes(&Response::Announce(response.clone())).unwrap();
 
-        let mut output = Vec::new();
+        let mut hand_written = Vec::new();
 
-        response.write(&mut output).unwrap();
+        response.write(&mut hand_written).unwrap();
 
-        output == reference
+        let success = hand_written == reference;
+
+        if !success {
+            println!("reference:    {}", String::from_utf8_lossy(&reference));
+            println!("hand_written: {}", String::from_utf8_lossy(&hand_written));
+        }
+
+        success
     }
 
     #[quickcheck]

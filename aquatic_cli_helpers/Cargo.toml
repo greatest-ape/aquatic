@@ -9,7 +9,7 @@ repository = "https://github.com/greatest-ape/aquatic"
 readme = "../README.md"
 
 [dependencies]
-aquatic_toml_config = "0.2.0"
+aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 
 anyhow = "1"
 git-testament = "0.2"

@@ -13,8 +13,8 @@ readme = "../README.md"
 name = "aquatic"
 
 [dependencies]
-aquatic_cli_helpers = "0.2.0"
-aquatic_http = "0.2.0"
-aquatic_udp = "0.2.0"
-aquatic_ws = "0.2.0"
+aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }
+aquatic_http = { version = "0.2.0", path = "../aquatic_http" }
+aquatic_udp = { version = "0.2.0", path = "../aquatic_udp" }
+aquatic_ws = { version = "0.2.0", path = "../aquatic_ws" }
 mimalloc = { version = "0.1", default-features = false }

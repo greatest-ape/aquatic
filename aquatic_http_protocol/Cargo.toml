@@ -22,8 +22,12 @@ name = "bench_announce_response_to_bytes"
 path = "benches/bench_announce_response_to_bytes.rs"
 harness = false
 
+[features]
+with-axum = ["axum"]
+
 [dependencies]
 anyhow = "1"
+axum = { version = "0.5", optional = true, default-features = false }
 hex = { version = "0.4", default-features = false }
 httparse = "1"
 itoa = "1"

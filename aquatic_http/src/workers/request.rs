@@ -337,6 +337,7 @@ pub fn handle_announce_request(
                 announce_interval: config.protocol.peer_announce_interval,
                 peers: ResponsePeerListV4(response_peers),
                 peers6: ResponsePeerListV6(vec![]),
+                warning_message: None,
             };
 
             response
@@ -366,6 +367,7 @@ pub fn handle_announce_request(
                 announce_interval: config.protocol.peer_announce_interval,
                 peers: ResponsePeerListV4(vec![]),
                 peers6: ResponsePeerListV6(response_peers),
+                warning_message: None,
             };
 
             response

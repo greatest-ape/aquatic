@@ -20,10 +20,10 @@ name = "aquatic_ws"
 cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [dependencies]
-aquatic_cli_helpers = "0.2.0"
-aquatic_common = "0.2.0"
-aquatic_toml_config = "0.2.0"
-aquatic_ws_protocol = "0.2.0"
+aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }
+aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls-config"] }
+aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
+aquatic_ws_protocol = { version = "0.2.0", path = "../aquatic_ws_protocol" }
 
 anyhow = "1"
 async-tungstenite = "0.17"
