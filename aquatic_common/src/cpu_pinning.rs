@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum CpuPinningMode {
+pub enum CpuPinningDirection {
     Ascending,
     Descending,
 }
 
-impl Default for CpuPinningMode {
+impl Default for CpuPinningDirection {
     fn default() -> Self {
         Self::Ascending
     }
@@ -34,7 +34,7 @@ impl Default for HyperThreadMapping {
 
 pub trait CpuPinningConfig {
     fn active(&self) -> bool;
-    fn mode(&self) -> CpuPinningMode;
+    fn direction(&self) -> CpuPinningDirection;
     #[cfg(feature = "with-glommio")]
     fn hyperthread(&self) -> HyperThreadMapping;
     fn core_offset(&self) -> usize;
@@ -42,9 +42,9 @@ pub trait CpuPinningConfig {
 
 // Do these shenanigans for compatibility with aquatic_toml_config
 #[duplicate::duplicate_item(
-    mod_name struct_name direction;
-    [asc] [CpuPinningConfigAsc] [CpuPinningMode::Ascending];
-    [desc] [CpuPinningConfigDesc] [CpuPinningMode::Descending];
+    mod_name struct_name cpu_pinning_direction;
+    [asc] [CpuPinningConfigAsc] [CpuPinningDirection::Ascending];
+    [desc] [CpuPinningConfigDesc] [CpuPinningDirection::Descending];
 )]
 pub mod mod_name {
     use super::*;
@@ -52,7 +52,7 @@ pub mod mod_name {
     #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
     pub struct struct_name {
         pub active: bool,
-        pub mode: CpuPinningMode,
+        pub direction: CpuPinningDirection,
         #[cfg(feature = "with-glommio")]
         pub hyperthread: HyperThreadMapping,
         pub core_offset: usize,
@@ -62,7 +62,7 @@ pub mod mod_name {
         fn default() -> Self {
             Self {
                 active: false,
-                mode: direction,
+                direction: cpu_pinning_direction,
                 #[cfg(feature = "with-glommio")]
                 hyperthread: Default::default(),
                 core_offset: 0,
@@ -73,8 +73,8 @@ pub mod mod_name {
         fn active(&self) -> bool {
             self.active
         }
-        fn mode(&self) -> CpuPinningMode {
-            self.mode
+        fn direction(&self) -> CpuPinningDirection {
+            self.direction
         }
         #[cfg(feature = "with-glommio")]
         fn hyperthread(&self) -> HyperThreadMapping {
@@ -111,9 +111,9 @@ impl WorkerIndex {
 
         let ascending_index = ascending_index.min(max_core_index);
 
-        match config.mode() {
-            CpuPinningMode::Ascending => ascending_index,
-            CpuPinningMode::Descending => max_core_index - ascending_index,
+        match config.direction() {
+            CpuPinningDirection::Ascending => ascending_index,
+            CpuPinningDirection::Descending => max_core_index - ascending_index,
         }
     }
 }
@@ -160,14 +160,14 @@ pub mod glommio {
         let core_index =
             worker_index.get_core_index(config, socket_workers, request_workers, num_cpu_cores);
 
-        let too_many_workers = match (&config.hyperthread(), &config.mode()) {
+        let too_many_workers = match (&config.hyperthread(), &config.direction()) {
             (
                 HyperThreadMapping::Split | HyperThreadMapping::Subsequent,
-                CpuPinningMode::Ascending,
+                CpuPinningDirection::Ascending,
             ) => core_index >= num_cpu_cores / 2,
             (
                 HyperThreadMapping::Split | HyperThreadMapping::Subsequent,
-                CpuPinningMode::Descending,
+                CpuPinningDirection::Descending,
             ) => core_index < num_cpu_cores / 2,
             (_, _) => false,
         };
@@ -178,22 +178,22 @@ pub mod glommio {
 
         let cpu_set = match config.hyperthread() {
             HyperThreadMapping::System => get_cpu_set()?.filter(|l| l.core == core_index),
-            HyperThreadMapping::Split => match config.mode() {
-                CpuPinningMode::Ascending => get_cpu_set()?
+            HyperThreadMapping::Split => match config.direction() {
+                CpuPinningDirection::Ascending => get_cpu_set()?
                     .filter(|l| l.cpu == core_index || l.cpu == core_index + num_cpu_cores / 2),
-                CpuPinningMode::Descending => get_cpu_set()?
+                CpuPinningDirection::Descending => get_cpu_set()?
                     .filter(|l| l.cpu == core_index || l.cpu == core_index - num_cpu_cores / 2),
             },
             HyperThreadMapping::Subsequent => {
-                let cpu_index_offset = match config.mode() {
+                let cpu_index_offset = match config.direction() {
                     // 0 -> 0 and 1
                     // 1 -> 2 and 3
                     // 2 -> 4 and 5
-                    CpuPinningMode::Ascending => core_index * 2,
+                    CpuPinningDirection::Ascending => core_index * 2,
                     // 15 -> 14 and 15
                     // 14 -> 12 and 13
                     // 13 -> 10 and 11
-                    CpuPinningMode::Descending => num_cpu_cores - 2 * (num_cpu_cores - core_index),
+                    CpuPinningDirection::Descending => num_cpu_cores - 2 * (num_cpu_cores - core_index),
                 };
 
                 get_cpu_set()?
