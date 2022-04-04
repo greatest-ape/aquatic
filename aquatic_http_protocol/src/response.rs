@@ -125,7 +125,7 @@ impl axum::response::IntoResponse for AnnounceResponse {
         self.write(&mut response_bytes).unwrap();
 
         (
-            [("Content-type", "text/plain; charset=utf-8")],
+            [("Content-type", "text/plain")],
             response_bytes,
         )
             .into_response()
@@ -170,7 +170,7 @@ impl axum::response::IntoResponse for ScrapeResponse {
         self.write(&mut response_bytes).unwrap();
 
         (
-            [("Content-type", "text/plain; charset=utf-8")],
+            [("Content-type", "text/plain")],
             response_bytes,
         )
             .into_response()
@@ -213,7 +213,7 @@ impl axum::response::IntoResponse for FailureResponse {
         self.write(&mut response_bytes).unwrap();
 
         (
-            [("Content-type", "text/plain; charset=utf-8")],
+            [("Content-type", "text/plain")],
             response_bytes,
         )
             .into_response()
