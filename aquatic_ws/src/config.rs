@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use aquatic_common::cpu_pinning::CpuPinningConfig;
+use aquatic_common::cpu_pinning::asc::CpuPinningConfigAsc;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::Deserialize;
 
@@ -25,7 +25,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
-    pub cpu_pinning: CpuPinningConfig,
+    pub cpu_pinning: CpuPinningConfigAsc,
 }
 
 impl Default for Config {

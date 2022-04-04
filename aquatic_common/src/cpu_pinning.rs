@@ -1,7 +1,9 @@
+//! Experimental CPU pinning
+
 use aquatic_toml_config::TomlConfig;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CpuPinningMode {
     Ascending,
@@ -15,7 +17,7 @@ impl Default for CpuPinningMode {
 }
 
 #[cfg(feature = "with-glommio")]
-#[derive(Clone, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HyperThreadMapping {
     System,
@@ -30,33 +32,54 @@ impl Default for HyperThreadMapping {
     }
 }
 
-/// Experimental CPU pinning
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-pub struct CpuPinningConfig {
-    pub active: bool,
-    pub mode: CpuPinningMode,
-    #[cfg(feature = "with-glommio")]
-    pub hyperthread: HyperThreadMapping,
-    pub core_offset: usize,
+pub trait CpuPinningConfig {
+    fn active(&self) -> bool;
+    fn mode(&self) -> CpuPinningMode;
+    fn hyperthread(&self) -> HyperThreadMapping;
+    fn core_offset(&self) -> usize;
 }
 
-impl Default for CpuPinningConfig {
-    fn default() -> Self {
-        Self {
-            active: false,
-            mode: Default::default(),
-            #[cfg(feature = "with-glommio")]
-            hyperthread: Default::default(),
-            core_offset: 0,
+// Do these shenanigans for compatibility with aquatic_toml_config
+#[duplicate::duplicate_item(
+    mod_name struct_name direction;
+    [asc] [CpuPinningConfigAsc] [CpuPinningMode::Ascending];
+    [desc] [CpuPinningConfigDesc] [CpuPinningMode::Descending];
+)]
+pub mod mod_name {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+    pub struct struct_name {
+        pub active: bool,
+        pub mode: CpuPinningMode,
+        #[cfg(feature = "with-glommio")]
+        pub hyperthread: HyperThreadMapping,
+        pub core_offset: usize,
+    }
+
+    impl Default for struct_name {
+        fn default() -> Self {
+            Self {
+                active: false,
+                mode: direction,
+                #[cfg(feature = "with-glommio")]
+                hyperthread: Default::default(),
+                core_offset: 0,
+            }
         }
     }
-}
-
-impl CpuPinningConfig {
-    pub fn default_for_load_test() -> Self {
-        Self {
-            mode: CpuPinningMode::Descending,
-            ..Default::default()
+    impl CpuPinningConfig for struct_name {
+        fn active(&self) -> bool {
+            self.active
+        }
+        fn mode(&self) -> CpuPinningMode {
+            self.mode
+        }
+        fn hyperthread(&self) -> HyperThreadMapping {
+            self.hyperthread
+        }
+        fn core_offset(&self) -> usize {
+            self.core_offset
         }
     }
 }
@@ -69,24 +92,24 @@ pub enum WorkerIndex {
 }
 
 impl WorkerIndex {
-    pub fn get_core_index(
+    pub fn get_core_index<C: CpuPinningConfig>(
         &self,
-        config: &CpuPinningConfig,
+        config: &C,
         socket_workers: usize,
         request_workers: usize,
         num_cores: usize,
     ) -> usize {
         let ascending_index = match self {
-            Self::SocketWorker(index) => config.core_offset + index,
-            Self::RequestWorker(index) => config.core_offset + socket_workers + index,
-            Self::Util => config.core_offset + socket_workers + request_workers,
+            Self::SocketWorker(index) => config.core_offset() + index,
+            Self::RequestWorker(index) => config.core_offset() + socket_workers + index,
+            Self::Util => config.core_offset() + socket_workers + request_workers,
         };
 
         let max_core_index = num_cores - 1;
 
         let ascending_index = ascending_index.min(max_core_index);
 
-        match config.mode {
+        match config.mode() {
             CpuPinningMode::Ascending => ascending_index,
             CpuPinningMode::Descending => max_core_index - ascending_index,
         }
@@ -124,8 +147,8 @@ pub mod glommio {
             .join(", ")
     }
 
-    fn get_worker_cpu_set(
-        config: &CpuPinningConfig,
+    fn get_worker_cpu_set<C: CpuPinningConfig>(
+        config: &C,
         socket_workers: usize,
         request_workers: usize,
         worker_index: WorkerIndex,
@@ -133,9 +156,9 @@ pub mod glommio {
         let num_cpu_cores = get_num_cpu_cores()?;
 
         let core_index =
-            worker_index.get_core_index(&config, socket_workers, request_workers, num_cpu_cores);
+            worker_index.get_core_index(config, socket_workers, request_workers, num_cpu_cores);
 
-        let too_many_workers = match (&config.hyperthread, &config.mode) {
+        let too_many_workers = match (&config.hyperthread(), &config.mode()) {
             (
                 HyperThreadMapping::Split | HyperThreadMapping::Subsequent,
                 CpuPinningMode::Ascending,
@@ -151,16 +174,16 @@ pub mod glommio {
             return Err(anyhow::anyhow!("CPU pinning: total number of workers (including the single utility worker) can not exceed number of virtual CPUs / 2 - core_offset in this hyperthread mapping mode"));
         }
 
-        let cpu_set = match config.hyperthread {
+        let cpu_set = match config.hyperthread() {
             HyperThreadMapping::System => get_cpu_set()?.filter(|l| l.core == core_index),
-            HyperThreadMapping::Split => match config.mode {
+            HyperThreadMapping::Split => match config.mode() {
                 CpuPinningMode::Ascending => get_cpu_set()?
                     .filter(|l| l.cpu == core_index || l.cpu == core_index + num_cpu_cores / 2),
                 CpuPinningMode::Descending => get_cpu_set()?
                     .filter(|l| l.cpu == core_index || l.cpu == core_index - num_cpu_cores / 2),
             },
             HyperThreadMapping::Subsequent => {
-                let cpu_index_offset = match config.mode {
+                let cpu_index_offset = match config.mode() {
                     // 0 -> 0 and 1
                     // 1 -> 2 and 3
                     // 2 -> 4 and 5
@@ -192,15 +215,15 @@ pub mod glommio {
         }
     }
 
-    pub fn get_worker_placement(
-        config: &CpuPinningConfig,
+    pub fn get_worker_placement<C: CpuPinningConfig>(
+        config: &C,
         socket_workers: usize,
         request_workers: usize,
         worker_index: WorkerIndex,
     ) -> anyhow::Result<Placement> {
-        if config.active {
+        if config.active() {
             let cpu_set =
-                get_worker_cpu_set(&config, socket_workers, request_workers, worker_index)?;
+                get_worker_cpu_set(config, socket_workers, request_workers, worker_index)?;
 
             Ok(Placement::Fenced(cpu_set))
         } else {
@@ -208,13 +231,13 @@ pub mod glommio {
         }
     }
 
-    pub fn set_affinity_for_util_worker(
-        config: &CpuPinningConfig,
+    pub fn set_affinity_for_util_worker<C: CpuPinningConfig>(
+        config: &C,
         socket_workers: usize,
         request_workers: usize,
     ) -> anyhow::Result<()> {
         let worker_cpu_set =
-            get_worker_cpu_set(&config, socket_workers, request_workers, WorkerIndex::Util)?;
+            get_worker_cpu_set(config, socket_workers, request_workers, WorkerIndex::Util)?;
 
         unsafe {
             let mut set: libc::cpu_set_t = ::std::mem::zeroed();
@@ -244,15 +267,15 @@ pub mod glommio {
 ///
 /// Requires hwloc (`apt-get install libhwloc-dev`)
 #[cfg(feature = "with-hwloc")]
-pub fn pin_current_if_configured_to(
-    config: &CpuPinningConfig,
+pub fn pin_current_if_configured_to<C: CpuPinningConfig>(
+    config: &C,
     socket_workers: usize,
     request_workers: usize,
     worker_index: WorkerIndex,
 ) {
     use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
 
-    if config.active {
+    if config.active() {
         let mut topology = Topology::new();
 
         let core_cpu_sets: Vec<CpuSet> = topology

@@ -35,7 +35,7 @@ pub struct Config {
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
     #[cfg(feature = "cpu-pinning")]
-    pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
+    pub cpu_pinning: aquatic_common::cpu_pinning::asc::CpuPinningConfigAsc,
 }
 
 impl Default for Config {

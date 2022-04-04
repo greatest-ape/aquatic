@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, path::PathBuf};
 
-use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
+use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig, cpu_pinning::asc::CpuPinningConfigAsc};
 use aquatic_toml_config::TomlConfig;
 use serde::Deserialize;
 
@@ -23,7 +23,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
-    pub cpu_pinning: aquatic_common::cpu_pinning::CpuPinningConfig,
+    pub cpu_pinning: CpuPinningConfigAsc,
 }
 
 impl Default for Config {
