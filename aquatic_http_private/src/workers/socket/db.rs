@@ -1,9 +1,7 @@
 use std::net::IpAddr;
 
 use aquatic_common::CanonicalSocketAddr;
-use aquatic_http_protocol::{
-    common::{AnnounceEvent, PeerId}, request::AnnounceRequest, response::FailureResponse,
-};
+use aquatic_http_protocol::{request::AnnounceRequest, response::FailureResponse};
 use sqlx::{Executor, MySql, Pool};
 
 #[derive(Debug)]
@@ -12,42 +10,6 @@ pub struct ValidatedAnnounceRequest(AnnounceRequest);
 impl Into<AnnounceRequest> for ValidatedAnnounceRequest {
     fn into(self) -> AnnounceRequest {
         self.0
-    }
-}
-
-#[derive(Debug)]
-struct AnnounceProcedureParameters {
-    source_ip: IpAddr,
-    source_port: u16,
-    user_agent: Option<String>,
-    user_token: String,
-    info_hash: String,
-    peer_id: PeerId,
-    event: AnnounceEvent,
-    uploaded: u64,
-    downloaded: u64,
-    left: u64,
-}
-
-impl AnnounceProcedureParameters {
-    fn new(
-        source_addr: CanonicalSocketAddr,
-        user_agent: Option<String>,
-        user_token: String, // FIXME: length
-        request: &AnnounceRequest,
-    ) -> Self {
-        Self {
-            source_ip: source_addr.get().ip(),
-            source_port: source_addr.get().port(),
-            user_agent,
-            user_token,
-            info_hash: hex::encode(request.info_hash.0),
-            peer_id: request.peer_id,
-            event: request.event,
-            uploaded: request.bytes_uploaded as u64,
-            downloaded: request.bytes_downloaded as u64,
-            left: request.bytes_left as u64,
-        }
     }
 }
 
@@ -65,10 +27,7 @@ pub async fn validate_announce_request(
     user_token: String,
     request: AnnounceRequest,
 ) -> Result<(ValidatedAnnounceRequest, Option<String>), FailureResponse> {
-    let parameters =
-        AnnounceProcedureParameters::new(source_addr, user_agent, user_token, &request);
-
-    match call_announce_procedure(pool, parameters).await {
+    match call_announce_procedure(pool, source_addr, user_agent, user_token, &request).await {
         Ok(results) => {
             if results.announce_allowed {
                 Ok((ValidatedAnnounceRequest(request), results.warning_message))
@@ -90,9 +49,13 @@ pub async fn validate_announce_request(
 
 async fn call_announce_procedure(
     pool: &Pool<MySql>,
-    parameters: AnnounceProcedureParameters,
+    source_addr: CanonicalSocketAddr,
+    user_agent: Option<String>,
+    user_token: String, // FIXME: length
+    request: &AnnounceRequest,
 ) -> anyhow::Result<AnnounceProcedureResults> {
-    let source_ip_bytes: Vec<u8> = match parameters.source_ip {
+    let source_addr = source_addr.get();
+    let source_ip_bytes: Vec<u8> = match source_addr.ip() {
         IpAddr::V4(ip) => ip.octets().into(),
         IpAddr::V6(ip) => ip.octets().into(),
     };
@@ -123,15 +86,15 @@ async fn call_announce_procedure(
         ",
     )
     .bind(source_ip_bytes)
-    .bind(parameters.source_port)
-    .bind(parameters.user_agent)
-    .bind(parameters.user_token)
-    .bind(parameters.info_hash)
-    .bind(&parameters.peer_id.0[..])
-    .bind(parameters.event.as_str())
-    .bind(parameters.uploaded)
-    .bind(parameters.downloaded)
-    .bind(parameters.left);
+    .bind(source_addr.port())
+    .bind(user_agent)
+    .bind(user_token)
+    .bind(hex::encode(request.info_hash.0))
+    .bind(&request.peer_id.0[..])
+    .bind(request.event.as_str())
+    .bind(request.bytes_uploaded as u64)
+    .bind(request.bytes_downloaded as u64)
+    .bind(request.bytes_left as u64);
 
     t.execute(q).await?;
 
