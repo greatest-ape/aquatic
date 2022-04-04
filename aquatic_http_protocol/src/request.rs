@@ -176,7 +176,7 @@ pub struct ScrapeRequest {
 
 impl ScrapeRequest {
     fn write<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
-        output.write_all(b"GET /scrape?")?;
+        output.write_all(b"GET /scrape")?;
         output.write_all(url_suffix)?;
         output.write_all(b"?")?;
 
