@@ -34,7 +34,13 @@ impl AnnounceRequest {
         output.write_all(b"&port=")?;
         output.write_all(itoa::Buffer::new().format(self.port).as_bytes())?;
 
-        output.write_all(b"&uploaded=0&downloaded=0&left=")?;
+        output.write_all(b"&uploaded=")?;
+        output.write_all(itoa::Buffer::new().format(self.bytes_uploaded).as_bytes())?;
+
+        output.write_all(b"&downloaded=")?;
+        output.write_all(itoa::Buffer::new().format(self.bytes_downloaded).as_bytes())?;
+
+        output.write_all(b"&left=")?;
         output.write_all(itoa::Buffer::new().format(self.bytes_left).as_bytes())?;
 
         match self.event {
