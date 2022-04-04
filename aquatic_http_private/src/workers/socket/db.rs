@@ -2,7 +2,7 @@ use std::net::IpAddr;
 
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_http_protocol::{
-    common::AnnounceEvent, request::AnnounceRequest, response::FailureResponse,
+    common::{AnnounceEvent, PeerId}, request::AnnounceRequest, response::FailureResponse,
 };
 use sqlx::{Executor, MySql, Pool};
 
@@ -22,7 +22,7 @@ struct AnnounceProcedureParameters {
     user_agent: Option<String>,
     user_token: String,
     info_hash: String,
-    peer_id: String,
+    peer_id: PeerId,
     event: AnnounceEvent,
     uploaded: u64,
     downloaded: u64,
@@ -42,7 +42,7 @@ impl AnnounceProcedureParameters {
             user_agent,
             user_token,
             info_hash: hex::encode(request.info_hash.0),
-            peer_id: hex::encode(request.peer_id.0),
+            peer_id: request.peer_id,
             event: request.event,
             uploaded: request.bytes_uploaded as u64,
             downloaded: request.bytes_downloaded as u64,
@@ -127,7 +127,7 @@ async fn call_announce_procedure(
     .bind(parameters.user_agent)
     .bind(parameters.user_token)
     .bind(parameters.info_hash)
-    .bind(parameters.peer_id)
+    .bind(&parameters.peer_id.0[..])
     .bind(parameters.event.as_str())
     .bind(parameters.uploaded)
     .bind(parameters.downloaded)

@@ -38,8 +38,8 @@ CREATE OR REPLACE PROCEDURE aquatic_announce_v1 (
     IN p_user_token VARCHAR(255),
     -- Hex-encoded info hash
     IN p_info_hash CHAR(40),
-    -- Peer ID
-    IN p_peer_id CHAR(40),
+    -- Peer ID. VARBINARY since it can be any bytes according to spec.
+    IN p_peer_id VARBINARY(20),
     -- Event (started/stopped/completed) (can be NULL)
     IN p_event VARCHAR(9),
     -- Bytes uploaded. Passed directly from request.
