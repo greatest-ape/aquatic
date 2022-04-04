@@ -54,12 +54,6 @@ async fn call_announce_procedure(
     user_token: String, // FIXME: length
     request: &AnnounceRequest,
 ) -> anyhow::Result<AnnounceProcedureResults> {
-    let source_addr = source_addr.get();
-    let source_ip_bytes: Vec<u8> = match source_addr.ip() {
-        IpAddr::V4(ip) => ip.octets().into(),
-        IpAddr::V6(ip) => ip.octets().into(),
-    };
-
     let mut t = pool.begin().await?;
 
     t.execute(
@@ -91,8 +85,11 @@ async fn call_announce_procedure(
         );
         ",
     )
-    .bind(source_ip_bytes)
-    .bind(source_addr.port())
+    .bind(match source_addr.get().ip() {
+        IpAddr::V4(ip) => Vec::from(ip.octets()),
+        IpAddr::V6(ip) => Vec::from(ip.octets()),
+    })
+    .bind(source_addr.get().port())
     .bind(user_agent)
     .bind(user_token)
     .bind(hex::encode(request.info_hash.0))
