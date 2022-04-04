@@ -62,9 +62,15 @@ async fn call_announce_procedure(
 
     let mut t = pool.begin().await?;
 
-    t.execute("SET @p_announce_allowed = false;").await?;
-    t.execute("SET @p_failure_reason = NULL;").await?;
-    t.execute("SET @p_warning_message = NULL;").await?;
+    t.execute(
+        "
+        SET
+            @p_announce_allowed = false,
+            @p_failure_reason = NULL,
+            @p_warning_message = NULL;
+        ",
+    )
+    .await?;
 
     let q = sqlx::query(
         "
