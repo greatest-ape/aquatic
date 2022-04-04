@@ -16,7 +16,7 @@ cpu-pinning = ["hwloc", "libc"]
 rustls-config = ["rustls", "rustls-pemfile"]
 
 [dependencies]
-aquatic_toml_config = "0.2.0"
+aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 
 ahash = "0.7"
 anyhow = "1"
