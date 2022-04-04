@@ -51,7 +51,7 @@ pub struct AnnounceResponse {
     pub peers: ResponsePeerListV4,
     #[serde(default)]
     pub peers6: ResponsePeerListV6,
-    #[serde(rename = "warning message")]
+    #[serde(rename = "warning message", skip_serializing_if = "Option::is_none")]
     pub warning_message: Option<String>,
 }
 
