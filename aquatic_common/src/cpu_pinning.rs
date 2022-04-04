@@ -49,6 +49,7 @@ pub trait CpuPinningConfig {
 pub mod mod_name {
     use super::*;
 
+    /// Experimental cpu pinning
     #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
     pub struct struct_name {
         pub active: bool,
