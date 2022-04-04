@@ -2,10 +2,13 @@
 
 ## High priority
 
+* test priv dropping
+
 * aquatic_http_private
   * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
   * stored procedure
     * test ip format
+    * check user token length
   * site will likely want num_seeders and num_leechers for all torrents..
 
 ## Medium priority
