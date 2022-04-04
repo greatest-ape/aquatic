@@ -8,9 +8,6 @@
     * test ip format
   * site will likely want num_seeders and num_leechers for all torrents..
 
-* aquatic_http_protocol
-  * don't require compact=1?
-
 ## Medium priority
 
 * Use thin LTO?

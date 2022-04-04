@@ -15,7 +15,6 @@ pub struct AnnounceRequest {
     pub bytes_downloaded: usize,
     pub bytes_left: usize,
     pub event: AnnounceEvent,
-    pub compact: bool,
     /// Number of response peers wanted
     pub numwant: Option<usize>,
     pub key: Option<SmartString<LazyCompact>>,
@@ -49,9 +48,6 @@ impl AnnounceRequest {
             AnnounceEvent::Completed => output.write_all(b"&event=completed")?,
             AnnounceEvent::Empty => (),
         };
-
-        output.write_all(b"&compact=")?;
-        output.write_all(itoa::Buffer::new().format(self.compact as u8).as_bytes())?;
 
         if let Some(numwant) = self.numwant {
             output.write_all(b"&numwant=")?;
@@ -162,7 +158,6 @@ impl AnnounceRequest {
             bytes_downloaded: opt_bytes_downloaded.with_context(|| "no downloaded")?,
             bytes_left: opt_bytes_left.with_context(|| "no left")?,
             event,
-            compact: true,
             numwant: opt_numwant,
             key: opt_key,
         })
@@ -352,7 +347,6 @@ mod tests {
             bytes_downloaded: 2,
             bytes_left: 3,
             event: AnnounceEvent::Started,
-            compact: true,
             numwant: Some(0),
             key: Some("4ab4b877".into()),
         })
@@ -400,7 +394,6 @@ mod tests {
                 bytes_downloaded: Arbitrary::arbitrary(g),
                 bytes_left: Arbitrary::arbitrary(g),
                 event: Arbitrary::arbitrary(g),
-                compact: true,
                 numwant: Arbitrary::arbitrary(g),
                 key: key.map(|key| key.into()),
             }
