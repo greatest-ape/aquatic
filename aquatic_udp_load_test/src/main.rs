@@ -84,6 +84,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
             pin_current_if_configured_to(
                 &config.cpu_pinning,
                 config.workers as usize,
+                0,
                 WorkerIndex::SocketWorker(i as usize),
             );
 
@@ -95,7 +96,8 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.workers as usize,
-        WorkerIndex::Other,
+        0,
+        WorkerIndex::Util,
     );
 
     monitor_statistics(state, &config);

@@ -15,12 +15,9 @@ name = "aquatic_http"
 [[bin]]
 name = "aquatic_http"
 
-[features]
-cpu-pinning = ["aquatic_common/cpu-pinning"]
-
 [dependencies]
 aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }
-aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls-config"] }
+aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls-config", "with-glommio"] }
 aquatic_http_protocol = { version = "0.2.0", path = "../aquatic_http_protocol" }
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 
@@ -31,6 +28,7 @@ futures-lite = "1"
 futures-rustls = "0.22"
 glommio = "0.7"
 itoa = "1"
+libc = "0.2"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 memchr = "2"

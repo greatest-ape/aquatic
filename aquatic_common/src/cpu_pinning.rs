@@ -1,42 +1,88 @@
+//! Experimental CPU pinning
+
 use aquatic_toml_config::TomlConfig;
-use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum CpuPinningMode {
+pub enum CpuPinningDirection {
     Ascending,
     Descending,
 }
 
-impl Default for CpuPinningMode {
+impl Default for CpuPinningDirection {
     fn default() -> Self {
         Self::Ascending
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-pub struct CpuPinningConfig {
-    pub active: bool,
-    pub mode: CpuPinningMode,
-    pub core_offset: usize,
+#[cfg(feature = "with-glommio")]
+#[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HyperThreadMapping {
+    System,
+    Subsequent,
+    Split,
 }
 
-impl Default for CpuPinningConfig {
+#[cfg(feature = "with-glommio")]
+impl Default for HyperThreadMapping {
     fn default() -> Self {
-        Self {
-            active: false,
-            mode: Default::default(),
-            core_offset: 0,
-        }
+        Self::System
     }
 }
 
-impl CpuPinningConfig {
-    pub fn default_for_load_test() -> Self {
-        Self {
-            mode: CpuPinningMode::Descending,
-            ..Default::default()
+pub trait CpuPinningConfig {
+    fn active(&self) -> bool;
+    fn direction(&self) -> CpuPinningDirection;
+    #[cfg(feature = "with-glommio")]
+    fn hyperthread(&self) -> HyperThreadMapping;
+    fn core_offset(&self) -> usize;
+}
+
+// Do these shenanigans for compatibility with aquatic_toml_config
+#[duplicate::duplicate_item(
+    mod_name struct_name cpu_pinning_direction;
+    [asc] [CpuPinningConfigAsc] [CpuPinningDirection::Ascending];
+    [desc] [CpuPinningConfigDesc] [CpuPinningDirection::Descending];
+)]
+pub mod mod_name {
+    use super::*;
+
+    /// Experimental cpu pinning
+    #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+    pub struct struct_name {
+        pub active: bool,
+        pub direction: CpuPinningDirection,
+        #[cfg(feature = "with-glommio")]
+        pub hyperthread: HyperThreadMapping,
+        pub core_offset: usize,
+    }
+
+    impl Default for struct_name {
+        fn default() -> Self {
+            Self {
+                active: false,
+                direction: cpu_pinning_direction,
+                #[cfg(feature = "with-glommio")]
+                hyperthread: Default::default(),
+                core_offset: 0,
+            }
+        }
+    }
+    impl CpuPinningConfig for struct_name {
+        fn active(&self) -> bool {
+            self.active
+        }
+        fn direction(&self) -> CpuPinningDirection {
+            self.direction
+        }
+        #[cfg(feature = "with-glommio")]
+        fn hyperthread(&self) -> HyperThreadMapping {
+            self.hyperthread
+        }
+        fn core_offset(&self) -> usize {
+            self.core_offset
         }
     }
 }
@@ -45,38 +91,194 @@ impl CpuPinningConfig {
 pub enum WorkerIndex {
     SocketWorker(usize),
     RequestWorker(usize),
-    Other,
+    Util,
 }
 
 impl WorkerIndex {
-    fn get_core_index(
-        self,
-        config: &CpuPinningConfig,
+    pub fn get_core_index<C: CpuPinningConfig>(
+        &self,
+        config: &C,
         socket_workers: usize,
-        core_count: usize,
+        request_workers: usize,
+        num_cores: usize,
     ) -> usize {
         let ascending_index = match self {
-            Self::Other => config.core_offset,
-            Self::SocketWorker(index) => config.core_offset + 1 + index,
-            Self::RequestWorker(index) => config.core_offset + 1 + socket_workers + index,
+            Self::SocketWorker(index) => config.core_offset() + index,
+            Self::RequestWorker(index) => config.core_offset() + socket_workers + index,
+            Self::Util => config.core_offset() + socket_workers + request_workers,
         };
 
-        match config.mode {
-            CpuPinningMode::Ascending => ascending_index,
-            CpuPinningMode::Descending => core_count - 1 - ascending_index,
+        let max_core_index = num_cores - 1;
+
+        let ascending_index = ascending_index.min(max_core_index);
+
+        match config.direction() {
+            CpuPinningDirection::Ascending => ascending_index,
+            CpuPinningDirection::Descending => max_core_index - ascending_index,
         }
+    }
+}
+
+#[cfg(feature = "with-glommio")]
+pub mod glommio {
+    use ::glommio::{CpuSet, Placement};
+
+    use super::*;
+
+    fn get_cpu_set() -> anyhow::Result<CpuSet> {
+        CpuSet::online().map_err(|err| anyhow::anyhow!("Couldn't get CPU set: {:#}", err))
+    }
+
+    fn get_num_cpu_cores() -> anyhow::Result<usize> {
+        get_cpu_set()?
+            .iter()
+            .map(|l| l.core)
+            .max()
+            .map(|index| index + 1)
+            .ok_or(anyhow::anyhow!("CpuSet is empty"))
+    }
+
+    fn logical_cpus_string(cpu_set: &CpuSet) -> String {
+        let mut logical_cpus = cpu_set.iter().map(|l| l.cpu).collect::<Vec<usize>>();
+
+        logical_cpus.sort_unstable();
+
+        logical_cpus
+            .into_iter()
+            .map(|cpu| cpu.to_string())
+            .collect::<Vec<String>>()
+            .join(", ")
+    }
+
+    fn get_worker_cpu_set<C: CpuPinningConfig>(
+        config: &C,
+        socket_workers: usize,
+        request_workers: usize,
+        worker_index: WorkerIndex,
+    ) -> anyhow::Result<CpuSet> {
+        let num_cpu_cores = get_num_cpu_cores()?;
+
+        let core_index =
+            worker_index.get_core_index(config, socket_workers, request_workers, num_cpu_cores);
+
+        let too_many_workers = match (&config.hyperthread(), &config.direction()) {
+            (
+                HyperThreadMapping::Split | HyperThreadMapping::Subsequent,
+                CpuPinningDirection::Ascending,
+            ) => core_index >= num_cpu_cores / 2,
+            (
+                HyperThreadMapping::Split | HyperThreadMapping::Subsequent,
+                CpuPinningDirection::Descending,
+            ) => core_index < num_cpu_cores / 2,
+            (_, _) => false,
+        };
+
+        if too_many_workers {
+            return Err(anyhow::anyhow!("CPU pinning: total number of workers (including the single utility worker) can not exceed number of virtual CPUs / 2 - core_offset in this hyperthread mapping mode"));
+        }
+
+        let cpu_set = match config.hyperthread() {
+            HyperThreadMapping::System => get_cpu_set()?.filter(|l| l.core == core_index),
+            HyperThreadMapping::Split => match config.direction() {
+                CpuPinningDirection::Ascending => get_cpu_set()?
+                    .filter(|l| l.cpu == core_index || l.cpu == core_index + num_cpu_cores / 2),
+                CpuPinningDirection::Descending => get_cpu_set()?
+                    .filter(|l| l.cpu == core_index || l.cpu == core_index - num_cpu_cores / 2),
+            },
+            HyperThreadMapping::Subsequent => {
+                let cpu_index_offset = match config.direction() {
+                    // 0 -> 0 and 1
+                    // 1 -> 2 and 3
+                    // 2 -> 4 and 5
+                    CpuPinningDirection::Ascending => core_index * 2,
+                    // 15 -> 14 and 15
+                    // 14 -> 12 and 13
+                    // 13 -> 10 and 11
+                    CpuPinningDirection::Descending => num_cpu_cores - 2 * (num_cpu_cores - core_index),
+                };
+
+                get_cpu_set()?
+                    .filter(|l| l.cpu == cpu_index_offset || l.cpu == cpu_index_offset + 1)
+            }
+        };
+
+        if cpu_set.is_empty() {
+            Err(anyhow::anyhow!(
+                "CPU pinning: produced empty CPU set for {:?}. Try decreasing number of workers",
+                worker_index
+            ))
+        } else {
+            ::log::info!(
+                "Logical CPUs for {:?}: {}",
+                worker_index,
+                logical_cpus_string(&cpu_set)
+            );
+
+            Ok(cpu_set)
+        }
+    }
+
+    pub fn get_worker_placement<C: CpuPinningConfig>(
+        config: &C,
+        socket_workers: usize,
+        request_workers: usize,
+        worker_index: WorkerIndex,
+    ) -> anyhow::Result<Placement> {
+        if config.active() {
+            let cpu_set =
+                get_worker_cpu_set(config, socket_workers, request_workers, worker_index)?;
+
+            Ok(Placement::Fenced(cpu_set))
+        } else {
+            Ok(Placement::Unbound)
+        }
+    }
+
+    pub fn set_affinity_for_util_worker<C: CpuPinningConfig>(
+        config: &C,
+        socket_workers: usize,
+        request_workers: usize,
+    ) -> anyhow::Result<()> {
+        let worker_cpu_set =
+            get_worker_cpu_set(config, socket_workers, request_workers, WorkerIndex::Util)?;
+
+        unsafe {
+            let mut set: libc::cpu_set_t = ::std::mem::zeroed();
+
+            for cpu_location in worker_cpu_set {
+                libc::CPU_SET(cpu_location.cpu, &mut set);
+            }
+
+            let status = libc::pthread_setaffinity_np(
+                libc::pthread_self(),
+                ::std::mem::size_of::<libc::cpu_set_t>(),
+                &set,
+            );
+
+            if status != 0 {
+                return Err(anyhow::Error::new(::std::io::Error::from_raw_os_error(
+                    status,
+                )));
+            }
+        }
+
+        Ok(())
     }
 }
 
 /// Pin current thread to a suitable core
 ///
 /// Requires hwloc (`apt-get install libhwloc-dev`)
-pub fn pin_current_if_configured_to(
-    config: &CpuPinningConfig,
+#[cfg(feature = "with-hwloc")]
+pub fn pin_current_if_configured_to<C: CpuPinningConfig>(
+    config: &C,
     socket_workers: usize,
+    request_workers: usize,
     worker_index: WorkerIndex,
 ) {
-    if config.active {
+    use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
+
+    if config.active() {
         let mut topology = Topology::new();
 
         let core_cpu_sets: Vec<CpuSet> = topology
@@ -86,7 +288,10 @@ pub fn pin_current_if_configured_to(
             .map(|core| core.allowed_cpuset().expect("hwloc: get core cpu set"))
             .collect();
 
-        let core_index = worker_index.get_core_index(config, socket_workers, core_cpu_sets.len());
+        let num_cores = core_cpu_sets.len();
+
+        let core_index =
+            worker_index.get_core_index(config, socket_workers, request_workers, num_cores);
 
         let cpu_set = core_cpu_sets
             .get(core_index)

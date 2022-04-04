@@ -16,7 +16,7 @@ name = "aquatic_udp"
 name = "aquatic_udp"
 
 [features]
-cpu-pinning = ["aquatic_common/cpu-pinning"]
+cpu-pinning = ["aquatic_common/with-hwloc"]
 
 [dependencies]
 aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }

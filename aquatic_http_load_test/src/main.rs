@@ -3,8 +3,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use ::glommio::LocalExecutorBuilder;
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
+use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
+use aquatic_common::cpu_pinning::WorkerIndex;
 use rand::prelude::*;
 use rand_distr::Pareto;
 
@@ -55,8 +55,6 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         pareto: Arc::new(pareto),
     };
 
-    // Start socket workers
-
     let tls_config = create_tls_config().unwrap();
 
     for i in 0..config.num_workers {
@@ -64,26 +62,23 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let tls_config = tls_config.clone();
         let state = state.clone();
 
-        LocalExecutorBuilder::default()
-            .spawn(move || async move {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.num_workers,
-                    WorkerIndex::SocketWorker(i),
-                );
+        let placement = get_worker_placement(
+            &config.cpu_pinning,
+            config.num_workers,
+            0,
+            WorkerIndex::SocketWorker(i),
+        )?;
 
+        LocalExecutorBuilder::new(placement)
+            .spawn(move || async move {
                 run_socket_thread(config, tls_config, state).await.unwrap();
             })
             .unwrap();
     }
 
-    #[cfg(feature = "cpu-pinning")]
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.num_workers as usize,
-        WorkerIndex::Other,
-    );
+    if config.cpu_pinning.active {
+        set_affinity_for_util_worker(&config.cpu_pinning, config.num_workers, 0)?;
+    }
 
     monitor_statistics(state, &config);
 

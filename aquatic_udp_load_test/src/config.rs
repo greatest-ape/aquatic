@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use aquatic_cli_helpers::LogLevel;
 #[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::CpuPinningConfig;
+use aquatic_common::cpu_pinning::desc::CpuPinningConfigDesc;
 use aquatic_toml_config::TomlConfig;
 
 /// aquatic_udp_load_test configuration
@@ -24,7 +24,7 @@ pub struct Config {
     pub network: NetworkConfig,
     pub requests: RequestConfig,
     #[cfg(feature = "cpu-pinning")]
-    pub cpu_pinning: CpuPinningConfig,
+    pub cpu_pinning: CpuPinningConfigDesc,
 }
 
 impl Default for Config {
@@ -37,7 +37,7 @@ impl Default for Config {
             network: NetworkConfig::default(),
             requests: RequestConfig::default(),
             #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: CpuPinningConfig::default_for_load_test(),
+            cpu_pinning: Default::default(),
         }
     }
 }

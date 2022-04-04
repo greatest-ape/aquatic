@@ -75,6 +75,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
+                    config.request_workers,
                     WorkerIndex::RequestWorker(i),
                 );
 
@@ -104,6 +105,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
+                    config.request_workers,
                     WorkerIndex::SocketWorker(i),
                 );
 
@@ -130,7 +132,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
-                    WorkerIndex::Other,
+                    config.request_workers,
+                    WorkerIndex::Util,
                 );
 
                 workers::statistics::run_statistics_worker(config, state);
@@ -149,7 +152,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,
-        WorkerIndex::Other,
+        config.request_workers,
+        WorkerIndex::Util,
     );
 
     for signal in &mut signals {
