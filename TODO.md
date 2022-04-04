@@ -10,6 +10,7 @@
 
 ## Medium priority
 
+* rename request workers to swarm workers
 * quit whole program if any thread panics
 * config: fail on unrecognized keys?
 * Run cargo-deny in CI
