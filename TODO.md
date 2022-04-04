@@ -3,10 +3,8 @@
 ## High priority
 
 * aquatic_http_private
-  * Test that responses are actually valid UTF-8
+  * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
   * stored procedure
-    * handle/document lack of NOT NULL
-    * event can be null
     * test ip format
   * site will likely want num_seeders and num_leechers for all torrents..
 
