@@ -19,6 +19,8 @@ pub struct Config {
     /// opened as quickly as possible, which is useful when the tracker
     /// does not keep connections alive.
     pub connection_creation_interval_ms: u64,
+    /// Announce/scrape url suffix. Use `/my_token/` to get `/announce/my_token/`
+    pub url_suffix: String,
     pub duration: usize,
     pub torrents: TorrentConfig,
     pub cpu_pinning: CpuPinningConfigDesc,
@@ -56,6 +58,7 @@ impl Default for Config {
             num_workers: 1,
             num_connections: 128,
             connection_creation_interval_ms: 10,
+            url_suffix: "".into(),
             duration: 0,
             torrents: TorrentConfig::default(),
             cpu_pinning: Default::default(),

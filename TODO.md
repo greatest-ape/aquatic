@@ -2,15 +2,21 @@
 
 ## High priority
 
+* aquatic_http_private
+  * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
+  * stored procedure
+    * test ip format
+  * site will likely want num_seeders and num_leechers for all torrents..
+
 ## Medium priority
 
-* Use thin LTO?
-* Add release-debug profile?
+* rename request workers to swarm workers
 * quit whole program if any thread panics
 * config: fail on unrecognized keys?
 * Run cargo-deny in CI
 
 * aquatic_ws
+  * remove peer from all torrent maps when connection is closed
   * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
   * SinkExt::send maybe doesn't wake up properly?
@@ -25,8 +31,6 @@
   * add flag to print parsed config when starting
 
 * aquatic_udp
-  * look at proper cpu pinning (check that one thread gets bound per core)
-    * then consider so_attach_reuseport_cbpf
   * what poll event capacity is actually needed?
   * stagger connection cleaning intervals?
   * load test
@@ -34,11 +38,9 @@
         with probability 0.2
 
 * aquatic_ws
-  * glommio
-    * proper cpu set pinning
-  * general
-    * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
+  * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
 
+* so_attach_reuseport_cbpf
 * extract response peers: extract "one extra" to compensate for removal,
   of sender if present in selection?
 

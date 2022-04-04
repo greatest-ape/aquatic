@@ -5,3 +5,4 @@
 **/criterion/*/new
 
 .DS_Store
+.env

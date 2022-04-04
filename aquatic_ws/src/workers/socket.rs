@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
+use aquatic_common::rustls_config::RustlsConfig;
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
@@ -49,7 +50,7 @@ struct ConnectionReference {
 pub async fn run_socket_worker(
     config: Config,
     state: State,
-    tls_config: Arc<TlsConfig>,
+    tls_config: Arc<RustlsConfig>,
     in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
     num_bound_sockets: Arc<AtomicUsize>,
@@ -214,7 +215,7 @@ async fn run_connection(
     out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
-    tls_config: Arc<TlsConfig>,
+    tls_config: Arc<RustlsConfig>,
     stream: TcpStream,
 ) -> anyhow::Result<()> {
     let peer_addr = stream

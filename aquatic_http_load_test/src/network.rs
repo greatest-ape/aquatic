@@ -135,7 +135,7 @@ impl Connection {
                 let request =
                     create_random_request(&self.config, &self.load_test_state, &mut self.rng);
 
-                request.write(&mut self.tls.writer())?;
+                request.write(&mut self.tls.writer(), self.config.url_suffix.as_bytes())?;
                 self.queued_responses += 1;
 
                 self.send_new_request = false;
@@ -213,9 +213,7 @@ impl Connection {
                 }
 
                 if let Some(body_start_index) = opt_body_start_index {
-                    let interesting_bytes = &interesting_bytes[body_start_index..];
-
-                    match Response::from_bytes(interesting_bytes) {
+                    match Response::from_bytes(&interesting_bytes[body_start_index..]) {
                         Ok(response) => {
                             match response {
                                 Response::Announce(_) => {

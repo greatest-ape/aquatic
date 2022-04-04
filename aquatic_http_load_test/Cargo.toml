@@ -13,10 +13,10 @@ readme = "../README.md"
 name = "aquatic_http_load_test"
 
 [dependencies]
-aquatic_cli_helpers = "0.2.0"
-aquatic_common = { version = "0.2.0", features = ["with-glommio"] }
-aquatic_http_protocol = "0.2.0"
-aquatic_toml_config = "0.2.0"
+aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }
+aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["with-glommio"] }
+aquatic_http_protocol = { version = "0.2.0", path = "../aquatic_http_protocol" }
+aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 
 anyhow = "1"
 futures-lite = "1"

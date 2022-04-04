@@ -7,6 +7,8 @@ use rand::Rng;
 pub mod access_list;
 pub mod cpu_pinning;
 pub mod privileges;
+#[cfg(feature = "rustls-config")]
+pub mod rustls_config;
 
 /// Amortized IndexMap using AHash hasher
 pub type AmortizedIndexMap<K, V> = indexmap_amortized::IndexMap<K, V, RandomState>;

@@ -24,7 +24,7 @@ pub struct InfoHash(
     pub [u8; 20],
 );
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnnounceEvent {
     Started,
     Stopped,
@@ -48,6 +48,17 @@ impl FromStr for AnnounceEvent {
             "completed" => Ok(Self::Completed),
             "empty" => Ok(Self::Empty),
             value => Err(format!("Unknown value: {}", value)),
+        }
+    }
+}
+
+impl AnnounceEvent {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::Started => Some("started"),
+            Self::Stopped => Some("stopped"),
+            Self::Completed => Some("completed"),
+            Self::Empty => None,
         }
     }
 }
