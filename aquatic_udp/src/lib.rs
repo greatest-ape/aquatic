@@ -5,13 +5,12 @@ pub mod workers;
 use config::Config;
 
 use std::collections::BTreeMap;
-use std::sync::{atomic::AtomicUsize, Arc};
 use std::thread::Builder;
 
 use anyhow::Context;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use aquatic_common::privileges::drop_privileges_after_socket_binding;
+use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::{bounded, unbounded};
 
 use aquatic_common::access_list::update_access_list;
@@ -32,7 +31,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
 
-    let num_bound_sockets = Arc::new(AtomicUsize::new(0));
+    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
     let mut request_senders = Vec::new();
     let mut request_receivers = BTreeMap::new();
@@ -96,7 +95,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let request_sender =
             ConnectedRequestSender::new(SocketWorkerIndex(i), request_senders.clone());
         let response_receiver = response_receivers.remove(&i).unwrap();
-        let num_bound_sockets = num_bound_sockets.clone();
+        let priv_dropper = priv_dropper.clone();
 
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
@@ -115,7 +114,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     i,
                     request_sender,
                     response_receiver,
-                    num_bound_sockets,
+                    priv_dropper,
                 );
             })
             .with_context(|| "spawn socket worker")?;
@@ -140,13 +139,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             })
             .with_context(|| "spawn statistics worker")?;
     }
-
-    drop_privileges_after_socket_binding(
-        &config.privileges,
-        num_bound_sockets,
-        config.socket_workers,
-    )
-    .unwrap();
 
     #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(

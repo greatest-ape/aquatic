@@ -3,11 +3,11 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
+use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_ws_protocol::*;
@@ -53,14 +53,12 @@ pub async fn run_socket_worker(
     tls_config: Arc<RustlsConfig>,
     in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
-    num_bound_sockets: Arc<AtomicUsize>,
+    priv_dropper: PrivilegeDropper,
 ) {
     let config = Rc::new(config);
     let access_list = state.access_list;
 
-    let listener = create_tcp_listener(&config);
-
-    num_bound_sockets.fetch_add(1, Ordering::SeqCst);
+    let listener = create_tcp_listener(&config, priv_dropper);
 
     let (in_message_senders, _) = in_message_mesh_builder.join(Role::Producer).await.unwrap();
     let in_message_senders = Rc::new(in_message_senders);
@@ -544,7 +542,7 @@ fn calculate_in_message_consumer_index(config: &Config, info_hash: InfoHash) -> 
     (info_hash.0[0] as usize) % config.request_workers
 }
 
-fn create_tcp_listener(config: &Config) -> TcpListener {
+fn create_tcp_listener(config: &Config, priv_dropper: PrivilegeDropper) -> TcpListener {
     let domain = if config.network.address.is_ipv4() {
         socket2::Domain::IPV4
     } else {
@@ -567,6 +565,8 @@ fn create_tcp_listener(config: &Config) -> TcpListener {
     socket
         .listen(config.network.tcp_backlog)
         .unwrap_or_else(|err| panic!("socket: listen {}: {:?}", config.network.address, err));
+
+    priv_dropper.after_socket_creation();
 
     unsafe { TcpListener::from_raw_fd(socket.into_raw_fd()) }
 }

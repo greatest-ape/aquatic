@@ -1,12 +1,10 @@
 use std::collections::BTreeMap;
 use std::io::{Cursor, ErrorKind};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
+use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
@@ -157,12 +155,12 @@ pub fn run_socket_worker(
     token_num: usize,
     request_sender: ConnectedRequestSender,
     response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
-    num_bound_sockets: Arc<AtomicUsize>,
+    priv_dropper: PrivilegeDropper,
 ) {
     let mut rng = StdRng::from_entropy();
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
-    let mut socket = UdpSocket::from_std(create_socket(&config));
+    let mut socket = UdpSocket::from_std(create_socket(&config, priv_dropper));
     let mut poll = Poll::new().expect("create poll");
 
     let interests = Interest::READABLE;
@@ -170,8 +168,6 @@ pub fn run_socket_worker(
     poll.registry()
         .register(&mut socket, Token(token_num), interests)
         .unwrap();
-
-    num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut connections = ConnectionMap::default();
@@ -520,7 +516,7 @@ fn send_response(
     }
 }
 
-pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
+pub fn create_socket(config: &Config, priv_dropper: PrivilegeDropper) -> ::std::net::UdpSocket {
     let socket = if config.network.address.is_ipv4() {
         Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
     } else {
@@ -541,6 +537,8 @@ pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
     socket
         .bind(&config.network.address.into())
         .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", config.network.address, err));
+
+    priv_dropper.after_socket_creation();
 
     let recv_buffer_size = config.network.socket_recv_buffer_size;
 

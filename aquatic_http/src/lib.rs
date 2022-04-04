@@ -4,13 +4,13 @@ use aquatic_common::{
         glommio::{get_worker_placement, set_affinity_for_util_worker},
         WorkerIndex,
     },
-    privileges::drop_privileges_after_socket_binding,
+    privileges::PrivilegeDropper,
     rustls_config::create_rustls_config,
 };
 use common::State;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 use signal_hook::{consts::SIGUSR1, iterator::Signals};
-use std::sync::{atomic::AtomicUsize, Arc};
+use std::sync::Arc;
 
 use crate::config::Config;
 
@@ -63,7 +63,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
     let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
 
-    let num_bound_sockets = Arc::new(AtomicUsize::new(0));
+    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
     let tls_config = Arc::new(create_rustls_config(
         &config.network.tls_certificate_path,
@@ -78,7 +78,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
         let tls_config = tls_config.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
-        let num_bound_sockets = num_bound_sockets.clone();
+        let priv_dropper = priv_dropper.clone();
 
         let placement = get_worker_placement(
             &config.cpu_pinning,
@@ -95,7 +95,7 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
                 tls_config,
                 request_mesh_builder,
                 response_mesh_builder,
-                num_bound_sockets,
+                priv_dropper,
             )
             .await
         });
@@ -129,13 +129,6 @@ pub fn run_inner(config: Config, state: State) -> anyhow::Result<()> {
 
         executors.push(executor);
     }
-
-    drop_privileges_after_socket_binding(
-        &config.privileges,
-        num_bound_sockets,
-        config.socket_workers,
-    )
-    .unwrap();
 
     if config.cpu_pinning.active {
         set_affinity_for_util_worker(

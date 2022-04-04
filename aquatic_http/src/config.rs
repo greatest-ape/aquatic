@@ -1,6 +1,9 @@
 use std::{net::SocketAddr, path::PathBuf};
 
-use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig, cpu_pinning::asc::CpuPinningConfigAsc};
+use aquatic_common::{
+    access_list::AccessListConfig, cpu_pinning::asc::CpuPinningConfigAsc,
+    privileges::PrivilegeConfig,
+};
 use aquatic_toml_config::TomlConfig;
 use serde::Deserialize;
 
