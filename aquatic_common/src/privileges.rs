@@ -27,7 +27,7 @@ impl Default for PrivilegeConfig {
             drop_privileges: false,
             chroot_path: ".".into(),
             user: "nobody".to_string(),
-            group: "nobody".to_string(),
+            group: "nogroup".to_string(),
         }
     }
 }
@@ -51,7 +51,7 @@ impl PrivilegeDropper {
             if self.barrier.wait().is_leader() {
                 PrivDrop::default()
                     .chroot(self.config.chroot_path.clone())
-                    .user(self.config.user.clone())
+                    .group(self.config.group.clone())
                     .user(self.config.user.clone())
                     .apply()
                     .expect("drop privileges");
