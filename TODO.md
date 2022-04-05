@@ -15,6 +15,12 @@
 
 * rename request workers to swarm workers
 * quit whole program if any thread panics
+  * Once JoinHandle::is_finished is available in stable Rust (#90470)
+     * Save JoinHandles
+     * When preparing to quit because of PanicSentinel sending SIGTERM, loop
+       through them, extract error and log it
+  * Dont use std::process::exit unless worker thread destructors have already
+    been called
 * config: fail on unrecognized keys?
 * Run cargo-deny in CI
 
