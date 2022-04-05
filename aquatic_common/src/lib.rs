@@ -1,4 +1,6 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ahash::RandomState;
@@ -30,14 +32,31 @@ impl ValidUntil {
     }
 }
 
+pub struct PanicSentinelWatcher(Arc<AtomicBool>);
+
+impl PanicSentinelWatcher {
+    pub fn create_with_sentinel() -> (Self, PanicSentinel) {
+        let triggered = Arc::new(AtomicBool::new(false));
+        let sentinel = PanicSentinel(triggered.clone());
+
+        (Self(triggered), sentinel)
+    }
+
+    pub fn panic_was_triggered(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
 /// Raises SIGTERM when dropped
 ///
 /// Pass to threads to have panics in them cause whole program to exit.
 #[derive(Clone)]
-pub struct PanicSentinel;
+pub struct PanicSentinel(Arc<AtomicBool>);
 
 impl Drop for PanicSentinel {
     fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+
         if unsafe { libc::raise(15) } == -1 {
             panic!(
                 "Could not raise SIGTERM: {:#}",

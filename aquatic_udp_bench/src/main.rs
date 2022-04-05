@@ -7,7 +7,7 @@
 //! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
-use aquatic_common::PanicSentinel;
+use aquatic_common::PanicSentinelWatcher;
 use aquatic_udp::workers::request::run_request_worker;
 use crossbeam_channel::unbounded;
 use num_format::{Locale, ToFormattedString};
@@ -42,6 +42,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     // Setup common state, spawn request handlers
 
     let mut aquatic_config = Config::default();
+    let (_, sentinel) = PanicSentinelWatcher::create_with_sentinel();
 
     aquatic_config.cleaning.torrent_cleaning_interval = 60 * 60 * 24;
 
@@ -56,7 +57,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
         ::std::thread::spawn(move || {
             run_request_worker(
-                PanicSentinel,
+                sentinel,
                 config,
                 state,
                 request_receiver,

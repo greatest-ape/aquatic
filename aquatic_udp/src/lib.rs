@@ -2,7 +2,7 @@ pub mod common;
 pub mod config;
 pub mod workers;
 
-use aquatic_common::PanicSentinel;
+use aquatic_common::PanicSentinelWatcher;
 use config::Config;
 
 use std::collections::BTreeMap;
@@ -32,6 +32,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
+    let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
     let mut request_senders = Vec::new();
@@ -63,6 +64,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     for i in 0..config.request_workers {
+        let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
         let request_receiver = request_receivers.remove(&i).unwrap().clone();
@@ -80,7 +82,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::request::run_request_worker(
-                    PanicSentinel,
+                    sentinel,
                     config,
                     state,
                     request_receiver,
@@ -92,6 +94,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     for i in 0..config.socket_workers {
+        let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
         let request_sender =
@@ -111,7 +114,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::socket::run_socket_worker(
-                    PanicSentinel,
+                    sentinel,
                     state,
                     config,
                     i,
@@ -124,6 +127,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     if config.statistics.active() {
+        let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
 
@@ -138,7 +142,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Util,
                 );
 
-                workers::statistics::run_statistics_worker(PanicSentinel, config, state);
+                workers::statistics::run_statistics_worker(sentinel, config, state);
             })
             .with_context(|| "spawn statistics worker")?;
     }
@@ -157,6 +161,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 let _ = update_access_list(&config.access_list, &state.access_list);
             }
             SIGTERM => {
+                if sentinel_watcher.panic_was_triggered() {
+                    return Err(anyhow::anyhow!("worker thread panicked"));
+                }
+
                 break;
             }
             _ => unreachable!(),
