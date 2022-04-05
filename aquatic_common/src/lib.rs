@@ -55,13 +55,15 @@ pub struct PanicSentinel(Arc<AtomicBool>);
 
 impl Drop for PanicSentinel {
     fn drop(&mut self) {
-        self.0.store(true, Ordering::SeqCst);
+        let already_triggered = self.0.fetch_or(true, Ordering::SeqCst);
 
-        if unsafe { libc::raise(15) } == -1 {
-            panic!(
-                "Could not raise SIGTERM: {:#}",
-                ::std::io::Error::last_os_error()
-            )
+        if !already_triggered {
+            if unsafe { libc::raise(15) } == -1 {
+                panic!(
+                    "Could not raise SIGTERM: {:#}",
+                    ::std::io::Error::last_os_error()
+                )
+            }
         }
     }
 }
