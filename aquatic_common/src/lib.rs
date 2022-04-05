@@ -30,6 +30,23 @@ impl ValidUntil {
     }
 }
 
+/// Raises SIGTERM when dropped
+///
+/// Pass to threads to have panics in them cause whole program to exit.
+#[derive(Clone)]
+pub struct PanicSentinel;
+
+impl Drop for PanicSentinel {
+    fn drop(&mut self) {
+        if unsafe { libc::raise(15) } == -1 {
+            panic!(
+                "Could not raise SIGTERM: {:#}",
+                ::std::io::Error::last_os_error()
+            )
+        }
+    }
+}
+
 /// Extract response peers
 ///
 /// If there are more peers in map than `max_num_peers_to_take`, do a

@@ -55,7 +55,7 @@ impl PrivilegeDropper {
                     .group(self.config.group.clone())
                     .user(self.config.user.clone())
                     .apply()
-                    .with_context(|| "drop privileges")?;
+                    .with_context(|| "couldn't drop privileges after socket creation")?;
             }
         }
 
