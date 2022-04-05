@@ -485,7 +485,10 @@ fn calculate_request_consumer_index(config: &Config, info_hash: InfoHash) -> usi
     (info_hash.0[0] as usize) % config.request_workers
 }
 
-fn create_tcp_listener(config: &Config, priv_dropper: PrivilegeDropper) -> anyhow::Result<TcpListener> {
+fn create_tcp_listener(
+    config: &Config,
+    priv_dropper: PrivilegeDropper,
+) -> anyhow::Result<TcpListener> {
     let domain = if config.network.address.is_ipv4() {
         socket2::Domain::IPV4
     } else {
@@ -495,10 +498,14 @@ fn create_tcp_listener(config: &Config, priv_dropper: PrivilegeDropper) -> anyho
     let socket = socket2::Socket::new(domain, socket2::Type::STREAM, Some(socket2::Protocol::TCP))?;
 
     if config.network.only_ipv6 {
-        socket.set_only_v6(true).with_context(|| "socket: set only ipv6")?;
+        socket
+            .set_only_v6(true)
+            .with_context(|| "socket: set only ipv6")?;
     }
 
-    socket.set_reuse_port(true).with_context(|| "socket: set reuse port")?;
+    socket
+        .set_reuse_port(true)
+        .with_context(|| "socket: set reuse port")?;
 
     socket
         .bind(&config.network.address.into())
