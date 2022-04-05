@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
+use aquatic_common::PanicSentinel;
 use num_format::{Locale, ToFormattedString};
 use serde::Serialize;
 use time::format_description::well_known::Rfc2822;
@@ -135,7 +136,7 @@ struct TemplateData {
     peer_update_interval: String,
 }
 
-pub fn run_statistics_worker(config: Config, state: State) {
+pub fn run_statistics_worker(_sentinel: PanicSentinel, config: Config, state: State) {
     let tt = if config.statistics.write_html_to_file {
         let mut tt = TinyTemplate::new();
 

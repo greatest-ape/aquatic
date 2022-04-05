@@ -2,6 +2,7 @@ pub mod common;
 pub mod config;
 pub mod workers;
 
+use aquatic_common::PanicSentinel;
 use config::Config;
 
 use std::collections::BTreeMap;
@@ -14,7 +15,7 @@ use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::{bounded, unbounded};
 
 use aquatic_common::access_list::update_access_list;
-use signal_hook::consts::SIGUSR1;
+use signal_hook::consts::{SIGTERM, SIGUSR1};
 use signal_hook::iterator::Signals;
 
 use common::{ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State};
@@ -29,7 +30,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     update_access_list(&config.access_list, &state.access_list)?;
 
-    let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
+    let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
@@ -79,6 +80,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::request::run_request_worker(
+                    PanicSentinel,
                     config,
                     state,
                     request_receiver,
@@ -109,6 +111,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::socket::run_socket_worker(
+                    PanicSentinel,
                     state,
                     config,
                     i,
@@ -135,7 +138,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Util,
                 );
 
-                workers::statistics::run_statistics_worker(config, state);
+                workers::statistics::run_statistics_worker(PanicSentinel, config, state);
             })
             .with_context(|| "spawn statistics worker")?;
     }
@@ -152,6 +155,9 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         match signal {
             SIGUSR1 => {
                 let _ = update_access_list(&config.access_list, &state.access_list);
+            }
+            SIGTERM => {
+                break;
             }
             _ => unreachable!(),
         }

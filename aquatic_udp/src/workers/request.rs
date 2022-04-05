@@ -11,6 +11,7 @@ use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListArcSwap;
 use aquatic_common::AmortizedIndexMap;
 use aquatic_common::CanonicalSocketAddr;
+use aquatic_common::PanicSentinel;
 use aquatic_common::ValidUntil;
 use crossbeam_channel::Receiver;
 use rand::{rngs::SmallRng, SeedableRng};
@@ -121,6 +122,7 @@ impl TorrentMaps {
 }
 
 pub fn run_request_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,

@@ -14,8 +14,8 @@ use slab::Slab;
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListCache;
-use aquatic_common::ValidUntil;
 use aquatic_common::{AmortizedIndexMap, CanonicalSocketAddr};
+use aquatic_common::{PanicSentinel, ValidUntil};
 use aquatic_udp_protocol::*;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -151,6 +151,7 @@ impl PendingScrapeResponseSlab {
 }
 
 pub fn run_socket_worker(
+    _sentinel: PanicSentinel,
     state: State,
     config: Config,
     token_num: usize,
@@ -161,7 +162,8 @@ pub fn run_socket_worker(
     let mut rng = StdRng::from_entropy();
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
-    let mut socket = UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
+    let mut socket =
+        UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
     let mut poll = Poll::new().expect("create poll");
 
     let interests = Interest::READABLE;
@@ -517,7 +519,10 @@ fn send_response(
     }
 }
 
-pub fn create_socket(config: &Config, priv_dropper: PrivilegeDropper) -> anyhow::Result<::std::net::UdpSocket> {
+pub fn create_socket(
+    config: &Config,
+    priv_dropper: PrivilegeDropper,
+) -> anyhow::Result<::std::net::UdpSocket> {
     let socket = if config.network.address.is_ipv4() {
         Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?
     } else {
@@ -525,10 +530,14 @@ pub fn create_socket(config: &Config, priv_dropper: PrivilegeDropper) -> anyhow:
     };
 
     if config.network.only_ipv6 {
-        socket.set_only_v6(true).with_context(|| "socket: set only ipv6")?;
+        socket
+            .set_only_v6(true)
+            .with_context(|| "socket: set only ipv6")?;
     }
 
-    socket.set_reuse_port(true).with_context(|| "socket: set reuse port")?;
+    socket
+        .set_reuse_port(true)
+        .with_context(|| "socket: set reuse port")?;
 
     socket
         .set_nonblocking(true)

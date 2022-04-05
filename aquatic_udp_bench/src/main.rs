@@ -7,6 +7,7 @@
 //! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
+use aquatic_common::PanicSentinel;
 use aquatic_udp::workers::request::run_request_worker;
 use crossbeam_channel::unbounded;
 use num_format::{Locale, ToFormattedString};
@@ -55,6 +56,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
         ::std::thread::spawn(move || {
             run_request_worker(
+                PanicSentinel,
                 config,
                 state,
                 request_receiver,
