@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Barrier},
 };
 
+use anyhow::Context;
 use privdrop::PrivDrop;
 use serde::Deserialize;
 
@@ -46,7 +47,7 @@ impl PrivilegeDropper {
         }
     }
 
-    pub fn after_socket_creation(&self) {
+    pub fn after_socket_creation(&self) -> anyhow::Result<()> {
         if self.config.drop_privileges {
             if self.barrier.wait().is_leader() {
                 PrivDrop::default()
@@ -54,8 +55,10 @@ impl PrivilegeDropper {
                     .group(self.config.group.clone())
                     .user(self.config.user.clone())
                     .apply()
-                    .expect("drop privileges");
+                    .with_context(|| "drop privileges")?;
             }
         }
+
+        Ok(())
     }
 }

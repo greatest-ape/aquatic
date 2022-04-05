@@ -4,6 +4,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
+use anyhow::Context;
 use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
@@ -160,7 +161,7 @@ pub fn run_socket_worker(
     let mut rng = StdRng::from_entropy();
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
-    let mut socket = UdpSocket::from_std(create_socket(&config, priv_dropper));
+    let mut socket = UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
     let mut poll = Poll::new().expect("create poll");
 
     let interests = Interest::READABLE;
@@ -516,29 +517,22 @@ fn send_response(
     }
 }
 
-pub fn create_socket(config: &Config, priv_dropper: PrivilegeDropper) -> ::std::net::UdpSocket {
+pub fn create_socket(config: &Config, priv_dropper: PrivilegeDropper) -> anyhow::Result<::std::net::UdpSocket> {
     let socket = if config.network.address.is_ipv4() {
-        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?
     } else {
-        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
-    }
-    .expect("create socket");
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?
+    };
 
     if config.network.only_ipv6 {
-        socket.set_only_v6(true).expect("socket: set only ipv6");
+        socket.set_only_v6(true).with_context(|| "socket: set only ipv6")?;
     }
 
-    socket.set_reuse_port(true).expect("socket: set reuse port");
+    socket.set_reuse_port(true).with_context(|| "socket: set reuse port")?;
 
     socket
         .set_nonblocking(true)
-        .expect("socket: set nonblocking");
-
-    socket
-        .bind(&config.network.address.into())
-        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", config.network.address, err));
-
-    priv_dropper.after_socket_creation();
+        .with_context(|| "socket: set nonblocking")?;
 
     let recv_buffer_size = config.network.socket_recv_buffer_size;
 
@@ -552,7 +546,13 @@ pub fn create_socket(config: &Config, priv_dropper: PrivilegeDropper) -> ::std::
         }
     }
 
-    socket.into()
+    socket
+        .bind(&config.network.address.into())
+        .with_context(|| format!("socket: bind to {}", config.network.address))?;
+
+    priv_dropper.after_socket_creation()?;
+
+    Ok(socket.into())
 }
 
 #[cfg(test)]
