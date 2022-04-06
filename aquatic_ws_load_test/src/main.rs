@@ -67,6 +67,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         )?;
 
         LocalExecutorBuilder::new(placement)
+            .name("load-test")
             .spawn(move || async move {
                 run_socket_thread(config, tls_config, state).await.unwrap();
             })
