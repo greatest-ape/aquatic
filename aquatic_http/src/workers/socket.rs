@@ -9,7 +9,7 @@ use anyhow::Context;
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
-use aquatic_common::CanonicalSocketAddr;
+use aquatic_common::{CanonicalSocketAddr, PanicSentinel};
 use aquatic_http_protocol::common::InfoHash;
 use aquatic_http_protocol::request::{Request, RequestParseError, ScrapeRequest};
 use aquatic_http_protocol::response::{
@@ -54,6 +54,7 @@ struct ConnectionReference {
 }
 
 pub async fn run_socket_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     tls_config: Arc<RustlsConfig>,
