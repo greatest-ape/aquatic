@@ -10,7 +10,7 @@ use anyhow::Context;
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
-use aquatic_common::CanonicalSocketAddr;
+use aquatic_common::{CanonicalSocketAddr, PanicSentinel};
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
@@ -49,6 +49,7 @@ struct ConnectionReference {
 }
 
 pub async fn run_socket_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     tls_config: Arc<RustlsConfig>,

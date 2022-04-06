@@ -12,7 +12,7 @@ use glommio::timer::TimerActionRepeat;
 use hashbrown::HashMap;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::{extract_response_peers, AmortizedIndexMap};
+use aquatic_common::{extract_response_peers, AmortizedIndexMap, PanicSentinel};
 use aquatic_ws_protocol::*;
 
 use crate::common::*;
@@ -128,6 +128,7 @@ impl TorrentMaps {
 }
 
 pub async fn run_request_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
