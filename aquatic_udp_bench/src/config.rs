@@ -24,7 +24,7 @@ impl Default for BenchConfig {
     }
 }
 
-impl aquatic_cli_helpers::Config for BenchConfig {}
+impl aquatic_common::cli::Config for BenchConfig {}
 
 #[cfg(test)]
 mod tests {

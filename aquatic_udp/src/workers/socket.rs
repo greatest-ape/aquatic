@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
 use std::io::{Cursor, ErrorKind};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use std::vec::Drain;
 
+use anyhow::Context;
+use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
@@ -15,8 +14,8 @@ use slab::Slab;
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListCache;
-use aquatic_common::ValidUntil;
 use aquatic_common::{AmortizedIndexMap, CanonicalSocketAddr};
+use aquatic_common::{PanicSentinel, ValidUntil};
 use aquatic_udp_protocol::*;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -152,17 +151,19 @@ impl PendingScrapeResponseSlab {
 }
 
 pub fn run_socket_worker(
+    _sentinel: PanicSentinel,
     state: State,
     config: Config,
     token_num: usize,
     request_sender: ConnectedRequestSender,
     response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
-    num_bound_sockets: Arc<AtomicUsize>,
+    priv_dropper: PrivilegeDropper,
 ) {
     let mut rng = StdRng::from_entropy();
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
-    let mut socket = UdpSocket::from_std(create_socket(&config));
+    let mut socket =
+        UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
     let mut poll = Poll::new().expect("create poll");
 
     let interests = Interest::READABLE;
@@ -170,8 +171,6 @@ pub fn run_socket_worker(
     poll.registry()
         .register(&mut socket, Token(token_num), interests)
         .unwrap();
-
-    num_bound_sockets.fetch_add(1, Ordering::SeqCst);
 
     let mut events = Events::with_capacity(config.network.poll_event_capacity);
     let mut connections = ConnectionMap::default();
@@ -520,27 +519,29 @@ fn send_response(
     }
 }
 
-pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
+pub fn create_socket(
+    config: &Config,
+    priv_dropper: PrivilegeDropper,
+) -> anyhow::Result<::std::net::UdpSocket> {
     let socket = if config.network.address.is_ipv4() {
-        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?
     } else {
-        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))
-    }
-    .expect("create socket");
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?
+    };
 
     if config.network.only_ipv6 {
-        socket.set_only_v6(true).expect("socket: set only ipv6");
+        socket
+            .set_only_v6(true)
+            .with_context(|| "socket: set only ipv6")?;
     }
 
-    socket.set_reuse_port(true).expect("socket: set reuse port");
+    socket
+        .set_reuse_port(true)
+        .with_context(|| "socket: set reuse port")?;
 
     socket
         .set_nonblocking(true)
-        .expect("socket: set nonblocking");
-
-    socket
-        .bind(&config.network.address.into())
-        .unwrap_or_else(|err| panic!("socket: bind to {}: {:?}", config.network.address, err));
+        .with_context(|| "socket: set nonblocking")?;
 
     let recv_buffer_size = config.network.socket_recv_buffer_size;
 
@@ -554,7 +555,13 @@ pub fn create_socket(config: &Config) -> ::std::net::UdpSocket {
         }
     }
 
-    socket.into()
+    socket
+        .bind(&config.network.address.into())
+        .with_context(|| format!("socket: bind to {}", config.network.address))?;
+
+    priv_dropper.after_socket_creation()?;
+
+    Ok(socket.into())
 }
 
 #[cfg(test)]

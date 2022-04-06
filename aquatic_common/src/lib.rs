@@ -1,10 +1,13 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ahash::RandomState;
 use rand::Rng;
 
 pub mod access_list;
+pub mod cli;
 pub mod cpu_pinning;
 pub mod privileges;
 #[cfg(feature = "rustls-config")]
@@ -27,6 +30,44 @@ impl ValidUntil {
     }
     pub fn new_with_now(now: Instant, offset_seconds: u64) -> Self {
         Self(now + Duration::from_secs(offset_seconds))
+    }
+}
+
+pub struct PanicSentinelWatcher(Arc<AtomicBool>);
+
+impl PanicSentinelWatcher {
+    pub fn create_with_sentinel() -> (Self, PanicSentinel) {
+        let triggered = Arc::new(AtomicBool::new(false));
+        let sentinel = PanicSentinel(triggered.clone());
+
+        (Self(triggered), sentinel)
+    }
+
+    pub fn panic_was_triggered(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
+/// Raises SIGTERM when dropped
+///
+/// Pass to threads to have panics in them cause whole program to exit.
+#[derive(Clone)]
+pub struct PanicSentinel(Arc<AtomicBool>);
+
+impl Drop for PanicSentinel {
+    fn drop(&mut self) {
+        if ::std::thread::panicking() {
+            let already_triggered = self.0.fetch_or(true, Ordering::SeqCst);
+
+            if !already_triggered {
+                if unsafe { libc::raise(15) } == -1 {
+                    panic!(
+                        "Could not raise SIGTERM: {:#}",
+                        ::std::io::Error::last_os_error()
+                    )
+                }
+            }
+        }
     }
 }
 

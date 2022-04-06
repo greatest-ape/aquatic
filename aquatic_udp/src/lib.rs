@@ -2,20 +2,20 @@ pub mod common;
 pub mod config;
 pub mod workers;
 
+use aquatic_common::PanicSentinelWatcher;
 use config::Config;
 
 use std::collections::BTreeMap;
-use std::sync::{atomic::AtomicUsize, Arc};
 use std::thread::Builder;
 
 use anyhow::Context;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use aquatic_common::privileges::drop_privileges_after_socket_binding;
+use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::{bounded, unbounded};
 
 use aquatic_common::access_list::update_access_list;
-use signal_hook::consts::SIGUSR1;
+use signal_hook::consts::{SIGTERM, SIGUSR1};
 use signal_hook::iterator::Signals;
 
 use common::{ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State};
@@ -30,9 +30,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     update_access_list(&config.access_list, &state.access_list)?;
 
-    let mut signals = Signals::new(::std::iter::once(SIGUSR1))?;
+    let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
-    let num_bound_sockets = Arc::new(AtomicUsize::new(0));
+    let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
+    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
     let mut request_senders = Vec::new();
     let mut request_receivers = BTreeMap::new();
@@ -63,6 +64,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     for i in 0..config.request_workers {
+        let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
         let request_receiver = request_receivers.remove(&i).unwrap().clone();
@@ -80,6 +82,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::request::run_request_worker(
+                    sentinel,
                     config,
                     state,
                     request_receiver,
@@ -91,12 +94,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     for i in 0..config.socket_workers {
+        let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
         let request_sender =
             ConnectedRequestSender::new(SocketWorkerIndex(i), request_senders.clone());
         let response_receiver = response_receivers.remove(&i).unwrap();
-        let num_bound_sockets = num_bound_sockets.clone();
+        let priv_dropper = priv_dropper.clone();
 
         Builder::new()
             .name(format!("socket-{:02}", i + 1))
@@ -110,23 +114,25 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::socket::run_socket_worker(
+                    sentinel,
                     state,
                     config,
                     i,
                     request_sender,
                     response_receiver,
-                    num_bound_sockets,
+                    priv_dropper,
                 );
             })
             .with_context(|| "spawn socket worker")?;
     }
 
     if config.statistics.active() {
+        let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
 
         Builder::new()
-            .name("statistics-collector".to_string())
+            .name("statistics".into())
             .spawn(move || {
                 #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
@@ -136,17 +142,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Util,
                 );
 
-                workers::statistics::run_statistics_worker(config, state);
+                workers::statistics::run_statistics_worker(sentinel, config, state);
             })
             .with_context(|| "spawn statistics worker")?;
     }
-
-    drop_privileges_after_socket_binding(
-        &config.privileges,
-        num_bound_sockets,
-        config.socket_workers,
-    )
-    .unwrap();
 
     #[cfg(feature = "cpu-pinning")]
     pin_current_if_configured_to(
@@ -160,6 +159,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         match signal {
             SIGUSR1 => {
                 let _ = update_access_list(&config.access_list, &state.access_list);
+            }
+            SIGTERM => {
+                if sentinel_watcher.panic_was_triggered() {
+                    return Err(anyhow::anyhow!("worker thread panicked"));
+                }
+
+                break;
             }
             _ => unreachable!(),
         }

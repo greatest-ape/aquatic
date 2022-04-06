@@ -4,9 +4,12 @@ mod workers;
 
 use std::{collections::VecDeque, sync::Arc};
 
-use aquatic_common::rustls_config::create_rustls_config;
+use aquatic_common::{
+    privileges::PrivilegeDropper, rustls_config::create_rustls_config, PanicSentinelWatcher,
+};
 use common::ChannelRequestSender;
 use dotenv::dotenv;
+use signal_hook::{consts::SIGTERM, iterator::Signals};
 use tokio::sync::mpsc::channel;
 
 use config::Config;
@@ -15,6 +18,8 @@ pub const APP_NAME: &str = "aquatic_http_private: private HTTP/TLS BitTorrent tr
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(config: Config) -> anyhow::Result<()> {
+    let mut signals = Signals::new([SIGTERM])?;
+
     dotenv().ok();
 
     let tls_config = Arc::new(create_rustls_config(
@@ -32,37 +37,58 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         request_receivers.push_back(request_receiver);
     }
 
+    let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
+    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
+
     let mut handles = Vec::new();
 
     for _ in 0..config.socket_workers {
+        let sentinel = sentinel.clone();
         let config = config.clone();
         let tls_config = tls_config.clone();
         let request_sender = ChannelRequestSender::new(request_senders.clone());
+        let priv_dropper = priv_dropper.clone();
 
         let handle = ::std::thread::Builder::new()
             .name("socket".into())
             .spawn(move || {
-                workers::socket::run_socket_worker(config, tls_config, request_sender)
+                workers::socket::run_socket_worker(
+                    sentinel,
+                    config,
+                    tls_config,
+                    request_sender,
+                    priv_dropper,
+                )
             })?;
 
         handles.push(handle);
     }
 
     for _ in 0..config.request_workers {
+        let sentinel = sentinel.clone();
         let config = config.clone();
         let request_receiver = request_receivers.pop_front().unwrap();
 
         let handle = ::std::thread::Builder::new()
             .name("request".into())
-            .spawn(move || workers::request::run_request_worker(config, request_receiver))?;
+            .spawn(move || {
+                workers::request::run_request_worker(sentinel, config, request_receiver)
+            })?;
 
         handles.push(handle);
     }
 
-    for handle in handles {
-        handle
-            .join()
-            .map_err(|err| anyhow::anyhow!("thread join error: {:?}", err))??;
+    for signal in &mut signals {
+        match signal {
+            SIGTERM => {
+                if sentinel_watcher.panic_was_triggered() {
+                    return Err(anyhow::anyhow!("worker thread panicked"));
+                } else {
+                    return Ok(());
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 
     Ok(())

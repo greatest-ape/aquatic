@@ -13,7 +13,6 @@ readme = "../README.md"
 name = "aquatic_ws_load_test"
 
 [dependencies]
-aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }
 aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["with-glommio"] }
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 aquatic_ws_protocol = { version = "0.2.0", path = "../aquatic_ws_protocol" }

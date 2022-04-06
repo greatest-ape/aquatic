@@ -1,4 +1,4 @@
-use aquatic_cli_helpers::{print_help, run_app_with_cli_and_config, Options};
+use aquatic_common::cli::{print_help, run_app_with_cli_and_config, Options};
 use aquatic_http::config::Config as HttpConfig;
 use aquatic_udp::config::Config as UdpConfig;
 use aquatic_ws::config::Config as WsConfig;

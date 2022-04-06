@@ -14,7 +14,6 @@ name = "aquatic_http_private"
 name = "aquatic_http_private"
 
 [dependencies]
-aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }
 aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls-config"] }
 aquatic_http_protocol = { version = "0.2.0", path = "../aquatic_http_protocol", features = ["with-axum"] }
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
@@ -30,6 +29,7 @@ mimalloc = { version = "0.1", default-features = false }
 rand = { version = "0.8", features = ["small_rng"] }
 rustls = "0.20"
 serde = { version = "1", features = ["derive"] }
+signal-hook = { version = "0.3" }
 socket2 = { version = "0.4", features = ["all"] }
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "mysql" ] }
 tokio = { version = "1", features = ["full"] }

@@ -17,8 +17,8 @@ use rand::SeedableRng;
 use smartstring::{LazyCompact, SmartString};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
-use aquatic_common::extract_response_peers;
 use aquatic_common::ValidUntil;
+use aquatic_common::{extract_response_peers, PanicSentinel};
 use aquatic_common::{AmortizedIndexMap, CanonicalSocketAddr};
 use aquatic_http_protocol::common::*;
 use aquatic_http_protocol::request::*;
@@ -175,6 +175,7 @@ impl TorrentMaps {
 }
 
 pub async fn run_request_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,

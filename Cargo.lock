@@ -47,24 +47,11 @@ checksum = "4361135be9122e0870de935d7c439aef945b9f9ddd4199a553b5270b49c82a27"
 name = "aquatic"
 version = "0.2.0"
 dependencies = [
- "aquatic_cli_helpers",
+ "aquatic_common",
  "aquatic_http",
  "aquatic_udp",
  "aquatic_ws",
  "mimalloc",
-]
-
-[[package]]
-name = "aquatic_cli_helpers"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "aquatic_toml_config",
- "git-testament",
- "log",
- "serde",
- "simple_logger",
- "toml",
 ]
 
 [[package]]
@@ -76,6 +63,7 @@ dependencies = [
  "aquatic_toml_config",
  "arc-swap",
  "duplicate",
+ "git-testament",
  "glommio",
  "hashbrown 0.12.0",
  "hex",
@@ -88,6 +76,8 @@ dependencies = [
  "rustls 0.20.4",
  "rustls-pemfile",
  "serde",
+ "simple_logger",
+ "toml",
 ]
 
 [[package]]
@@ -95,7 +85,6 @@ name = "aquatic_http"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_http_protocol",
  "aquatic_toml_config",
@@ -127,7 +116,6 @@ name = "aquatic_http_load_test"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_http_protocol",
  "aquatic_toml_config",
@@ -149,7 +137,6 @@ name = "aquatic_http_private"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_http_protocol",
  "aquatic_toml_config",
@@ -163,6 +150,7 @@ dependencies = [
  "rand",
  "rustls 0.20.4",
  "serde",
+ "signal-hook",
  "socket2 0.4.4",
  "sqlx",
  "tokio",
@@ -216,7 +204,6 @@ name = "aquatic_udp"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_toml_config",
  "aquatic_udp_protocol",
@@ -243,7 +230,6 @@ name = "aquatic_udp_bench"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_toml_config",
  "aquatic_udp",
@@ -262,7 +248,6 @@ name = "aquatic_udp_load_test"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_toml_config",
  "aquatic_udp_protocol",
@@ -292,7 +277,6 @@ name = "aquatic_ws"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_toml_config",
  "aquatic_ws_protocol",
@@ -324,7 +308,6 @@ name = "aquatic_ws_load_test"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "aquatic_cli_helpers",
  "aquatic_common",
  "aquatic_toml_config",
  "aquatic_ws_protocol",

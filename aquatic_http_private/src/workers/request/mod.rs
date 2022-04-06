@@ -11,7 +11,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio::task::LocalSet;
 use tokio::time;
 
-use aquatic_common::{extract_response_peers, CanonicalSocketAddr, ValidUntil};
+use aquatic_common::{extract_response_peers, CanonicalSocketAddr, PanicSentinel, ValidUntil};
 use aquatic_http_protocol::response::{
     AnnounceResponse, Response, ResponsePeer, ResponsePeerListV4, ResponsePeerListV6,
 };
@@ -22,6 +22,7 @@ use crate::config::Config;
 use common::*;
 
 pub fn run_request_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     request_receiver: Receiver<ChannelAnnounceRequest>,
 ) -> anyhow::Result<()> {

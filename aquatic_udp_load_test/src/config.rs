@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use serde::Deserialize;
 
-use aquatic_cli_helpers::LogLevel;
+use aquatic_common::cli::LogLevel;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::desc::CpuPinningConfigDesc;
 use aquatic_toml_config::TomlConfig;

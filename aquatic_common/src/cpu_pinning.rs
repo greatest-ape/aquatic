@@ -194,7 +194,9 @@ pub mod glommio {
                     // 15 -> 14 and 15
                     // 14 -> 12 and 13
                     // 13 -> 10 and 11
-                    CpuPinningDirection::Descending => num_cpu_cores - 2 * (num_cpu_cores - core_index),
+                    CpuPinningDirection::Descending => {
+                        num_cpu_cores - 2 * (num_cpu_cores - core_index)
+                    }
                 };
 
                 get_cpu_set()?

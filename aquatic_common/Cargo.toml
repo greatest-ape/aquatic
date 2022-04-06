@@ -23,6 +23,7 @@ ahash = "0.7"
 anyhow = "1"
 arc-swap = "1"
 duplicate = "0.4"
+git-testament = "0.2"
 hashbrown = "0.12"
 hex = "0.4"
 indexmap-amortized = "1"
@@ -31,6 +32,8 @@ log = "0.4"
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
+simple_logger = { version = "2", features = ["stderr"] }
+toml = "0.5"
 
 # Optional
 glommio = { version = "0.7", optional = true }

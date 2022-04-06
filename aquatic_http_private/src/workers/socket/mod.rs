@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::Context;
-use aquatic_common::rustls_config::RustlsConfig;
+use aquatic_common::{privileges::PrivilegeDropper, rustls_config::RustlsConfig, PanicSentinel};
 use axum::{extract::connect_info::Connected, routing::get, Extension, Router};
 use hyper::server::conn::AddrIncoming;
 use sqlx::mysql::MySqlPoolOptions;
@@ -23,11 +23,13 @@ impl<'a> Connected<&'a tls::TlsStream> for SocketAddr {
 }
 
 pub fn run_socket_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     tls_config: Arc<RustlsConfig>,
     request_sender: ChannelRequestSender,
+    priv_dropper: PrivilegeDropper,
 ) -> anyhow::Result<()> {
-    let tcp_listener = create_tcp_listener(config.network.address)?;
+    let tcp_listener = create_tcp_listener(config.network.address, priv_dropper)?;
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -71,7 +73,10 @@ async fn run_app(
     Ok(())
 }
 
-fn create_tcp_listener(addr: SocketAddr) -> anyhow::Result<TcpListener> {
+fn create_tcp_listener(
+    addr: SocketAddr,
+    priv_dropper: PrivilegeDropper,
+) -> anyhow::Result<TcpListener> {
     let domain = if addr.is_ipv4() {
         socket2::Domain::IPV4
     } else {
@@ -92,6 +97,8 @@ fn create_tcp_listener(addr: SocketAddr) -> anyhow::Result<TcpListener> {
     socket
         .listen(1024)
         .with_context(|| format!("listen on {}", addr))?;
+
+    priv_dropper.after_socket_creation()?;
 
     Ok(socket.into())
 }

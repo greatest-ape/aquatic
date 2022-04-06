@@ -6,12 +6,19 @@
   * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
   * stored procedure
     * test ip format
+    * check user token length
   * site will likely want num_seeders and num_leechers for all torrents..
 
 ## Medium priority
 
 * rename request workers to swarm workers
 * quit whole program if any thread panics
+  * But it would be nice not to panic in workers, but to return errors instead.
+    Once JoinHandle::is_finished is available in stable Rust (#90470), an
+    option would be to
+     * Save JoinHandles
+     * When preparing to quit because of PanicSentinel sending SIGTERM, loop
+       through them, extract error and log it
 * config: fail on unrecognized keys?
 * Run cargo-deny in CI
 
@@ -47,9 +54,6 @@
 # Not important
 
 * aquatic_http:
-  * optimize?
-    * get_peer_addr only once (takes 1.2% of runtime)
-    * queue response: allocating takes 2.8% of runtime
   * consider better error type for request parsing, so that better error
     messages can be sent back (e.g., "full scrapes are not supported")
   * test torrent transfer with real clients
@@ -58,15 +62,6 @@
       positive number.
 
 * aquatic_ws
-  * mio
-    * shard torrent state. this could decrease dropped messages too, since
-      request handlers won't send large batches of them
-    * connection cleaning interval
-    * use access list cache
-    * use write event interest for handshakes too
-    * deregistering before closing is required by mio, but it hurts performance
-      * blocked on https://github.com/snapview/tungstenite-rs/issues/51
-    * connection closing: send tls close message etc?
   * write new version of extract_response_peers which checks for equality with
     peer sending request???
 

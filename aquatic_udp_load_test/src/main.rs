@@ -1,7 +1,7 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::atomic::AtomicUsize;
 use std::sync::{atomic::Ordering, Arc};
-use std::thread;
+use std::thread::{self, Builder};
 use std::time::{Duration, Instant};
 
 #[cfg(feature = "cpu-pinning")]
@@ -22,7 +22,7 @@ use worker::*;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub fn main() {
-    aquatic_cli_helpers::run_app_with_cli_and_config::<Config>(
+    aquatic_common::cli::run_app_with_cli_and_config::<Config>(
         "aquatic_udp_load_test: BitTorrent load tester",
         env!("CARGO_PKG_VERSION"),
         run,
@@ -30,8 +30,8 @@ pub fn main() {
     )
 }
 
-impl aquatic_cli_helpers::Config for Config {
-    fn get_log_level(&self) -> Option<aquatic_cli_helpers::LogLevel> {
+impl aquatic_common::cli::Config for Config {
+    fn get_log_level(&self) -> Option<aquatic_common::cli::LogLevel> {
         Some(self.log_level)
     }
 }
@@ -79,7 +79,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         let config = config.clone();
         let state = state.clone();
 
-        thread::spawn(move || {
+        Builder::new().name("load-test".into()).spawn(move || {
             #[cfg(feature = "cpu-pinning")]
             pin_current_if_configured_to(
                 &config.cpu_pinning,
@@ -89,7 +89,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
             );
 
             run_worker_thread(state, pareto, &config, addr)
-        });
+        })?;
     }
 
     #[cfg(feature = "cpu-pinning")]
