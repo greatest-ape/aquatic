@@ -30,6 +30,7 @@ mimalloc = { version = "0.1", default-features = false }
 rand = { version = "0.8", features = ["small_rng"] }
 rustls = "0.20"
 serde = { version = "1", features = ["derive"] }
+signal-hook = { version = "0.3" }
 socket2 = { version = "0.4", features = ["all"] }
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "mysql" ] }
 tokio = { version = "1", features = ["full"] }

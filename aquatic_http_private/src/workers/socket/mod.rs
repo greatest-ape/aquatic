@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::Context;
-use aquatic_common::rustls_config::RustlsConfig;
+use aquatic_common::{rustls_config::RustlsConfig, PanicSentinel};
 use axum::{extract::connect_info::Connected, routing::get, Extension, Router};
 use hyper::server::conn::AddrIncoming;
 use sqlx::mysql::MySqlPoolOptions;
@@ -23,6 +23,7 @@ impl<'a> Connected<&'a tls::TlsStream> for SocketAddr {
 }
 
 pub fn run_socket_worker(
+    _sentinel: PanicSentinel,
     config: Config,
     tls_config: Arc<RustlsConfig>,
     request_sender: ChannelRequestSender,

@@ -163,6 +163,7 @@ dependencies = [
  "rand",
  "rustls 0.20.4",
  "serde",
+ "signal-hook",
  "socket2 0.4.4",
  "sqlx",
  "tokio",
