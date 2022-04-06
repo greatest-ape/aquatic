@@ -132,7 +132,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let config = config.clone();
 
         Builder::new()
-            .name("statistics-collector".to_string())
+            .name("statistics".into())
             .spawn(move || {
                 #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
