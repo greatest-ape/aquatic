@@ -18,6 +18,7 @@ pub struct Config {
     /// generate responses and send them back to the socket workers.
     pub request_workers: usize,
     pub worker_channel_size: usize,
+    /// Number of database connections to establish in each socket worker
     pub db_connections_per_worker: u32,
     pub log_level: LogLevel,
     pub network: NetworkConfig,
@@ -32,7 +33,7 @@ impl Default for Config {
             socket_workers: 1,
             request_workers: 1,
             worker_channel_size: 128,
-            db_connections_per_worker: 1,
+            db_connections_per_worker: 4,
             log_level: LogLevel::default(),
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
