@@ -14,7 +14,6 @@ name = "aquatic_http_private"
 name = "aquatic_http_private"
 
 [dependencies]
-aquatic_cli_helpers = { version = "0.2.0", path = "../aquatic_cli_helpers" }
 aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls-config"] }
 aquatic_http_protocol = { version = "0.2.0", path = "../aquatic_http_protocol", features = ["with-axum"] }
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }

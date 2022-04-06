@@ -7,6 +7,7 @@ use ahash::RandomState;
 use rand::Rng;
 
 pub mod access_list;
+pub mod cli;
 pub mod cpu_pinning;
 pub mod privileges;
 #[cfg(feature = "rustls-config")]

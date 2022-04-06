@@ -5,7 +5,7 @@ use aquatic_common::cpu_pinning::asc::CpuPinningConfigAsc;
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use serde::Deserialize;
 
-use aquatic_cli_helpers::LogLevel;
+use aquatic_common::cli::LogLevel;
 use aquatic_toml_config::TomlConfig;
 
 /// aquatic_ws configuration
@@ -44,7 +44,7 @@ impl Default for Config {
     }
 }
 
-impl aquatic_cli_helpers::Config for Config {
+impl aquatic_common::cli::Config for Config {
     fn get_log_level(&self) -> Option<LogLevel> {
         Some(self.log_level)
     }

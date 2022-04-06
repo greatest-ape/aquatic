@@ -7,7 +7,7 @@ use aquatic_common::{
 use aquatic_toml_config::TomlConfig;
 use serde::Deserialize;
 
-use aquatic_cli_helpers::LogLevel;
+use aquatic_common::cli::LogLevel;
 
 /// aquatic_http configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
@@ -45,7 +45,7 @@ impl Default for Config {
     }
 }
 
-impl aquatic_cli_helpers::Config for Config {
+impl aquatic_common::cli::Config for Config {
     fn get_log_level(&self) -> Option<LogLevel> {
         Some(self.log_level)
     }

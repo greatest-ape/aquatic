@@ -2,7 +2,6 @@
 
 members = [ 
     "aquatic",
-    "aquatic_cli_helpers",
     "aquatic_common",
     "aquatic_http",
     "aquatic_http_load_test",

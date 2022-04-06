@@ -1,4 +1,4 @@
-use aquatic_cli_helpers::run_app_with_cli_and_config;
+use aquatic_common::cli::run_app_with_cli_and_config;
 use aquatic_ws::config::Config;
 
 #[global_allocator]

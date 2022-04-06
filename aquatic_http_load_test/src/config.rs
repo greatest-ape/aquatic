@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use aquatic_cli_helpers::LogLevel;
+use aquatic_common::cli::LogLevel;
 use aquatic_common::cpu_pinning::desc::CpuPinningConfigDesc;
 use aquatic_toml_config::TomlConfig;
 use serde::Deserialize;
@@ -26,7 +26,7 @@ pub struct Config {
     pub cpu_pinning: CpuPinningConfigDesc,
 }
 
-impl aquatic_cli_helpers::Config for Config {
+impl aquatic_common::cli::Config for Config {
     fn get_log_level(&self) -> Option<LogLevel> {
         Some(self.log_level)
     }

@@ -21,7 +21,7 @@ use network::*;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub fn main() {
-    aquatic_cli_helpers::run_app_with_cli_and_config::<Config>(
+    aquatic_common::cli::run_app_with_cli_and_config::<Config>(
         "aquatic_ws_load_test: WebTorrent load tester",
         env!("CARGO_PKG_VERSION"),
         run,

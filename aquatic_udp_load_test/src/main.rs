@@ -22,7 +22,7 @@ use worker::*;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub fn main() {
-    aquatic_cli_helpers::run_app_with_cli_and_config::<Config>(
+    aquatic_common::cli::run_app_with_cli_and_config::<Config>(
         "aquatic_udp_load_test: BitTorrent load tester",
         env!("CARGO_PKG_VERSION"),
         run,
@@ -30,8 +30,8 @@ pub fn main() {
     )
 }
 
-impl aquatic_cli_helpers::Config for Config {
-    fn get_log_level(&self) -> Option<aquatic_cli_helpers::LogLevel> {
+impl aquatic_common::cli::Config for Config {
+    fn get_log_level(&self) -> Option<aquatic_common::cli::LogLevel> {
         Some(self.log_level)
     }
 }

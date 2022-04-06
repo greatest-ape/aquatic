@@ -14,7 +14,7 @@ use num_format::{Locale, ToFormattedString};
 use rand::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
 use std::time::Duration;
 
-use aquatic_cli_helpers::run_app_with_cli_and_config;
+use aquatic_common::cli::run_app_with_cli_and_config;
 use aquatic_udp::common::*;
 use aquatic_udp::config::Config;
 use aquatic_udp_protocol::*;
