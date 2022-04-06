@@ -47,7 +47,7 @@ impl PrivilegeDropper {
         }
     }
 
-    pub fn after_socket_creation(&self) -> anyhow::Result<()> {
+    pub fn after_socket_creation(self) -> anyhow::Result<()> {
         if self.config.drop_privileges {
             if self.barrier.wait().is_leader() {
                 PrivDrop::default()
