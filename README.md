@@ -149,6 +149,14 @@ Once done, start the application:
 ./target/release/aquatic_ws -c "aquatic-ws-config.toml"
 ```
 
+If your server is pointed to by domain `example.com` and you configured the
+tracker to run on port 3000, people can now use it by adding its URL to their
+torrent files or magnet links:
+
+- For aquatic_udp: `udp://example.com:3000`
+- For aquatic_http: `https://example.com:3000/announce`
+- For aquatic_ws: `wss://example.com:3000`
+
 ## Details on implementations
 
 ### aquatic_udp: UDP BitTorrent tracker
