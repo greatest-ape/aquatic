@@ -138,6 +138,10 @@ impl Connection {
         loop {
             self.send_request().await?;
             self.read_response().await?;
+
+            if !self.config.keep_alive {
+                break Ok(());
+            }
         }
     }
 

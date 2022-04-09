@@ -22,6 +22,7 @@ pub struct Config {
     /// Announce/scrape url suffix. Use `/my_token/` to get `/announce/my_token/`
     pub url_suffix: String,
     pub duration: usize,
+    pub keep_alive: bool,
     pub torrents: TorrentConfig,
     pub cpu_pinning: CpuPinningConfigDesc,
 }
@@ -60,6 +61,7 @@ impl Default for Config {
             connection_creation_interval_ms: 10,
             url_suffix: "".into(),
             duration: 0,
+            keep_alive: true,
             torrents: TorrentConfig::default(),
             cpu_pinning: Default::default(),
         }
