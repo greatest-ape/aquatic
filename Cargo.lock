@@ -120,6 +120,7 @@ dependencies = [
  "aquatic_http_protocol",
  "aquatic_toml_config",
  "futures-lite",
+ "futures-rustls",
  "glommio",
  "hashbrown 0.12.0",
  "log",

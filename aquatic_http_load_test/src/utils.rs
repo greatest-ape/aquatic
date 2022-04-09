@@ -10,7 +10,7 @@ use crate::config::*;
 pub fn create_random_request(
     config: &Config,
     state: &LoadTestState,
-    rng: &mut impl Rng,
+    rng: &mut SmallRng,
 ) -> Request {
     let weights = [
         config.torrents.weight_announce as u32,
