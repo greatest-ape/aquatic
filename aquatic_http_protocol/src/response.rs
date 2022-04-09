@@ -117,7 +117,7 @@ impl AnnounceResponse {
     }
 }
 
-#[cfg(feature = "with-axum")]
+#[cfg(feature = "axum")]
 impl axum::response::IntoResponse for AnnounceResponse {
     fn into_response(self) -> axum::response::Response {
         let mut response_bytes = Vec::with_capacity(128);
@@ -158,7 +158,7 @@ impl ScrapeResponse {
     }
 }
 
-#[cfg(feature = "with-axum")]
+#[cfg(feature = "axum")]
 impl axum::response::IntoResponse for ScrapeResponse {
     fn into_response(self) -> axum::response::Response {
         let mut response_bytes = Vec::with_capacity(128);
@@ -197,7 +197,7 @@ impl FailureResponse {
     }
 }
 
-#[cfg(feature = "with-axum")]
+#[cfg(feature = "axum")]
 impl axum::response::IntoResponse for FailureResponse {
     fn into_response(self) -> axum::response::Response {
         let mut response_bytes = Vec::with_capacity(64);
@@ -229,7 +229,7 @@ impl Response {
     }
 }
 
-#[cfg(feature = "with-axum")]
+#[cfg(feature = "axum")]
 impl axum::response::IntoResponse for Response {
     fn into_response(self) -> axum::response::Response {
         match self {

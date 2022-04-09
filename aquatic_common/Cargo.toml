@@ -12,9 +12,7 @@ readme = "../README.md"
 name = "aquatic_common"
 
 [features]
-with-glommio = ["glommio"]
-with-hwloc = ["hwloc"]
-rustls-config = ["rustls", "rustls-pemfile"]
+rustls = ["dep:rustls", "rustls-pemfile"]
 
 [dependencies]
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
@@ -38,7 +36,5 @@ toml = "0.5"
 # Optional
 glommio = { version = "0.7", optional = true }
 hwloc = { version = "0.5", optional = true }
-
-# rustls-config
 rustls = { version = "0.20", optional = true }
 rustls-pemfile = { version = "0.3", optional = true }

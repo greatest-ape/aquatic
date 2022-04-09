@@ -10,7 +10,7 @@ pub mod access_list;
 pub mod cli;
 pub mod cpu_pinning;
 pub mod privileges;
-#[cfg(feature = "rustls-config")]
+#[cfg(feature = "rustls")]
 pub mod rustls_config;
 
 /// Amortized IndexMap using AHash hasher
