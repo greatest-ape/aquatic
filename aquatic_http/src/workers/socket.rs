@@ -293,8 +293,8 @@ impl Connection {
                 }
                 Err(RequestParseError::NeedMoreData) => {
                     ::log::debug!(
-                        "need more request data. current data: {:?}",
-                        std::str::from_utf8(&self.request_buffer[..self.request_buffer_position])
+                        "need more request data. current data: {}",
+                        &self.request_buffer[..self.request_buffer_position].escape_ascii()
                     );
                 }
             }
