@@ -237,7 +237,7 @@ impl Connection {
                             "deserialize response error with {} bytes read: {:?}, text: {}",
                             buffer_position,
                             err,
-                            String::from_utf8_lossy(interesting_bytes)
+                            interesting_bytes.escape_ascii()
                         );
                     }
                 }
