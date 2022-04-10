@@ -26,7 +26,7 @@ log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
-rustls = { version = "0.20", features = ["dangerous_configuration"] }
+rustls = { version = "0.20", default-features = false, features = ["logging", "dangerous_configuration"] } # TLS 1.2 disabled
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
