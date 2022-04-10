@@ -18,7 +18,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install dependencies
-      run: sudo apt-get update -y && sudo apt-get install cmake libhwloc-dev -y
+      run: apt-get update -y && apt-get install cmake libhwloc-dev -y
     - name: Build
       run: |
         cargo build --verbose -p aquatic_udp --features "cpu-pinning"
@@ -28,10 +28,10 @@ jobs:
       run: cargo test --verbose --workspace --all-targets
 
 
-  build-macos:
-    runs-on: macos-latest
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose -p aquatic_udp
+#  build-macos:
+#    runs-on: macos-latest
+#    timeout-minutes: 10
+#    steps:
+#    - uses: actions/checkout@v2
+#    - name: Build
+#      run: cargo build --verbose -p aquatic_udp
