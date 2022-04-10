@@ -90,6 +90,7 @@ dependencies = [
  "aquatic_toml_config",
  "cfg-if",
  "either",
+ "futures",
  "futures-lite",
  "futures-rustls",
  "glommio",

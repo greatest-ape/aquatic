@@ -23,6 +23,7 @@ aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 anyhow = "1"
 cfg-if = "1"
 either = "1"
+futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.22"
 glommio = "0.7"
