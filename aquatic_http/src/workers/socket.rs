@@ -327,7 +327,7 @@ impl Connection {
                 }
 
                 let pending_worker_responses = info_hashes_by_worker.len();
-                let mut response_receivers = Vec::new();
+                let mut response_receivers = Vec::with_capacity(pending_worker_responses);
 
                 for (consumer_index, info_hashes) in info_hashes_by_worker {
                     let (response_sender, response_receiver) = shared_channel::new_bounded(1);
@@ -374,7 +374,9 @@ impl Connection {
             let response = responses
                 .next()
                 .await
-                .ok_or_else(|| anyhow::anyhow!("wait_for_scrape_response: all messages received"))?
+                .ok_or_else(|| {
+                    anyhow::anyhow!("stream ended before all partial scrape responses received")
+                })?
                 .ok_or_else(|| {
                     anyhow::anyhow!(
                         "wait_for_scrape_response: can't receive response, sender is closed"
