@@ -16,12 +16,12 @@ use aquatic_http_protocol::response::{
     FailureResponse, Response, ScrapeResponse, ScrapeStatistics,
 };
 use either::Either;
+use futures::stream::FuturesUnordered;
 use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
-use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
-use glommio::channels::shared_channel::ConnectedReceiver;
+use glommio::channels::shared_channel::{self, SharedReceiver};
 use glommio::net::{TcpListener, TcpStream};
 use glommio::task::JoinHandle;
 use glommio::timer::TimerActionRepeat;
@@ -49,7 +49,6 @@ struct PendingScrapeResponse {
 
 struct ConnectionReference {
     task_handle: Option<JoinHandle<()>>,
-    response_sender: LocalSender<ChannelResponse>,
     valid_until: ValidUntil,
 }
 
@@ -59,7 +58,6 @@ pub async fn run_socket_worker(
     state: State,
     tls_config: Arc<RustlsConfig>,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
-    response_mesh_builder: MeshBuilder<ChannelResponse, Partial>,
     priv_dropper: PrivilegeDropper,
 ) {
     let config = Rc::new(config);
@@ -70,9 +68,6 @@ pub async fn run_socket_worker(
     let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
     let request_senders = Rc::new(request_senders);
 
-    let (_, mut response_receivers) = response_mesh_builder.join(Role::Consumer).await.unwrap();
-    let response_consumer_id = ConsumerId(response_receivers.consumer_id().unwrap());
-
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
 
     TimerActionRepeat::repeat(enclose!((config, connection_slab) move || {
@@ -82,24 +77,13 @@ pub async fn run_socket_worker(
         )
     }));
 
-    for (_, response_receiver) in response_receivers.streams() {
-        spawn_local(receive_responses(
-            response_receiver,
-            connection_slab.clone(),
-        ))
-        .detach();
-    }
-
     let mut incoming = listener.incoming();
 
     while let Some(stream) = incoming.next().await {
         match stream {
             Ok(stream) => {
-                let (response_sender, response_receiver) = new_bounded(config.request_workers);
-
                 let key = connection_slab.borrow_mut().insert(ConnectionReference {
                     task_handle: None,
-                    response_sender,
                     valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
                 });
 
@@ -108,8 +92,6 @@ pub async fn run_socket_worker(
                         config,
                         access_list,
                         request_senders,
-                        response_receiver,
-                        response_consumer_id,
                         ConnectionId(key),
                         tls_config,
                         connection_slab.clone(),
@@ -158,28 +140,10 @@ async fn clean_connections(
     ))
 }
 
-async fn receive_responses(
-    mut response_receiver: ConnectedReceiver<ChannelResponse>,
-    connection_references: Rc<RefCell<Slab<ConnectionReference>>>,
-) {
-    while let Some(channel_response) = response_receiver.next().await {
-        if let Some(reference) = connection_references
-            .borrow()
-            .get(channel_response.get_connection_id().0)
-        {
-            if let Err(err) = reference.response_sender.try_send(channel_response) {
-                ::log::error!("Couldn't send response to local receiver: {:?}", err);
-            }
-        }
-    }
-}
-
 struct Connection {
     config: Rc<Config>,
     access_list_cache: AccessListCache,
     request_senders: Rc<Senders<ChannelRequest>>,
-    response_receiver: LocalReceiver<ChannelResponse>,
-    response_consumer_id: ConsumerId,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     stream: TlsStream<TcpStream>,
     peer_addr: CanonicalSocketAddr,
@@ -194,8 +158,6 @@ impl Connection {
         config: Rc<Config>,
         access_list: Arc<AccessListArcSwap>,
         request_senders: Rc<Senders<ChannelRequest>>,
-        response_receiver: LocalReceiver<ChannelResponse>,
-        response_consumer_id: ConsumerId,
         connection_id: ConnectionId,
         tls_config: Arc<RustlsConfig>,
         connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
@@ -217,8 +179,6 @@ impl Connection {
             config: config.clone(),
             access_list_cache: create_access_list_cache(&access_list),
             request_senders: request_senders.clone(),
-            response_receiver,
-            response_consumer_id,
             connection_slab,
             stream,
             peer_addr,
@@ -293,8 +253,8 @@ impl Connection {
                 }
                 Err(RequestParseError::NeedMoreData) => {
                     ::log::debug!(
-                        "need more request data. current data: {:?}",
-                        std::str::from_utf8(&self.request_buffer[..self.request_buffer_position])
+                        "need more request data. current data: {}",
+                        &self.request_buffer[..self.request_buffer_position].escape_ascii()
                     );
                 }
             }
@@ -324,11 +284,12 @@ impl Connection {
                     .load()
                     .allows(self.config.access_list.mode, &info_hash.0)
                 {
+                    let (response_sender, response_receiver) = shared_channel::new_bounded(1);
+
                     let request = ChannelRequest::Announce {
                         request,
-                        connection_id: self.connection_id,
-                        response_consumer_id: self.response_consumer_id,
                         peer_addr: self.peer_addr,
+                        response_sender,
                     };
 
                     let consumer_index = calculate_request_consumer_index(&self.config, info_hash);
@@ -339,7 +300,13 @@ impl Connection {
                         .await
                         .unwrap();
 
-                    self.wait_for_response(None).await
+                    response_receiver
+                        .connect()
+                        .await
+                        .recv()
+                        .await
+                        .ok_or_else(|| anyhow::anyhow!("response sender closed"))
+                        .map(Response::Announce)
                 } else {
                     let response = Response::Failure(FailureResponse {
                         failure_reason: "Info hash not allowed".into(),
@@ -360,13 +327,17 @@ impl Connection {
                 }
 
                 let pending_worker_responses = info_hashes_by_worker.len();
+                let mut response_receivers = Vec::with_capacity(pending_worker_responses);
 
                 for (consumer_index, info_hashes) in info_hashes_by_worker {
+                    let (response_sender, response_receiver) = shared_channel::new_bounded(1);
+
+                    response_receivers.push(response_receiver);
+
                     let request = ChannelRequest::Scrape {
                         request: ScrapeRequest { info_hashes },
                         peer_addr: self.peer_addr,
-                        response_consumer_id: self.response_consumer_id,
-                        connection_id: self.connection_id,
+                        response_sender,
                     };
 
                     // Only fails when receiver is closed
@@ -381,53 +352,47 @@ impl Connection {
                     stats: Default::default(),
                 };
 
-                self.wait_for_response(Some(pending_scrape_response)).await
+                self.wait_for_scrape_responses(response_receivers, pending_scrape_response)
+                    .await
             }
         }
     }
 
-    /// Wait for announce response or partial scrape responses to arrive,
+    /// Wait for partial scrape responses to arrive,
     /// return full response
-    async fn wait_for_response(
+    async fn wait_for_scrape_responses(
         &self,
-        mut opt_pending_scrape_response: Option<PendingScrapeResponse>,
+        response_receivers: Vec<SharedReceiver<ScrapeResponse>>,
+        mut pending: PendingScrapeResponse,
     ) -> anyhow::Result<Response> {
+        let mut responses = response_receivers
+            .into_iter()
+            .map(|receiver| async { receiver.connect().await.recv().await })
+            .collect::<FuturesUnordered<_>>();
+
         loop {
-            let channel_response = self
-                .response_receiver
-                .recv()
+            let response = responses
+                .next()
                 .await
-                .expect("wait_for_response: can't receive response, sender is closed");
+                .ok_or_else(|| {
+                    anyhow::anyhow!("stream ended before all partial scrape responses received")
+                })?
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "wait_for_scrape_response: can't receive response, sender is closed"
+                    )
+                })?;
 
-            if channel_response.get_peer_addr() != self.peer_addr {
-                return Err(anyhow::anyhow!("peer addresses didn't match"));
+            pending.stats.extend(response.files);
+            pending.pending_worker_responses -= 1;
+
+            if pending.pending_worker_responses == 0 {
+                let response = Response::Scrape(ScrapeResponse {
+                    files: pending.stats,
+                });
+
+                break Ok(response);
             }
-
-            match channel_response {
-                ChannelResponse::Announce { response, .. } => {
-                    break Ok(Response::Announce(response));
-                }
-                ChannelResponse::Scrape { response, .. } => {
-                    if let Some(mut pending) = opt_pending_scrape_response.take() {
-                        pending.stats.extend(response.files);
-                        pending.pending_worker_responses -= 1;
-
-                        if pending.pending_worker_responses == 0 {
-                            let response = Response::Scrape(ScrapeResponse {
-                                files: pending.stats,
-                            });
-
-                            break Ok(response);
-                        } else {
-                            opt_pending_scrape_response = Some(pending);
-                        }
-                    } else {
-                        return Err(anyhow::anyhow!(
-                            "received channel scrape response without pending scrape response"
-                        ));
-                    }
-                }
-            };
         }
     }
 

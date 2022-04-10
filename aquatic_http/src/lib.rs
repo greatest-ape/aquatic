@@ -37,7 +37,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let num_peers = config.socket_workers + config.request_workers;
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
-    let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_CHANNEL_SIZE);
 
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
@@ -55,7 +54,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
         let tls_config = tls_config.clone();
         let request_mesh_builder = request_mesh_builder.clone();
-        let response_mesh_builder = response_mesh_builder.clone();
         let priv_dropper = priv_dropper.clone();
 
         let placement = get_worker_placement(
@@ -74,7 +72,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     state,
                     tls_config,
                     request_mesh_builder,
-                    response_mesh_builder,
                     priv_dropper,
                 )
                 .await
@@ -89,7 +86,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let config = config.clone();
         let state = state.clone();
         let request_mesh_builder = request_mesh_builder.clone();
-        let response_mesh_builder = response_mesh_builder.clone();
 
         let placement = get_worker_placement(
             &config.cpu_pinning,
@@ -101,14 +97,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         let executor = builder
             .spawn(move || async move {
-                workers::request::run_request_worker(
-                    sentinel,
-                    config,
-                    state,
-                    request_mesh_builder,
-                    response_mesh_builder,
-                )
-                .await
+                workers::request::run_request_worker(sentinel, config, state, request_mesh_builder)
+                    .await
             })
             .map_err(|err| anyhow::anyhow!("Spawning executor failed: {:#}", err))?;
 

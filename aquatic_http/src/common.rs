@@ -9,6 +9,7 @@ use aquatic_http_protocol::{
     request::{AnnounceRequest, ScrapeRequest},
     response::{AnnounceResponse, ScrapeResponse},
 };
+use glommio::channels::shared_channel::SharedSender;
 
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
@@ -21,44 +22,13 @@ pub enum ChannelRequest {
     Announce {
         request: AnnounceRequest,
         peer_addr: CanonicalSocketAddr,
-        connection_id: ConnectionId,
-        response_consumer_id: ConsumerId,
+        response_sender: SharedSender<AnnounceResponse>,
     },
     Scrape {
         request: ScrapeRequest,
         peer_addr: CanonicalSocketAddr,
-        connection_id: ConnectionId,
-        response_consumer_id: ConsumerId,
+        response_sender: SharedSender<ScrapeResponse>,
     },
-}
-
-#[derive(Debug)]
-pub enum ChannelResponse {
-    Announce {
-        response: AnnounceResponse,
-        peer_addr: CanonicalSocketAddr,
-        connection_id: ConnectionId,
-    },
-    Scrape {
-        response: ScrapeResponse,
-        peer_addr: CanonicalSocketAddr,
-        connection_id: ConnectionId,
-    },
-}
-
-impl ChannelResponse {
-    pub fn get_connection_id(&self) -> ConnectionId {
-        match self {
-            Self::Announce { connection_id, .. } => *connection_id,
-            Self::Scrape { connection_id, .. } => *connection_id,
-        }
-    }
-    pub fn get_peer_addr(&self) -> CanonicalSocketAddr {
-        match self {
-            Self::Announce { peer_addr, .. } => *peer_addr,
-            Self::Scrape { peer_addr, .. } => *peer_addr,
-        }
-    }
 }
 
 #[derive(Default, Clone)]

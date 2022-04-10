@@ -16,13 +16,14 @@ name = "aquatic_http"
 name = "aquatic_http"
 
 [dependencies]
-aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls-config", "with-glommio"] }
+aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls", "glommio"] }
 aquatic_http_protocol = { version = "0.2.0", path = "../aquatic_http_protocol" }
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 
 anyhow = "1"
 cfg-if = "1"
 either = "1"
+futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.22"
 glommio = "0.7"

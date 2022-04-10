@@ -15,6 +15,12 @@ jobs:
     timeout-minutes: 20
     steps:
     - uses: actions/checkout@v2
+    - name: Install latest stable Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
     - name: Install dependencies
       run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
     - name: Build
@@ -31,5 +37,11 @@ jobs:
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v2
+    - name: Install latest stable Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
     - name: Build
       run: cargo build --verbose -p aquatic_udp

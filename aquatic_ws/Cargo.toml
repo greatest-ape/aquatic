@@ -16,7 +16,7 @@ name = "aquatic_ws"
 name = "aquatic_ws"
 
 [dependencies]
-aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls-config", "with-glommio"] }
+aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls", "glommio"] }
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 aquatic_ws_protocol = { version = "0.2.0", path = "../aquatic_ws_protocol" }
 

@@ -16,7 +16,7 @@ impl Default for CpuPinningDirection {
     }
 }
 
-#[cfg(feature = "with-glommio")]
+#[cfg(feature = "glommio")]
 #[derive(Clone, Copy, Debug, PartialEq, TomlConfig, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HyperThreadMapping {
@@ -25,7 +25,7 @@ pub enum HyperThreadMapping {
     Split,
 }
 
-#[cfg(feature = "with-glommio")]
+#[cfg(feature = "glommio")]
 impl Default for HyperThreadMapping {
     fn default() -> Self {
         Self::System
@@ -35,7 +35,7 @@ impl Default for HyperThreadMapping {
 pub trait CpuPinningConfig {
     fn active(&self) -> bool;
     fn direction(&self) -> CpuPinningDirection;
-    #[cfg(feature = "with-glommio")]
+    #[cfg(feature = "glommio")]
     fn hyperthread(&self) -> HyperThreadMapping;
     fn core_offset(&self) -> usize;
 }
@@ -54,7 +54,7 @@ pub mod mod_name {
     pub struct struct_name {
         pub active: bool,
         pub direction: CpuPinningDirection,
-        #[cfg(feature = "with-glommio")]
+        #[cfg(feature = "glommio")]
         pub hyperthread: HyperThreadMapping,
         pub core_offset: usize,
     }
@@ -64,7 +64,7 @@ pub mod mod_name {
             Self {
                 active: false,
                 direction: cpu_pinning_direction,
-                #[cfg(feature = "with-glommio")]
+                #[cfg(feature = "glommio")]
                 hyperthread: Default::default(),
                 core_offset: 0,
             }
@@ -77,7 +77,7 @@ pub mod mod_name {
         fn direction(&self) -> CpuPinningDirection {
             self.direction
         }
-        #[cfg(feature = "with-glommio")]
+        #[cfg(feature = "glommio")]
         fn hyperthread(&self) -> HyperThreadMapping {
             self.hyperthread
         }
@@ -119,7 +119,7 @@ impl WorkerIndex {
     }
 }
 
-#[cfg(feature = "with-glommio")]
+#[cfg(feature = "glommio")]
 pub mod glommio {
     use ::glommio::{CpuSet, Placement};
 
@@ -271,7 +271,7 @@ pub mod glommio {
 /// Pin current thread to a suitable core
 ///
 /// Requires hwloc (`apt-get install libhwloc-dev`)
-#[cfg(feature = "with-hwloc")]
+#[cfg(feature = "hwloc")]
 pub fn pin_current_if_configured_to<C: CpuPinningConfig>(
     config: &C,
     socket_workers: usize,
