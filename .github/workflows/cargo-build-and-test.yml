@@ -13,10 +13,12 @@ jobs:
   build-test-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    container:
+      image: rust:1-bullseye
     steps:
     - uses: actions/checkout@v2
     - name: Install dependencies
-      run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
+      run: sudo apt-get update -y && sudo apt-get install cmake libhwloc-dev -y
     - name: Build
       run: |
         cargo build --verbose -p aquatic_udp --features "cpu-pinning"
