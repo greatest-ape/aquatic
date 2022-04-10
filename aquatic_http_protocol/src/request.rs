@@ -59,6 +59,9 @@ impl AnnounceRequest {
             output.write_all(::urlencoding::encode(key.as_str()).as_bytes())?;
         }
 
+        // Always ask for compact responses to ease load testing of non-aquatic trackers
+        output.write_all(b"&compact=1")?;
+
         output.write_all(b" HTTP/1.1\r\nHost: localhost\r\n\r\n")?;
 
         Ok(())
