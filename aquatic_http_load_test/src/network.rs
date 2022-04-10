@@ -233,7 +233,7 @@ impl Connection {
                         break;
                     }
                     Err(err) => {
-                        eprintln!(
+                        ::log::warn!(
                             "deserialize response error with {} bytes read: {:?}, text: {}",
                             buffer_position,
                             err,
