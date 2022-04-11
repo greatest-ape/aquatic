@@ -27,7 +27,10 @@ Features at a glance:
 - Supports forbidding/allowing info hashes
 - Built-in TLS support (no reverse proxy needed)
 - Automated CI testing of full file transfers
-- Distributed under Apache-2.0 license
+
+Known users:
+
+- [explodie.org public tracker](https://explodie.org/opentracker.html) (`udp://explodie.org:6969`), typically serving ~100,000 requests per second 
 
 ## Usage
 
