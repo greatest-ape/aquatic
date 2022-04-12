@@ -209,6 +209,12 @@ Implements:
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
 fine.
 
+#### Performance
+
+![HTTP BitTorrent tracker throughput comparison](./documents/aquatic-http-load-test-illustration-2022-04-11.png)
+
+More details are available [here](./documents/aquatic-http-load-test-2022-04-11.pdf).
+
 ### aquatic_ws: WebTorrent tracker
 
 Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
