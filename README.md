@@ -23,7 +23,7 @@ Features at a glance:
 
 - Multithreaded design for handling large amounts of traffic
 - All data is stored in-memory (no database needed)
-- IPv4 and IPv6 support
+- IPv4 and IPv6 support, with separate swarms
 - Supports forbidding/allowing info hashes
 - Built-in TLS support (no reverse proxy needed)
 - Automated CI testing of full file transfers
@@ -156,9 +156,11 @@ If your server is pointed to by domain `example.com` and you configured the
 tracker to run on port 3000, people can now use it by adding its URL to their
 torrent files or magnet links:
 
-- For aquatic_udp: `udp://example.com:3000`
-- For aquatic_http: `https://example.com:3000/announce`
-- For aquatic_ws: `wss://example.com:3000`
+| Implementation | Announce URL                        |
+|----------------|-------------------------------------|
+| aquatic_udp    | `udp://example.com:3000`            |
+| aquatic_http   | `https://example.com:3000/announce` |
+| aquatic_ws     | `wss://example.com:3000`            |
 
 ## Details on implementations
 
@@ -171,8 +173,6 @@ Implements:
     * Doesn't care about IP addresses sent in announce requests. The packet
       source IP is always used.
     * Doesn't track the number of torrent downloads (0 is always sent). 
-  
-IPv4 and IPv6 peers are tracked separately.
 
 This is the most mature of the implementations. I consider it ready for production use.
 
@@ -206,8 +206,6 @@ Implements:
   * [BEP 048]: HTTP scrape support. Notes:
     * Doesn't allow full scrapes, i.e. of all registered info hashes
 
-IPv4 and IPv6 peers are tracked separately.
-
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
 fine.
 
@@ -219,8 +217,6 @@ clients. Notes:
   * Only runs over TLS
   * Doesn't track the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
-
-IPv4 and IPv6 peers are tracked separately.
 
 `aquatic_ws` has not been tested as much as `aquatic_udp` but likely works
 fine.
