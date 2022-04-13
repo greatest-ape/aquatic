@@ -34,7 +34,7 @@ impl ConnectionValidator {
         Ok(Self {
             hmac,
             start_time: Instant::now(),
-            max_connection_age: config.cleaning.max_connection_age as u32,
+            max_connection_age: config.cleaning.max_connection_age,
         })
     }
 

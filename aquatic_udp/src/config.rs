@@ -171,8 +171,8 @@ pub struct CleaningConfig {
     /// lingering for a long time. However, the cleaning also returns unused
     /// allocated memory to the OS, so the interval can be configured here.
     pub pending_scrape_cleaning_interval: u64,
-    /// Maximum time to use a connection token before it expires (seconds)
-    pub max_connection_age: u64,
+    /// Allow clients to use a connection token for this long (seconds)
+    pub max_connection_age: u32,
     /// Remove peers who have not announced for this long (seconds)
     pub max_peer_age: u64,
     /// Remove pending scrape responses that have not been returned from request
