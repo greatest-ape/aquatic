@@ -2,25 +2,24 @@ pub mod common;
 pub mod config;
 pub mod workers;
 
-use aquatic_common::PanicSentinelWatcher;
-use config::Config;
-
 use std::collections::BTreeMap;
 use std::thread::Builder;
 
 use anyhow::Context;
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::{bounded, unbounded};
-
-use aquatic_common::access_list::update_access_list;
 use signal_hook::consts::{SIGTERM, SIGUSR1};
 use signal_hook::iterator::Signals;
 
-use common::{ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State};
+use aquatic_common::access_list::update_access_list;
+#[cfg(feature = "cpu-pinning")]
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
+use aquatic_common::privileges::PrivilegeDropper;
+use aquatic_common::PanicSentinelWatcher;
 
-use crate::common::RequestWorkerIndex;
+use common::{
+    ConnectedRequestSender, ConnectedResponseSender, RequestWorkerIndex, SocketWorkerIndex, State,
+};
+use config::Config;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");

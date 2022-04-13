@@ -24,8 +24,10 @@ aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 aquatic_udp_protocol = { version = "0.2.0", path = "../aquatic_udp_protocol" }
 
 anyhow = "1"
+blake3 = { version = "1", features = ["traits-preview"] }
 cfg-if = "1"
 crossbeam-channel = "0.5"
+getrandom = "0.2"
 hex = "0.4"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
