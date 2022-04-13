@@ -163,8 +163,6 @@ impl Default for StatisticsConfig {
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default)]
 pub struct CleaningConfig {
-    /// Clean connections this often (seconds)
-    pub connection_cleaning_interval: u64,
     /// Clean torrents this often (seconds)
     pub torrent_cleaning_interval: u64,
     /// Clean pending scrape responses this often (seconds)
@@ -173,7 +171,7 @@ pub struct CleaningConfig {
     /// lingering for a long time. However, the cleaning also returns unused
     /// allocated memory to the OS, so the interval can be configured here.
     pub pending_scrape_cleaning_interval: u64,
-    /// Remove connections that are older than this (seconds)
+    /// Maximum time to use a connection token before it expires (seconds)
     pub max_connection_age: u64,
     /// Remove peers who have not announced for this long (seconds)
     pub max_peer_age: u64,
@@ -185,7 +183,6 @@ pub struct CleaningConfig {
 impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
-            connection_cleaning_interval: 60,
             torrent_cleaning_interval: 60 * 2,
             pending_scrape_cleaning_interval: 60 * 10,
             max_connection_age: 60 * 2,
