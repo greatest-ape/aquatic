@@ -5,6 +5,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Instant;
 
+use anyhow::Context;
 use crossbeam_channel::{Sender, TrySendError};
 use getrandom::getrandom;
 
@@ -27,7 +28,7 @@ impl ConnectionValidator {
     pub fn new(config: &Config) -> anyhow::Result<Self> {
         let mut key = [0; 32];
 
-        getrandom(&mut key)?;
+        getrandom(&mut key).with_context(|| "Couldn't get random bytes from system source")?;
 
         let hmac = blake3::Hasher::new_keyed(&key);
 
