@@ -17,7 +17,8 @@ use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::PanicSentinelWatcher;
 
 use common::{
-    ConnectedRequestSender, ConnectedResponseSender, RequestWorkerIndex, SocketWorkerIndex, State,
+    ConnectedRequestSender, ConnectedResponseSender, ConnectionValidator, RequestWorkerIndex,
+    SocketWorkerIndex, State,
 };
 use config::Config;
 
@@ -30,6 +31,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     update_access_list(&config.access_list, &state.access_list)?;
 
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
+
+    let connection_validator = ConnectionValidator::new(&config)?;
 
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
@@ -96,6 +99,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
+        let connection_validator = connection_validator.clone();
         let request_sender =
             ConnectedRequestSender::new(SocketWorkerIndex(i), request_senders.clone());
         let response_receiver = response_receivers.remove(&i).unwrap();
@@ -117,6 +121,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     state,
                     config,
                     i,
+                    connection_validator,
                     request_sender,
                     response_receiver,
                     priv_dropper,

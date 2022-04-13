@@ -16,13 +16,14 @@ use crate::config::Config;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
 
-pub struct ConnectionIdHandler {
+#[derive(Clone)]
+pub struct ConnectionValidator {
     start_time: Instant,
     max_connection_age: Duration,
     hmac: blake3::Hasher,
 }
 
-impl ConnectionIdHandler {
+impl ConnectionValidator {
     pub fn new(config: &Config) -> anyhow::Result<Self> {
         let mut key = [0; 32];
 
@@ -40,19 +41,23 @@ impl ConnectionIdHandler {
         })
     }
 
-    pub fn create_connection_id(&mut self, source_ip: IpAddr) -> ConnectionId {
+    pub fn create_connection_id(&mut self, source_addr: CanonicalSocketAddr) -> ConnectionId {
         // Seconds elapsed since server start, as bytes
         let elapsed_time_bytes = (self.start_time.elapsed().as_secs() as u32).to_ne_bytes();
 
-        self.create_connection_id_inner(elapsed_time_bytes, source_ip)
+        self.create_connection_id_inner(elapsed_time_bytes, source_addr)
     }
 
-    pub fn connection_id_valid(&mut self, source_ip: IpAddr, connection_id: ConnectionId) -> bool {
+    pub fn connection_id_valid(
+        &mut self,
+        source_addr: CanonicalSocketAddr,
+        connection_id: ConnectionId,
+    ) -> bool {
         let elapsed_time_bytes = connection_id.0.to_ne_bytes()[..4].try_into().unwrap();
 
         // i64 comparison should be constant-time
         let hmac_valid =
-            connection_id == self.create_connection_id_inner(elapsed_time_bytes, source_ip);
+            connection_id == self.create_connection_id_inner(elapsed_time_bytes, source_addr);
 
         if !hmac_valid {
             return false;
@@ -67,7 +72,7 @@ impl ConnectionIdHandler {
     fn create_connection_id_inner(
         &mut self,
         elapsed_time_bytes: [u8; 4],
-        source_ip: IpAddr,
+        source_addr: CanonicalSocketAddr,
     ) -> ConnectionId {
         // The first 4 bytes is the elapsed time since server start in seconds. The last 4 is a
         // truncated message authentication code.
@@ -77,7 +82,7 @@ impl ConnectionIdHandler {
 
         self.hmac.update(&elapsed_time_bytes);
 
-        match source_ip {
+        match source_addr.get().ip() {
             IpAddr::V4(ip) => self.hmac.update(&ip.octets()),
             IpAddr::V6(ip) => self.hmac.update(&ip.octets()),
         };
