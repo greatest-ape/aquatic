@@ -26,16 +26,14 @@ pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    let state = State::new(config.request_workers);
-
-    update_access_list(&config.access_list, &state.access_list)?;
-
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
+    let state = State::new(config.request_workers);
     let connection_validator = ConnectionValidator::new(&config)?;
-
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
+
+    update_access_list(&config.access_list, &state.access_list)?;
 
     let mut request_senders = Vec::new();
     let mut request_receivers = BTreeMap::new();
