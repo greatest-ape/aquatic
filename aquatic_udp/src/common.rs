@@ -29,7 +29,7 @@ pub const BUFFER_SIZE: usize = 8192;
 pub struct ConnectionValidator {
     start_time: Instant,
     max_connection_age: u32,
-    hmac: blake3::Hasher,
+    keyed_hasher: blake3::Hasher,
 }
 
 impl ConnectionValidator {
@@ -41,10 +41,10 @@ impl ConnectionValidator {
         getrandom(&mut key)
             .with_context(|| "Couldn't get random bytes for ConnectionValidator key")?;
 
-        let hmac = blake3::Hasher::new_keyed(&key);
+        let keyed_hasher = blake3::Hasher::new_keyed(&key);
 
         Ok(Self {
-            hmac,
+            keyed_hasher,
             start_time: Instant::now(),
             max_connection_age: config.cleaning.max_connection_age,
         })
@@ -83,15 +83,17 @@ impl ConnectionValidator {
 
         (&mut connection_id_bytes[..4]).copy_from_slice(&valid_until);
 
-        self.hmac.update(&valid_until);
+        self.keyed_hasher.update(&valid_until);
 
         match source_addr.get().ip() {
-            IpAddr::V4(ip) => self.hmac.update(&ip.octets()),
-            IpAddr::V6(ip) => self.hmac.update(&ip.octets()),
+            IpAddr::V4(ip) => self.keyed_hasher.update(&ip.octets()),
+            IpAddr::V6(ip) => self.keyed_hasher.update(&ip.octets()),
         };
 
-        self.hmac.finalize_xof().fill(&mut connection_id_bytes[4..]);
-        self.hmac.reset();
+        self.keyed_hasher
+            .finalize_xof()
+            .fill(&mut connection_id_bytes[4..]);
+        self.keyed_hasher.reset();
 
         ConnectionId(i64::from_ne_bytes(connection_id_bytes))
     }
