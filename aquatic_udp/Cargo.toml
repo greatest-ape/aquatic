@@ -28,6 +28,7 @@ blake3 = "1"
 cfg-if = "1"
 crossbeam-channel = "0.5"
 getrandom = "0.2"
+hashbrown = { version = "0.12", default-features = false }
 hex = "0.4"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }

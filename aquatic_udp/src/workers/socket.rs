@@ -7,13 +7,14 @@ use std::vec::Drain;
 use anyhow::Context;
 use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::Receiver;
+use hashbrown::HashMap;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
 use slab::Slab;
 
 use aquatic_common::access_list::create_access_list_cache;
 use aquatic_common::access_list::AccessListCache;
-use aquatic_common::{AmortizedIndexMap, CanonicalSocketAddr};
+use aquatic_common::CanonicalSocketAddr;
 use aquatic_common::{PanicSentinel, ValidUntil};
 use aquatic_udp_protocol::*;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -39,8 +40,9 @@ impl PendingScrapeResponseSlab {
         request: ScrapeRequest,
         valid_until: ValidUntil,
     ) -> impl IntoIterator<Item = (RequestWorkerIndex, PendingScrapeRequest)> {
-        let mut split_requests: AmortizedIndexMap<RequestWorkerIndex, PendingScrapeRequest> =
-            Default::default();
+        let capacity = config.request_workers.min(request.info_hashes.len());
+        let mut split_requests: HashMap<RequestWorkerIndex, PendingScrapeRequest> =
+            HashMap::with_capacity(capacity);
 
         if request.info_hashes.is_empty() {
             ::log::warn!(
