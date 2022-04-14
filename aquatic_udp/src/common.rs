@@ -267,9 +267,13 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv6Addr;
+    use std::net::{Ipv6Addr, SocketAddr};
 
-    use crate::{common::MAX_PACKET_SIZE, config::Config};
+    use quickcheck_macros::quickcheck;
+
+    use crate::config::Config;
+
+    use super::*;
 
     #[test]
     fn test_peer_status_from_event_and_bytes_left() {
@@ -322,5 +326,26 @@ mod tests {
         println!("Buffer len: {}", buf.len());
 
         assert!(buf.len() <= MAX_PACKET_SIZE);
+    }
+
+    #[quickcheck]
+    fn test_connection_validator(addr: IpAddr, max_connection_age: u32) -> bool {
+        let addr = CanonicalSocketAddr::new(SocketAddr::new(addr, 0));
+
+        let mut config = Config::default();
+
+        config.cleaning.max_connection_age = max_connection_age;
+
+        let mut validator = ConnectionValidator::new(&config).unwrap();
+
+        let connection_id = validator.create_connection_id(addr);
+
+        let valid = validator.connection_id_valid(addr, connection_id);
+
+        if max_connection_age == 0 {
+            !valid
+        } else {
+            valid // Note: depends on that running this test takes less than a second
+        }
     }
 }
