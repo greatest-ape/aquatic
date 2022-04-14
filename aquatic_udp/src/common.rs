@@ -329,23 +329,40 @@ mod tests {
     }
 
     #[quickcheck]
-    fn test_connection_validator(addr: IpAddr, max_connection_age: u32) -> bool {
-        let addr = CanonicalSocketAddr::new(SocketAddr::new(addr, 0));
+    fn test_connection_validator(
+        original_addr: IpAddr,
+        different_addr: IpAddr,
+        max_connection_age: u32,
+    ) -> quickcheck::TestResult {
+        let original_addr = CanonicalSocketAddr::new(SocketAddr::new(original_addr, 0));
+        let different_addr = CanonicalSocketAddr::new(SocketAddr::new(different_addr, 0));
 
-        let mut config = Config::default();
+        if original_addr == different_addr {
+            return quickcheck::TestResult::discard();
+        }
 
-        config.cleaning.max_connection_age = max_connection_age;
+        let mut validator = {
+            let mut config = Config::default();
 
-        let mut validator = ConnectionValidator::new(&config).unwrap();
+            config.cleaning.max_connection_age = max_connection_age;
 
-        let connection_id = validator.create_connection_id(addr);
+            ConnectionValidator::new(&config).unwrap()
+        };
 
-        let valid = validator.connection_id_valid(addr, connection_id);
+        let connection_id = validator.create_connection_id(original_addr);
+
+        let original_valid = validator.connection_id_valid(original_addr, connection_id);
+        let different_valid = validator.connection_id_valid(different_addr, connection_id);
+
+        if different_valid {
+            return quickcheck::TestResult::failed();
+        }
 
         if max_connection_age == 0 {
-            !valid
+            quickcheck::TestResult::from_bool(!original_valid)
         } else {
-            valid // Note: depends on that running this test takes less than a second
+            // Note: depends on that running this test takes less than a second
+            quickcheck::TestResult::from_bool(original_valid)
         }
     }
 }
