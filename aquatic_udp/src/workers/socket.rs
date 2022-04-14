@@ -110,18 +110,19 @@ impl PendingScrapeResponseSlab {
         let now = Instant::now();
 
         self.0.retain(|k, v| {
-            let keep = v.valid_until.0 > now;
-
-            if !keep {
+            if v.valid_until.0 > now {
+                true
+            } else {
                 ::log::warn!(
-                    "Removing PendingScrapeResponseSlab entry while cleaning. {:?}: {:?}",
+                    "Unconsumed PendingScrapeResponseSlab entry. {:?}: {:?}",
                     k,
                     v
                 );
-            }
 
-            keep
+                false
+            }
         });
+
         self.0.shrink_to_fit();
     }
 }
