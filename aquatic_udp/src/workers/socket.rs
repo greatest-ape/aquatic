@@ -196,7 +196,7 @@ pub fn run_socket_worker(
         );
 
         // Run periodic ValidUntil updates and state cleaning
-        if iter_counter % 128 == 0 {
+        if iter_counter % 256 == 0 {
             let now = Instant::now();
 
             pending_scrape_valid_until =
