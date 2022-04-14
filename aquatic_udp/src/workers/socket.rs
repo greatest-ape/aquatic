@@ -267,12 +267,11 @@ fn read_requests(
                     src,
                 );
             }
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                break;
+            }
             Err(err) => {
-                if err.kind() == ErrorKind::WouldBlock {
-                    break;
-                }
-
-                ::log::info!("recv_from error: {}", err);
+                ::log::warn!("recv_from error: {:#}", err);
             }
         }
     }
