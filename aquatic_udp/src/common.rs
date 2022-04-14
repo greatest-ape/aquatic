@@ -17,6 +17,13 @@ use crate::config::Config;
 
 pub const MAX_PACKET_SIZE: usize = 8192;
 
+/// HMAC (BLAKE3) based ConnectionID creator and validator
+///
+/// Structure of created ConnectionID (bytes making up inner i64):
+/// - &[0..4]: connection expiration time as number of seconds after
+///   ConnectionValidator instance was created, encoded as u32 bytes
+/// - &[4..8]: truncated keyed BLAKE3 hash of above 4 bytes and octets of
+///   client IP address
 #[derive(Clone)]
 pub struct ConnectionValidator {
     start_time: Instant,
@@ -25,6 +32,8 @@ pub struct ConnectionValidator {
 }
 
 impl ConnectionValidator {
+    /// Create new instance. Must be created once and cloned if used in several
+    /// threads.
     pub fn new(config: &Config) -> anyhow::Result<Self> {
         let mut key = [0; 32];
 
@@ -54,7 +63,7 @@ impl ConnectionValidator {
     ) -> bool {
         let valid_until = connection_id.0.to_ne_bytes()[..4].try_into().unwrap();
 
-        // Check that recreating ConnectionId with same inputs yields identical HMAC.
+        // Check that recreating ConnectionId with same inputs yields identical hash.
         //
         // I expect i64 comparison to be be constant-time.
         if connection_id != self.create_connection_id_inner(valid_until, source_addr) {
@@ -69,9 +78,6 @@ impl ConnectionValidator {
         valid_until: [u8; 4],
         source_addr: CanonicalSocketAddr,
     ) -> ConnectionId {
-        // The first 4 bytes is number of seconds since server start until
-        // connection is no longer valid. The last 4 is the truncated message
-        // authentication code.
         let mut connection_id_bytes = [0u8; 8];
 
         (&mut connection_id_bytes[..4]).copy_from_slice(&valid_until);
