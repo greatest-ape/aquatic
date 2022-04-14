@@ -2,16 +2,15 @@
 
 ## High priority
 
-* aquatic_http_private
-  * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
-  * stored procedure
-    * test ip format
-    * check user token length
-  * site will likely want num_seeders and num_leechers for all torrents..
+* aquatic_udp
+  * ConnectionValidator
+    * Is comparison really constant time?
+    * Document security aspects of 4-byte BLAKE3 XOR mode output?
 
 ## Medium priority
 
 * rename request workers to swarm workers
+
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
     Once JoinHandle::is_finished is available in stable Rust (#90470), an
@@ -28,6 +27,13 @@
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
   * SinkExt::send maybe doesn't wake up properly?
     * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
+
+* aquatic_http_private
+  * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
+  * stored procedure
+    * test ip format
+    * check user token length
+  * site will likely want num_seeders and num_leechers for all torrents..
 
 * extract_response_peers
   * don't assume requesting peer is in list?
