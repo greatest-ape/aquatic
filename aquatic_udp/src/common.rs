@@ -28,7 +28,8 @@ impl ConnectionValidator {
     pub fn new(config: &Config) -> anyhow::Result<Self> {
         let mut key = [0; 32];
 
-        getrandom(&mut key).with_context(|| "Couldn't get random bytes from system source")?;
+        getrandom(&mut key)
+            .with_context(|| "Couldn't get random bytes for ConnectionValidator key")?;
 
         let hmac = blake3::Hasher::new_keyed(&key);
 
