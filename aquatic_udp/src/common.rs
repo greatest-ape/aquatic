@@ -21,7 +21,8 @@ pub const BUFFER_SIZE: usize = 8192;
 ///
 /// Structure of created ConnectionID (bytes making up inner i64):
 /// - &[0..4]: connection expiration time as number of seconds after
-///   ConnectionValidator instance was created, encoded as u32 bytes
+///   ConnectionValidator instance was created, encoded as u32 bytes.
+///   Value fits around 136 years.
 /// - &[4..8]: truncated keyed BLAKE3 hash of above 4 bytes and octets of
 ///   client IP address
 #[derive(Clone)]
