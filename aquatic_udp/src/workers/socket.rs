@@ -399,40 +399,17 @@ fn send_responses(
     }
 
     for (response, addr) in response_receiver.try_iter() {
-        match response {
-            ConnectedResponse::Scrape(r) => {
-                if let Some(response) = pending_scrape_responses.add_and_get_finished(r) {
-                    send_response(
-                        state,
-                        config,
-                        socket,
-                        buffer,
-                        Response::Scrape(response),
-                        addr,
-                    );
-                }
-            }
-            ConnectedResponse::AnnounceIpv4(r) => {
-                send_response(
-                    state,
-                    config,
-                    socket,
-                    buffer,
-                    Response::AnnounceIpv4(r),
-                    addr,
-                );
-            }
-            ConnectedResponse::AnnounceIpv6(r) => {
-                send_response(
-                    state,
-                    config,
-                    socket,
-                    buffer,
-                    Response::AnnounceIpv6(r),
-                    addr,
-                );
-            }
+        let opt_response = match response {
+            ConnectedResponse::Scrape(r) => pending_scrape_responses
+                .add_and_get_finished(r)
+                .map(Response::Scrape),
+            ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
+            ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
         };
+
+        if let Some(response) = opt_response {
+            send_response(state, config, socket, buffer, response, addr);
+        }
     }
 }
 
