@@ -488,7 +488,7 @@ fn send_response(
                 }
                 Ok(_) => {}
                 Err(err) => {
-                    ::log::info!("send_to error: {}", err);
+                    ::log::warn!("send_to error: {:#}", err);
                 }
             }
         }
