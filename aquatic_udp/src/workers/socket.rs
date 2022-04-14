@@ -216,7 +216,6 @@ pub fn run_socket_worker(
     }
 }
 
-#[inline]
 fn read_requests(
     config: &Config,
     state: &State,
@@ -383,7 +382,6 @@ pub fn handle_request(
     }
 }
 
-#[inline]
 fn send_responses(
     state: &State,
     config: &Config,
