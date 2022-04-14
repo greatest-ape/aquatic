@@ -76,7 +76,10 @@ impl PendingScrapeResponseSlab {
         split_requests
     }
 
-    pub fn add_and_get_finished(&mut self, response: PendingScrapeResponse) -> Option<Response> {
+    pub fn add_and_get_finished(
+        &mut self,
+        response: PendingScrapeResponse,
+    ) -> Option<ScrapeResponse> {
         let finished = if let Some(entry) = self.0.get_mut(response.slab_key) {
             entry.num_pending -= 1;
 
@@ -97,10 +100,10 @@ impl PendingScrapeResponseSlab {
         if finished {
             let entry = self.0.remove(response.slab_key);
 
-            Some(Response::Scrape(ScrapeResponse {
+            Some(ScrapeResponse {
                 transaction_id: entry.transaction_id,
                 torrent_stats: entry.torrent_stats.into_values().collect(),
-            }))
+            })
         } else {
             None
         }
@@ -396,15 +399,40 @@ fn send_responses(
     }
 
     for (response, addr) in response_receiver.try_iter() {
-        let opt_response = match response {
-            ConnectedResponse::Scrape(r) => pending_scrape_responses.add_and_get_finished(r),
-            ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
-            ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
+        match response {
+            ConnectedResponse::Scrape(r) => {
+                if let Some(response) = pending_scrape_responses.add_and_get_finished(r) {
+                    send_response(
+                        state,
+                        config,
+                        socket,
+                        buffer,
+                        Response::Scrape(response),
+                        addr,
+                    );
+                }
+            }
+            ConnectedResponse::AnnounceIpv4(r) => {
+                send_response(
+                    state,
+                    config,
+                    socket,
+                    buffer,
+                    Response::AnnounceIpv4(r),
+                    addr,
+                );
+            }
+            ConnectedResponse::AnnounceIpv6(r) => {
+                send_response(
+                    state,
+                    config,
+                    socket,
+                    buffer,
+                    Response::AnnounceIpv6(r),
+                    addr,
+                );
+            }
         };
-
-        if let Some(response) = opt_response {
-            send_response(state, config, socket, buffer, response, addr);
-        }
     }
 }
 
