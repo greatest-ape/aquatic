@@ -2,9 +2,6 @@
 
 ## High priority
 
-* aquatic_udp
-  * find out if hmac connection validation solution is actually secure
-
 * aquatic_http_private
   * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
   * stored procedure
