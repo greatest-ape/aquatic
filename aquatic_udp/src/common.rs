@@ -15,7 +15,7 @@ use aquatic_udp_protocol::*;
 
 use crate::config::Config;
 
-pub const MAX_PACKET_SIZE: usize = 8192;
+pub const BUFFER_SIZE: usize = 8192;
 
 /// HMAC (BLAKE3) based ConnectionID creator and validator
 ///
@@ -299,7 +299,7 @@ mod tests {
     // Assumes that announce response with maximum amount of ipv6 peers will
     // be the longest
     #[test]
-    fn test_max_package_size() {
+    fn test_buffer_size() {
         use aquatic_udp_protocol::*;
 
         let config = Config::default();
@@ -325,7 +325,7 @@ mod tests {
 
         println!("Buffer len: {}", buf.len());
 
-        assert!(buf.len() <= MAX_PACKET_SIZE);
+        assert!(buf.len() <= BUFFER_SIZE);
     }
 
     #[quickcheck]

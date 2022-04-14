@@ -140,7 +140,7 @@ pub fn run_socket_worker(
     response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
     priv_dropper: PrivilegeDropper,
 ) {
-    let mut buffer = [0u8; MAX_PACKET_SIZE];
+    let mut buffer = [0u8; BUFFER_SIZE];
 
     let mut socket =
         UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
