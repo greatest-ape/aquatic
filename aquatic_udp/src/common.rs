@@ -65,7 +65,7 @@ impl ConnectionValidator {
         let valid_until = connection_id.0.to_ne_bytes()[..4].try_into().unwrap();
 
         // Check that recreating ConnectionId with same inputs yields identical hash.
-        if !Self::connection_id_eq_constant_time(
+        if !Self::connection_id_eq(
             connection_id,
             self.create_connection_id_inner(valid_until, source_addr),
         ) {
@@ -99,12 +99,12 @@ impl ConnectionValidator {
         ConnectionId(i64::from_ne_bytes(connection_id_bytes))
     }
 
-    /// Compare ConnectionIDs in constant time
+    /// Compare ConnectionIDs without breaking constant time requirements
     ///
     /// Use this instead of PartialEq::eq to avoid optimizations breaking constant
     /// time HMAC comparison.
     #[cfg(target_arch = "x86_64")]
-    fn connection_id_eq_constant_time(a: ConnectionId, b: ConnectionId) -> bool {
+    fn connection_id_eq(a: ConnectionId, b: ConnectionId) -> bool {
         let mut eq = 0u8;
 
         unsafe {
@@ -397,6 +397,6 @@ mod tests {
         let a = ConnectionId(a);
         let b = ConnectionId(b);
 
-        ConnectionValidator::connection_id_eq_constant_time(a, b) == (a == b)
+        ConnectionValidator::connection_id_eq(a, b) == (a == b)
     }
 }
