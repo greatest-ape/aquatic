@@ -25,6 +25,11 @@ pub const BUFFER_SIZE: usize = 8192;
 ///   Value fits around 136 years.
 /// - &[4..8]: truncated keyed BLAKE3 hash of above 4 bytes and octets of
 ///   client IP address
+///
+/// The purpose of using ConnectionIDs is to prevent IP spoofing, mainly to
+/// prevent the tracker from being used as an amplification vector for DDoS
+/// attacks. By including 32 bits of BLAKE3 keyed hash output in its contents,
+/// such abuse should be rendered impractical.
 #[derive(Clone)]
 pub struct ConnectionValidator {
     start_time: Instant,
@@ -102,7 +107,7 @@ impl ConnectionValidator {
     /// Compare ConnectionIDs without breaking constant time requirements
     ///
     /// Use this instead of PartialEq::eq to avoid optimizations breaking constant
-    /// time HMAC comparison.
+    /// time HMAC comparison and thus strongly reducing security.
     #[cfg(target_arch = "x86_64")]
     fn connection_id_eq(a: ConnectionId, b: ConnectionId) -> bool {
         let mut eq = 0u8;
