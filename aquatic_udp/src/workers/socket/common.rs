@@ -126,7 +126,7 @@ mod tests {
     use super::*;
 
     #[quickcheck]
-    fn test_pending_scrape_response_map(
+    fn test_pending_scrape_response_slab(
         request_data: Vec<(i32, i64, u8)>,
         request_workers: u8,
     ) -> TestResult {
