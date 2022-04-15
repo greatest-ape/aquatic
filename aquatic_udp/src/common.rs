@@ -114,6 +114,7 @@ impl ConnectionValidator {
                 a = in(reg) a.0,
                 b = in(reg) b.0,
                 eq = inout(reg_byte) eq,
+                options(nomem, nostack),
             );
         }
 
