@@ -1,6 +1,6 @@
-mod common;
 mod requests;
 mod responses;
+mod storage;
 
 use std::time::{Duration, Instant};
 
@@ -19,9 +19,9 @@ use socket2::{Domain, Protocol, Socket, Type};
 use crate::common::*;
 use crate::config::Config;
 
-use self::common::PendingScrapeResponseSlab;
 use self::requests::read_requests;
 use self::responses::send_responses;
+use self::storage::PendingScrapeResponseSlab;
 
 pub fn run_socket_worker(
     _sentinel: PanicSentinel,

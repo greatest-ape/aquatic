@@ -11,7 +11,7 @@ use aquatic_udp_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
-use super::common::PendingScrapeResponseSlab;
+use super::storage::PendingScrapeResponseSlab;
 
 pub fn send_responses(
     state: &State,
