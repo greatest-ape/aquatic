@@ -3,10 +3,10 @@ use std::net::Ipv6Addr;
 use std::sync::Arc;
 use std::time::Instant;
 
-use aquatic_common::access_list::create_access_list_cache;
-use aquatic_common::access_list::AccessListArcSwap;
-use aquatic_common::AmortizedIndexMap;
-use aquatic_common::ValidUntil;
+use aquatic_common::{
+    access_list::{create_access_list_cache, AccessListArcSwap},
+    AmortizedIndexMap, ValidUntil,
+};
 
 use aquatic_udp_protocol::*;
 

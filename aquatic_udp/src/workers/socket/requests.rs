@@ -3,9 +3,7 @@ use std::sync::atomic::Ordering;
 
 use mio::net::UdpSocket;
 
-use aquatic_common::access_list::AccessListCache;
-use aquatic_common::CanonicalSocketAddr;
-use aquatic_common::ValidUntil;
+use aquatic_common::{access_list::AccessListCache, CanonicalSocketAddr, ValidUntil};
 use aquatic_udp_protocol::*;
 
 use crate::common::*;

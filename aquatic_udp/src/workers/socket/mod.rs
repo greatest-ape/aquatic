@@ -5,23 +5,23 @@ mod storage;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
-
-use aquatic_common::access_list::create_access_list_cache;
-use aquatic_common::CanonicalSocketAddr;
-use aquatic_common::{PanicSentinel, ValidUntil};
-use aquatic_udp_protocol::*;
 use socket2::{Domain, Protocol, Socket, Type};
+
+use aquatic_common::{
+    access_list::create_access_list_cache, privileges::PrivilegeDropper, CanonicalSocketAddr,
+    PanicSentinel, ValidUntil,
+};
+use aquatic_udp_protocol::*;
 
 use crate::common::*;
 use crate::config::Config;
 
-use self::requests::read_requests;
-use self::responses::send_responses;
-use self::storage::PendingScrapeResponseSlab;
+use requests::read_requests;
+use responses::send_responses;
+use storage::PendingScrapeResponseSlab;
 
 pub fn run_socket_worker(
     _sentinel: PanicSentinel,

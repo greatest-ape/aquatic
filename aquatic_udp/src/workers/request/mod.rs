@@ -6,13 +6,10 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
-use aquatic_common::CanonicalSocketAddr;
-use aquatic_common::PanicSentinel;
-use aquatic_common::ValidUntil;
 use crossbeam_channel::Receiver;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::extract_response_peers;
+use aquatic_common::{extract_response_peers, CanonicalSocketAddr, PanicSentinel, ValidUntil};
 
 use aquatic_udp_protocol::*;
 
