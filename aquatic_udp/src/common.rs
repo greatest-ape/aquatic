@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::Context;
+use constant_time_eq::constant_time_eq;
 use crossbeam_channel::{Sender, TrySendError};
 use getrandom::getrandom;
 
@@ -59,7 +60,14 @@ impl ConnectionValidator {
         let valid_until =
             (self.start_time.elapsed().as_secs() as u32 + self.max_connection_age).to_ne_bytes();
 
-        self.create_connection_id_inner(valid_until, source_addr)
+        let hash = self.hash(valid_until, source_addr.get().ip());
+
+        let mut connection_id_bytes = [0u8; 8];
+
+        (&mut connection_id_bytes[..4]).copy_from_slice(&valid_until);
+        (&mut connection_id_bytes[4..]).copy_from_slice(&hash);
+
+        ConnectionId(i64::from_ne_bytes(connection_id_bytes))
     }
 
     pub fn connection_id_valid(
@@ -67,63 +75,31 @@ impl ConnectionValidator {
         source_addr: CanonicalSocketAddr,
         connection_id: ConnectionId,
     ) -> bool {
-        let valid_until = connection_id.0.to_ne_bytes()[..4].try_into().unwrap();
+        let bytes = connection_id.0.to_ne_bytes();
+        let (valid_until, hash) = bytes.split_at(4);
+        let valid_until: [u8; 4] = valid_until.try_into().unwrap();
 
-        // Check that recreating ConnectionId with same inputs yields identical hash.
-        if !Self::connection_id_eq(
-            connection_id,
-            self.create_connection_id_inner(valid_until, source_addr),
-        ) {
+        if !constant_time_eq(hash, &self.hash(valid_until, source_addr.get().ip())) {
             return false;
         }
 
         u32::from_ne_bytes(valid_until) > self.start_time.elapsed().as_secs() as u32
     }
 
-    fn create_connection_id_inner(
-        &mut self,
-        valid_until: [u8; 4],
-        source_addr: CanonicalSocketAddr,
-    ) -> ConnectionId {
-        let mut connection_id_bytes = [0u8; 8];
-
-        (&mut connection_id_bytes[..4]).copy_from_slice(&valid_until);
-
+    fn hash(&mut self, valid_until: [u8; 4], ip_addr: IpAddr) -> [u8; 4] {
         self.keyed_hasher.update(&valid_until);
 
-        match source_addr.get().ip() {
+        match ip_addr {
             IpAddr::V4(ip) => self.keyed_hasher.update(&ip.octets()),
             IpAddr::V6(ip) => self.keyed_hasher.update(&ip.octets()),
         };
 
-        self.keyed_hasher
-            .finalize_xof()
-            .fill(&mut connection_id_bytes[4..]);
+        let mut hash = [0u8; 4];
+
+        self.keyed_hasher.finalize_xof().fill(&mut hash);
         self.keyed_hasher.reset();
 
-        ConnectionId(i64::from_ne_bytes(connection_id_bytes))
-    }
-
-    /// Compare ConnectionIDs without breaking constant time requirements
-    ///
-    /// Use this instead of PartialEq::eq to avoid optimizations breaking constant
-    /// time HMAC comparison and thus strongly reducing security.
-    #[cfg(target_arch = "x86_64")]
-    fn connection_id_eq(a: ConnectionId, b: ConnectionId) -> bool {
-        let mut eq = 0u8;
-
-        unsafe {
-            ::std::arch::asm!(
-                "cmp {a}, {b}",
-                "sete {eq}",
-                a = in(reg) a.0,
-                b = in(reg) b.0,
-                eq = inout(reg_byte) eq,
-                options(nomem, nostack),
-            );
-        }
-
-        eq != 0
+        hash
     }
 }
 
@@ -395,13 +371,5 @@ mod tests {
             // Note: depends on that running this test takes less than a second
             quickcheck::TestResult::from_bool(original_valid)
         }
-    }
-
-    #[quickcheck]
-    fn test_connection_id_eq(a: i64, b: i64) -> bool {
-        let a = ConnectionId(a);
-        let b = ConnectionId(b);
-
-        ConnectionValidator::connection_id_eq(a, b) == (a == b)
     }
 }

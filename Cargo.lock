@@ -211,6 +211,7 @@ dependencies = [
  "aquatic_udp_protocol",
  "blake3",
  "cfg-if",
+ "constant_time_eq 0.2.1",
  "crossbeam-channel",
  "getrandom",
  "hashbrown 0.12.0",
@@ -549,7 +550,7 @@ dependencies = [
  "arrayvec 0.7.2",
  "cc",
  "cfg-if",
- "constant_time_eq",
+ "constant_time_eq 0.1.5",
  "digest 0.10.3",
 ]
 
@@ -689,6 +690,12 @@ name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
+
+[[package]]
+name = "constant_time_eq"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df04a53a7e91248c27eb6bfc1db165e8f47453e98478e4609f9cce020bb3c65a"
 
 [[package]]
 name = "cpufeatures"
