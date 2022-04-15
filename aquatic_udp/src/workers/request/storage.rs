@@ -38,6 +38,36 @@ pub struct TorrentData<I: Ip> {
     pub num_leechers: usize,
 }
 
+impl<I: Ip> TorrentData<I> {
+    fn clean_and_check_if_has_peers(&mut self, now: Instant) -> bool {
+        self.peers.retain(|_, peer| {
+            if peer.valid_until.0 > now {
+                true
+            } else {
+                match peer.status {
+                    PeerStatus::Seeding => {
+                        self.num_seeders -= 1;
+                    }
+                    PeerStatus::Leeching => {
+                        self.num_leechers -= 1;
+                    }
+                    _ => (),
+                };
+
+                false
+            }
+        });
+
+        if self.peers.is_empty() {
+            false
+        } else {
+            self.peers.shrink_to_fit();
+
+            true
+        }
+    }
+}
+
 impl<I: Ip> Default for TorrentData<I> {
     fn default() -> Self {
         Self {
@@ -68,7 +98,7 @@ impl TorrentMaps {
             access_list_cache
                 .load()
                 .allows(access_list_mode, &info_hash.0)
-                && Self::clean_torrent_and_peers(now, torrent)
+                && torrent.clean_and_check_if_has_peers(now)
         });
         self.ipv4.shrink_to_fit();
 
@@ -76,41 +106,8 @@ impl TorrentMaps {
             access_list_cache
                 .load()
                 .allows(access_list_mode, &info_hash.0)
-                && Self::clean_torrent_and_peers(now, torrent)
+                && torrent.clean_and_check_if_has_peers(now)
         });
         self.ipv6.shrink_to_fit();
-    }
-
-    /// Returns true if torrent is to be kept
-    #[inline]
-    fn clean_torrent_and_peers<I: Ip>(now: Instant, torrent: &mut TorrentData<I>) -> bool {
-        let num_seeders = &mut torrent.num_seeders;
-        let num_leechers = &mut torrent.num_leechers;
-
-        torrent.peers.retain(|_, peer| {
-            if peer.valid_until.0 > now {
-                true
-            } else {
-                match peer.status {
-                    PeerStatus::Seeding => {
-                        *num_seeders -= 1;
-                    }
-                    PeerStatus::Leeching => {
-                        *num_leechers -= 1;
-                    }
-                    _ => (),
-                };
-
-                false
-            }
-        });
-
-        if torrent.peers.is_empty() {
-            false
-        } else {
-            torrent.peers.shrink_to_fit();
-
-            true
-        }
     }
 }
