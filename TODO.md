@@ -2,14 +2,12 @@
 
 ## High priority
 
-* aquatic_udp
-  * ConnectionValidator
-    * Is comparison really constant time?
-    * Document security aspects of 4-byte BLAKE3 XOR mode output?
-
 ## Medium priority
 
 * rename request workers to swarm workers
+
+* save space by making ValidUntil just contain u32 with seconds, measured
+  some Instant created at application start
 
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
