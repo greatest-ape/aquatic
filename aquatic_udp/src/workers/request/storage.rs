@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use aquatic_common::{
-    access_list::{create_access_list_cache, AccessListArcSwap},
+    access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache, AccessListMode},
     AmortizedIndexMap, ValidUntil,
 };
 
@@ -39,7 +39,8 @@ pub struct TorrentData<I: Ip> {
 }
 
 impl<I: Ip> TorrentData<I> {
-    fn clean_and_check_if_has_peers(&mut self, now: Instant) -> bool {
+    /// Remove inactive peers and reclaim space
+    fn clean(&mut self, now: Instant) {
         self.peers.retain(|_, peer| {
             if peer.valid_until.0 > now {
                 true
@@ -58,12 +59,8 @@ impl<I: Ip> TorrentData<I> {
             }
         });
 
-        if self.peers.is_empty() {
-            false
-        } else {
+        if !self.peers.is_empty() {
             self.peers.shrink_to_fit();
-
-            true
         }
     }
 }
@@ -78,36 +75,72 @@ impl<I: Ip> Default for TorrentData<I> {
     }
 }
 
-pub type TorrentMap<I> = AmortizedIndexMap<InfoHash, TorrentData<I>>;
-
 #[derive(Default)]
+pub struct TorrentMap<I: Ip>(pub AmortizedIndexMap<InfoHash, TorrentData<I>>);
+
+impl<I: Ip> TorrentMap<I> {
+    /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
+    fn clean_and_get_num_peers(
+        &mut self,
+        access_list_cache: &mut AccessListCache,
+        access_list_mode: AccessListMode,
+        now: Instant,
+    ) -> usize {
+        let mut num_peers = 0;
+
+        self.0.retain(|info_hash, torrent| {
+            if !access_list_cache
+                .load()
+                .allows(access_list_mode, &info_hash.0)
+            {
+                return false;
+            }
+
+            torrent.clean(now);
+
+            num_peers += torrent.peers.len();
+
+            !torrent.peers.is_empty()
+        });
+
+        self.0.shrink_to_fit();
+
+        num_peers
+    }
+
+    pub fn num_torrents(&self) -> usize {
+        self.0.len()
+    }
+}
+
 pub struct TorrentMaps {
     pub ipv4: TorrentMap<Ipv4Addr>,
     pub ipv6: TorrentMap<Ipv6Addr>,
 }
 
+impl Default for TorrentMaps {
+    fn default() -> Self {
+        Self {
+            ipv4: TorrentMap(Default::default()),
+            ipv6: TorrentMap(Default::default()),
+        }
+    }
+}
+
 impl TorrentMaps {
-    /// Remove disallowed and inactive torrents
-    pub fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
+    /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
+    pub fn clean_and_get_num_peers(
+        &mut self,
+        config: &Config,
+        access_list: &Arc<AccessListArcSwap>,
+    ) -> (usize, usize) {
+        let mut cache = create_access_list_cache(access_list);
+        let mode = config.access_list.mode;
         let now = Instant::now();
-        let access_list_mode = config.access_list.mode;
 
-        let mut access_list_cache = create_access_list_cache(access_list);
+        let ipv4 = self.ipv4.clean_and_get_num_peers(&mut cache, mode, now);
+        let ipv6 = self.ipv6.clean_and_get_num_peers(&mut cache, mode, now);
 
-        self.ipv4.retain(|info_hash, torrent| {
-            access_list_cache
-                .load()
-                .allows(access_list_mode, &info_hash.0)
-                && torrent.clean_and_check_if_has_peers(now)
-        });
-        self.ipv4.shrink_to_fit();
-
-        self.ipv6.retain(|info_hash, torrent| {
-            access_list_cache
-                .load()
-                .allows(access_list_mode, &info_hash.0)
-                && torrent.clean_and_check_if_has_peers(now)
-        });
-        self.ipv6.shrink_to_fit();
+        (ipv4, ipv6)
     }
 }

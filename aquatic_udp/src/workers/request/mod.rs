@@ -69,22 +69,18 @@ pub fn run_request_worker(
             response_sender.try_send_to(sender_index, response, src);
         }
 
+        // Run periodic tasks
         if iter_counter % 128 == 0 {
             let now = Instant::now();
 
             peer_valid_until = ValidUntil::new_with_now(now, config.cleaning.max_peer_age);
 
             if now > last_cleaning + cleaning_interval {
-                torrents.clean(&config, &state.access_list);
+                let (ipv4, ipv6) = torrents.clean_and_get_num_peers(&config, &state.access_list);
 
                 if config.statistics.active() {
-                    let peers_ipv4 = torrents.ipv4.values().map(|t| t.peers.len()).sum();
-                    let peers_ipv6 = torrents.ipv6.values().map(|t| t.peers.len()).sum();
-
-                    state.statistics_ipv4.peers[worker_index.0]
-                        .store(peers_ipv4, Ordering::Release);
-                    state.statistics_ipv6.peers[worker_index.0]
-                        .store(peers_ipv6, Ordering::Release);
+                    state.statistics_ipv4.peers[worker_index.0].store(ipv4, Ordering::Release);
+                    state.statistics_ipv6.peers[worker_index.0].store(ipv6, Ordering::Release);
                 }
 
                 last_cleaning = now;
@@ -93,9 +89,9 @@ pub fn run_request_worker(
                 && now > last_statistics_update + statistics_update_interval
             {
                 state.statistics_ipv4.torrents[worker_index.0]
-                    .store(torrents.ipv4.len(), Ordering::Release);
+                    .store(torrents.ipv4.num_torrents(), Ordering::Release);
                 state.statistics_ipv6.torrents[worker_index.0]
-                    .store(torrents.ipv6.len(), Ordering::Release);
+                    .store(torrents.ipv6.num_torrents(), Ordering::Release);
 
                 last_statistics_update = now;
             }
@@ -122,7 +118,7 @@ fn handle_announce_request<I: Ip>(
         valid_until: peer_valid_until,
     };
 
-    let torrent_data = torrents.entry(request.info_hash).or_default();
+    let torrent_data = torrents.0.entry(request.info_hash).or_default();
 
     let opt_removed_peer = match peer_status {
         PeerStatus::Leeching => {
@@ -190,7 +186,7 @@ fn handle_scrape_request(
 
     if src.is_ipv4() {
         torrent_stats.extend(request.info_hashes.into_iter().map(|(i, info_hash)| {
-            let s = if let Some(torrent_data) = torrents.ipv4.get(&info_hash) {
+            let s = if let Some(torrent_data) = torrents.ipv4.0.get(&info_hash) {
                 create_torrent_scrape_statistics(
                     torrent_data.num_seeders as i32,
                     torrent_data.num_leechers as i32,
@@ -203,7 +199,7 @@ fn handle_scrape_request(
         }));
     } else {
         torrent_stats.extend(request.info_hashes.into_iter().map(|(i, info_hash)| {
-            let s = if let Some(torrent_data) = torrents.ipv6.get(&info_hash) {
+            let s = if let Some(torrent_data) = torrents.ipv6.0.get(&info_hash) {
                 create_torrent_scrape_statistics(
                     torrent_data.num_seeders as i32,
                     torrent_data.num_leechers as i32,
