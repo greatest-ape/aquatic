@@ -42,27 +42,33 @@ pub fn run_request_worker(
 
     loop {
         if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
-            let response = match request {
-                ConnectedRequest::Announce(request) => match src.get().ip() {
-                    IpAddr::V4(ip) => ConnectedResponse::AnnounceIpv4(handle_announce_request(
+            let response = match (request, src.get().ip()) {
+                (ConnectedRequest::Announce(request), IpAddr::V4(ip)) => {
+                    let response = handle_announce_request(
                         &config,
                         &mut rng,
                         &mut torrents.ipv4,
                         request,
                         ip,
                         peer_valid_until,
-                    )),
-                    IpAddr::V6(ip) => ConnectedResponse::AnnounceIpv6(handle_announce_request(
+                    );
+
+                    ConnectedResponse::AnnounceIpv4(response)
+                }
+                (ConnectedRequest::Announce(request), IpAddr::V6(ip)) => {
+                    let response = handle_announce_request(
                         &config,
                         &mut rng,
                         &mut torrents.ipv6,
                         request,
                         ip,
                         peer_valid_until,
-                    )),
-                },
-                ConnectedRequest::Scrape(request) => {
-                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, src, request))
+                    );
+
+                    ConnectedResponse::AnnounceIpv6(response)
+                }
+                (ConnectedRequest::Scrape(request), ip) => {
+                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, ip, request))
                 }
             };
 
@@ -177,7 +183,7 @@ fn calc_max_num_peers_to_take(config: &Config, peers_wanted: i32) -> usize {
 
 fn handle_scrape_request(
     torrents: &mut TorrentMaps,
-    src: CanonicalSocketAddr,
+    src: IpAddr,
     request: PendingScrapeRequest,
 ) -> PendingScrapeResponse {
     const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
