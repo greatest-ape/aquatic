@@ -2,38 +2,38 @@ pub mod common;
 pub mod config;
 pub mod workers;
 
-use aquatic_common::PanicSentinelWatcher;
-use config::Config;
-
 use std::collections::BTreeMap;
 use std::thread::Builder;
 
 use anyhow::Context;
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::{bounded, unbounded};
-
-use aquatic_common::access_list::update_access_list;
 use signal_hook::consts::{SIGTERM, SIGUSR1};
 use signal_hook::iterator::Signals;
 
-use common::{ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State};
+use aquatic_common::access_list::update_access_list;
+#[cfg(feature = "cpu-pinning")]
+use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
+use aquatic_common::privileges::PrivilegeDropper;
+use aquatic_common::PanicSentinelWatcher;
 
-use crate::common::RequestWorkerIndex;
+use common::{
+    ConnectedRequestSender, ConnectedResponseSender, ConnectionValidator, RequestWorkerIndex,
+    SocketWorkerIndex, State,
+};
+use config::Config;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    let state = State::new(config.request_workers);
-
-    update_access_list(&config.access_list, &state.access_list)?;
-
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
+    let state = State::new(config.request_workers);
+    let connection_validator = ConnectionValidator::new(&config)?;
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
+
+    update_access_list(&config.access_list, &state.access_list)?;
 
     let mut request_senders = Vec::new();
     let mut request_receivers = BTreeMap::new();
@@ -97,6 +97,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
+        let connection_validator = connection_validator.clone();
         let request_sender =
             ConnectedRequestSender::new(SocketWorkerIndex(i), request_senders.clone());
         let response_receiver = response_receivers.remove(&i).unwrap();
@@ -118,6 +119,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     state,
                     config,
                     i,
+                    connection_validator,
                     request_sender,
                     response_receiver,
                     priv_dropper,
