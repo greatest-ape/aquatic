@@ -193,16 +193,18 @@ fn handle_scrape_request<I: Ip>(
         .info_hashes
         .into_iter()
         .map(|(i, info_hash)| {
-            let s = if let Some(torrent_data) = torrents.0.get(&info_hash) {
-                create_torrent_scrape_statistics(
-                    torrent_data.num_seeders as i32,
-                    torrent_data.num_leechers as i32,
-                )
-            } else {
-                EMPTY_STATS
-            };
+            let stats = torrents
+                .0
+                .get(&info_hash)
+                .map(|torrent_data| {
+                    create_torrent_scrape_statistics(
+                        torrent_data.num_seeders as i32,
+                        torrent_data.num_leechers as i32,
+                    )
+                })
+                .unwrap_or(EMPTY_STATS);
 
-            (i, s)
+            (i, stats)
         })
         .collect();
 
