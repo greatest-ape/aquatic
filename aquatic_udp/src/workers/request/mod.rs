@@ -1,6 +1,5 @@
 mod storage;
 
-use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -67,8 +66,11 @@ pub fn run_request_worker(
 
                     ConnectedResponse::AnnounceIpv6(response)
                 }
-                (ConnectedRequest::Scrape(request), ip) => {
-                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents, ip, request))
+                (ConnectedRequest::Scrape(request), IpAddr::V4(_)) => {
+                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents.ipv4, request))
+                }
+                (ConnectedRequest::Scrape(request), IpAddr::V6(_)) => {
+                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents.ipv6, request))
                 }
             };
 
@@ -181,18 +183,17 @@ fn calc_max_num_peers_to_take(config: &Config, peers_wanted: i32) -> usize {
     }
 }
 
-fn handle_scrape_request(
-    torrents: &mut TorrentMaps,
-    src: IpAddr,
+fn handle_scrape_request<I: Ip>(
+    torrents: &mut TorrentMap<I>,
     request: PendingScrapeRequest,
 ) -> PendingScrapeResponse {
     const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
 
-    let mut torrent_stats: BTreeMap<usize, TorrentScrapeStatistics> = BTreeMap::new();
-
-    if src.is_ipv4() {
-        torrent_stats.extend(request.info_hashes.into_iter().map(|(i, info_hash)| {
-            let s = if let Some(torrent_data) = torrents.ipv4.0.get(&info_hash) {
+    let torrent_stats = request
+        .info_hashes
+        .into_iter()
+        .map(|(i, info_hash)| {
+            let s = if let Some(torrent_data) = torrents.0.get(&info_hash) {
                 create_torrent_scrape_statistics(
                     torrent_data.num_seeders as i32,
                     torrent_data.num_leechers as i32,
@@ -202,21 +203,8 @@ fn handle_scrape_request(
             };
 
             (i, s)
-        }));
-    } else {
-        torrent_stats.extend(request.info_hashes.into_iter().map(|(i, info_hash)| {
-            let s = if let Some(torrent_data) = torrents.ipv6.0.get(&info_hash) {
-                create_torrent_scrape_statistics(
-                    torrent_data.num_seeders as i32,
-                    torrent_data.num_leechers as i32,
-                )
-            } else {
-                EMPTY_STATS
-            };
-
-            (i, s)
-        }));
-    }
+        })
+        .collect();
 
     PendingScrapeResponse {
         slab_key: request.slab_key,
