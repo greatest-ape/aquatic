@@ -2,6 +2,9 @@
 
 ## High priority
 
+* udp: add option for disallowing connect requests with localhost as sender
+* udp: add response buffering on send failure with configuration size
+
 ## Medium priority
 
 * rename request workers to swarm workers
