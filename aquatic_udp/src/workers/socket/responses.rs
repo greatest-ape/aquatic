@@ -153,14 +153,14 @@ fn send_response(
                 }
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    ::log::warn!("send_to error: {:#}", err);
+                    ::log::warn!("Sending response to {} failed: {:#}", addr, err);
 
                     Err(err)
                 }
             }
         }
         Err(err) => {
-            ::log::error!("Response::write error: {:?}", err);
+            ::log::error!("Converting response to bytes failed: {:#}", err);
 
             Err(err)
         }
