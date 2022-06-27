@@ -4,7 +4,6 @@
 
 * udp: add IP blocklist, which would be more flexible than just adding option
   for disallowing requests (claiming to be) from localhost
-* udp: add response buffering on send failure with configurable size
 
 ## Medium priority
 

@@ -216,6 +216,7 @@ dependencies = [
  "getrandom",
  "hashbrown 0.12.1",
  "hex",
+ "libc",
  "log",
  "mimalloc",
  "mio",

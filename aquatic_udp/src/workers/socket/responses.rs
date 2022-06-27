@@ -1,8 +1,9 @@
-use std::io::Cursor;
+use std::io::{Cursor, ErrorKind};
 use std::sync::atomic::Ordering;
 use std::vec::Drain;
 
 use crossbeam_channel::Receiver;
+use libc::ENOBUFS;
 use mio::net::UdpSocket;
 
 use aquatic_common::CanonicalSocketAddr;
@@ -23,7 +24,7 @@ pub fn send_responses(
     local_responses: Drain<(Response, CanonicalSocketAddr)>,
 ) {
     for (response, addr) in local_responses {
-        send_response(state, config, socket, buffer, response, addr);
+        let _ = send_response(state, config, socket, buffer, &response, addr);
     }
 
     for (response, addr) in response_receiver.try_iter() {
@@ -36,9 +37,66 @@ pub fn send_responses(
         };
 
         if let Some(response) = opt_response {
-            send_response(state, config, socket, buffer, response, addr);
+            let _ = send_response(state, config, socket, buffer, &response, addr);
         }
     }
+}
+
+pub fn send_responses_with_resends(
+    state: &State,
+    config: &Config,
+    socket: &mut UdpSocket,
+    buffer: &mut [u8],
+    response_receiver: &Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
+    pending_scrape_responses: &mut PendingScrapeResponseSlab,
+    local_responses: Drain<(Response, CanonicalSocketAddr)>,
+    resend_buffer: &mut Vec<(Response, CanonicalSocketAddr)>,
+) {
+    let resend_buffer_max_len = config.network.resend_buffer_max_len;
+
+    for (response, addr) in resend_buffer.drain(..) {
+        let _ = send_response(state, config, socket, buffer, &response, addr);
+    }
+
+    for (response, addr) in local_responses {
+        match send_response(state, config, socket, buffer, &response, addr) {
+            Err(err) if error_should_cause_resend(&err) => {
+                if resend_buffer.len() < resend_buffer_max_len {
+                    resend_buffer.push((response, addr));
+                } else {
+                    ::log::warn!("response resend buffer full, dropping response");
+                }
+            }
+            _ => (),
+        }
+    }
+
+    for (response, addr) in response_receiver.try_iter() {
+        let opt_response = match response {
+            ConnectedResponse::Scrape(r) => pending_scrape_responses
+                .add_and_get_finished(r)
+                .map(Response::Scrape),
+            ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
+            ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
+        };
+
+        if let Some(response) = opt_response {
+            match send_response(state, config, socket, buffer, &response, addr) {
+                Err(err) if error_should_cause_resend(&err) => {
+                    if resend_buffer.len() < resend_buffer_max_len {
+                        resend_buffer.push((response, addr));
+                    } else {
+                        ::log::warn!("response resend buffer full, dropping response");
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+}
+
+fn error_should_cause_resend(err: &::std::io::Error) -> bool {
+    (err.raw_os_error() == Some(ENOBUFS)) | (err.kind() == ErrorKind::WouldBlock)
 }
 
 fn send_response(
@@ -46,9 +104,9 @@ fn send_response(
     config: &Config,
     socket: &mut UdpSocket,
     buffer: &mut [u8],
-    response: Response,
+    response: &Response,
     addr: CanonicalSocketAddr,
-) {
+) -> std::io::Result<()> {
     let mut cursor = Cursor::new(buffer);
 
     let canonical_addr_is_ipv4 = addr.is_ipv4();
@@ -90,15 +148,21 @@ fn send_response(
                             stats.responses_sent_error.fetch_add(1, Ordering::Relaxed);
                         }
                     }
+
+                    Ok(())
                 }
-                Ok(_) => {}
+                Ok(_) => Ok(()),
                 Err(err) => {
                     ::log::warn!("send_to error: {:#}", err);
+
+                    Err(err)
                 }
             }
         }
         Err(err) => {
             ::log::error!("Response::write error: {:?}", err);
+
+            Err(err)
         }
     }
 }

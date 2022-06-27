@@ -86,6 +86,12 @@ pub struct NetworkConfig {
     pub socket_recv_buffer_size: usize,
     pub poll_event_capacity: usize,
     pub poll_timeout_ms: u64,
+    /// Store this many responses at most for retryin on send failure
+    ///
+    /// Useful on operating systems that do not provide an udp send buffer,
+    /// such as FreeBSD. Setting the value to zero disables resending
+    /// functionality.
+    pub resend_buffer_max_len: usize,
 }
 
 impl NetworkConfig {
@@ -105,6 +111,7 @@ impl Default for NetworkConfig {
             socket_recv_buffer_size: 4096 * 128,
             poll_event_capacity: 4096,
             poll_timeout_ms: 50,
+            resend_buffer_max_len: 0,
         }
     }
 }
