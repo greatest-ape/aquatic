@@ -2,16 +2,12 @@
 
 ## High priority
 
-* udp: add option for disallowing connect requests with localhost as sender
-* udp: add response buffering on send failure with configuration size
+* udp: add IP blocklist, which would be more flexible than just adding option
+  for disallowing requests (claiming to be) from localhost
 
 ## Medium priority
 
 * rename request workers to swarm workers
-
-* save space by making ValidUntil just contain u32 with seconds, measured
-  some Instant created at application start
-
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
     Once JoinHandle::is_finished is available in stable Rust (#90470), an

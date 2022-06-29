@@ -4,7 +4,7 @@ version = "0.2.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
-description = "Blazingly fast, multi-threaded UDP BitTorrent tracker"
+description = "High-performance open UDP BitTorrent tracker"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["udp", "server", "peer-to-peer", "torrent", "bittorrent"]
 readme = "../README.md"
@@ -31,6 +31,7 @@ crossbeam-channel = "0.5"
 getrandom = "0.2"
 hashbrown = { version = "0.12", default-features = false }
 hex = "0.4"
+libc = "0.2"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }
