@@ -31,6 +31,12 @@ pub fn read_requests(
     loop {
         match socket.recv_from(&mut buffer[..]) {
             Ok((amt, src)) => {
+                if src.port() == 0 {
+                    ::log::info!("Ignored request from {} because source port is zero", src);
+
+                    continue;
+                }
+
                 let res_request =
                     Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
 
