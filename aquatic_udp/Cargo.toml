@@ -8,6 +8,7 @@ description = "High-performance open UDP BitTorrent tracker"
 repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["udp", "server", "peer-to-peer", "torrent", "bittorrent"]
 readme = "../README.md"
+rust-version = "1.62"
 
 [lib]
 name = "aquatic_udp"
