@@ -7,7 +7,6 @@
 
 ## Medium priority
 
-* rename request workers to swarm workers
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
     Once JoinHandle::is_finished is available in stable Rust (#90470), an
