@@ -264,10 +264,10 @@ impl Connection {
     /// Take a request and:
     /// - Update connection ValidUntil
     /// - Return error response if request is not allowed
-    /// - If it is an announce request, send it to request workers an await a
+    /// - If it is an announce request, send it to swarm workers an await a
     ///   response
     /// - If it is a scrape requests, split it up, pass on the parts to
-    ///   relevant request workers and await a response
+    ///   relevant swarm workers and await a response
     async fn handle_request(&mut self, request: Request) -> anyhow::Result<Response> {
         if let Ok(mut slab) = self.connection_slab.try_borrow_mut() {
             if let Some(reference) = slab.get_mut(self.connection_id.0) {
@@ -448,7 +448,7 @@ impl Connection {
 }
 
 fn calculate_request_consumer_index(config: &Config, info_hash: InfoHash) -> usize {
-    (info_hash.0[0] as usize) % config.request_workers
+    (info_hash.0[0] as usize) % config.swarm_workers
 }
 
 fn create_tcp_listener(

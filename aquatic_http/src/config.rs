@@ -14,12 +14,12 @@ use aquatic_common::cli::LogLevel;
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the request workers. They then receive responses from the
-    /// request workers, encode them and send them back over the socket.
+    /// them on to the swarm workers. They then receive responses from the
+    /// swarm workers, encode them and send them back over the socket.
     pub socket_workers: usize,
-    /// Request workers receive a number of requests from socket workers,
+    /// Swarm workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
-    pub request_workers: usize,
+    pub swarm_workers: usize,
     pub log_level: LogLevel,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
@@ -33,7 +33,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             socket_workers: 1,
-            request_workers: 1,
+            swarm_workers: 1,
             log_level: LogLevel::default(),
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),

@@ -17,7 +17,7 @@ pub struct RequestWorkerIndex(pub usize);
 
 impl RequestWorkerIndex {
     pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
-        Self(info_hash.0[0] as usize % config.request_workers)
+        Self(info_hash.0[0] as usize % config.swarm_workers)
     }
 }
 
