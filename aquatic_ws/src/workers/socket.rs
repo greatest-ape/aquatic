@@ -352,7 +352,7 @@ impl ConnectionReader {
                         )
                         .await
                         .unwrap();
-                    ::log::info!("sent message to request worker");
+                    ::log::info!("sent message to swarm worker");
                 } else {
                     self.send_error_response("Info hash not allowed".into(), Some(info_hash))
                         .await?;
@@ -404,7 +404,7 @@ impl ConnectionReader {
                         .send_to(consumer_index, (meta, in_message))
                         .await
                         .unwrap();
-                    ::log::info!("sent message to request worker");
+                    ::log::info!("sent message to swarm worker");
                 }
             }
         }
@@ -541,7 +541,7 @@ impl ConnectionWriter {
 }
 
 fn calculate_in_message_consumer_index(config: &Config, info_hash: InfoHash) -> usize {
-    (info_hash.0[0] as usize) % config.request_workers
+    (info_hash.0[0] as usize) % config.swarm_workers
 }
 
 fn create_tcp_listener(

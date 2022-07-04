@@ -32,7 +32,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     update_access_list(&config.access_list, &state.access_list)?;
 
-    let num_peers = config.socket_workers + config.request_workers;
+    let num_peers = config.socket_workers + config.swarm_workers;
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE);
     let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE * 16);
@@ -59,7 +59,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let placement = get_worker_placement(
             &config.cpu_pinning,
             config.socket_workers,
-            config.request_workers,
+            config.swarm_workers,
             WorkerIndex::SocketWorker(i),
         )?;
         let builder = LocalExecutorBuilder::new(placement).name("socket");
@@ -82,7 +82,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         executors.push(executor);
     }
 
-    for i in 0..(config.request_workers) {
+    for i in 0..(config.swarm_workers) {
         let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
@@ -92,14 +92,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let placement = get_worker_placement(
             &config.cpu_pinning,
             config.socket_workers,
-            config.request_workers,
+            config.swarm_workers,
             WorkerIndex::SwarmWorker(i),
         )?;
         let builder = LocalExecutorBuilder::new(placement).name("request");
 
         let executor = builder
             .spawn(move || async move {
-                workers::request::run_request_worker(
+                workers::swarm::run_swarm_worker(
                     sentinel,
                     config,
                     state,
@@ -117,7 +117,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         set_affinity_for_util_worker(
             &config.cpu_pinning,
             config.socket_workers,
-            config.request_workers,
+            config.swarm_workers,
         )?;
     }
 
