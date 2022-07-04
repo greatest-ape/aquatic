@@ -1,6 +1,7 @@
 mod requests;
 mod responses;
 mod storage;
+pub mod validator;
 
 use std::time::{Duration, Instant};
 
@@ -22,6 +23,7 @@ use crate::config::Config;
 use requests::read_requests;
 use responses::send_responses;
 use storage::PendingScrapeResponseSlab;
+use validator::ConnectionValidator;
 
 pub fn run_socket_worker(
     _sentinel: PanicSentinel,

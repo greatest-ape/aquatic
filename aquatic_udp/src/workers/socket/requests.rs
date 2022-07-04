@@ -10,6 +10,7 @@ use crate::common::*;
 use crate::config::Config;
 
 use super::storage::PendingScrapeResponseSlab;
+use super::validator::ConnectionValidator;
 
 pub fn read_requests(
     config: &Config,
