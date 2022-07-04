@@ -31,7 +31,7 @@ pub fn read_requests(
 
     loop {
         match socket.recv_from(&mut buffer[..]) {
-            Ok((amt, src)) => {
+            Ok((bytes_read, src)) => {
                 if src.port() == 0 {
                     ::log::info!("Ignored request from {} because source port is zero", src);
 
@@ -39,7 +39,7 @@ pub fn read_requests(
                 }
 
                 let res_request =
-                    Request::from_bytes(&buffer[..amt], config.protocol.max_scrape_torrents);
+                    Request::from_bytes(&buffer[..bytes_read], config.protocol.max_scrape_torrents);
 
                 let src = CanonicalSocketAddr::new(src);
 
@@ -48,12 +48,12 @@ pub fn read_requests(
                     if res_request.is_ok() {
                         requests_received_ipv4 += 1;
                     }
-                    bytes_received_ipv4 += amt;
+                    bytes_received_ipv4 += bytes_read;
                 } else {
                     if res_request.is_ok() {
                         requests_received_ipv6 += 1;
                     }
-                    bytes_received_ipv6 += amt;
+                    bytes_received_ipv6 += bytes_read;
                 }
 
                 handle_request(
