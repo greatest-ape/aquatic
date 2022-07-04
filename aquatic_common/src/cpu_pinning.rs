@@ -99,13 +99,13 @@ impl WorkerIndex {
         &self,
         config: &C,
         socket_workers: usize,
-        request_workers: usize,
+        swarm_workers: usize,
         num_cores: usize,
     ) -> usize {
         let ascending_index = match self {
             Self::SocketWorker(index) => config.core_offset() + index,
             Self::SwarmWorker(index) => config.core_offset() + socket_workers + index,
-            Self::Util => config.core_offset() + socket_workers + request_workers,
+            Self::Util => config.core_offset() + socket_workers + swarm_workers,
         };
 
         let max_core_index = num_cores - 1;
@@ -153,13 +153,13 @@ pub mod glommio {
     fn get_worker_cpu_set<C: CpuPinningConfig>(
         config: &C,
         socket_workers: usize,
-        request_workers: usize,
+        swarm_workers: usize,
         worker_index: WorkerIndex,
     ) -> anyhow::Result<CpuSet> {
         let num_cpu_cores = get_num_cpu_cores()?;
 
         let core_index =
-            worker_index.get_core_index(config, socket_workers, request_workers, num_cpu_cores);
+            worker_index.get_core_index(config, socket_workers, swarm_workers, num_cpu_cores);
 
         let too_many_workers = match (&config.hyperthread(), &config.direction()) {
             (
@@ -223,12 +223,11 @@ pub mod glommio {
     pub fn get_worker_placement<C: CpuPinningConfig>(
         config: &C,
         socket_workers: usize,
-        request_workers: usize,
+        swarm_workers: usize,
         worker_index: WorkerIndex,
     ) -> anyhow::Result<Placement> {
         if config.active() {
-            let cpu_set =
-                get_worker_cpu_set(config, socket_workers, request_workers, worker_index)?;
+            let cpu_set = get_worker_cpu_set(config, socket_workers, swarm_workers, worker_index)?;
 
             Ok(Placement::Fenced(cpu_set))
         } else {
@@ -239,10 +238,10 @@ pub mod glommio {
     pub fn set_affinity_for_util_worker<C: CpuPinningConfig>(
         config: &C,
         socket_workers: usize,
-        request_workers: usize,
+        swarm_workers: usize,
     ) -> anyhow::Result<()> {
         let worker_cpu_set =
-            get_worker_cpu_set(config, socket_workers, request_workers, WorkerIndex::Util)?;
+            get_worker_cpu_set(config, socket_workers, swarm_workers, WorkerIndex::Util)?;
 
         unsafe {
             let mut set: libc::cpu_set_t = ::std::mem::zeroed();
@@ -275,7 +274,7 @@ pub mod glommio {
 pub fn pin_current_if_configured_to<C: CpuPinningConfig>(
     config: &C,
     socket_workers: usize,
-    request_workers: usize,
+    swarm_workers: usize,
     worker_index: WorkerIndex,
 ) {
     use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
@@ -293,7 +292,7 @@ pub fn pin_current_if_configured_to<C: CpuPinningConfig>(
         let num_cores = core_cpu_sets.len();
 
         let core_index =
-            worker_index.get_core_index(config, socket_workers, request_workers, num_cores);
+            worker_index.get_core_index(config, socket_workers, swarm_workers, num_cores);
 
         let cpu_set = core_cpu_sets
             .get(core_index)
