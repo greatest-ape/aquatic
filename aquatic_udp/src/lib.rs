@@ -17,10 +17,10 @@ use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::PanicSentinelWatcher;
 
 use common::{
-    ConnectedRequestSender, ConnectedResponseSender, ConnectionValidator, RequestWorkerIndex,
-    SocketWorkerIndex, State,
+    ConnectedRequestSender, ConnectedResponseSender, RequestWorkerIndex, SocketWorkerIndex, State,
 };
 use config::Config;
+use workers::socket::validator::ConnectionValidator;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
