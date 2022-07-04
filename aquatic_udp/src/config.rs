@@ -11,18 +11,18 @@ use aquatic_toml_config::TomlConfig;
 #[serde(default)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the request workers. They then receive responses from the
-    /// request workers, encode them and send them back over the socket.
+    /// them on to the swarm workers. They then receive responses from the
+    /// swarm workers, encode them and send them back over the socket.
     pub socket_workers: usize,
-    /// Request workers receive a number of requests from socket workers,
+    /// Swarm workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
-    pub request_workers: usize,
+    pub swarm_workers: usize,
     pub log_level: LogLevel,
     /// Maximum number of items in each channel passing requests/responses
     /// between workers. A value of zero means that the channel will be of
     /// unbounded size.
     pub worker_channel_size: usize,
-    /// How long to block waiting for requests in request workers. Higher
+    /// How long to block waiting for requests in swarm workers. Higher
     /// values means that with zero traffic, the worker will not unnecessarily
     /// cause the CPU to wake up as often. However, high values (something like
     /// larger than 1000) combined with very low traffic can cause delays
@@ -42,7 +42,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             socket_workers: 1,
-            request_workers: 1,
+            swarm_workers: 1,
             log_level: LogLevel::Error,
             worker_channel_size: 0,
             request_channel_recv_timeout_ms: 100,

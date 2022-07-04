@@ -90,7 +90,7 @@ pub mod mod_name {
 #[derive(Clone, Copy, Debug)]
 pub enum WorkerIndex {
     SocketWorker(usize),
-    RequestWorker(usize),
+    SwarmWorker(usize),
     Util,
 }
 
@@ -104,7 +104,7 @@ impl WorkerIndex {
     ) -> usize {
         let ascending_index = match self {
             Self::SocketWorker(index) => config.core_offset() + index,
-            Self::RequestWorker(index) => config.core_offset() + socket_workers + index,
+            Self::SwarmWorker(index) => config.core_offset() + socket_workers + index,
             Self::Util => config.core_offset() + socket_workers + request_workers,
         };
 

@@ -17,7 +17,7 @@ use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::PanicSentinelWatcher;
 
 use common::{
-    ConnectedRequestSender, ConnectedResponseSender, RequestWorkerIndex, SocketWorkerIndex, State,
+    ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, SwarmWorkerIndex,
 };
 use config::Config;
 use workers::socket::validator::ConnectionValidator;
@@ -28,7 +28,7 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
-    let state = State::new(config.request_workers);
+    let state = State::new(config.swarm_workers);
     let connection_validator = ConnectionValidator::new(&config)?;
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
@@ -41,7 +41,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut response_senders = Vec::new();
     let mut response_receivers = BTreeMap::new();
 
-    for i in 0..config.request_workers {
+    for i in 0..config.swarm_workers {
         let (request_sender, request_receiver) = if config.worker_channel_size == 0 {
             unbounded()
         } else {
@@ -63,7 +63,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         response_receivers.insert(i, response_receiver);
     }
 
-    for i in 0..config.request_workers {
+    for i in 0..config.swarm_workers {
         let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
@@ -71,26 +71,26 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let response_sender = ConnectedResponseSender::new(response_senders.clone());
 
         Builder::new()
-            .name(format!("request-{:02}", i + 1))
+            .name(format!("swarm-{:02}", i + 1))
             .spawn(move || {
                 #[cfg(feature = "cpu-pinning")]
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
-                    config.request_workers,
-                    WorkerIndex::RequestWorker(i),
+                    config.swarm_workers,
+                    WorkerIndex::SwarmWorker(i),
                 );
 
-                workers::request::run_request_worker(
+                workers::swarm::run_swarm_worker(
                     sentinel,
                     config,
                     state,
                     request_receiver,
                     response_sender,
-                    RequestWorkerIndex(i),
+                    SwarmWorkerIndex(i),
                 )
             })
-            .with_context(|| "spawn request worker")?;
+            .with_context(|| "spawn swarm worker")?;
     }
 
     for i in 0..config.socket_workers {
@@ -110,7 +110,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
-                    config.request_workers,
+                    config.swarm_workers,
                     WorkerIndex::SocketWorker(i),
                 );
 
@@ -140,7 +140,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 pin_current_if_configured_to(
                     &config.cpu_pinning,
                     config.socket_workers,
-                    config.request_workers,
+                    config.swarm_workers,
                     WorkerIndex::Util,
                 );
 
@@ -153,7 +153,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     pin_current_if_configured_to(
         &config.cpu_pinning,
         config.socket_workers,
-        config.request_workers,
+        config.swarm_workers,
         WorkerIndex::Util,
     );
 

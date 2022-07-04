@@ -43,11 +43,11 @@ pub enum ConnectedResponse {
 pub struct SocketWorkerIndex(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct RequestWorkerIndex(pub usize);
+pub struct SwarmWorkerIndex(pub usize);
 
-impl RequestWorkerIndex {
+impl SwarmWorkerIndex {
     pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
-        Self(info_hash.0[0] as usize % config.request_workers)
+        Self(info_hash.0[0] as usize % config.swarm_workers)
     }
 }
 
@@ -66,14 +66,14 @@ impl ConnectedRequestSender {
 
     pub fn try_send_to(
         &self,
-        index: RequestWorkerIndex,
+        index: SwarmWorkerIndex,
         request: ConnectedRequest,
         addr: CanonicalSocketAddr,
     ) {
         match self.senders[index.0].try_send((self.index, request, addr)) {
             Ok(()) => {}
             Err(TrySendError::Full(_)) => {
-                ::log::error!("Request channel {} is full, dropping request. Try increasing number of request workers or raising config.worker_channel_size.", index.0)
+                ::log::error!("Request channel {} is full, dropping request. Try increasing number of swarm workers or raising config.worker_channel_size.", index.0)
             }
             Err(TrySendError::Disconnected(_)) => {
                 panic!("Request channel {} is disconnected", index.0);
@@ -145,7 +145,7 @@ pub struct Statistics {
 }
 
 impl Statistics {
-    pub fn new(num_request_workers: usize) -> Self {
+    pub fn new(num_swarm_workers: usize) -> Self {
         Self {
             requests_received: Default::default(),
             responses_sent_connect: Default::default(),
@@ -154,8 +154,8 @@ impl Statistics {
             responses_sent_error: Default::default(),
             bytes_received: Default::default(),
             bytes_sent: Default::default(),
-            torrents: Self::create_atomic_usize_vec(num_request_workers),
-            peers: Self::create_atomic_usize_vec(num_request_workers),
+            torrents: Self::create_atomic_usize_vec(num_swarm_workers),
+            peers: Self::create_atomic_usize_vec(num_swarm_workers),
         }
     }
 
@@ -174,11 +174,11 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(num_request_workers: usize) -> Self {
+    pub fn new(num_swarm_workers: usize) -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
-            statistics_ipv4: Arc::new(Statistics::new(num_request_workers)),
-            statistics_ipv6: Arc::new(Statistics::new(num_request_workers)),
+            statistics_ipv4: Arc::new(Statistics::new(num_swarm_workers)),
+            statistics_ipv6: Arc::new(Statistics::new(num_swarm_workers)),
         }
     }
 }

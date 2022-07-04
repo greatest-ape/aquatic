@@ -91,7 +91,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             &config.cpu_pinning,
             config.socket_workers,
             config.request_workers,
-            WorkerIndex::RequestWorker(i),
+            WorkerIndex::SwarmWorker(i),
         )?;
         let builder = LocalExecutorBuilder::new(placement).name("request");
 
