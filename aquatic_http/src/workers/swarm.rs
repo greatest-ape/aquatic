@@ -157,7 +157,7 @@ impl TorrentMaps {
     }
 }
 
-pub async fn run_request_worker(
+pub async fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,
     state: State,
@@ -235,7 +235,7 @@ async fn handle_request_stream<S>(
                 );
 
                 if let Err(err) = response_sender.connect().await.send(response).await {
-                    ::log::error!("request worker could not send announce response: {:#}", err);
+                    ::log::error!("swarm worker could not send announce response: {:#}", err);
                 }
             }
             ChannelRequest::Scrape {
@@ -247,7 +247,7 @@ async fn handle_request_stream<S>(
                     handle_scrape_request(&config, &mut torrents.borrow_mut(), peer_addr, request);
 
                 if let Err(err) = response_sender.connect().await.send(response).await {
-                    ::log::error!("request worker could not send scrape response: {:#}", err);
+                    ::log::error!("swarm worker could not send scrape response: {:#}", err);
                 }
             }
         };

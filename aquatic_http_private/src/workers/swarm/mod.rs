@@ -21,7 +21,7 @@ use crate::config::Config;
 
 use common::*;
 
-pub fn run_request_worker(
+pub fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,
     request_receiver: Receiver<ChannelAnnounceRequest>,

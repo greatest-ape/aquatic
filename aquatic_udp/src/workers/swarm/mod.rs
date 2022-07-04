@@ -17,13 +17,13 @@ use crate::config::Config;
 
 use storage::{Peer, TorrentMap, TorrentMaps};
 
-pub fn run_request_worker(
+pub fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,
     state: State,
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
     response_sender: ConnectedResponseSender,
-    worker_index: RequestWorkerIndex,
+    worker_index: SwarmWorkerIndex,
 ) {
     let mut torrents = TorrentMaps::default();
     let mut rng = SmallRng::from_entropy();

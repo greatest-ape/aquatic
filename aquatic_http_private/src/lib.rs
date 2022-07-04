@@ -30,7 +30,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     let mut request_senders = Vec::new();
     let mut request_receivers = VecDeque::new();
 
-    for _ in 0..config.request_workers {
+    for _ in 0..config.swarm_workers {
         let (request_sender, request_receiver) = channel(config.worker_channel_size);
 
         request_senders.push(request_sender);
@@ -64,16 +64,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         handles.push(handle);
     }
 
-    for _ in 0..config.request_workers {
+    for _ in 0..config.swarm_workers {
         let sentinel = sentinel.clone();
         let config = config.clone();
         let request_receiver = request_receivers.pop_front().unwrap();
 
         let handle = ::std::thread::Builder::new()
             .name("request".into())
-            .spawn(move || {
-                workers::request::run_request_worker(sentinel, config, request_receiver)
-            })?;
+            .spawn(move || workers::swarm::run_swarm_worker(sentinel, config, request_receiver))?;
 
         handles.push(handle);
     }

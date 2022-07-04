@@ -33,7 +33,7 @@ pub async fn announce(
     let request = AnnounceRequest::from_query_string(&query)
         .map_err(|_| FailureResponse::new("Malformed request"))?;
 
-    let request_worker_index = RequestWorkerIndex::from_info_hash(&config, request.info_hash);
+    let swarm_worker_index = RequestWorkerIndex::from_info_hash(&config, request.info_hash);
     let opt_user_agent = opt_user_agent.map(|header| header.as_str().to_owned());
 
     let source_addr = CanonicalSocketAddr::new(source_addr);
@@ -43,7 +43,7 @@ pub async fn announce(
             .await?;
 
     let response_receiver = request_sender
-        .send_to(request_worker_index, validated_request, source_addr)
+        .send_to(swarm_worker_index, validated_request, source_addr)
         .await
         .map_err(|err| internal_error(format!("Sending request over channel failed: {:#}", err)))?;
 

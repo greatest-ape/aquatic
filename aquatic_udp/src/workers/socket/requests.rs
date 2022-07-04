@@ -127,8 +127,7 @@ fn handle_request(
                     .load()
                     .allows(access_list_mode, &request.info_hash.0)
                 {
-                    let worker_index =
-                        RequestWorkerIndex::from_info_hash(config, request.info_hash);
+                    let worker_index = SwarmWorkerIndex::from_info_hash(config, request.info_hash);
 
                     request_sender.try_send_to(
                         worker_index,
@@ -153,9 +152,9 @@ fn handle_request(
                     pending_scrape_valid_until,
                 );
 
-                for (request_worker_index, request) in split_requests {
+                for (swarm_worker_index, request) in split_requests {
                     request_sender.try_send_to(
-                        request_worker_index,
+                        swarm_worker_index,
                         ConnectedRequest::Scrape(request),
                         src,
                     );

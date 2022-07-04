@@ -8,7 +8,7 @@
 //! ```
 
 use aquatic_common::PanicSentinelWatcher;
-use aquatic_udp::workers::request::run_request_worker;
+use aquatic_udp::workers::swarm::run_swarm_worker;
 use crossbeam_channel::unbounded;
 use num_format::{Locale, ToFormattedString};
 use rand::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
@@ -53,16 +53,16 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     {
         let config = aquatic_config.clone();
-        let state = State::new(config.request_workers);
+        let state = State::new(config.swarm_workers);
 
         ::std::thread::spawn(move || {
-            run_request_worker(
+            run_swarm_worker(
                 sentinel,
                 config,
                 state,
                 request_receiver,
                 response_sender,
-                RequestWorkerIndex(0),
+                SwarmWorkerIndex(0),
             )
         });
     }

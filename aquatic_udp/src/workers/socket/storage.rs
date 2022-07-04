@@ -27,9 +27,9 @@ impl PendingScrapeResponseSlab {
         config: &Config,
         request: ScrapeRequest,
         valid_until: ValidUntil,
-    ) -> impl IntoIterator<Item = (RequestWorkerIndex, PendingScrapeRequest)> {
-        let capacity = config.request_workers.min(request.info_hashes.len());
-        let mut split_requests: HashMap<RequestWorkerIndex, PendingScrapeRequest> =
+    ) -> impl IntoIterator<Item = (SwarmWorkerIndex, PendingScrapeRequest)> {
+        let capacity = config.swarm_workers.min(request.info_hashes.len());
+        let mut split_requests: HashMap<SwarmWorkerIndex, PendingScrapeRequest> =
             HashMap::with_capacity(capacity);
 
         if request.info_hashes.is_empty() {
@@ -45,7 +45,7 @@ impl PendingScrapeResponseSlab {
 
         for (i, info_hash) in request.info_hashes.into_iter().enumerate() {
             let split_request = split_requests
-                .entry(RequestWorkerIndex::from_info_hash(&config, info_hash))
+                .entry(SwarmWorkerIndex::from_info_hash(&config, info_hash))
                 .or_insert_with(|| PendingScrapeRequest {
                     slab_key,
                     info_hashes: BTreeMap::new(),
@@ -128,15 +128,15 @@ mod tests {
     #[quickcheck]
     fn test_pending_scrape_response_slab(
         request_data: Vec<(i32, i64, u8)>,
-        request_workers: u8,
+        swarm_workers: u8,
     ) -> TestResult {
-        if request_workers == 0 {
+        if swarm_workers == 0 {
             return TestResult::discard();
         }
 
         let mut config = Config::default();
 
-        config.request_workers = request_workers as usize;
+        config.swarm_workers = swarm_workers as usize;
 
         let valid_until = ValidUntil::new(1);
 
@@ -175,7 +175,7 @@ mod tests {
             all_split_requests.push(
                 split_requests
                     .into_iter()
-                    .collect::<Vec<(RequestWorkerIndex, PendingScrapeRequest)>>(),
+                    .collect::<Vec<(SwarmWorkerIndex, PendingScrapeRequest)>>(),
             );
         }
 
@@ -185,7 +185,7 @@ mod tests {
 
         for split_requests in all_split_requests {
             for (worker_index, split_request) in split_requests {
-                assert!(worker_index.0 < request_workers as usize);
+                assert!(worker_index.0 < swarm_workers as usize);
 
                 let torrent_stats = split_request
                     .info_hashes

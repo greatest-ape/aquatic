@@ -72,7 +72,7 @@ respective configuration files.
 #### Workers
 
 To increase performance, number of worker threads can be increased. The sum of
-`socket_workers` and `request_workers` should equal the total number of CPU cores
+`socket_workers` and `swarm_workers` should equal the total number of CPU cores
 that you want to use. Recommended proportions:
 
 <table>
@@ -92,7 +92,7 @@ that you want to use. Recommended proportions:
   <td>>=20</td>
  </tr>
  <tr>
-  <th scope="row">Request workers</th>
+  <th scope="row">Swarm workers</th>
   <td>1</td>
   <td>2</td>
   <td>3</td>
@@ -180,7 +180,7 @@ This is the most mature of the implementations. I consider it ready for producti
 
 ![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-28.png)
 
-More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.pdf).
+More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.pdf). Please note that request workers have been renamed to swarm workers.
 
 #### Optimisation attempts that didn't work out
 
@@ -213,7 +213,7 @@ fine.
 
 ![HTTP BitTorrent tracker throughput comparison](./documents/aquatic-http-load-test-illustration-2022-04-11.png)
 
-More details are available [here](./documents/aquatic-http-load-test-2022-04-11.pdf).
+More details are available [here](./documents/aquatic-http-load-test-2022-04-11.pdf). Please note that request workers have been renamed to swarm workers.
 
 ### aquatic_ws: WebTorrent tracker
 
@@ -231,7 +231,7 @@ fine.
 
 ![WebTorrent tracker throughput comparison](./documents/aquatic-ws-load-test-illustration-2022-03-29.png)
 
-More details are available [here](./documents/aquatic-ws-load-test-2022-03-29.pdf).
+More details are available [here](./documents/aquatic-ws-load-test-2022-03-29.pdf). Please note that request workers have been renamed to swarm workers.
 
 ## Load testing
 
