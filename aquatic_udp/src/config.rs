@@ -8,7 +8,7 @@ use aquatic_toml_config::TomlConfig;
 
 /// aquatic_udp configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
     /// them on to the swarm workers. They then receive responses from the
@@ -65,7 +65,7 @@ impl aquatic_common::cli::Config for Config {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
@@ -117,7 +117,7 @@ impl Default for NetworkConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
     pub max_scrape_torrents: u8,
@@ -138,7 +138,7 @@ impl Default for ProtocolConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
@@ -168,7 +168,7 @@ impl Default for StatisticsConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CleaningConfig {
     /// Clean torrents this often (seconds)
     pub torrent_cleaning_interval: u64,

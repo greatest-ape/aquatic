@@ -2,6 +2,7 @@ use aquatic_toml_config::TomlConfig;
 use serde::Deserialize;
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BenchConfig {
     pub num_rounds: usize,
     pub num_threads: usize,

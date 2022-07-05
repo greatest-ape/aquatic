@@ -14,7 +14,7 @@
      * Save JoinHandles
      * When preparing to quit because of PanicSentinel sending SIGTERM, loop
        through them, extract error and log it
-* config: fail on unrecognized keys?
+
 * Run cargo-deny in CI
 
 * aquatic_ws
