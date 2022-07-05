@@ -2,9 +2,6 @@
 
 ## High priority
 
-* udp: add IP blocklist, which would be more flexible than just adding option
-  for disallowing requests (claiming to be) from localhost
-
 ## Medium priority
 
 * quit whole program if any thread panics
@@ -16,6 +13,11 @@
        through them, extract error and log it
 
 * Run cargo-deny in CI
+
+* udp: add IP blocklist, which would be more flexible than just adding option
+  for disallowing requests (claiming to be) from localhost
+
+* stagger cleaning tasks?
 
 * aquatic_ws
   * remove peer from all torrent maps when connection is closed
@@ -45,7 +47,6 @@
 
 * aquatic_udp
   * what poll event capacity is actually needed?
-  * stagger connection cleaning intervals?
   * load test
       * move additional request sending to for each received response, maybe
         with probability 0.2
