@@ -36,6 +36,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let request_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE);
     let response_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE * 16);
+    let control_mesh_builder = MeshBuilder::partial(num_peers, SHARED_IN_CHANNEL_SIZE);
 
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
@@ -52,6 +53,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let config = config.clone();
         let state = state.clone();
         let tls_config = tls_config.clone();
+        let control_mesh_builder = control_mesh_builder.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
         let priv_dropper = priv_dropper.clone();
@@ -71,6 +73,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     config,
                     state,
                     tls_config,
+                    control_mesh_builder,
                     request_mesh_builder,
                     response_mesh_builder,
                     priv_dropper,
@@ -86,6 +89,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
+        let control_mesh_builder = control_mesh_builder.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
 
@@ -103,6 +107,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     sentinel,
                     config,
                     state,
+                    control_mesh_builder,
                     request_mesh_builder,
                     response_mesh_builder,
                 )

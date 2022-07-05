@@ -4,6 +4,7 @@ use aquatic_common::access_list::AccessListArcSwap;
 use aquatic_common::CanonicalSocketAddr;
 
 pub use aquatic_common::ValidUntil;
+use aquatic_ws_protocol::{InfoHash, PeerId};
 
 #[derive(Default, Clone)]
 pub struct State {
@@ -27,4 +28,13 @@ pub struct ConnectionMeta {
     pub connection_id: ConnectionId,
     pub peer_addr: CanonicalSocketAddr,
     pub pending_scrape_id: Option<PendingScrapeId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SwarmControlMessage {
+    ConnectionClosed {
+        info_hash: InfoHash,
+        peer_id: PeerId,
+        peer_addr: CanonicalSocketAddr,
+    },
 }

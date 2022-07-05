@@ -20,13 +20,9 @@
 * stagger cleaning tasks?
 
 * aquatic_ws
-  * remove peer from all torrent maps when connection is closed
-    * store `Vec<InfoHash>` in ConnectionReference, containing all used
-      info hashes. When connection is closed, send
-      InMessage::ConnectionClosed or similar to request workers.
-      Storing PeerId in ConnectionReference will also be necessary, as
-      well as making sure clients only use a single one. Alternatively,
-      a HashMap<PeerId, Vec<InfoHash>> can be used for storage.
+  * Can peer IP address change after connection has been established
+    due to some kind of renegotition? It would cause issues.
+  * Add cleaning task for ConnectionHandle.announced_info_hashes?
   * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
   * SinkExt::send maybe doesn't wake up properly?

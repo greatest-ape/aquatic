@@ -68,6 +68,22 @@ impl Default for TorrentData {
     }
 }
 
+impl TorrentData {
+    pub fn remove_peer(&mut self, peer_id: PeerId) {
+        if let Some(peer) = self.peers.remove(&peer_id) {
+            match peer.status {
+                PeerStatus::Leeching => {
+                    self.num_leechers -= 1;
+                }
+                PeerStatus::Seeding => {
+                    self.num_seeders -= 1;
+                }
+                PeerStatus::Stopped => (),
+            }
+        }
+    }
+}
+
 type TorrentMap = AmortizedIndexMap<InfoHash, TorrentData>;
 
 #[derive(Default)]
@@ -131,9 +147,15 @@ pub async fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,
     state: State,
+    control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
     in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
 ) {
+    let (_, mut control_message_receivers) = control_message_mesh_builder
+        .join(Role::Consumer)
+        .await
+        .unwrap();
+
     let (_, mut in_message_receivers) = in_message_mesh_builder.join(Role::Consumer).await.unwrap();
     let (out_message_senders, _) = out_message_mesh_builder.join(Role::Producer).await.unwrap();
 
@@ -153,6 +175,13 @@ pub async fn run_swarm_worker(
 
     let mut handles = Vec::new();
 
+    for (_, receiver) in control_message_receivers.streams() {
+        let handle =
+            spawn_local(handle_control_message_stream(torrents.clone(), receiver)).detach();
+
+        handles.push(handle);
+    }
+
     for (_, receiver) in in_message_receivers.streams() {
         let handle = spawn_local(handle_request_stream(
             config.clone(),
@@ -167,6 +196,36 @@ pub async fn run_swarm_worker(
 
     for handle in handles {
         handle.await;
+    }
+}
+
+async fn handle_control_message_stream<S>(torrents: Rc<RefCell<TorrentMaps>>, mut stream: S)
+where
+    S: futures_lite::Stream<Item = SwarmControlMessage> + ::std::marker::Unpin,
+{
+    while let Some(message) = stream.next().await {
+        match message {
+            SwarmControlMessage::ConnectionClosed {
+                info_hash,
+                peer_id,
+                peer_addr,
+            } => {
+                ::log::debug!(
+                    "Removing peer {} from torrents because connection was closed",
+                    peer_addr.get()
+                );
+
+                if peer_addr.is_ipv4() {
+                    if let Some(torrent_data) = torrents.borrow_mut().ipv4.get_mut(&info_hash) {
+                        torrent_data.remove_peer(peer_id);
+                    }
+                } else {
+                    if let Some(torrent_data) = torrents.borrow_mut().ipv6.get_mut(&info_hash) {
+                        torrent_data.remove_peer(peer_id);
+                    }
+                }
+            }
+        }
     }
 }
 
