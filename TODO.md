@@ -43,9 +43,6 @@
 
 ## Low priority
 
-* config
-  * add flag to print parsed config when starting
-
 * aquatic_udp
   * what poll event capacity is actually needed?
   * stagger connection cleaning intervals?

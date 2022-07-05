@@ -26,7 +26,7 @@ impl Default for LogLevel {
     }
 }
 
-pub trait Config: Default + TomlConfig + DeserializeOwned {
+pub trait Config: Default + TomlConfig + DeserializeOwned + std::fmt::Debug {
     fn get_log_level(&self) -> Option<LogLevel> {
         None
     }
@@ -36,6 +36,7 @@ pub trait Config: Default + TomlConfig + DeserializeOwned {
 pub struct Options {
     config_file: Option<String>,
     print_config: bool,
+    print_parsed_config: bool,
     print_version: bool,
 }
 
@@ -58,6 +59,9 @@ impl Options {
                     }
                     "-p" | "--print-config" => {
                         options.print_config = true;
+                    }
+                    "-P" => {
+                        options.print_parsed_config = true;
                     }
                     "-v" | "--version" => {
                         options.print_version = true;
@@ -148,6 +152,10 @@ where
             start_logger(log_level)?;
         }
 
+        if options.print_parsed_config {
+            println!("Running with configuration: {:#?}", config);
+        }
+
         app_fn(config)
     }
 }
@@ -162,6 +170,7 @@ where
     println!("    -c, --config-file     Load config from this path");
     println!("    -h, --help            Print this help message");
     println!("    -p, --print-config    Print default config");
+    println!("    -P                    Print parsed config");
     println!("    -v, --version         Print version information");
 
     if let Some(error) = opt_error {
