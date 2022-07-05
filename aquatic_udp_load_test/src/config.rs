@@ -9,7 +9,7 @@ use aquatic_toml_config::TomlConfig;
 
 /// aquatic_udp_load_test configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Server address
     ///
@@ -43,7 +43,7 @@ impl Default for Config {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     /// True means bind to one localhost IP per socket.
     ///
@@ -86,7 +86,7 @@ impl Default for NetworkConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct RequestConfig {
     /// Number of torrents to simulate
     pub number_of_torrents: usize,

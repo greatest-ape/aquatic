@@ -2,9 +2,6 @@
 
 ## High priority
 
-* udp: add IP blocklist, which would be more flexible than just adding option
-  for disallowing requests (claiming to be) from localhost
-
 ## Medium priority
 
 * quit whole program if any thread panics
@@ -14,17 +11,18 @@
      * Save JoinHandles
      * When preparing to quit because of PanicSentinel sending SIGTERM, loop
        through them, extract error and log it
-* config: fail on unrecognized keys?
+
 * Run cargo-deny in CI
 
+* udp: add IP blocklist, which would be more flexible than just adding option
+  for disallowing requests (claiming to be) from localhost
+
+* stagger cleaning tasks?
+
 * aquatic_ws
-  * remove peer from all torrent maps when connection is closed
-    * store `Vec<InfoHash>` in ConnectionReference, containing all used
-      info hashes. When connection is closed, send
-      InMessage::ConnectionClosed or similar to request workers.
-      Storing PeerId in ConnectionReference will also be necessary, as
-      well as making sure clients only use a single one. Alternatively,
-      a HashMap<PeerId, Vec<InfoHash>> can be used for storage.
+  * Can peer IP address change after connection has been established
+    due to some kind of renegotition? It would cause issues.
+  * Add cleaning task for ConnectionHandle.announced_info_hashes?
   * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
   * SinkExt::send maybe doesn't wake up properly?
@@ -43,12 +41,8 @@
 
 ## Low priority
 
-* config
-  * add flag to print parsed config when starting
-
 * aquatic_udp
   * what poll event capacity is actually needed?
-  * stagger connection cleaning intervals?
   * load test
       * move additional request sending to for each received response, maybe
         with probability 0.2

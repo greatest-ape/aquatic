@@ -10,7 +10,7 @@ use aquatic_toml_config::TomlConfig;
 
 /// aquatic_ws configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Socket workers receive requests from the socket, parse them and send
     /// them on to the swarm workers. They then receive responses from the
@@ -51,7 +51,7 @@ impl aquatic_common::cli::Config for Config {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     /// Bind to this address
     pub address: SocketAddr,
@@ -86,7 +86,7 @@ impl Default for NetworkConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to accept in scrape request
     pub max_scrape_torrents: usize,
@@ -107,7 +107,7 @@ impl Default for ProtocolConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,

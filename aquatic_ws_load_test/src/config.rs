@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 /// aquatic_ws_load_test configuration
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub server_address: SocketAddr,
     pub log_level: LogLevel,
@@ -41,7 +41,7 @@ impl Default for Config {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct TorrentConfig {
     pub offers_per_request: usize,
     pub number_of_torrents: usize,

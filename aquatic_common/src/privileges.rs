@@ -10,7 +10,7 @@ use serde::Deserialize;
 use aquatic_toml_config::TomlConfig;
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct PrivilegeConfig {
     /// Chroot and switch group and user after binding to sockets
     pub drop_privileges: bool,
