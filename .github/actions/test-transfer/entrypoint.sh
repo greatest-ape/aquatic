@@ -82,15 +82,8 @@ echo "log_level = 'trace'
 
 [network]
 address = '127.0.0.1:3002'
-
-# glommio
 tls_certificate_path = './cert.crt'
 tls_private_key_path = './key.pk8'
-
-# mio
-use_tls = true
-tls_pkcs12_path = './identity.pfx'
-tls_pkcs12_password = 'p'
 " > ws.toml
 ./target/debug/aquatic ws -c ws.toml > "$HOME/wss.log" 2>&1 &
 
