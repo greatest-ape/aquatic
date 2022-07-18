@@ -2,7 +2,7 @@
 
 ## High priority
 
-ws: does support for non-tls connections affect performance?
+ws: reverse proxy support for non-TLS connections (parse x-forwarded-for)
 
 ## Medium priority
 
