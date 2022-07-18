@@ -14,7 +14,7 @@ use aquatic_common::{CanonicalSocketAddr, PanicSentinel};
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
-use futures::StreamExt;
+use futures::{AsyncWriteExt, StreamExt};
 use futures_lite::future::race;
 use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
@@ -157,7 +157,7 @@ pub async fn run_socket_worker(
                         stream,
                         peer_addr,
                     ).await {
-                        ::log::debug!("Connection::run() error: {:?}", err);
+                        ::log::debug!("Connection::run() error: {:#}", err);
                     }
 
                     // Remove reference in separate statement to avoid
@@ -269,9 +269,32 @@ async fn run_connection(
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
     tls_config: Arc<RustlsConfig>,
-    stream: TcpStream,
+    mut stream: TcpStream,
     peer_addr: CanonicalSocketAddr,
 ) -> anyhow::Result<()> {
+    if config.network.enable_http_health_check {
+        let mut peek_buf = [0u8; 11];
+
+        stream
+            .peek(&mut peek_buf)
+            .await
+            .map_err(|err| anyhow::anyhow!("error peeking: {:#}", err))?;
+
+        if &peek_buf == b"GET /health" {
+            stream
+                .write_all(b"HTTP/1.1 200 Ok\r\nContent-Length: 2\r\n\r\nOk")
+                .await
+                .map_err(|err| anyhow::anyhow!("error sending health check response: {:#}", err))?;
+            stream.flush().await.map_err(|err| {
+                anyhow::anyhow!("error flushing health check response: {:#}", err)
+            })?;
+
+            return Err(anyhow::anyhow!(
+                "client requested health check, skipping websocket negotiation"
+            ));
+        }
+    }
+
     let tls_acceptor: TlsAcceptor = tls_config.into();
     let stream = tls_acceptor.accept(stream).await?;
 

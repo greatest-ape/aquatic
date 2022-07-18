@@ -67,6 +67,10 @@ pub struct NetworkConfig {
 
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
+
+    /// Return a HTTP 200 Ok response when request is GET /health over plain
+    /// HTTP (no TLS!)
+    pub enable_http_health_check: bool,
 }
 
 impl Default for NetworkConfig {
@@ -81,6 +85,8 @@ impl Default for NetworkConfig {
 
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
+
+            enable_http_health_check: false,
         }
     }
 }
