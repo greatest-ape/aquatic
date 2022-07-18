@@ -16,7 +16,6 @@ use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{AsyncWriteExt, StreamExt};
 use futures_lite::future::race;
-use futures_rustls::server::TlsStream;
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
@@ -55,7 +54,7 @@ pub async fn run_socket_worker(
     _sentinel: PanicSentinel,
     config: Config,
     state: State,
-    tls_config: Arc<RustlsConfig>,
+    opt_tls_config: Option<Arc<RustlsConfig>>,
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
     in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
@@ -139,9 +138,13 @@ pub async fn run_socket_worker(
                     peer_addr,
                 });
 
-                ::log::info!("accepting stream: {}", key);
+                ::log::info!(
+                    "accepting stream from {}, assigning id {}",
+                    peer_addr.get(),
+                    key
+                );
 
-                let task_handle = spawn_local_into(enclose!((config, access_list, control_message_senders, in_message_senders, connection_slab, tls_config) async move {
+                let task_handle = spawn_local_into(enclose!((config, access_list, control_message_senders, in_message_senders, connection_slab, opt_tls_config) async move {
                     if let Err(err) = run_connection(
                         config.clone(),
                         access_list,
@@ -153,12 +156,14 @@ pub async fn run_socket_worker(
                         out_message_receiver,
                         out_message_consumer_id,
                         ConnectionId(key),
-                        tls_config,
+                        opt_tls_config,
                         stream,
-                        peer_addr,
+                        peer_addr
                     ).await {
-                        ::log::debug!("Connection::run() error: {:#}", err);
+                        ::log::debug!("connection error: {:#}", err);
                     }
+
+                    // Clean up after closed connection
 
                     // Remove reference in separate statement to avoid
                     // multiple RefCell borrows
@@ -268,36 +273,90 @@ async fn run_connection(
     out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
-    tls_config: Arc<RustlsConfig>,
+    opt_tls_config: Option<Arc<RustlsConfig>>,
     mut stream: TcpStream,
     peer_addr: CanonicalSocketAddr,
 ) -> anyhow::Result<()> {
-    if config.network.enable_http_health_check {
-        let mut peek_buf = [0u8; 11];
+    if let Some(tls_config) = opt_tls_config {
+        let tls_acceptor: TlsAcceptor = tls_config.into();
 
-        stream
-            .peek(&mut peek_buf)
-            .await
-            .map_err(|err| anyhow::anyhow!("error peeking: {:#}", err))?;
+        let stream = tls_acceptor.accept(stream).await?;
 
-        if &peek_buf == b"GET /health" {
+        run_stream_agnostic_connection(
+            config.clone(),
+            access_list,
+            in_message_senders,
+            tq_prioritized,
+            tq_regular,
+            connection_slab.clone(),
+            out_message_sender,
+            out_message_receiver,
+            out_message_consumer_id,
+            connection_id,
+            stream,
+            peer_addr,
+        )
+        .await
+    } else {
+        if config.network.enable_http_health_check {
+            let mut peek_buf = [0u8; 11];
+
             stream
-                .write_all(b"HTTP/1.1 200 Ok\r\nContent-Length: 2\r\n\r\nOk")
+                .peek(&mut peek_buf)
                 .await
-                .map_err(|err| anyhow::anyhow!("error sending health check response: {:#}", err))?;
-            stream.flush().await.map_err(|err| {
-                anyhow::anyhow!("error flushing health check response: {:#}", err)
-            })?;
+                .map_err(|err| anyhow::anyhow!("error peeking: {:#}", err))?;
 
-            return Err(anyhow::anyhow!(
-                "client requested health check, skipping websocket negotiation"
-            ));
+            if &peek_buf == b"GET /health" {
+                stream
+                    .write_all(b"HTTP/1.1 200 Ok\r\nContent-Length: 2\r\n\r\nOk")
+                    .await
+                    .map_err(|err| {
+                        anyhow::anyhow!("error sending health check response: {:#}", err)
+                    })?;
+                stream.flush().await.map_err(|err| {
+                    anyhow::anyhow!("error flushing health check response: {:#}", err)
+                })?;
+
+                return Err(anyhow::anyhow!(
+                    "client requested health check, skipping websocket negotiation"
+                ));
+            }
         }
+
+        run_stream_agnostic_connection(
+            config.clone(),
+            access_list,
+            in_message_senders,
+            tq_prioritized,
+            tq_regular,
+            connection_slab.clone(),
+            out_message_sender,
+            out_message_receiver,
+            out_message_consumer_id,
+            connection_id,
+            stream,
+            peer_addr,
+        )
+        .await
     }
+}
 
-    let tls_acceptor: TlsAcceptor = tls_config.into();
-    let stream = tls_acceptor.accept(stream).await?;
-
+async fn run_stream_agnostic_connection<
+    S: futures::AsyncRead + futures::AsyncWrite + Unpin + 'static,
+>(
+    config: Rc<Config>,
+    access_list: Arc<AccessListArcSwap>,
+    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
+    tq_prioritized: TaskQueueHandle,
+    tq_regular: TaskQueueHandle,
+    connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
+    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
+    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_consumer_id: ConsumerId,
+    connection_id: ConnectionId,
+    stream: S,
+    peer_addr: CanonicalSocketAddr,
+) -> anyhow::Result<()> {
     let ws_config = tungstenite::protocol::WebSocketConfig {
         max_frame_size: Some(config.network.websocket_max_frame_size),
         max_message_size: Some(config.network.websocket_max_message_size),
@@ -359,7 +418,7 @@ async fn run_connection(
     race(reader_handle, writer_handle).await.unwrap()
 }
 
-struct ConnectionReader {
+struct ConnectionReader<S> {
     config: Rc<Config>,
     access_list_cache: AccessListCache,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
@@ -367,12 +426,12 @@ struct ConnectionReader {
     out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
     out_message_consumer_id: ConsumerId,
-    ws_in: SplitStream<WebSocketStream<TlsStream<TcpStream>>>,
+    ws_in: SplitStream<WebSocketStream<S>>,
     peer_addr: CanonicalSocketAddr,
     connection_id: ConnectionId,
 }
 
-impl ConnectionReader {
+impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
     async fn run_in_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
             ::log::debug!("read_in_message");
@@ -557,17 +616,17 @@ impl ConnectionReader {
     }
 }
 
-struct ConnectionWriter {
+struct ConnectionWriter<S> {
     config: Rc<Config>,
     out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    ws_out: SplitSink<WebSocketStream<TlsStream<TcpStream>>, tungstenite::Message>,
+    ws_out: SplitSink<WebSocketStream<S>, tungstenite::Message>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
     peer_addr: CanonicalSocketAddr,
     connection_id: ConnectionId,
 }
 
-impl ConnectionWriter {
+impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
     async fn run_out_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
             let (meta, out_message) = self.out_message_receiver.recv().await.ok_or_else(|| {

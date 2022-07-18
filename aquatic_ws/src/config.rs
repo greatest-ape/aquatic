@@ -60,6 +60,8 @@ pub struct NetworkConfig {
     /// Maximum number of pending TCP connections
     pub tcp_backlog: i32,
 
+    /// Enable TLS
+    pub enable_tls: bool,
     /// Path to TLS certificate (DER-encoded X.509)
     pub tls_certificate_path: PathBuf,
     /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
@@ -68,8 +70,8 @@ pub struct NetworkConfig {
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
 
-    /// Return a HTTP 200 Ok response when request is GET /health over plain
-    /// HTTP (no TLS!)
+    /// Return a HTTP 200 Ok response when receiving GET /health, but only
+    /// when not running over TLS
     pub enable_http_health_check: bool,
 }
 
@@ -80,6 +82,7 @@ impl Default for NetworkConfig {
             only_ipv6: false,
             tcp_backlog: 1024,
 
+            enable_tls: false,
             tls_certificate_path: "".into(),
             tls_private_key_path: "".into(),
 

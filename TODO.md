@@ -2,6 +2,8 @@
 
 ## High priority
 
+ws: does support for non-tls connections affect performance?
+
 ## Medium priority
 
 * quit whole program if any thread panics
