@@ -2,7 +2,11 @@
 
 ## High priority
 
-ws: reverse proxy support for non-TLS connections (parse x-forwarded-for)
+* ws
+  * reverse proxy support for non-TLS connections (parse x-forwarded-for)
+    * how does this interact with IPv4/IPv6 differentiation?
+    * is it possible to skip determining peer IP's altogether or is it necessary
+      for IPv4/IPv6 separation / preventing peer mixups or abuse?
 
 ## Medium priority
 

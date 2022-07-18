@@ -70,6 +70,11 @@ pub struct NetworkConfig {
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
 
+    /// Trust X-Forwarded-For headers to get peer IP. Only use this if you are
+    /// running aquatic_ws behind a reverse proxy that sets them and your
+    /// instance is not accessible by other means.
+    pub trust_x_forwarded_for: bool,
+
     /// Return a HTTP 200 Ok response when receiving GET /health, but only
     /// when not running over TLS
     pub enable_http_health_checks: bool,
@@ -88,6 +93,8 @@ impl Default for NetworkConfig {
 
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
+
+            trust_x_forwarded_for: false,
 
             enable_http_health_checks: false,
         }

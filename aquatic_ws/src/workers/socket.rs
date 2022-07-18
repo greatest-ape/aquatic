@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::net::{IpAddr, SocketAddr};
 use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -47,7 +48,8 @@ struct ConnectionReference {
     valid_until: ValidUntil,
     peer_id: Option<PeerId>,
     announced_info_hashes: HashSet<InfoHash>,
-    peer_addr: CanonicalSocketAddr,
+    /// May need to be parsed from X-Forwarded-For headers
+    peer_addr: Option<CanonicalSocketAddr>,
 }
 
 pub async fn run_socket_worker(
@@ -114,18 +116,6 @@ pub async fn run_socket_worker(
     while let Some(stream) = incoming.next().await {
         match stream {
             Ok(stream) => {
-                let peer_addr = match stream.peer_addr() {
-                    Ok(peer_addr) => CanonicalSocketAddr::new(peer_addr),
-                    Err(err) => {
-                        ::log::info!(
-                            "could not extract peer address, closing connection: {:#}",
-                            err
-                        );
-
-                        continue;
-                    }
-                };
-
                 let (out_message_sender, out_message_receiver) = new_bounded(LOCAL_CHANNEL_SIZE);
                 let out_message_sender = Rc::new(out_message_sender);
 
@@ -135,14 +125,10 @@ pub async fn run_socket_worker(
                     valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
                     peer_id: None,
                     announced_info_hashes: Default::default(),
-                    peer_addr,
+                    peer_addr: None,
                 });
 
-                ::log::info!(
-                    "accepting stream from {}, assigning id {}",
-                    peer_addr.get(),
-                    key
-                );
+                ::log::info!("accepting stream, assigning id {}", key);
 
                 let task_handle = spawn_local_into(enclose!((config, access_list, control_message_senders, in_message_senders, connection_slab, opt_tls_config) async move {
                     if let Err(err) = run_connection(
@@ -158,7 +144,6 @@ pub async fn run_socket_worker(
                         ConnectionId(key),
                         opt_tls_config,
                         stream,
-                        peer_addr
                     ).await {
                         ::log::debug!("connection error: {:#}", err);
                     }
@@ -171,12 +156,12 @@ pub async fn run_socket_worker(
 
                     // Tell swarm workers to remove peer
                     if let Some(reference) = opt_reference {
-                        if let Some(peer_id) = reference.peer_id {
+                        if let (Some(peer_id), Some(peer_addr)) = (reference.peer_id, reference.peer_addr) {
                             for info_hash in reference.announced_info_hashes {
                                 let message = SwarmControlMessage::ConnectionClosed {
                                     info_hash,
                                     peer_id,
-                                    peer_addr: reference.peer_addr,
+                                    peer_addr,
                                 };
 
                                 let consumer_index =
@@ -275,8 +260,28 @@ async fn run_connection(
     connection_id: ConnectionId,
     opt_tls_config: Option<Arc<RustlsConfig>>,
     mut stream: TcpStream,
-    peer_addr: CanonicalSocketAddr,
 ) -> anyhow::Result<()> {
+    let remote_addr = stream
+        .peer_addr()
+        .map_err(|err| anyhow::anyhow!("could not extract peer address: {:#}", err))?;
+
+    let peer_addr = if config.network.trust_x_forwarded_for {
+        let ip = parse_x_forwarded_for_ip(&stream).await?;
+        // Using the reverse proxy connection port here should be fine, since
+        // we only use the CanonicalPeerAddr to differentiate connections from
+        // each other as well as to determine if they run on IPv4 or IPv6,
+        // not for sending responses or passing on to peers.
+        let port = remote_addr.port();
+
+        CanonicalSocketAddr::new(SocketAddr::new(ip, port))
+    } else {
+        CanonicalSocketAddr::new(remote_addr)
+    };
+
+    if let Some(connection_reference) = connection_slab.borrow_mut().get_mut(connection_id.0) {
+        connection_reference.peer_addr = Some(peer_addr);
+    }
+
     if let Some(tls_config) = opt_tls_config {
         let tls_acceptor: TlsAcceptor = tls_config.into();
 
@@ -339,6 +344,49 @@ async fn run_connection(
         )
         .await
     }
+}
+
+async fn parse_x_forwarded_for_ip(stream: &TcpStream) -> anyhow::Result<IpAddr> {
+    let mut peek_buf = [0u8; 1024];
+
+    let mut position = 0usize;
+
+    for _ in 0..16 {
+        let bytes_read = stream
+            .peek(&mut peek_buf[position..])
+            .await
+            .map_err(|err| anyhow::anyhow!("error peeking: {:#}", err))?;
+
+        position += bytes_read;
+
+        if bytes_read == 0 {
+            return Err(anyhow::anyhow!(
+                "zero bytes read while parsing x-forwarded-for"
+            ));
+        }
+
+        let mut headers = [httparse::EMPTY_HEADER; 32];
+        let mut req = httparse::Request::new(&mut headers);
+
+        if req.parse(&peek_buf)?.is_complete() {
+            for header in req.headers.iter() {
+                if header.name == "X-Forwarded-For" {
+                    let ip: IpAddr = ::std::str::from_utf8(header.value)?.parse()?;
+
+                    // ip.is_global() { // FIXME
+                    if true {
+                        return Ok(ip);
+                    }
+                }
+            }
+
+            break;
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "Could not determine source IP through X-Forwarded-For headers"
+    ))
 }
 
 async fn run_stream_agnostic_connection<

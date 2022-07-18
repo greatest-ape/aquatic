@@ -295,6 +295,7 @@ dependencies = [
  "futures-rustls",
  "glommio",
  "hashbrown 0.12.3",
+ "httparse",
  "log",
  "mimalloc",
  "privdrop",
