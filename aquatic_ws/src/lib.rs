@@ -26,7 +26,7 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const SHARED_IN_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    if config.network.enable_tls && config.network.enable_http_health_check {
+    if config.network.enable_tls && config.network.enable_http_health_checks {
         return Err(anyhow::anyhow!(
             "configuration: network.enable_tls and network.enable_http_health_check can't both be set to true"
         ));

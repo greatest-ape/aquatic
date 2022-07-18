@@ -298,7 +298,7 @@ async fn run_connection(
         )
         .await
     } else {
-        if config.network.enable_http_health_check {
+        if config.network.enable_http_health_checks {
             let mut peek_buf = [0u8; 11];
 
             stream

@@ -72,7 +72,7 @@ pub struct NetworkConfig {
 
     /// Return a HTTP 200 Ok response when receiving GET /health, but only
     /// when not running over TLS
-    pub enable_http_health_check: bool,
+    pub enable_http_health_checks: bool,
 }
 
 impl Default for NetworkConfig {
@@ -89,7 +89,7 @@ impl Default for NetworkConfig {
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
 
-            enable_http_health_check: false,
+            enable_http_health_checks: false,
         }
     }
 }
