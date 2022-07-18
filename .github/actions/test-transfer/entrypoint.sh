@@ -82,6 +82,7 @@ echo "log_level = 'trace'
 
 [network]
 address = '127.0.0.1:3002'
+enable_tls = true
 tls_certificate_path = './cert.crt'
 tls_private_key_path = './key.pk8'
 " > ws.toml
