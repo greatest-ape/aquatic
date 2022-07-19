@@ -17,7 +17,7 @@ of sub-implementations for different protocols:
 |--------------|--------------------------------------------|------------------------------|
 | aquatic_udp  | [BitTorrent over UDP]                      | Unix-like (using [mio])      |
 | aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+ (using [glommio]) |
-| aquatic_ws   | [WebTorrent] over TLS ([rustls])           | Linux 5.8+ (using [glommio]) |
+| aquatic_ws   | [WebTorrent] over TLS ([rustls], optional) | Linux 5.8+ (using [glommio]) |
 
 Features at a glance:
 

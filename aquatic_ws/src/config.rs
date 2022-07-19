@@ -9,6 +9,9 @@ use aquatic_common::cli::LogLevel;
 use aquatic_toml_config::TomlConfig;
 
 /// aquatic_ws configuration
+/// 
+/// Running behind a reverse proxy is supported, but IPv4 peer requests have
+/// to be proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -70,13 +73,8 @@ pub struct NetworkConfig {
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
 
-    /// Trust X-Forwarded-For headers to get peer IP. Only use this if you are
-    /// running aquatic_ws behind a reverse proxy that sets them and your
-    /// instance is not accessible by other means.
-    pub trust_x_forwarded_for: bool,
-
-    /// Return a HTTP 200 Ok response when receiving GET /health, but only
-    /// when not running over TLS
+    /// Return a HTTP 200 Ok response when receiving GET /health. Can not be
+    /// combined with enable_tls.
     pub enable_http_health_checks: bool,
 }
 
@@ -93,8 +91,6 @@ impl Default for NetworkConfig {
 
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
-
-            trust_x_forwarded_for: false,
 
             enable_http_health_checks: false,
         }

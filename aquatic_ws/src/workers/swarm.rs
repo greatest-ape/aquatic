@@ -208,14 +208,11 @@ where
             SwarmControlMessage::ConnectionClosed {
                 info_hash,
                 peer_id,
-                peer_addr,
+                ip_version,
             } => {
-                ::log::debug!(
-                    "Removing peer {} from torrents because connection was closed",
-                    peer_addr.get()
-                );
+                ::log::debug!("Removing peer from torrents because connection was closed");
 
-                if peer_addr.is_ipv4() {
+                if let IpVersion::V4 = ip_version {
                     if let Some(torrent_data) = torrents.borrow_mut().ipv4.get_mut(&info_hash) {
                         torrent_data.remove_peer(peer_id);
                     }
@@ -305,18 +302,18 @@ fn handle_announce_request(
     request_sender_meta: ConnectionMeta,
     request: AnnounceRequest,
 ) {
-    let torrent_data: &mut TorrentData = if request_sender_meta.peer_addr.is_ipv4() {
+    let torrent_data: &mut TorrentData = if let IpVersion::V4 = request_sender_meta.ip_version {
         torrent_maps.ipv4.entry(request.info_hash).or_default()
     } else {
         torrent_maps.ipv6.entry(request.info_hash).or_default()
     };
 
-    // If there is already a peer with this peer_id, check that socket
-    // addr is same as that of request sender. Otherwise, ignore request.
-    // Since peers have access to each others peer_id's, they could send
-    // requests using them, causing all sorts of issues.
+    // If there is already a peer with this peer_id, check that connection id
+    // is same as that of request sender. Otherwise, ignore request. Since
+    // peers have access to each others peer_id's, they could send requests
+    // using them, causing all sorts of issues.
     if let Some(previous_peer) = torrent_data.peers.get(&request.peer_id) {
-        if request_sender_meta.peer_addr != previous_peer.connection_meta.peer_addr {
+        if request_sender_meta.connection_id != previous_peer.connection_meta.connection_id {
             return;
         }
     }
@@ -454,7 +451,7 @@ fn handle_scrape_request(
         files: HashMap::with_capacity(num_to_take),
     };
 
-    let torrent_map: &mut TorrentMap = if meta.peer_addr.is_ipv4() {
+    let torrent_map: &mut TorrentMap = if let IpVersion::V4 = meta.ip_version {
         &mut torrent_maps.ipv4
     } else {
         &mut torrent_maps.ipv6
