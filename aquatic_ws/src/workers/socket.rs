@@ -292,7 +292,7 @@ async fn run_connection(
         .await
     } else {
         // Implementing this over TLS is too cumbersome, since the crate used
-        // for TLS streams doesn't support peak and tungstenite doesn't
+        // for TLS streams doesn't support peek and tungstenite doesn't
         // properly support sending a HTTP error response in accept_hdr
         // callback.
         if config.network.enable_http_health_checks {
