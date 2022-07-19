@@ -9,7 +9,7 @@ use aquatic_common::cli::LogLevel;
 use aquatic_toml_config::TomlConfig;
 
 /// aquatic_ws configuration
-/// 
+///
 /// Running behind a reverse proxy is supported, but IPv4 peer requests have
 /// to be proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]

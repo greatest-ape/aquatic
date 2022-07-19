@@ -47,13 +47,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
-    let opt_tls_config = config
-        .network
-        .enable_tls
-        .then_some(Arc::new(create_rustls_config(
+    let opt_tls_config = if config.network.enable_tls {
+        Some(Arc::new(create_rustls_config(
             &config.network.tls_certificate_path,
             &config.network.tls_private_key_path,
-        )?));
+        )?))
+    } else {
+        None
+    };
 
     let mut executors = Vec::new();
 
