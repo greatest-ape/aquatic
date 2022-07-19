@@ -4,6 +4,7 @@ pub mod workers;
 
 use std::sync::Arc;
 
+use anyhow::Context;
 use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
 use aquatic_common::cpu_pinning::WorkerIndex;
 use aquatic_common::rustls_config::create_rustls_config;
@@ -51,7 +52,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         Some(Arc::new(create_rustls_config(
             &config.network.tls_certificate_path,
             &config.network.tls_private_key_path,
-        )?))
+        ).with_context(|| "create rustls config")?))
     } else {
         None
     };
