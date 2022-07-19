@@ -1,2 +1,4 @@
 target
 docker
+.git
+tmp
