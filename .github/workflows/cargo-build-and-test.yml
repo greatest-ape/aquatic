@@ -29,7 +29,7 @@ jobs:
         cargo build --verbose -p aquatic_http
         cargo build --verbose -p aquatic_ws
     - name: Run tests
-      run: cargo test --verbose --workspace --all-targets
+      run: cargo test --verbose --workspace --profile "test-fast"
 
 
   build-macos:
