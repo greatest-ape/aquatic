@@ -31,6 +31,6 @@ rustls = "0.20"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 socket2 = { version = "0.4", features = ["all"] }
-sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "mysql" ] }
+sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "mysql" ] }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = "0.23"

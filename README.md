@@ -17,7 +17,7 @@ of sub-implementations for different protocols:
 |--------------|--------------------------------------------|------------------------------|
 | aquatic_udp  | [BitTorrent over UDP]                      | Unix-like (using [mio])      |
 | aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+ (using [glommio]) |
-| aquatic_ws   | [WebTorrent] over TLS ([rustls])           | Linux 5.8+ (using [glommio]) |
+| aquatic_ws   | [WebTorrent] over TLS ([rustls], optional) | Linux 5.8+ (using [glommio]) |
 
 Features at a glance:
 
@@ -65,9 +65,9 @@ Generate configuration files. They come with comments and differ between protoco
 Make adjustments to the files. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
-Note that both `aquatic_http` and `aquatic_ws` require configuring TLS
-certificate and private key files. More details are available in the
-respective configuration files.
+Note that both `aquatic_http` and `aquatic_ws` require configuring certificate
+and private key files to run over TLS (which is optional for `aquatic_ws`).
+More details are available in the respective configuration files.
 
 #### Workers
 

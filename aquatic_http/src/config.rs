@@ -10,6 +10,8 @@ use serde::Deserialize;
 use aquatic_common::cli::LogLevel;
 
 /// aquatic_http configuration
+///
+/// Does not support running behind a reverse proxy.
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {

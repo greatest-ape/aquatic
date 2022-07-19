@@ -4,6 +4,7 @@ pub mod workers;
 
 use std::sync::Arc;
 
+use anyhow::Context;
 use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
 use aquatic_common::cpu_pinning::WorkerIndex;
 use aquatic_common::rustls_config::create_rustls_config;
@@ -26,6 +27,12 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const SHARED_IN_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
+    if config.network.enable_tls && config.network.enable_http_health_checks {
+        return Err(anyhow::anyhow!(
+            "configuration: network.enable_tls and network.enable_http_health_check can't both be set to true"
+        ));
+    }
+
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
     let state = State::default();
@@ -41,10 +48,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
-    let tls_config = Arc::new(create_rustls_config(
-        &config.network.tls_certificate_path,
-        &config.network.tls_private_key_path,
-    )?);
+    let opt_tls_config = if config.network.enable_tls {
+        Some(Arc::new(create_rustls_config(
+            &config.network.tls_certificate_path,
+            &config.network.tls_private_key_path,
+        ).with_context(|| "create rustls config")?))
+    } else {
+        None
+    };
 
     let mut executors = Vec::new();
 
@@ -52,7 +63,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
-        let tls_config = tls_config.clone();
+        let opt_tls_config = opt_tls_config.clone();
         let control_mesh_builder = control_mesh_builder.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let response_mesh_builder = response_mesh_builder.clone();
@@ -72,7 +83,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     sentinel,
                     config,
                     state,
-                    tls_config,
+                    opt_tls_config,
                     control_mesh_builder,
                     request_mesh_builder,
                     response_mesh_builder,
