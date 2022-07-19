@@ -96,6 +96,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         executors.push(executor);
     }
 
+    ::log::info!("spawned socket workers");
+
     for i in 0..(config.swarm_workers) {
         let sentinel = sentinel.clone();
         let config = config.clone();
@@ -128,6 +130,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         executors.push(executor);
     }
+
+    ::log::info!("spawned swarm workers");
 
     if config.cpu_pinning.active {
         set_affinity_for_util_worker(

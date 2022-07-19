@@ -65,6 +65,8 @@ pub async fn run_socket_worker(
 
     let listener = create_tcp_listener(&config, priv_dropper).expect("create tcp listener");
 
+    ::log::info!("created tcp listener");
+
     let (control_message_senders, _) = control_message_mesh_builder
         .join(Role::Producer)
         .await
@@ -85,6 +87,8 @@ pub async fn run_socket_worker(
     let (_, mut out_message_receivers) =
         out_message_mesh_builder.join(Role::Consumer).await.unwrap();
     let out_message_consumer_id = ConsumerId(out_message_receivers.consumer_id().unwrap());
+
+    ::log::info!("joined channels");
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
 
