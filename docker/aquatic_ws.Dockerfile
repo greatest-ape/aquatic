@@ -25,7 +25,11 @@ RUN . ./scripts/env-native-cpu-without-avx-512 && cargo build --release -p aquat
 
 FROM debian:stable-slim
 
-ENV CONFIG_FILE_CONTENTS "log_level = 'warn'\n\n[network]\nenable_http_health_checks = true"
+ENV CONFIG_FILE_CONTENTS "\
+    log_level = 'info'\n\
+    [network]\n\
+    enable_http_health_checks = true\n\
+    "
 ENV ACCESS_LIST_CONTENTS ""
 
 WORKDIR /root/
