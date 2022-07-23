@@ -2,9 +2,6 @@
 
 ## High priority
 
-* ws
-  * add integration test for non-TLS configuration, maybe behind reverse proxy
-
 ## Medium priority
 
 * quit whole program if any thread panics
