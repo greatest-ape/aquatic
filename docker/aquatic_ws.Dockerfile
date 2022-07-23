@@ -8,10 +8,11 @@
 # If no changes are made to configuration, aquatic_ws is run:
 # - on port 3000
 # - without TLS
-# - with no info hash access control
 # - with http health checks enabled
+# - only allowing announces for hashes in access list, e.g., contained
+#   in ACCESS_LIST_CONTENTS env var. By default, this file is empty.
 #
-# Run from root directory of repository with:
+# Run from root directory of aquatic repository with:
 # $ docker build -t aquatic-ws -f docker/aquatic_ws.Dockerfile .
 # $ docker run -it --ulimit memlock=65536:65536 -p 0.0.0.0:3000:3000 --name aquatic-ws aquatic-ws
 
@@ -29,6 +30,9 @@ ENV CONFIG_FILE_CONTENTS "\
     log_level = 'info'\n\
     [network]\n\
     enable_http_health_checks = true\n\
+    [access_list]\n\
+    mode = 'allow'\n\
+    path = './access-list.txt'\n\
     "
 ENV ACCESS_LIST_CONTENTS ""
 
