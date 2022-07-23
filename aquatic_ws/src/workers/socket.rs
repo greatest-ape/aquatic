@@ -722,28 +722,42 @@ fn create_tcp_listener(
         socket2::Domain::IPV6
     };
 
+    ::log::info!("creating socket..");
+
     let socket = socket2::Socket::new(domain, socket2::Type::STREAM, Some(socket2::Protocol::TCP))
         .with_context(|| "create socket")?;
 
     if config.network.only_ipv6 {
+        ::log::info!("setting socket to ipv6 only..");
+
         socket
             .set_only_v6(true)
             .with_context(|| "socket: set only ipv6")?;
     }
 
+    ::log::info!("setting SO_REUSEPORT on socket..");
+
     socket
         .set_reuse_port(true)
         .with_context(|| "socket: set reuse port")?;
+
+    ::log::info!("binding socket..");
 
     socket
         .bind(&config.network.address.into())
         .with_context(|| format!("socket: bind to {}", config.network.address))?;
 
+    ::log::info!("listening on socket..");
+
     socket
         .listen(config.network.tcp_backlog)
         .with_context(|| format!("socket: listen {}", config.network.address))?;
 
+    ::log::info!("running PrivilegeDropper::after_socket_creation..");
+
     priv_dropper.after_socket_creation()?;
+
+    ::log::info!("casting socket to glommio TcpListener..");
 
     Ok(unsafe { TcpListener::from_raw_fd(socket.into_raw_fd()) })
 }
