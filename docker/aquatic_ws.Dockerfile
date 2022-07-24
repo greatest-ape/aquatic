@@ -17,6 +17,8 @@
 # Run from root directory of aquatic repository with:
 # $ docker build -t aquatic-ws -f docker/aquatic_ws.Dockerfile .
 # $ docker run -it --ulimit memlock=65536:65536 -p 0.0.0.0:3000:3000 --name aquatic-ws aquatic-ws
+#
+# Pass --network="host" to run command for much better performance.
 
 FROM rust:latest AS builder
 
