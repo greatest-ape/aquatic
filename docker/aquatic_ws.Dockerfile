@@ -10,7 +10,7 @@
 # - without TLS
 # - with http health checks enabled
 # - only allowing announces for hashes in access list, e.g., contained
-#   in ACCESS_LIST_CONTENTS env var. By default, this file is empty.
+#   in ACCESS_LIST_CONTENTS env var
 #
 # Run from root directory of aquatic repository with:
 # $ docker build -t aquatic-ws -f docker/aquatic_ws.Dockerfile .
@@ -32,9 +32,8 @@ ENV CONFIG_FILE_CONTENTS "\
     enable_http_health_checks = true\n\
     [access_list]\n\
     mode = 'allow'\n\
-    path = './access-list.txt'\n\
     "
-ENV ACCESS_LIST_CONTENTS ""
+ENV ACCESS_LIST_CONTENTS "0f0f0f0f0f1f1f1f1f1f2f2f2f2f2f3f3f3f3f3f"
 
 WORKDIR /root/
 
