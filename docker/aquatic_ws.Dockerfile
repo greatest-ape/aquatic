@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # aquatic_ws
 #
 # WORK IN PROGRESS
@@ -39,7 +41,15 @@ WORKDIR /root/
 
 COPY --from=builder /usr/src/aquatic/target/release/aquatic_ws ./
 
-# Enable setting config and access list file contents at runtime
-RUN echo "#!/bin/sh\necho \"\$CONFIG_FILE_CONTENTS\" > ./config.toml\necho \"\$ACCESS_LIST_CONTENTS\" > ./access-list.txt\n./aquatic_ws -P -c ./config.toml" > entrypoint.sh && chmod +x entrypoint.sh
+# Create entry point script for setting config and access
+# list file contents at runtime
+COPY <<-"EOT" ./entrypoint.sh
+#!/bin/sh
+echo "$CONFIG_FILE_CONTENTS" > ./config.toml
+echo "$ACCESS_LIST_CONTENTS" > ./access-list.txt
+exec ./aquatic_ws -P -c ./config.toml
+EOT
+
+RUN chmod +x ./entrypoint.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
