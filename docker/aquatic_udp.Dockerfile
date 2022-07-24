@@ -31,10 +31,10 @@ COPY --from=builder /usr/src/aquatic/target/release/aquatic_udp ./
 # Create entry point script for setting config and access
 # list file contents at runtime
 COPY <<-"EOT" ./entrypoint.sh
-#!/bin/sh
+#!/bin/bash
 echo "$CONFIG_FILE_CONTENTS" > ./config.toml
 echo "$ACCESS_LIST_CONTENTS" > ./access-list.txt
-exec ./aquatic_udp -P -c ./config.toml
+exec ./aquatic_udp -c ./config.toml "$@"
 EOT
 
 RUN chmod +x ./entrypoint.sh
