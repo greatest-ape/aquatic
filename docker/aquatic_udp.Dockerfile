@@ -8,7 +8,7 @@
 # By default runs tracker on port 3000 without info hash access control.
 #
 # Run from repository root directory with:
-# $ docker build -t aquatic-udp -f docker/aquatic_udp.Dockerfile .
+# $ DOCKER_BUILDKIT=1 docker build -t aquatic-udp -f docker/aquatic_udp.Dockerfile .
 # $ docker run -it -p 0.0.0.0:3000:3000/udp --name aquatic-udp aquatic-udp
 #
 # Pass --network="host" to run command for much better performance.
