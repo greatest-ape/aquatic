@@ -44,10 +44,10 @@ COPY --from=builder /usr/src/aquatic/target/release/aquatic_ws ./
 # Create entry point script for setting config and access
 # list file contents at runtime
 COPY <<-"EOT" ./entrypoint.sh
-#!/bin/sh
-echo "$CONFIG_FILE_CONTENTS" > ./config.toml
-echo "$ACCESS_LIST_CONTENTS" > ./access-list.txt
-exec ./aquatic_ws -P -c ./config.toml
+#!/bin/bash
+echo -e "$CONFIG_FILE_CONTENTS" > ./config.toml
+echo -e "$ACCESS_LIST_CONTENTS" > ./access-list.txt
+exec ./aquatic_ws -c ./config.toml "$@"
 EOT
 
 RUN chmod +x ./entrypoint.sh
