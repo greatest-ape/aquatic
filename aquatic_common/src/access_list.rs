@@ -64,6 +64,11 @@ impl AccessList {
 
         for line in reader.lines() {
             let line = line?;
+            let line = line.trim();
+
+            if line.is_empty() {
+                continue;
+            }
 
             new_list
                 .insert_from_line(&line)
