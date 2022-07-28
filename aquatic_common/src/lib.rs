@@ -16,10 +16,7 @@ pub mod rustls_config;
 /// Amortized IndexMap using AHash hasher
 pub type AmortizedIndexMap<K, V> = indexmap_amortized::IndexMap<K, V, RandomState>;
 
-/// Peer or connection valid until this instant
-///
-/// Used instead of "last seen" or similar to hopefully prevent arithmetic
-/// overflow when cleaning.
+/// Peer, connection or similar valid until this instant
 #[derive(Debug, Clone, Copy)]
 pub struct ValidUntil(SecondsSinceServerStart);
 
