@@ -45,7 +45,7 @@ impl PeerStatus {
 #[derive(Clone, Copy)]
 struct Peer {
     pub connection_meta: ConnectionMeta,
-    pub status: PeerStatus,
+    pub seeder: bool,
     pub valid_until: ValidUntil,
 }
 
@@ -71,14 +71,10 @@ impl Default for TorrentData {
 impl TorrentData {
     pub fn remove_peer(&mut self, peer_id: PeerId) {
         if let Some(peer) = self.peers.remove(&peer_id) {
-            match peer.status {
-                PeerStatus::Leeching => {
-                    self.num_leechers -= 1;
-                }
-                PeerStatus::Seeding => {
-                    self.num_seeders -= 1;
-                }
-                PeerStatus::Stopped => (),
+            if peer.seeder {
+                self.num_seeders -= 1;
+            } else {
+                self.num_leechers -= 1;
             }
         }
     }
@@ -122,15 +118,11 @@ impl TorrentMaps {
                 let keep = peer.valid_until.0 >= now;
 
                 if !keep {
-                    match peer.status {
-                        PeerStatus::Seeding => {
-                            *num_seeders -= 1;
-                        }
-                        PeerStatus::Leeching => {
-                            *num_leechers -= 1;
-                        }
-                        _ => (),
-                    };
+                    if peer.seeder {
+                        *num_seeders -= 1;
+                    } else {
+                        *num_leechers -= 1;
+                    }
                 }
 
                 keep
@@ -327,31 +319,37 @@ fn handle_announce_request(
             request.bytes_left,
         );
 
-        let peer = Peer {
-            connection_meta: request_sender_meta,
-            status: peer_status,
-            valid_until,
-        };
-
         let opt_removed_peer = match peer_status {
             PeerStatus::Leeching => {
                 torrent_data.num_leechers += 1;
+
+                let peer = Peer {
+                    connection_meta: request_sender_meta,
+                    seeder: false,
+                    valid_until,
+                };
 
                 torrent_data.peers.insert(request.peer_id, peer)
             }
             PeerStatus::Seeding => {
                 torrent_data.num_seeders += 1;
 
+                let peer = Peer {
+                    connection_meta: request_sender_meta,
+                    seeder: true,
+                    valid_until,
+                };
+
                 torrent_data.peers.insert(request.peer_id, peer)
             }
             PeerStatus::Stopped => torrent_data.peers.remove(&request.peer_id),
         };
 
-        match opt_removed_peer.map(|peer| peer.status) {
-            Some(PeerStatus::Leeching) => {
+        match opt_removed_peer.map(|peer| peer.seeder) {
+            Some(false) => {
                 torrent_data.num_leechers -= 1;
             }
-            Some(PeerStatus::Seeding) => {
+            Some(true) => {
                 torrent_data.num_seeders -= 1;
             }
             _ => {}
