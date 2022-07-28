@@ -146,7 +146,7 @@ pub async fn run_socket_worker(
                     ip_version,
                 });
 
-                ::log::info!("accepting stream, assigning id {}", key);
+                ::log::trace!("accepting stream, assigning id {}", key);
 
                 let task_handle = spawn_local_into(enclose!((config, access_list, control_message_senders, in_message_senders, connection_slab, opt_tls_config) async move {
                     if let Err(err) = run_connection(
@@ -247,7 +247,7 @@ async fn receive_out_messages(
 
     while let Some((meta, out_message)) = out_message_receiver.next().await {
         if let Some(reference) = connection_references.borrow().get(meta.connection_id.0) {
-            ::log::info!(
+            ::log::trace!(
                 "local channel {} len: {}",
                 meta.connection_id.0,
                 reference.out_message_sender.len()
@@ -258,7 +258,7 @@ async fn receive_out_messages(
                 Err(GlommioError::Closed(_)) => {}
                 Err(GlommioError::WouldBlock(_)) => {}
                 Err(err) => {
-                    ::log::info!(
+                    ::log::debug!(
                         "Couldn't send out_message from shared channel to local receiver: {:?}",
                         err
                     );
@@ -448,8 +448,6 @@ struct ConnectionReader<S> {
 impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
     async fn run_in_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
-            ::log::debug!("read_in_message");
-
             while self.out_message_sender.is_full() {
                 sleep(Duration::from_millis(100)).await;
 
@@ -460,8 +458,6 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
             match InMessage::from_ws_message(message) {
                 Ok(in_message) => {
-                    ::log::debug!("parsed in_message");
-
                     self.handle_in_message(in_message).await?;
                 }
                 Err(err) => {
@@ -534,7 +530,6 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                         )
                         .await
                         .unwrap();
-                    ::log::info!("sent message to swarm worker");
                 } else {
                     self.send_error_response(
                         "Info hash not allowed".into(),
@@ -597,7 +592,6 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                         .send_to(consumer_index, (meta, in_message))
                         .await
                         .unwrap();
-                    ::log::info!("sent message to swarm worker");
                 }
             }
         }
@@ -721,7 +715,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
             }
             Ok(Err(err)) => Err(err.into()),
             Err(err) => {
-                ::log::info!("send_out_message: sending to peer took to long: {}", err);
+                ::log::debug!("send_out_message: sending to peer took to long: {}", err);
 
                 Ok(())
             }
