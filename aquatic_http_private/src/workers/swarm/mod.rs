@@ -11,7 +11,9 @@ use tokio::sync::mpsc::Receiver;
 use tokio::task::LocalSet;
 use tokio::time;
 
-use aquatic_common::{extract_response_peers, CanonicalSocketAddr, PanicSentinel, ValidUntil};
+use aquatic_common::{
+    extract_response_peers, CanonicalSocketAddr, PanicSentinel, ServerStartInstant, ValidUntil,
+};
 use aquatic_http_protocol::response::{
     AnnounceResponse, Response, ResponsePeer, ResponsePeerListV4, ResponsePeerListV6,
 };
@@ -25,12 +27,13 @@ pub fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,
     request_receiver: Receiver<ChannelAnnounceRequest>,
+    server_start_instant: ServerStartInstant,
 ) -> anyhow::Result<()> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
 
-    runtime.block_on(run_inner(config, request_receiver))?;
+    runtime.block_on(run_inner(config, request_receiver, server_start_instant))?;
 
     Ok(())
 }
@@ -38,6 +41,7 @@ pub fn run_swarm_worker(
 async fn run_inner(
     config: Config,
     mut request_receiver: Receiver<ChannelAnnounceRequest>,
+    server_start_instant: ServerStartInstant,
 ) -> anyhow::Result<()> {
     let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
     let mut rng = SmallRng::from_entropy();
@@ -45,6 +49,7 @@ async fn run_inner(
     LocalSet::new().spawn_local(periodically_clean_torrents(
         config.clone(),
         torrents.clone(),
+        server_start_instant,
     ));
 
     loop {
@@ -53,7 +58,7 @@ async fn run_inner(
             .await
             .ok_or_else(|| anyhow::anyhow!("request channel closed"))?;
 
-        let valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+        let valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age);
 
         let response = handle_announce_request(
             &config,
@@ -68,7 +73,11 @@ async fn run_inner(
     }
 }
 
-async fn periodically_clean_torrents(config: Config, torrents: Rc<RefCell<TorrentMaps>>) {
+async fn periodically_clean_torrents(
+    config: Config,
+    torrents: Rc<RefCell<TorrentMaps>>,
+    server_start_instant: ServerStartInstant,
+) {
     let mut interval = time::interval(time::Duration::from_secs(
         config.cleaning.torrent_cleaning_interval,
     ));
@@ -76,7 +85,7 @@ async fn periodically_clean_torrents(config: Config, torrents: Rc<RefCell<Torren
     loop {
         interval.tick().await;
 
-        torrents.borrow_mut().clean();
+        torrents.borrow_mut().clean(server_start_instant);
     }
 }
 
