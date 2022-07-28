@@ -4,13 +4,13 @@ use std::collections::BTreeMap;
 use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context;
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
-use aquatic_common::PanicSentinel;
+use aquatic_common::{PanicSentinel, ServerStartInstant};
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
@@ -59,6 +59,7 @@ pub async fn run_socket_worker(
     in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
     priv_dropper: PrivilegeDropper,
+    server_start_instant: ServerStartInstant,
 ) {
     let config = Rc::new(config);
     let access_list = state.access_list;
@@ -100,6 +101,7 @@ pub async fn run_socket_worker(
             clean_connections(
                 config.clone(),
                 connection_slab.clone(),
+                server_start_instant,
             )
         }),
         tq_prioritized,
@@ -135,7 +137,10 @@ pub async fn run_socket_worker(
                 let key = RefCell::borrow_mut(&connection_slab).insert(ConnectionReference {
                     task_handle: None,
                     out_message_sender: out_message_sender.clone(),
-                    valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
+                    valid_until: ValidUntil::new(
+                        server_start_instant,
+                        config.cleaning.max_connection_idle,
+                    ),
                     peer_id: None,
                     announced_info_hashes: Default::default(),
                     ip_version,
@@ -153,6 +158,7 @@ pub async fn run_socket_worker(
                         connection_slab.clone(),
                         out_message_sender,
                         out_message_receiver,
+                        server_start_instant,
                         out_message_consumer_id,
                         ConnectionId(key),
                         opt_tls_config,
@@ -210,11 +216,12 @@ pub async fn run_socket_worker(
 async fn clean_connections(
     config: Rc<Config>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
+    server_start_instant: ServerStartInstant,
 ) -> Option<Duration> {
-    let now = Instant::now();
+    let now = server_start_instant.seconds_elapsed();
 
     connection_slab.borrow_mut().retain(|_, reference| {
-        if reference.valid_until.0 > now {
+        if reference.valid_until.valid(now) {
             true
         } else {
             if let Some(ref handle) = reference.task_handle {
@@ -270,6 +277,7 @@ async fn run_connection(
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
+    server_start_instant: ServerStartInstant,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
     opt_tls_config: Option<Arc<RustlsConfig>>,
@@ -290,6 +298,7 @@ async fn run_connection(
             connection_slab.clone(),
             out_message_sender,
             out_message_receiver,
+            server_start_instant,
             out_message_consumer_id,
             connection_id,
             stream,
@@ -335,6 +344,7 @@ async fn run_connection(
             connection_slab.clone(),
             out_message_sender,
             out_message_receiver,
+            server_start_instant,
             out_message_consumer_id,
             connection_id,
             stream,
@@ -355,6 +365,7 @@ async fn run_stream_agnostic_connection<
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
+    server_start_instant: ServerStartInstant,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
     stream: S,
@@ -406,6 +417,7 @@ async fn run_stream_agnostic_connection<
                 ws_out,
                 pending_scrape_slab,
                 connection_id,
+                server_start_instant,
             };
 
             let result = writer.run_out_message_loop().await;
@@ -627,6 +639,7 @@ struct ConnectionWriter<S> {
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     ws_out: SplitSink<WebSocketStream<S>, tungstenite::Message>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
+    server_start_instant: ServerStartInstant,
     connection_id: ConnectionId,
 }
 
@@ -699,7 +712,10 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                             self.connection_id.0
                         )
                     })?
-                    .valid_until = ValidUntil::new(self.config.cleaning.max_connection_idle);
+                    .valid_until = ValidUntil::new(
+                    self.server_start_instant,
+                    self.config.cleaning.max_connection_idle,
+                );
 
                 Ok(())
             }

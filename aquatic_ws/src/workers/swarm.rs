@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use futures::StreamExt;
@@ -12,7 +12,10 @@ use glommio::timer::TimerActionRepeat;
 use hashbrown::HashMap;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::{extract_response_peers, AmortizedIndexMap, PanicSentinel};
+use aquatic_common::{
+    extract_response_peers, AmortizedIndexMap, PanicSentinel, SecondsSinceServerStart,
+    ServerStartInstant,
+};
 use aquatic_ws_protocol::*;
 
 use crate::common::*;
@@ -90,20 +93,25 @@ struct TorrentMaps {
 }
 
 impl TorrentMaps {
-    fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
+    fn clean(
+        &mut self,
+        config: &Config,
+        access_list: &Arc<AccessListArcSwap>,
+        server_start_instant: ServerStartInstant,
+    ) {
         let mut access_list_cache = create_access_list_cache(access_list);
+        let now = server_start_instant.seconds_elapsed();
 
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4);
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6);
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4, now);
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6, now);
     }
 
     fn clean_torrent_map(
         config: &Config,
         access_list_cache: &mut AccessListCache,
         torrent_map: &mut TorrentMap,
+        now: SecondsSinceServerStart,
     ) {
-        let now = Instant::now();
-
         torrent_map.retain(|info_hash, torrent_data| {
             if !access_list_cache
                 .load()
@@ -116,7 +124,7 @@ impl TorrentMaps {
             let num_leechers = &mut torrent_data.num_leechers;
 
             torrent_data.peers.retain(|_, peer| {
-                let keep = peer.valid_until.0 >= now;
+                let keep = peer.valid_until.valid(now);
 
                 if !keep {
                     if peer.seeder {
@@ -143,6 +151,7 @@ pub async fn run_swarm_worker(
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
     in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
+    server_start_instant: ServerStartInstant,
 ) {
     let (_, mut control_message_receivers) = control_message_mesh_builder
         .join(Role::Consumer)
@@ -160,7 +169,7 @@ pub async fn run_swarm_worker(
     // Periodically clean torrents
     TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
         enclose!((config, torrents, access_list) move || async move {
-            torrents.borrow_mut().clean(&config, &access_list);
+            torrents.borrow_mut().clean(&config, &access_list, server_start_instant);
 
             Some(Duration::from_secs(config.cleaning.torrent_cleaning_interval))
         })()
@@ -179,6 +188,7 @@ pub async fn run_swarm_worker(
         let handle = spawn_local(handle_request_stream(
             config.clone(),
             torrents.clone(),
+            server_start_instant,
             out_message_senders.clone(),
             receiver,
         ))
@@ -222,6 +232,7 @@ where
 async fn handle_request_stream<S>(
     config: Config,
     torrents: Rc<RefCell<TorrentMaps>>,
+    server_start_instant: ServerStartInstant,
     out_message_senders: Rc<Senders<(OutMessageMeta, OutMessage)>>,
     stream: S,
 ) where
@@ -230,11 +241,14 @@ async fn handle_request_stream<S>(
     let rng = Rc::new(RefCell::new(SmallRng::from_entropy()));
 
     let max_peer_age = config.cleaning.max_peer_age;
-    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(max_peer_age)));
+    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(
+        server_start_instant,
+        max_peer_age,
+    )));
 
     TimerActionRepeat::repeat(enclose!((peer_valid_until) move || {
         enclose!((peer_valid_until) move || async move {
-            *peer_valid_until.borrow_mut() = ValidUntil::new(max_peer_age);
+            *peer_valid_until.borrow_mut() = ValidUntil::new(server_start_instant, max_peer_age);
 
             Some(Duration::from_secs(1))
         })()

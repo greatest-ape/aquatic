@@ -8,7 +8,7 @@ use anyhow::Context;
 use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
 use aquatic_common::cpu_pinning::WorkerIndex;
 use aquatic_common::rustls_config::create_rustls_config;
-use aquatic_common::PanicSentinelWatcher;
+use aquatic_common::{PanicSentinelWatcher, ServerStartInstant};
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 use signal_hook::{
     consts::{SIGTERM, SIGUSR1},
@@ -60,6 +60,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         None
     };
 
+    let server_start_instant = ServerStartInstant::new();
+
     let mut executors = Vec::new();
 
     for i in 0..(config.socket_workers) {
@@ -91,6 +93,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     request_mesh_builder,
                     response_mesh_builder,
                     priv_dropper,
+                    server_start_instant,
                 )
                 .await
             })
@@ -124,6 +127,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     control_mesh_builder,
                     request_mesh_builder,
                     response_mesh_builder,
+                    server_start_instant,
                 )
                 .await
             })
