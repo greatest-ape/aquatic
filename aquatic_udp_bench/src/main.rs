@@ -7,7 +7,7 @@
 //! Scrape:    1 873 545 requests/second,   533.75 ns/request
 //! ```
 
-use aquatic_common::PanicSentinelWatcher;
+use aquatic_common::{PanicSentinelWatcher, ServerStartInstant};
 use aquatic_udp::workers::swarm::run_swarm_worker;
 use crossbeam_channel::unbounded;
 use num_format::{Locale, ToFormattedString};
@@ -51,6 +51,8 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
 
     let response_sender = ConnectedResponseSender::new(vec![response_sender]);
 
+    let server_start_instant = ServerStartInstant::new();
+
     {
         let config = aquatic_config.clone();
         let state = State::new(config.swarm_workers);
@@ -60,6 +62,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
                 sentinel,
                 config,
                 state,
+                server_start_instant,
                 request_receiver,
                 response_sender,
                 SwarmWorkerIndex(0),
