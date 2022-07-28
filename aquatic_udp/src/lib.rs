@@ -14,7 +14,7 @@ use aquatic_common::access_list::update_access_list;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::PrivilegeDropper;
-use aquatic_common::PanicSentinelWatcher;
+use aquatic_common::{PanicSentinelWatcher, ServerStartInstant};
 
 use common::{
     ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, SwarmWorkerIndex,
@@ -40,6 +40,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let mut response_senders = Vec::new();
     let mut response_receivers = BTreeMap::new();
+
+    let server_start_instant = ServerStartInstant::new();
 
     for i in 0..config.swarm_workers {
         let (request_sender, request_receiver) = if config.worker_channel_size == 0 {
@@ -85,6 +87,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     sentinel,
                     config,
                     state,
+                    server_start_instant,
                     request_receiver,
                     response_sender,
                     SwarmWorkerIndex(i),
@@ -120,6 +123,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     config,
                     i,
                     connection_validator,
+                    server_start_instant,
                     request_sender,
                     response_receiver,
                     priv_dropper,

@@ -1,8 +1,9 @@
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
-use std::time::Instant;
 
+use aquatic_common::SecondsSinceServerStart;
+use aquatic_common::ServerStartInstant;
 use aquatic_common::{
     access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache, AccessListMode},
     extract_response_peers, AmortizedIndexMap, ValidUntil,
@@ -99,9 +100,9 @@ impl<I: Ip> TorrentData<I> {
     }
 
     /// Remove inactive peers and reclaim space
-    fn clean(&mut self, now: Instant) {
+    fn clean(&mut self, now: SecondsSinceServerStart) {
         self.peers.retain(|_, peer| {
-            if peer.valid_until.0 > now {
+            if peer.valid_until.valid(now) {
                 true
             } else {
                 match peer.status {
@@ -143,7 +144,7 @@ impl<I: Ip> TorrentMap<I> {
         &mut self,
         access_list_cache: &mut AccessListCache,
         access_list_mode: AccessListMode,
-        now: Instant,
+        now: SecondsSinceServerStart,
     ) -> usize {
         let mut num_peers = 0;
 
@@ -192,10 +193,11 @@ impl TorrentMaps {
         &mut self,
         config: &Config,
         access_list: &Arc<AccessListArcSwap>,
+        server_start_instant: ServerStartInstant,
     ) -> (usize, usize) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
-        let now = Instant::now();
+        let now = server_start_instant.seconds_elapsed();
 
         let ipv4 = self.ipv4.clean_and_get_num_peers(&mut cache, mode, now);
         let ipv6 = self.ipv6.clean_and_get_num_peers(&mut cache, mode, now);
@@ -226,7 +228,7 @@ mod tests {
             ip_address: Ipv4Addr::from(i.to_be_bytes()),
             port: Port(1),
             status: PeerStatus::Leeching,
-            valid_until: ValidUntil::new(0),
+            valid_until: ValidUntil::new(ServerStartInstant::new(), 0),
         }
     }
 

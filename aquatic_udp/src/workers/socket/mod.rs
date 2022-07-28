@@ -6,6 +6,7 @@ pub mod validator;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
+use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
@@ -31,6 +32,7 @@ pub fn run_socket_worker(
     config: Config,
     token_num: usize,
     mut connection_validator: ConnectionValidator,
+    server_start_instant: ServerStartInstant,
     request_sender: ConnectedRequestSender,
     response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
     priv_dropper: PrivilegeDropper,
@@ -59,7 +61,8 @@ pub fn run_socket_worker(
     let pending_scrape_cleaning_duration =
         Duration::from_secs(config.cleaning.pending_scrape_cleaning_interval);
 
-    let mut pending_scrape_valid_until = ValidUntil::new(config.cleaning.max_pending_scrape_age);
+    let mut pending_scrape_valid_until =
+        ValidUntil::new(server_start_instant, config.cleaning.max_pending_scrape_age);
     let mut last_pending_scrape_cleaning = Instant::now();
 
     let mut iter_counter = 0usize;
@@ -100,13 +103,17 @@ pub fn run_socket_worker(
 
         // Run periodic ValidUntil updates and state cleaning
         if iter_counter % 256 == 0 {
+            let seconds_since_start = server_start_instant.seconds_elapsed();
+
+            pending_scrape_valid_until = ValidUntil::new_with_now(
+                seconds_since_start,
+                config.cleaning.max_pending_scrape_age,
+            );
+
             let now = Instant::now();
 
-            pending_scrape_valid_until =
-                ValidUntil::new_with_now(now, config.cleaning.max_pending_scrape_age);
-
             if now > last_pending_scrape_cleaning + pending_scrape_cleaning_duration {
-                pending_scrape_responses.clean();
+                pending_scrape_responses.clean(seconds_since_start);
 
                 last_pending_scrape_cleaning = now;
             }
