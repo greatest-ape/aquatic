@@ -42,7 +42,7 @@ struct ConnectionReference {
     task_handle: Option<JoinHandle<()>>,
     /// Sender part of channel used to pass on outgoing messages from request
     /// worker
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     /// Updated after sending message to peer
     valid_until: ValidUntil,
     peer_id: Option<PeerId>,
@@ -56,8 +56,8 @@ pub async fn run_socket_worker(
     state: State,
     opt_tls_config: Option<Arc<RustlsConfig>>,
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
-    in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
-    out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
+    in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
+    out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
     priv_dropper: PrivilegeDropper,
 ) {
     let config = Rc::new(config);
@@ -233,7 +233,7 @@ async fn clean_connections(
 }
 
 async fn receive_out_messages(
-    mut out_message_receiver: ConnectedReceiver<(ConnectionMeta, OutMessage)>,
+    mut out_message_receiver: ConnectedReceiver<(OutMessageMeta, OutMessage)>,
     connection_references: Rc<RefCell<Slab<ConnectionReference>>>,
 ) {
     let connection_references = &connection_references;
@@ -264,12 +264,12 @@ async fn receive_out_messages(
 async fn run_connection(
     config: Rc<Config>,
     access_list: Arc<AccessListArcSwap>,
-    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
+    in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
     tq_prioritized: TaskQueueHandle,
     tq_regular: TaskQueueHandle,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
-    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
+    out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
     opt_tls_config: Option<Arc<RustlsConfig>>,
@@ -349,12 +349,12 @@ async fn run_stream_agnostic_connection<
 >(
     config: Rc<Config>,
     access_list: Arc<AccessListArcSwap>,
-    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
+    in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
     tq_prioritized: TaskQueueHandle,
     tq_regular: TaskQueueHandle,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
-    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
+    out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
     stream: S,
@@ -424,8 +424,8 @@ struct ConnectionReader<S> {
     config: Rc<Config>,
     access_list_cache: AccessListCache,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
+    in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
     out_message_consumer_id: ConsumerId,
     ws_in: SplitStream<WebSocketStream<S>>,
@@ -606,13 +606,13 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
         });
 
         self.out_message_sender
-            .send((self.make_connection_meta(None), out_message))
+            .send((self.make_connection_meta(None).into(), out_message))
             .await
             .map_err(|err| anyhow::anyhow!("ConnectionReader::send_error_response failed: {}", err))
     }
 
-    fn make_connection_meta(&self, pending_scrape_id: Option<PendingScrapeId>) -> ConnectionMeta {
-        ConnectionMeta {
+    fn make_connection_meta(&self, pending_scrape_id: Option<PendingScrapeId>) -> InMessageMeta {
+        InMessageMeta {
             connection_id: self.connection_id,
             out_message_consumer_id: self.out_message_consumer_id,
             ip_version: self.ip_version,
@@ -623,7 +623,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
 struct ConnectionWriter<S> {
     config: Rc<Config>,
-    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     ws_out: SplitSink<WebSocketStream<S>, tungstenite::Message>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,

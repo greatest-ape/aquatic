@@ -44,7 +44,8 @@ impl PeerStatus {
 
 #[derive(Clone, Copy)]
 struct Peer {
-    pub connection_meta: ConnectionMeta,
+    pub consumer_id: ConsumerId,
+    pub connection_id: ConnectionId,
     pub seeder: bool,
     pub valid_until: ValidUntil,
 }
@@ -140,8 +141,8 @@ pub async fn run_swarm_worker(
     config: Config,
     state: State,
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
-    in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
-    out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
+    in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
+    out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
 ) {
     let (_, mut control_message_receivers) = control_message_mesh_builder
         .join(Role::Consumer)
@@ -221,10 +222,10 @@ where
 async fn handle_request_stream<S>(
     config: Config,
     torrents: Rc<RefCell<TorrentMaps>>,
-    out_message_senders: Rc<Senders<(ConnectionMeta, OutMessage)>>,
+    out_message_senders: Rc<Senders<(OutMessageMeta, OutMessage)>>,
     stream: S,
 ) where
-    S: futures_lite::Stream<Item = (ConnectionMeta, InMessage)> + ::std::marker::Unpin,
+    S: futures_lite::Stream<Item = (InMessageMeta, InMessage)> + ::std::marker::Unpin,
 {
     let rng = Rc::new(RefCell::new(SmallRng::from_entropy()));
 
@@ -289,9 +290,9 @@ fn handle_announce_request(
     config: &Config,
     rng: &mut SmallRng,
     torrent_maps: &mut TorrentMaps,
-    out_messages: &mut Vec<(ConnectionMeta, OutMessage)>,
+    out_messages: &mut Vec<(OutMessageMeta, OutMessage)>,
     valid_until: ValidUntil,
-    request_sender_meta: ConnectionMeta,
+    request_sender_meta: InMessageMeta,
     request: AnnounceRequest,
 ) {
     let torrent_data: &mut TorrentData = if let IpVersion::V4 = request_sender_meta.ip_version {
@@ -305,7 +306,7 @@ fn handle_announce_request(
     // peers have access to each others peer_id's, they could send requests
     // using them, causing all sorts of issues.
     if let Some(previous_peer) = torrent_data.peers.get(&request.peer_id) {
-        if request_sender_meta.connection_id != previous_peer.connection_meta.connection_id {
+        if request_sender_meta.connection_id != previous_peer.connection_id {
             return;
         }
     }
@@ -324,7 +325,8 @@ fn handle_announce_request(
                 torrent_data.num_leechers += 1;
 
                 let peer = Peer {
-                    connection_meta: request_sender_meta,
+                    connection_id: request_sender_meta.connection_id,
+                    consumer_id: request_sender_meta.out_message_consumer_id,
                     seeder: false,
                     valid_until,
                 };
@@ -335,7 +337,8 @@ fn handle_announce_request(
                 torrent_data.num_seeders += 1;
 
                 let peer = Peer {
-                    connection_meta: request_sender_meta,
+                    connection_id: request_sender_meta.connection_id,
+                    consumer_id: request_sender_meta.out_message_consumer_id,
                     seeder: true,
                     valid_until,
                 };
@@ -383,14 +386,14 @@ fn handle_announce_request(
                 offer_id: offer.offer_id,
             };
 
-            out_messages.push((
-                offer_receiver.connection_meta,
-                OutMessage::Offer(middleman_offer),
-            ));
-            ::log::trace!(
-                "sending middleman offer to {:?}",
-                offer_receiver.connection_meta
-            );
+            let meta = OutMessageMeta {
+                out_message_consumer_id: offer_receiver.consumer_id,
+                connection_id: offer_receiver.connection_id,
+                pending_scrape_id: None,
+            };
+
+            out_messages.push((meta, OutMessage::Offer(middleman_offer)));
+            ::log::trace!("sending middleman offer to {:?}", meta);
         }
     }
 
@@ -407,14 +410,14 @@ fn handle_announce_request(
                 offer_id,
             };
 
-            out_messages.push((
-                answer_receiver.connection_meta,
-                OutMessage::Answer(middleman_answer),
-            ));
-            ::log::trace!(
-                "sending middleman answer to {:?}",
-                answer_receiver.connection_meta
-            );
+            let meta = OutMessageMeta {
+                out_message_consumer_id: answer_receiver.consumer_id,
+                connection_id: answer_receiver.connection_id,
+                pending_scrape_id: None,
+            };
+
+            out_messages.push((meta, OutMessage::Answer(middleman_answer)));
+            ::log::trace!("sending middleman answer to {:?}", meta);
         }
     }
 
@@ -426,14 +429,14 @@ fn handle_announce_request(
         announce_interval: config.protocol.peer_announce_interval,
     });
 
-    out_messages.push((request_sender_meta, out_message));
+    out_messages.push((request_sender_meta.into(), out_message));
 }
 
 fn handle_scrape_request(
     config: &Config,
     torrent_maps: &mut TorrentMaps,
-    out_messages: &mut Vec<(ConnectionMeta, OutMessage)>,
-    meta: ConnectionMeta,
+    out_messages: &mut Vec<(OutMessageMeta, OutMessage)>,
+    meta: InMessageMeta,
     request: ScrapeRequest,
 ) {
     let info_hashes = if let Some(info_hashes) = request.info_hashes {
@@ -467,5 +470,5 @@ fn handle_scrape_request(
         }
     }
 
-    out_messages.push((meta, OutMessage::ScrapeResponse(out_message)));
+    out_messages.push((meta.into(), OutMessage::ScrapeResponse(out_message)));
 }
