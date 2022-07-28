@@ -282,7 +282,7 @@ async fn handle_request_stream<S>(
                     ::log::info!("swarm worker trying to send OutMessage to socket worker");
 
                     out_message_senders
-                        .send_to(meta.out_message_consumer_id.0, (meta, out_message))
+                        .send_to(meta.out_message_consumer_id.0 as usize, (meta, out_message))
                         .await
                         .expect("failed sending out_message to socket worker");
 

@@ -29,10 +29,10 @@ pub struct State {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct PendingScrapeId(pub usize);
+pub struct PendingScrapeId(pub u8);
 
 #[derive(Copy, Clone, Debug)]
-pub struct ConsumerId(pub usize);
+pub struct ConsumerId(pub u8);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ConnectionId(pub usize);

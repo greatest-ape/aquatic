@@ -49,10 +49,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
     let opt_tls_config = if config.network.enable_tls {
-        Some(Arc::new(create_rustls_config(
-            &config.network.tls_certificate_path,
-            &config.network.tls_private_key_path,
-        ).with_context(|| "create rustls config")?))
+        Some(Arc::new(
+            create_rustls_config(
+                &config.network.tls_certificate_path,
+                &config.network.tls_private_key_path,
+            )
+            .with_context(|| "create rustls config")?,
+        ))
     } else {
         None
     };

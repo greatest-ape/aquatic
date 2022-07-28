@@ -84,7 +84,13 @@ pub async fn run_socket_worker(
 
     let (_, mut out_message_receivers) =
         out_message_mesh_builder.join(Role::Consumer).await.unwrap();
-    let out_message_consumer_id = ConsumerId(out_message_receivers.consumer_id().unwrap());
+    let out_message_consumer_id = ConsumerId(
+        out_message_receivers
+            .consumer_id()
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    );
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
 
@@ -559,11 +565,14 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                     stats: Default::default(),
                 };
 
-                let pending_scrape_id = PendingScrapeId(
-                    RefCell::borrow_mut(&mut self.pending_scrape_slab)
-                        .insert(pending_scrape_response),
-                );
-                let meta = self.make_connection_meta(Some(pending_scrape_id));
+                let pending_scrape_id: u8 = self
+                    .pending_scrape_slab
+                    .borrow_mut()
+                    .insert(pending_scrape_response)
+                    .try_into()
+                    .with_context(|| "Reached 256 pending scrape responses")?;
+
+                let meta = self.make_connection_meta(Some(PendingScrapeId(pending_scrape_id)));
 
                 for (consumer_index, info_hashes) in info_hashes_by_worker {
                     let in_message = InMessage::ScrapeRequest(ScrapeRequest {
@@ -636,7 +645,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
 
                     let finished = if let Some(pending) = Slab::get_mut(
                         &mut RefCell::borrow_mut(&self.pending_scrape_slab),
-                        pending_scrape_id.0,
+                        pending_scrape_id.0 as usize,
                     ) {
                         pending.stats.extend(out_message.files);
                         pending.pending_worker_out_messages -= 1;
@@ -650,7 +659,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                         let out_message = {
                             let mut slab = RefCell::borrow_mut(&self.pending_scrape_slab);
 
-                            let pending = slab.remove(pending_scrape_id.0);
+                            let pending = slab.remove(pending_scrape_id.0 as usize);
 
                             slab.shrink_to_fit();
 
