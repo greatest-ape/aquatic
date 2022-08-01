@@ -262,25 +262,17 @@ impl Request {
         let mut headers = [httparse::EMPTY_HEADER; 16];
         let mut http_request = httparse::Request::new(&mut headers);
 
-        let path = match http_request.parse(bytes) {
+        match http_request.parse(bytes) {
             Ok(httparse::Status::Complete(_)) => {
                 if let Some(path) = http_request.path {
-                    path
+                    Self::from_http_get_path(path).map_err(RequestParseError::Invalid)
                 } else {
-                    return Err(RequestParseError::Invalid(anyhow::anyhow!("no http path")));
+                    Err(RequestParseError::Invalid(anyhow::anyhow!("no http path")))
                 }
             }
-            Ok(httparse::Status::Partial) => {
-                if let Some(path) = http_request.path {
-                    path
-                } else {
-                    return Err(RequestParseError::NeedMoreData);
-                }
-            }
-            Err(err) => return Err(RequestParseError::Invalid(anyhow::Error::from(err))),
-        };
-
-        Self::from_http_get_path(path).map_err(RequestParseError::Invalid)
+            Ok(httparse::Status::Partial) => Err(RequestParseError::NeedMoreData),
+            Err(err) => Err(RequestParseError::Invalid(anyhow::Error::from(err))),
+        }
     }
 
     /// Parse Request from http path (GET `/announce?info_hash=...`)
