@@ -4,13 +4,13 @@ use std::collections::BTreeMap;
 use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context;
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
-use aquatic_common::PanicSentinel;
+use aquatic_common::{PanicSentinel, ServerStartInstant};
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
@@ -42,7 +42,7 @@ struct ConnectionReference {
     task_handle: Option<JoinHandle<()>>,
     /// Sender part of channel used to pass on outgoing messages from request
     /// worker
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     /// Updated after sending message to peer
     valid_until: ValidUntil,
     peer_id: Option<PeerId>,
@@ -56,9 +56,10 @@ pub async fn run_socket_worker(
     state: State,
     opt_tls_config: Option<Arc<RustlsConfig>>,
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
-    in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
-    out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
+    in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
+    out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
     priv_dropper: PrivilegeDropper,
+    server_start_instant: ServerStartInstant,
 ) {
     let config = Rc::new(config);
     let access_list = state.access_list;
@@ -84,7 +85,13 @@ pub async fn run_socket_worker(
 
     let (_, mut out_message_receivers) =
         out_message_mesh_builder.join(Role::Consumer).await.unwrap();
-    let out_message_consumer_id = ConsumerId(out_message_receivers.consumer_id().unwrap());
+    let out_message_consumer_id = ConsumerId(
+        out_message_receivers
+            .consumer_id()
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    );
 
     let connection_slab = Rc::new(RefCell::new(Slab::new()));
 
@@ -94,6 +101,7 @@ pub async fn run_socket_worker(
             clean_connections(
                 config.clone(),
                 connection_slab.clone(),
+                server_start_instant,
             )
         }),
         tq_prioritized,
@@ -129,13 +137,16 @@ pub async fn run_socket_worker(
                 let key = RefCell::borrow_mut(&connection_slab).insert(ConnectionReference {
                     task_handle: None,
                     out_message_sender: out_message_sender.clone(),
-                    valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
+                    valid_until: ValidUntil::new(
+                        server_start_instant,
+                        config.cleaning.max_connection_idle,
+                    ),
                     peer_id: None,
                     announced_info_hashes: Default::default(),
                     ip_version,
                 });
 
-                ::log::info!("accepting stream, assigning id {}", key);
+                ::log::trace!("accepting stream, assigning id {}", key);
 
                 let task_handle = spawn_local_into(enclose!((config, access_list, control_message_senders, in_message_senders, connection_slab, opt_tls_config) async move {
                     if let Err(err) = run_connection(
@@ -147,6 +158,7 @@ pub async fn run_socket_worker(
                         connection_slab.clone(),
                         out_message_sender,
                         out_message_receiver,
+                        server_start_instant,
                         out_message_consumer_id,
                         ConnectionId(key),
                         opt_tls_config,
@@ -204,11 +216,12 @@ pub async fn run_socket_worker(
 async fn clean_connections(
     config: Rc<Config>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
+    server_start_instant: ServerStartInstant,
 ) -> Option<Duration> {
-    let now = Instant::now();
+    let now = server_start_instant.seconds_elapsed();
 
     connection_slab.borrow_mut().retain(|_, reference| {
-        if reference.valid_until.0 > now {
+        if reference.valid_until.valid(now) {
             true
         } else {
             if let Some(ref handle) = reference.task_handle {
@@ -227,14 +240,14 @@ async fn clean_connections(
 }
 
 async fn receive_out_messages(
-    mut out_message_receiver: ConnectedReceiver<(ConnectionMeta, OutMessage)>,
+    mut out_message_receiver: ConnectedReceiver<(OutMessageMeta, OutMessage)>,
     connection_references: Rc<RefCell<Slab<ConnectionReference>>>,
 ) {
     let connection_references = &connection_references;
 
     while let Some((meta, out_message)) = out_message_receiver.next().await {
         if let Some(reference) = connection_references.borrow().get(meta.connection_id.0) {
-            ::log::info!(
+            ::log::trace!(
                 "local channel {} len: {}",
                 meta.connection_id.0,
                 reference.out_message_sender.len()
@@ -245,7 +258,7 @@ async fn receive_out_messages(
                 Err(GlommioError::Closed(_)) => {}
                 Err(GlommioError::WouldBlock(_)) => {}
                 Err(err) => {
-                    ::log::info!(
+                    ::log::debug!(
                         "Couldn't send out_message from shared channel to local receiver: {:?}",
                         err
                     );
@@ -258,12 +271,13 @@ async fn receive_out_messages(
 async fn run_connection(
     config: Rc<Config>,
     access_list: Arc<AccessListArcSwap>,
-    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
+    in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
     tq_prioritized: TaskQueueHandle,
     tq_regular: TaskQueueHandle,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
-    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
+    out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
+    server_start_instant: ServerStartInstant,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
     opt_tls_config: Option<Arc<RustlsConfig>>,
@@ -284,6 +298,7 @@ async fn run_connection(
             connection_slab.clone(),
             out_message_sender,
             out_message_receiver,
+            server_start_instant,
             out_message_consumer_id,
             connection_id,
             stream,
@@ -329,6 +344,7 @@ async fn run_connection(
             connection_slab.clone(),
             out_message_sender,
             out_message_receiver,
+            server_start_instant,
             out_message_consumer_id,
             connection_id,
             stream,
@@ -343,12 +359,13 @@ async fn run_stream_agnostic_connection<
 >(
     config: Rc<Config>,
     access_list: Arc<AccessListArcSwap>,
-    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
+    in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
     tq_prioritized: TaskQueueHandle,
     tq_regular: TaskQueueHandle,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
-    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
+    out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
+    server_start_instant: ServerStartInstant,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
     stream: S,
@@ -400,6 +417,7 @@ async fn run_stream_agnostic_connection<
                 ws_out,
                 pending_scrape_slab,
                 connection_id,
+                server_start_instant,
             };
 
             let result = writer.run_out_message_loop().await;
@@ -418,8 +436,8 @@ struct ConnectionReader<S> {
     config: Rc<Config>,
     access_list_cache: AccessListCache,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
-    in_message_senders: Rc<Senders<(ConnectionMeta, InMessage)>>,
-    out_message_sender: Rc<LocalSender<(ConnectionMeta, OutMessage)>>,
+    in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
+    out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
     out_message_consumer_id: ConsumerId,
     ws_in: SplitStream<WebSocketStream<S>>,
@@ -430,8 +448,6 @@ struct ConnectionReader<S> {
 impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
     async fn run_in_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
-            ::log::debug!("read_in_message");
-
             while self.out_message_sender.is_full() {
                 sleep(Duration::from_millis(100)).await;
 
@@ -442,8 +458,6 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
             match InMessage::from_ws_message(message) {
                 Ok(in_message) => {
-                    ::log::debug!("parsed in_message");
-
                     self.handle_in_message(in_message).await?;
                 }
                 Err(err) => {
@@ -516,7 +530,6 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                         )
                         .await
                         .unwrap();
-                    ::log::info!("sent message to swarm worker");
                 } else {
                     self.send_error_response(
                         "Info hash not allowed".into(),
@@ -559,11 +572,14 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                     stats: Default::default(),
                 };
 
-                let pending_scrape_id = PendingScrapeId(
-                    RefCell::borrow_mut(&mut self.pending_scrape_slab)
-                        .insert(pending_scrape_response),
-                );
-                let meta = self.make_connection_meta(Some(pending_scrape_id));
+                let pending_scrape_id: u8 = self
+                    .pending_scrape_slab
+                    .borrow_mut()
+                    .insert(pending_scrape_response)
+                    .try_into()
+                    .with_context(|| "Reached 256 pending scrape responses")?;
+
+                let meta = self.make_connection_meta(Some(PendingScrapeId(pending_scrape_id)));
 
                 for (consumer_index, info_hashes) in info_hashes_by_worker {
                     let in_message = InMessage::ScrapeRequest(ScrapeRequest {
@@ -576,7 +592,6 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                         .send_to(consumer_index, (meta, in_message))
                         .await
                         .unwrap();
-                    ::log::info!("sent message to swarm worker");
                 }
             }
         }
@@ -597,13 +612,13 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
         });
 
         self.out_message_sender
-            .send((self.make_connection_meta(None), out_message))
+            .send((self.make_connection_meta(None).into(), out_message))
             .await
             .map_err(|err| anyhow::anyhow!("ConnectionReader::send_error_response failed: {}", err))
     }
 
-    fn make_connection_meta(&self, pending_scrape_id: Option<PendingScrapeId>) -> ConnectionMeta {
-        ConnectionMeta {
+    fn make_connection_meta(&self, pending_scrape_id: Option<PendingScrapeId>) -> InMessageMeta {
+        InMessageMeta {
             connection_id: self.connection_id,
             out_message_consumer_id: self.out_message_consumer_id,
             ip_version: self.ip_version,
@@ -614,10 +629,11 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
 struct ConnectionWriter<S> {
     config: Rc<Config>,
-    out_message_receiver: LocalReceiver<(ConnectionMeta, OutMessage)>,
+    out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     ws_out: SplitSink<WebSocketStream<S>, tungstenite::Message>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
+    server_start_instant: ServerStartInstant,
     connection_id: ConnectionId,
 }
 
@@ -636,7 +652,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
 
                     let finished = if let Some(pending) = Slab::get_mut(
                         &mut RefCell::borrow_mut(&self.pending_scrape_slab),
-                        pending_scrape_id.0,
+                        pending_scrape_id.0 as usize,
                     ) {
                         pending.stats.extend(out_message.files);
                         pending.pending_worker_out_messages -= 1;
@@ -650,7 +666,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                         let out_message = {
                             let mut slab = RefCell::borrow_mut(&self.pending_scrape_slab);
 
-                            let pending = slab.remove(pending_scrape_id.0);
+                            let pending = slab.remove(pending_scrape_id.0 as usize);
 
                             slab.shrink_to_fit();
 
@@ -690,13 +706,16 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                             self.connection_id.0
                         )
                     })?
-                    .valid_until = ValidUntil::new(self.config.cleaning.max_connection_idle);
+                    .valid_until = ValidUntil::new(
+                    self.server_start_instant,
+                    self.config.cleaning.max_connection_idle,
+                );
 
                 Ok(())
             }
             Ok(Err(err)) => Err(err.into()),
             Err(err) => {
-                ::log::info!("send_out_message: sending to peer took to long: {}", err);
+                ::log::debug!("send_out_message: sending to peer took to long: {}", err);
 
                 Ok(())
             }

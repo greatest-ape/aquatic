@@ -1,7 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::Instant;
 
-use aquatic_common::{AmortizedIndexMap, ValidUntil};
+use aquatic_common::{AmortizedIndexMap, SecondsSinceServerStart, ServerStartInstant, ValidUntil};
 use aquatic_http_protocol::common::{AnnounceEvent, InfoHash, PeerId};
 use aquatic_http_protocol::response::ResponsePeer;
 
@@ -84,20 +83,20 @@ pub struct TorrentMaps {
 }
 
 impl TorrentMaps {
-    pub fn clean(&mut self) {
-        Self::clean_torrent_map(&mut self.ipv4);
-        Self::clean_torrent_map(&mut self.ipv6);
+    pub fn clean(&mut self, server_start_instant: ServerStartInstant) {
+        let now = server_start_instant.seconds_elapsed();
+
+        Self::clean_torrent_map(&mut self.ipv4, now);
+        Self::clean_torrent_map(&mut self.ipv6, now);
     }
 
-    fn clean_torrent_map<I: Ip>(torrent_map: &mut TorrentMap<I>) {
-        let now = Instant::now();
-
+    fn clean_torrent_map<I: Ip>(torrent_map: &mut TorrentMap<I>, now: SecondsSinceServerStart) {
         torrent_map.retain(|_, torrent_data| {
             let num_seeders = &mut torrent_data.num_seeders;
             let num_leechers = &mut torrent_data.num_leechers;
 
             torrent_data.peers.retain(|_, peer| {
-                if peer.valid_until.0 >= now {
+                if peer.valid_until.valid(now) {
                     true
                 } else {
                     match peer.status {

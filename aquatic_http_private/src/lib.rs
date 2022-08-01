@@ -6,6 +6,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use aquatic_common::{
     privileges::PrivilegeDropper, rustls_config::create_rustls_config, PanicSentinelWatcher,
+    ServerStartInstant,
 };
 use common::ChannelRequestSender;
 use dotenv::dotenv;
@@ -40,6 +41,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
+    let server_start_instant = ServerStartInstant::new();
+
     let mut handles = Vec::new();
 
     for _ in 0..config.socket_workers {
@@ -71,7 +74,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         let handle = ::std::thread::Builder::new()
             .name("request".into())
-            .spawn(move || workers::swarm::run_swarm_worker(sentinel, config, request_receiver))?;
+            .spawn(move || {
+                workers::swarm::run_swarm_worker(
+                    sentinel,
+                    config,
+                    request_receiver,
+                    server_start_instant,
+                )
+            })?;
 
         handles.push(handle);
     }

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use futures::StreamExt;
@@ -12,7 +12,10 @@ use glommio::timer::TimerActionRepeat;
 use hashbrown::HashMap;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::{extract_response_peers, AmortizedIndexMap, PanicSentinel};
+use aquatic_common::{
+    extract_response_peers, AmortizedIndexMap, PanicSentinel, SecondsSinceServerStart,
+    ServerStartInstant,
+};
 use aquatic_ws_protocol::*;
 
 use crate::common::*;
@@ -44,8 +47,9 @@ impl PeerStatus {
 
 #[derive(Clone, Copy)]
 struct Peer {
-    pub connection_meta: ConnectionMeta,
-    pub status: PeerStatus,
+    pub consumer_id: ConsumerId,
+    pub connection_id: ConnectionId,
+    pub seeder: bool,
     pub valid_until: ValidUntil,
 }
 
@@ -71,14 +75,10 @@ impl Default for TorrentData {
 impl TorrentData {
     pub fn remove_peer(&mut self, peer_id: PeerId) {
         if let Some(peer) = self.peers.remove(&peer_id) {
-            match peer.status {
-                PeerStatus::Leeching => {
-                    self.num_leechers -= 1;
-                }
-                PeerStatus::Seeding => {
-                    self.num_seeders -= 1;
-                }
-                PeerStatus::Stopped => (),
+            if peer.seeder {
+                self.num_seeders -= 1;
+            } else {
+                self.num_leechers -= 1;
             }
         }
     }
@@ -93,20 +93,25 @@ struct TorrentMaps {
 }
 
 impl TorrentMaps {
-    fn clean(&mut self, config: &Config, access_list: &Arc<AccessListArcSwap>) {
+    fn clean(
+        &mut self,
+        config: &Config,
+        access_list: &Arc<AccessListArcSwap>,
+        server_start_instant: ServerStartInstant,
+    ) {
         let mut access_list_cache = create_access_list_cache(access_list);
+        let now = server_start_instant.seconds_elapsed();
 
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4);
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6);
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4, now);
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6, now);
     }
 
     fn clean_torrent_map(
         config: &Config,
         access_list_cache: &mut AccessListCache,
         torrent_map: &mut TorrentMap,
+        now: SecondsSinceServerStart,
     ) {
-        let now = Instant::now();
-
         torrent_map.retain(|info_hash, torrent_data| {
             if !access_list_cache
                 .load()
@@ -119,18 +124,14 @@ impl TorrentMaps {
             let num_leechers = &mut torrent_data.num_leechers;
 
             torrent_data.peers.retain(|_, peer| {
-                let keep = peer.valid_until.0 >= now;
+                let keep = peer.valid_until.valid(now);
 
                 if !keep {
-                    match peer.status {
-                        PeerStatus::Seeding => {
-                            *num_seeders -= 1;
-                        }
-                        PeerStatus::Leeching => {
-                            *num_leechers -= 1;
-                        }
-                        _ => (),
-                    };
+                    if peer.seeder {
+                        *num_seeders -= 1;
+                    } else {
+                        *num_leechers -= 1;
+                    }
                 }
 
                 keep
@@ -148,8 +149,9 @@ pub async fn run_swarm_worker(
     config: Config,
     state: State,
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
-    in_message_mesh_builder: MeshBuilder<(ConnectionMeta, InMessage), Partial>,
-    out_message_mesh_builder: MeshBuilder<(ConnectionMeta, OutMessage), Partial>,
+    in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
+    out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
+    server_start_instant: ServerStartInstant,
 ) {
     let (_, mut control_message_receivers) = control_message_mesh_builder
         .join(Role::Consumer)
@@ -167,7 +169,7 @@ pub async fn run_swarm_worker(
     // Periodically clean torrents
     TimerActionRepeat::repeat(enclose!((config, torrents, access_list) move || {
         enclose!((config, torrents, access_list) move || async move {
-            torrents.borrow_mut().clean(&config, &access_list);
+            torrents.borrow_mut().clean(&config, &access_list, server_start_instant);
 
             Some(Duration::from_secs(config.cleaning.torrent_cleaning_interval))
         })()
@@ -186,6 +188,7 @@ pub async fn run_swarm_worker(
         let handle = spawn_local(handle_request_stream(
             config.clone(),
             torrents.clone(),
+            server_start_instant,
             out_message_senders.clone(),
             receiver,
         ))
@@ -229,19 +232,23 @@ where
 async fn handle_request_stream<S>(
     config: Config,
     torrents: Rc<RefCell<TorrentMaps>>,
-    out_message_senders: Rc<Senders<(ConnectionMeta, OutMessage)>>,
+    server_start_instant: ServerStartInstant,
+    out_message_senders: Rc<Senders<(OutMessageMeta, OutMessage)>>,
     stream: S,
 ) where
-    S: futures_lite::Stream<Item = (ConnectionMeta, InMessage)> + ::std::marker::Unpin,
+    S: futures_lite::Stream<Item = (InMessageMeta, InMessage)> + ::std::marker::Unpin,
 {
     let rng = Rc::new(RefCell::new(SmallRng::from_entropy()));
 
     let max_peer_age = config.cleaning.max_peer_age;
-    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(max_peer_age)));
+    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(
+        server_start_instant,
+        max_peer_age,
+    )));
 
     TimerActionRepeat::repeat(enclose!((peer_valid_until) move || {
         enclose!((peer_valid_until) move || async move {
-            *peer_valid_until.borrow_mut() = ValidUntil::new(max_peer_age);
+            *peer_valid_until.borrow_mut() = ValidUntil::new(server_start_instant, max_peer_age);
 
             Some(Duration::from_secs(1))
         })()
@@ -279,14 +286,12 @@ async fn handle_request_stream<S>(
                 };
 
                 for (meta, out_message) in out_messages.drain(..) {
-                    ::log::info!("swarm worker trying to send OutMessage to socket worker");
-
                     out_message_senders
-                        .send_to(meta.out_message_consumer_id.0, (meta, out_message))
+                        .send_to(meta.out_message_consumer_id.0 as usize, (meta, out_message))
                         .await
                         .expect("failed sending out_message to socket worker");
 
-                    ::log::info!("swarm worker sent OutMessage to socket worker");
+                    ::log::debug!("swarm worker sent OutMessage to socket worker");
                 }
             },
         )
@@ -297,9 +302,9 @@ fn handle_announce_request(
     config: &Config,
     rng: &mut SmallRng,
     torrent_maps: &mut TorrentMaps,
-    out_messages: &mut Vec<(ConnectionMeta, OutMessage)>,
+    out_messages: &mut Vec<(OutMessageMeta, OutMessage)>,
     valid_until: ValidUntil,
-    request_sender_meta: ConnectionMeta,
+    request_sender_meta: InMessageMeta,
     request: AnnounceRequest,
 ) {
     let torrent_data: &mut TorrentData = if let IpVersion::V4 = request_sender_meta.ip_version {
@@ -313,7 +318,7 @@ fn handle_announce_request(
     // peers have access to each others peer_id's, they could send requests
     // using them, causing all sorts of issues.
     if let Some(previous_peer) = torrent_data.peers.get(&request.peer_id) {
-        if request_sender_meta.connection_id != previous_peer.connection_meta.connection_id {
+        if request_sender_meta.connection_id != previous_peer.connection_id {
             return;
         }
     }
@@ -327,31 +332,39 @@ fn handle_announce_request(
             request.bytes_left,
         );
 
-        let peer = Peer {
-            connection_meta: request_sender_meta,
-            status: peer_status,
-            valid_until,
-        };
-
         let opt_removed_peer = match peer_status {
             PeerStatus::Leeching => {
                 torrent_data.num_leechers += 1;
+
+                let peer = Peer {
+                    connection_id: request_sender_meta.connection_id,
+                    consumer_id: request_sender_meta.out_message_consumer_id,
+                    seeder: false,
+                    valid_until,
+                };
 
                 torrent_data.peers.insert(request.peer_id, peer)
             }
             PeerStatus::Seeding => {
                 torrent_data.num_seeders += 1;
 
+                let peer = Peer {
+                    connection_id: request_sender_meta.connection_id,
+                    consumer_id: request_sender_meta.out_message_consumer_id,
+                    seeder: true,
+                    valid_until,
+                };
+
                 torrent_data.peers.insert(request.peer_id, peer)
             }
             PeerStatus::Stopped => torrent_data.peers.remove(&request.peer_id),
         };
 
-        match opt_removed_peer.map(|peer| peer.status) {
-            Some(PeerStatus::Leeching) => {
+        match opt_removed_peer.map(|peer| peer.seeder) {
+            Some(false) => {
                 torrent_data.num_leechers -= 1;
             }
-            Some(PeerStatus::Seeding) => {
+            Some(true) => {
                 torrent_data.num_seeders -= 1;
             }
             _ => {}
@@ -385,14 +398,14 @@ fn handle_announce_request(
                 offer_id: offer.offer_id,
             };
 
-            out_messages.push((
-                offer_receiver.connection_meta,
-                OutMessage::Offer(middleman_offer),
-            ));
-            ::log::trace!(
-                "sending middleman offer to {:?}",
-                offer_receiver.connection_meta
-            );
+            let meta = OutMessageMeta {
+                out_message_consumer_id: offer_receiver.consumer_id,
+                connection_id: offer_receiver.connection_id,
+                pending_scrape_id: None,
+            };
+
+            out_messages.push((meta, OutMessage::Offer(middleman_offer)));
+            ::log::trace!("sending middleman offer to {:?}", meta);
         }
     }
 
@@ -409,14 +422,14 @@ fn handle_announce_request(
                 offer_id,
             };
 
-            out_messages.push((
-                answer_receiver.connection_meta,
-                OutMessage::Answer(middleman_answer),
-            ));
-            ::log::trace!(
-                "sending middleman answer to {:?}",
-                answer_receiver.connection_meta
-            );
+            let meta = OutMessageMeta {
+                out_message_consumer_id: answer_receiver.consumer_id,
+                connection_id: answer_receiver.connection_id,
+                pending_scrape_id: None,
+            };
+
+            out_messages.push((meta, OutMessage::Answer(middleman_answer)));
+            ::log::trace!("sending middleman answer to {:?}", meta);
         }
     }
 
@@ -428,14 +441,14 @@ fn handle_announce_request(
         announce_interval: config.protocol.peer_announce_interval,
     });
 
-    out_messages.push((request_sender_meta, out_message));
+    out_messages.push((request_sender_meta.into(), out_message));
 }
 
 fn handle_scrape_request(
     config: &Config,
     torrent_maps: &mut TorrentMaps,
-    out_messages: &mut Vec<(ConnectionMeta, OutMessage)>,
-    meta: ConnectionMeta,
+    out_messages: &mut Vec<(OutMessageMeta, OutMessage)>,
+    meta: InMessageMeta,
     request: ScrapeRequest,
 ) {
     let info_hashes = if let Some(info_hashes) = request.info_hashes {
@@ -469,5 +482,5 @@ fn handle_scrape_request(
         }
     }
 
-    out_messages.push((meta, OutMessage::ScrapeResponse(out_message)));
+    out_messages.push((meta.into(), OutMessage::ScrapeResponse(out_message)));
 }

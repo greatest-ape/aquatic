@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
+use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
 use rand::{rngs::SmallRng, SeedableRng};
 
@@ -21,6 +22,7 @@ pub fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,
     state: State,
+    server_start_instant: ServerStartInstant,
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
     response_sender: ConnectedResponseSender,
     worker_index: SwarmWorkerIndex,
@@ -29,7 +31,7 @@ pub fn run_swarm_worker(
     let mut rng = SmallRng::from_entropy();
 
     let timeout = Duration::from_millis(config.request_channel_recv_timeout_ms);
-    let mut peer_valid_until = ValidUntil::new(config.cleaning.max_peer_age);
+    let mut peer_valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age);
 
     let cleaning_interval = Duration::from_secs(config.cleaning.torrent_cleaning_interval);
     let statistics_update_interval = Duration::from_secs(config.statistics.interval);
@@ -81,10 +83,14 @@ pub fn run_swarm_worker(
         if iter_counter % 128 == 0 {
             let now = Instant::now();
 
-            peer_valid_until = ValidUntil::new_with_now(now, config.cleaning.max_peer_age);
+            peer_valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age);
 
             if now > last_cleaning + cleaning_interval {
-                let (ipv4, ipv6) = torrents.clean_and_get_num_peers(&config, &state.access_list);
+                let (ipv4, ipv6) = torrents.clean_and_get_num_peers(
+                    &config,
+                    &state.access_list,
+                    server_start_instant,
+                );
 
                 if config.statistics.active() {
                     state.statistics_ipv4.peers[worker_index.0].store(ipv4, Ordering::Release);
