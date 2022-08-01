@@ -250,6 +250,17 @@ pub enum RequestParseError {
     Invalid(anyhow::Error),
 }
 
+impl ::std::fmt::Display for RequestParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NeedMoreData => write!(f, "Incomplete request, more data needed"),
+            Self::Invalid(err) => write!(f, "Invalid request: {:#}", err),
+        }
+    }
+}
+
+impl ::std::error::Error for RequestParseError {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Announce(AnnounceRequest),
