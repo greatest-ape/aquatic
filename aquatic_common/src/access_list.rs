@@ -28,6 +28,7 @@ impl AccessListMode {
 }
 
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct AccessListConfig {
     pub mode: AccessListMode,
     /// Path to access list file consisting of newline-separated hex-encoded info hashes.
@@ -39,7 +40,7 @@ pub struct AccessListConfig {
 impl Default for AccessListConfig {
     fn default() -> Self {
         Self {
-            path: "".into(),
+            path: "./access-list.txt".into(),
             mode: AccessListMode::Off,
         }
     }
@@ -63,6 +64,11 @@ impl AccessList {
 
         for line in reader.lines() {
             let line = line?;
+            let line = line.trim();
+
+            if line.is_empty() {
+                continue;
+            }
 
             new_list
                 .insert_from_line(&line)

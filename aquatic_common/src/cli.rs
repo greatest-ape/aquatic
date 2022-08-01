@@ -69,6 +69,7 @@ impl Options {
                     "-h" | "--help" => {
                         return Err(None);
                     }
+                    "" => (),
                     _ => {
                         return Err(Some("Unrecognized argument".to_string()));
                     }
