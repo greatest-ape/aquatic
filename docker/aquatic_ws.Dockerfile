@@ -2,8 +2,8 @@
 
 # aquatic_ws
 #
-# WORK IN PROGRESS: currently has issues spawning worker threads, possibly
-# related to https://github.com/DataDog/glommio/issues/547
+# WORK IN PROGRESS: currently doesn't work due to issues with spawning worker
+# threads, possibly related to https://github.com/DataDog/glommio/issues/547
 #
 # Customize by setting CONFIG_FILE_CONTENTS and
 # ACCESS_LIST_CONTENTS environment variables.
