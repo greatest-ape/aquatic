@@ -300,10 +300,12 @@ impl Request {
             Ok(Request::Announce(AnnounceRequest::from_query_string(
                 query_string,
             )?))
-        } else {
+        } else if location == "/scrape" {
             Ok(Request::Scrape(ScrapeRequest::from_query_string(
                 query_string,
             )?))
+        } else {
+            Err(anyhow::anyhow!("Path must be /announce or /scrape"))
         }
     }
 
