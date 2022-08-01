@@ -2,10 +2,10 @@
 
 ## High priority
 
-* ws
-  * add integration test for non-TLS configuration, maybe behind reverse proxy
-
 ## Medium priority
+
+* Consider replacing unmaintained indexmap-amortized with plain indexmap
+* Run cargo-fuzz on protocol crates
 
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
@@ -23,8 +23,6 @@
 * stagger cleaning tasks?
 
 * aquatic_ws
-  * Can peer IP address change after connection has been established
-    due to some kind of renegotition? It would cause issues.
   * Add cleaning task for ConnectionHandle.announced_info_hashes?
   * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
