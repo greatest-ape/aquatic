@@ -275,7 +275,7 @@ impl Request {
         }
     }
 
-    /// Parse Request from http path (GET `/announce?info_hash=...`)
+    /// Parse Request from http GET path (`/announce?info_hash=...`)
     ///
     /// Existing serde-url decode crates were insufficient, so the decision was
     /// made to create a custom parser. serde_urlencoded doesn't support multiple
