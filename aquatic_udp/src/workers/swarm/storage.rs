@@ -20,15 +20,15 @@ use crate::config::Config;
 use super::create_torrent_scrape_statistics;
 
 #[derive(Clone, Debug)]
-pub struct Peer<I: Ip> {
-    pub ip_address: I,
-    pub port: Port,
-    pub status: PeerStatus,
-    pub valid_until: ValidUntil,
+struct Peer<I: Ip> {
+    ip_address: I,
+    port: Port,
+    is_seeder: bool,
+    valid_until: ValidUntil,
 }
 
 impl<I: Ip> Peer<I> {
-    pub fn to_response_peer(&self) -> ResponsePeer<I> {
+    fn to_response_peer(&self) -> ResponsePeer<I> {
         ResponsePeer {
             ip_address: self.ip_address,
             port: self.port,
@@ -36,7 +36,7 @@ impl<I: Ip> Peer<I> {
     }
 }
 
-pub type PeerMap<I> = IndexMap<PeerId, Peer<I>>;
+type PeerMap<I> = IndexMap<PeerId, Peer<I>>;
 
 pub struct TorrentData<I: Ip> {
     peers: PeerMap<I>,
@@ -45,14 +45,35 @@ pub struct TorrentData<I: Ip> {
 }
 
 impl<I: Ip> TorrentData<I> {
-    pub fn update_peer(&mut self, peer_id: PeerId, peer: Peer<I>) {
-        let opt_removed_peer = match peer.status {
+    pub fn update_peer(
+        &mut self,
+        peer_id: PeerId,
+        ip_address: I,
+        port: Port,
+        status: PeerStatus,
+        valid_until: ValidUntil,
+    ) {
+        let opt_removed_peer = match status {
             PeerStatus::Leeching => {
+                let peer = Peer {
+                    ip_address,
+                    port,
+                    is_seeder: false,
+                    valid_until,
+                };
+
                 self.num_leechers += 1;
 
                 self.peers.insert(peer_id, peer)
             }
             PeerStatus::Seeding => {
+                let peer = Peer {
+                    ip_address,
+                    port,
+                    is_seeder: true,
+                    valid_until,
+                };
+
                 self.num_seeders += 1;
 
                 self.peers.insert(peer_id, peer)
@@ -60,14 +81,14 @@ impl<I: Ip> TorrentData<I> {
             PeerStatus::Stopped => self.peers.remove(&peer_id),
         };
 
-        match opt_removed_peer.map(|peer| peer.status) {
-            Some(PeerStatus::Leeching) => {
+        match opt_removed_peer.map(|peer| peer.is_seeder) {
+            Some(true) => {
                 self.num_leechers -= 1;
             }
-            Some(PeerStatus::Seeding) => {
+            Some(false) => {
                 self.num_seeders -= 1;
             }
-            _ => {}
+            None => {}
         }
     }
 
@@ -107,15 +128,11 @@ impl<I: Ip> TorrentData<I> {
             if peer.valid_until.valid(now) {
                 true
             } else {
-                match peer.status {
-                    PeerStatus::Seeding => {
-                        self.num_seeders -= 1;
-                    }
-                    PeerStatus::Leeching => {
-                        self.num_leechers -= 1;
-                    }
-                    _ => (),
-                };
+                if peer.is_seeder {
+                    self.num_seeders -= 1;
+                } else {
+                    self.num_leechers -= 1;
+                }
 
                 false
             }
@@ -265,7 +282,7 @@ mod tests {
         Peer {
             ip_address: Ipv4Addr::from(i.to_be_bytes()),
             port: Port(1),
-            status: PeerStatus::Leeching,
+            is_seeder: false,
             valid_until: ValidUntil::new(ServerStartInstant::new(), 0),
         }
     }
