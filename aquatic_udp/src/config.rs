@@ -143,6 +143,9 @@ pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
     /// Enable extended statistics (on peers per torrent)
+    ///
+    /// Will increase time taken for torrent cleaning, since that's when
+    /// these statistics are collected.
     pub extended: bool,
     /// Print statistics to standard output
     pub print_to_stdout: bool,
