@@ -2,6 +2,7 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
+use aquatic_common::IndexMap;
 use aquatic_common::SecondsSinceServerStart;
 use aquatic_common::ServerStartInstant;
 use aquatic_common::{
@@ -35,7 +36,7 @@ impl<I: Ip> Peer<I> {
     }
 }
 
-pub type PeerMap<I> = AmortizedIndexMap<PeerId, Peer<I>>;
+pub type PeerMap<I> = IndexMap<PeerId, Peer<I>>;
 
 pub struct TorrentData<I: Ip> {
     peers: PeerMap<I>,

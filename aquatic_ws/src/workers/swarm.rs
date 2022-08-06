@@ -13,7 +13,7 @@ use hashbrown::HashMap;
 use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_common::{
-    extract_response_peers, AmortizedIndexMap, PanicSentinel, SecondsSinceServerStart,
+    extract_response_peers, AmortizedIndexMap, IndexMap, PanicSentinel, SecondsSinceServerStart,
     ServerStartInstant,
 };
 use aquatic_ws_protocol::*;
@@ -53,7 +53,7 @@ struct Peer {
     pub valid_until: ValidUntil,
 }
 
-type PeerMap = AmortizedIndexMap<PeerId, Peer>;
+type PeerMap = IndexMap<PeerId, Peer>;
 
 struct TorrentData {
     pub peers: PeerMap,

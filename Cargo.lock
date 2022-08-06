@@ -68,6 +68,7 @@ dependencies = [
  "hashbrown 0.12.3",
  "hex",
  "hwloc",
+ "indexmap",
  "indexmap-amortized",
  "libc",
  "log",

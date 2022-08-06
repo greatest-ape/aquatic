@@ -13,6 +13,9 @@ pub mod privileges;
 #[cfg(feature = "rustls")]
 pub mod rustls_config;
 
+/// IndexMap using AHash hasher
+pub type IndexMap<K, V> = indexmap::IndexMap<K, V, RandomState>;
+
 /// Amortized IndexMap using AHash hasher
 pub type AmortizedIndexMap<K, V> = indexmap_amortized::IndexMap<K, V, RandomState>;
 
@@ -104,7 +107,7 @@ impl Drop for PanicSentinel {
 #[inline]
 pub fn extract_response_peers<K, V, R, F>(
     rng: &mut impl Rng,
-    peer_map: &AmortizedIndexMap<K, V>,
+    peer_map: &IndexMap<K, V>,
     max_num_peers_to_take: usize,
     sender_peer_map_key: K,
     peer_conversion_function: F,
