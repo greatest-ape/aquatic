@@ -68,6 +68,68 @@
         </tr>
     </table>
 
+    {{ if extended_active }}
+
+    <h3>Peers per torrent</h3>
+
+    <table>
+        <caption>Updated every { peer_update_interval } seconds</caption>
+        <tr>
+            <th scope="row">Minimum</th>
+            <td>{ ipv4.peer_histogram.p0 }</td>
+        </tr>
+        <tr>
+            <th scope="row">10th percentile</th>
+            <td>{ ipv4.peer_histogram.p10 }</td>
+        </tr>
+        <tr>
+            <th scope="row">20th percentile</th>
+            <td>{ ipv4.peer_histogram.p20 }</td>
+        </tr>
+        <tr>
+            <th scope="row">30th percentile</th>
+            <td>{ ipv4.peer_histogram.p30 }</td>
+        </tr>
+        <tr>
+            <th scope="row">40th percentile</th>
+            <td>{ ipv4.peer_histogram.p40 }</td>
+        </tr>
+        <tr>
+            <th scope="row">50th percentile</th>
+            <td>{ ipv4.peer_histogram.p50 }</td>
+        </tr>
+        <tr>
+            <th scope="row">60th percentile</th>
+            <td>{ ipv4.peer_histogram.p60 }</td>
+        </tr>
+        <tr>
+            <th scope="row">70th percentile</th>
+            <td>{ ipv4.peer_histogram.p70 }</td>
+        </tr>
+        <tr>
+            <th scope="row">80th percentile</th>
+            <td>{ ipv4.peer_histogram.p80 }</td>
+        </tr>
+        <tr>
+            <th scope="row">90th percentile</th>
+            <td>{ ipv4.peer_histogram.p90 }</td>
+        </tr>
+        <tr>
+            <th scope="row">95th percentile</th>
+            <td>{ ipv4.peer_histogram.p95 }</td>
+        </tr>
+        <tr>
+            <th scope="row">99th percentile</th>
+            <td>{ ipv4.peer_histogram.p99 }</td>
+        </tr>
+        <tr>
+            <th scope="row">Maximum</th>
+            <td>{ ipv4.peer_histogram.p100 }</td>
+        </tr>
+    </table>
+    
+    {{ endif }}
+
     {{ endif }}
 
     {{ if ipv6_active }}
@@ -117,6 +179,68 @@
             <td>{ ipv6.tx_mbits } mbit/s</td>
         </tr>
     </table>
+
+    {{ if extended_active }}
+
+    <h3>Peers per torrent</h3>
+
+    <table>
+        <caption>Updated every { peer_update_interval } seconds</caption>
+        <tr>
+            <th scope="row">Minimum</th>
+            <td>{ ipv6.peer_histogram.p0 }</td>
+        </tr>
+        <tr>
+            <th scope="row">10th percentile</th>
+            <td>{ ipv6.peer_histogram.p10 }</td>
+        </tr>
+        <tr>
+            <th scope="row">20th percentile</th>
+            <td>{ ipv6.peer_histogram.p20 }</td>
+        </tr>
+        <tr>
+            <th scope="row">30th percentile</th>
+            <td>{ ipv6.peer_histogram.p30 }</td>
+        </tr>
+        <tr>
+            <th scope="row">40th percentile</th>
+            <td>{ ipv6.peer_histogram.p40 }</td>
+        </tr>
+        <tr>
+            <th scope="row">50th percentile</th>
+            <td>{ ipv6.peer_histogram.p50 }</td>
+        </tr>
+        <tr>
+            <th scope="row">60th percentile</th>
+            <td>{ ipv6.peer_histogram.p60 }</td>
+        </tr>
+        <tr>
+            <th scope="row">70th percentile</th>
+            <td>{ ipv6.peer_histogram.p70 }</td>
+        </tr>
+        <tr>
+            <th scope="row">80th percentile</th>
+            <td>{ ipv6.peer_histogram.p80 }</td>
+        </tr>
+        <tr>
+            <th scope="row">90th percentile</th>
+            <td>{ ipv6.peer_histogram.p90 }</td>
+        </tr>
+        <tr>
+            <th scope="row">95th percentile</th>
+            <td>{ ipv6.peer_histogram.p95 }</td>
+        </tr>
+        <tr>
+            <th scope="row">99th percentile</th>
+            <td>{ ipv6.peer_histogram.p99 }</td>
+        </tr>
+        <tr>
+            <th scope="row">Maximum</th>
+            <td>{ ipv6.peer_histogram.p100 }</td>
+        </tr>
+    </table>
+    
+    {{ endif }}
 
     {{ endif }}
 </body>
