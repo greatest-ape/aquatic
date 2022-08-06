@@ -3,13 +3,13 @@ use std::collections::BTreeMap;
 use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context;
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
-use aquatic_common::{CanonicalSocketAddr, PanicSentinel};
+use aquatic_common::{CanonicalSocketAddr, PanicSentinel, ServerStartInstant};
 use aquatic_http_protocol::common::InfoHash;
 use aquatic_http_protocol::request::{Request, RequestParseError, ScrapeRequest};
 use aquatic_http_protocol::response::{
@@ -59,6 +59,7 @@ pub async fn run_socket_worker(
     tls_config: Arc<RustlsConfig>,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     priv_dropper: PrivilegeDropper,
+    server_start_instant: ServerStartInstant,
 ) {
     let config = Rc::new(config);
     let access_list = state.access_list;
@@ -74,6 +75,7 @@ pub async fn run_socket_worker(
         clean_connections(
             config.clone(),
             connection_slab.clone(),
+            server_start_instant,
         )
     }));
 
@@ -84,7 +86,10 @@ pub async fn run_socket_worker(
             Ok(stream) => {
                 let key = connection_slab.borrow_mut().insert(ConnectionReference {
                     task_handle: None,
-                    valid_until: ValidUntil::new(config.cleaning.max_connection_idle),
+                    valid_until: ValidUntil::new(
+                        server_start_instant,
+                        config.cleaning.max_connection_idle,
+                    ),
                 });
 
                 let task_handle = spawn_local(enclose!((config, access_list, request_senders, tls_config, connection_slab) async move {
@@ -92,6 +97,7 @@ pub async fn run_socket_worker(
                         config,
                         access_list,
                         request_senders,
+                        server_start_instant,
                         ConnectionId(key),
                         tls_config,
                         connection_slab.clone(),
@@ -118,11 +124,12 @@ pub async fn run_socket_worker(
 async fn clean_connections(
     config: Rc<Config>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
+    server_start_instant: ServerStartInstant,
 ) -> Option<Duration> {
-    let now = Instant::now();
+    let now = server_start_instant.seconds_elapsed();
 
     connection_slab.borrow_mut().retain(|_, reference| {
-        if reference.valid_until.0 > now {
+        if reference.valid_until.valid(now) {
             true
         } else {
             if let Some(ref handle) = reference.task_handle {
@@ -145,6 +152,7 @@ struct Connection {
     access_list_cache: AccessListCache,
     request_senders: Rc<Senders<ChannelRequest>>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
+    server_start_instant: ServerStartInstant,
     stream: TlsStream<TcpStream>,
     peer_addr: CanonicalSocketAddr,
     connection_id: ConnectionId,
@@ -158,6 +166,7 @@ impl Connection {
         config: Rc<Config>,
         access_list: Arc<AccessListArcSwap>,
         request_senders: Rc<Senders<ChannelRequest>>,
+        server_start_instant: ServerStartInstant,
         connection_id: ConnectionId,
         tls_config: Arc<RustlsConfig>,
         connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
@@ -180,6 +189,7 @@ impl Connection {
             access_list_cache: create_access_list_cache(&access_list),
             request_senders: request_senders.clone(),
             connection_slab,
+            server_start_instant,
             stream,
             peer_addr,
             connection_id,
@@ -271,7 +281,10 @@ impl Connection {
     async fn handle_request(&mut self, request: Request) -> anyhow::Result<Response> {
         if let Ok(mut slab) = self.connection_slab.try_borrow_mut() {
             if let Some(reference) = slab.get_mut(self.connection_id.0) {
-                reference.valid_until = ValidUntil::new(self.config.cleaning.max_connection_idle);
+                reference.valid_until = ValidUntil::new(
+                    self.server_start_instant,
+                    self.config.cleaning.max_connection_idle,
+                );
             }
         }
 

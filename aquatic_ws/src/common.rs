@@ -29,22 +29,41 @@ pub struct State {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct PendingScrapeId(pub usize);
+pub struct PendingScrapeId(pub u8);
 
 #[derive(Copy, Clone, Debug)]
-pub struct ConsumerId(pub usize);
+pub struct ConsumerId(pub u8);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ConnectionId(pub usize);
 
 #[derive(Clone, Copy, Debug)]
-pub struct ConnectionMeta {
+pub struct InMessageMeta {
     /// Index of socket worker responsible for this connection. Required for
     /// sending back response through correct channel to correct worker.
     pub out_message_consumer_id: ConsumerId,
     pub connection_id: ConnectionId,
     pub ip_version: IpVersion,
     pub pending_scrape_id: Option<PendingScrapeId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct OutMessageMeta {
+    /// Index of socket worker responsible for this connection. Required for
+    /// sending back response through correct channel to correct worker.
+    pub out_message_consumer_id: ConsumerId,
+    pub connection_id: ConnectionId,
+    pub pending_scrape_id: Option<PendingScrapeId>,
+}
+
+impl Into<OutMessageMeta> for InMessageMeta {
+    fn into(self) -> OutMessageMeta {
+        OutMessageMeta {
+            out_message_consumer_id: self.out_message_consumer_id,
+            connection_id: self.connection_id,
+            pending_scrape_id: self.pending_scrape_id,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

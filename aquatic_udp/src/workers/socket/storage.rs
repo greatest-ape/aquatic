@@ -1,10 +1,9 @@
 use std::collections::BTreeMap;
-use std::time::Instant;
 
 use hashbrown::HashMap;
 use slab::Slab;
 
-use aquatic_common::ValidUntil;
+use aquatic_common::{SecondsSinceServerStart, ValidUntil};
 use aquatic_udp_protocol::*;
 
 use crate::common::*;
@@ -97,11 +96,9 @@ impl PendingScrapeResponseSlab {
         }
     }
 
-    pub fn clean(&mut self) {
-        let now = Instant::now();
-
+    pub fn clean(&mut self, now: SecondsSinceServerStart) {
         self.0.retain(|k, v| {
-            if v.valid_until.0 > now {
+            if v.valid_until.valid(now) {
                 true
             } else {
                 ::log::warn!(
@@ -120,6 +117,7 @@ impl PendingScrapeResponseSlab {
 
 #[cfg(test)]
 mod tests {
+    use aquatic_common::ServerStartInstant;
     use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
 
@@ -138,7 +136,7 @@ mod tests {
 
         config.swarm_workers = swarm_workers as usize;
 
-        let valid_until = ValidUntil::new(1);
+        let valid_until = ValidUntil::new(ServerStartInstant::new(), 1);
 
         let mut map = PendingScrapeResponseSlab::default();
 

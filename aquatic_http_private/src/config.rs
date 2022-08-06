@@ -99,7 +99,7 @@ pub struct CleaningConfig {
     /// Clean peers this often (seconds)
     pub torrent_cleaning_interval: u64,
     /// Remove peers that have not announced for this long (seconds)
-    pub max_peer_age: u64,
+    pub max_peer_age: u32,
 }
 
 impl Default for CleaningConfig {

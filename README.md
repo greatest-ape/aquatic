@@ -207,7 +207,11 @@ Implements:
     * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 `aquatic_http` has not been tested as much as `aquatic_udp` but likely works
-fine.
+fine in production.
+
+Running behind a reverse proxy is currently not supported due to the
+[difficulties of determining the originating IP address](https://adam-p.ca/blog/2022/03/x-forwarded-for/)
+without knowing the exact setup.
 
 #### Performance
 
@@ -220,12 +224,14 @@ More details are available [here](./documents/aquatic-http-load-test-2022-04-11.
 Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
 clients. Notes:
 
-  * Only runs over TLS
   * Doesn't track the number of torrent downloads (0 is always sent). 
   * Doesn't allow full scrapes, i.e. of all registered info hashes
 
 `aquatic_ws` has not been tested as much as `aquatic_udp` but likely works
-fine.
+fine in production.
+
+Running behind a reverse proxy is supported, as long as IPv4 requests are
+proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
 
 #### Performance
 

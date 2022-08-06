@@ -1,7 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use ahash::RandomState;
 use rand::Rng;
@@ -16,22 +16,45 @@ pub mod rustls_config;
 /// Amortized IndexMap using AHash hasher
 pub type AmortizedIndexMap<K, V> = indexmap_amortized::IndexMap<K, V, RandomState>;
 
-/// Peer or connection valid until this instant
-///
-/// Used instead of "last seen" or similar to hopefully prevent arithmetic
-/// overflow when cleaning.
+/// Peer, connection or similar valid until this instant
 #[derive(Debug, Clone, Copy)]
-pub struct ValidUntil(pub Instant);
+pub struct ValidUntil(SecondsSinceServerStart);
 
 impl ValidUntil {
     #[inline]
-    pub fn new(offset_seconds: u64) -> Self {
-        Self(Instant::now() + Duration::from_secs(offset_seconds))
+    pub fn new(start_instant: ServerStartInstant, offset_seconds: u32) -> Self {
+        Self(SecondsSinceServerStart(
+            start_instant.seconds_elapsed().0 + offset_seconds,
+        ))
     }
-    pub fn new_with_now(now: Instant, offset_seconds: u64) -> Self {
-        Self(now + Duration::from_secs(offset_seconds))
+    pub fn new_with_now(now: SecondsSinceServerStart, offset_seconds: u32) -> Self {
+        Self(SecondsSinceServerStart(now.0 + offset_seconds))
+    }
+    pub fn valid(&self, now: SecondsSinceServerStart) -> bool {
+        self.0 .0 > now.0
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct ServerStartInstant(Instant);
+
+impl ServerStartInstant {
+    pub fn new() -> Self {
+        Self(Instant::now())
+    }
+    pub fn seconds_elapsed(&self) -> SecondsSinceServerStart {
+        SecondsSinceServerStart(
+            self.0
+                .elapsed()
+                .as_secs()
+                .try_into()
+                .expect("server ran for more seconds than what fits in a u32"),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SecondsSinceServerStart(u32);
 
 pub struct PanicSentinelWatcher(Arc<AtomicBool>);
 

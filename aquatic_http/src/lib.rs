@@ -6,7 +6,7 @@ use aquatic_common::{
     },
     privileges::PrivilegeDropper,
     rustls_config::create_rustls_config,
-    PanicSentinelWatcher,
+    PanicSentinelWatcher, ServerStartInstant,
 };
 use common::State;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
@@ -46,6 +46,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         &config.network.tls_private_key_path,
     )?);
 
+    let server_start_instant = ServerStartInstant::new();
+
     let mut executors = Vec::new();
 
     for i in 0..(config.socket_workers) {
@@ -73,6 +75,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     tls_config,
                     request_mesh_builder,
                     priv_dropper,
+                    server_start_instant,
                 )
                 .await
             })
@@ -97,8 +100,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         let executor = builder
             .spawn(move || async move {
-                workers::swarm::run_swarm_worker(sentinel, config, state, request_mesh_builder)
-                    .await
+                workers::swarm::run_swarm_worker(
+                    sentinel,
+                    config,
+                    state,
+                    request_mesh_builder,
+                    server_start_instant,
+                )
+                .await
             })
             .map_err(|err| anyhow::anyhow!("Spawning executor failed: {:#}", err))?;
 
