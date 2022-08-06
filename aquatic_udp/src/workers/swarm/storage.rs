@@ -10,6 +10,7 @@ use aquatic_common::{
 };
 
 use aquatic_udp_protocol::*;
+use hdrhistogram::Histogram;
 use rand::prelude::SmallRng;
 
 use crate::common::*;
@@ -140,13 +141,27 @@ pub struct TorrentMap<I: Ip>(pub AmortizedIndexMap<InfoHash, TorrentData<I>>);
 
 impl<I: Ip> TorrentMap<I> {
     /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
-    fn clean_and_get_num_peers(
+    fn clean_and_get_statistics(
         &mut self,
+        config: &Config,
         access_list_cache: &mut AccessListCache,
         access_list_mode: AccessListMode,
         now: SecondsSinceServerStart,
-    ) -> usize {
+    ) -> (usize, Option<Histogram<u64>>) {
         let mut num_peers = 0;
+
+        let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.extended {
+            match Histogram::new(3) {
+                Ok(histogram) => Some(histogram),
+                Err(err) => {
+                    ::log::error!("Couldn't create peer histogram: {:#}", err);
+
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         self.0.retain(|info_hash, torrent| {
             if !access_list_cache
@@ -160,12 +175,27 @@ impl<I: Ip> TorrentMap<I> {
 
             num_peers += torrent.peers.len();
 
+            match opt_histogram {
+                Some(ref mut histogram) if torrent.peers.len() != 0 => {
+                    let n = torrent
+                        .peers
+                        .len()
+                        .try_into()
+                        .expect("Couldn't fit usize into u64");
+
+                    if let Err(err) = histogram.record(n) {
+                        ::log::error!("Couldn't record {} to histogram: {:#}", n, err);
+                    }
+                }
+                _ => (),
+            }
+
             !torrent.peers.is_empty()
         });
 
         self.0.shrink_to_fit();
 
-        num_peers
+        (num_peers, opt_histogram)
     }
 
     pub fn num_torrents(&self) -> usize {
@@ -189,18 +219,25 @@ impl Default for TorrentMaps {
 
 impl TorrentMaps {
     /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
-    pub fn clean_and_get_num_peers(
+    pub fn clean_and_get_statistics(
         &mut self,
         config: &Config,
         access_list: &Arc<AccessListArcSwap>,
         server_start_instant: ServerStartInstant,
-    ) -> (usize, usize) {
+    ) -> (
+        (usize, Option<Histogram<u64>>),
+        (usize, Option<Histogram<u64>>),
+    ) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
         let now = server_start_instant.seconds_elapsed();
 
-        let ipv4 = self.ipv4.clean_and_get_num_peers(&mut cache, mode, now);
-        let ipv6 = self.ipv6.clean_and_get_num_peers(&mut cache, mode, now);
+        let ipv4 = self
+            .ipv4
+            .clean_and_get_statistics(config, &mut cache, mode, now);
+        let ipv6 = self
+            .ipv6
+            .clean_and_get_statistics(config, &mut cache, mode, now);
 
         (ipv4, ipv6)
     }

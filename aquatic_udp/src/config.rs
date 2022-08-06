@@ -142,6 +142,8 @@ impl Default for ProtocolConfig {
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
+    /// Enable extended statistics (on peers per torrent)
+    pub extended: bool,
     /// Print statistics to standard output
     pub print_to_stdout: bool,
     /// Save statistics as HTML to a file
@@ -160,6 +162,7 @@ impl Default for StatisticsConfig {
     fn default() -> Self {
         Self {
             interval: 5,
+            extended: false,
             print_to_stdout: false,
             write_html_to_file: false,
             html_file_path: "tmp/statistics.html".into(),
