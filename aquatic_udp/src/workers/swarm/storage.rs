@@ -12,6 +12,7 @@ use aquatic_common::{
 
 use aquatic_udp_protocol::*;
 use hdrhistogram::Histogram;
+use heapless::LinearMap;
 use rand::prelude::SmallRng;
 
 use crate::common::*;
@@ -19,7 +20,7 @@ use crate::config::Config;
 
 use super::create_torrent_scrape_statistics;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct Peer<I: Ip> {
     pub ip_address: I,
     pub port: Port,
@@ -38,36 +39,72 @@ impl<I: Ip> Peer<I> {
 
 pub type PeerMap<I> = IndexMap<PeerId, Peer<I>>;
 
-pub struct TorrentData<I: Ip> {
+pub struct TorrentDataIndexMap<I: Ip> {
     peers: PeerMap<I>,
     num_seeders: usize,
     num_leechers: usize,
 }
 
+pub enum TorrentData<I: Ip> {
+    Heap(TorrentDataIndexMap<I>),
+    Stack(LinearMap<PeerId, Peer<I>, 8>),
+}
+
 impl<I: Ip> TorrentData<I> {
     pub fn update_peer(&mut self, peer_id: PeerId, peer: Peer<I>) {
-        let opt_removed_peer = match peer.status {
-            PeerStatus::Leeching => {
-                self.num_leechers += 1;
+        match self {
+            Self::Heap(torrent_data) => {
+                let opt_removed_peer = match peer.status {
+                    PeerStatus::Leeching => {
+                        torrent_data.num_leechers += 1;
 
-                self.peers.insert(peer_id, peer)
-            }
-            PeerStatus::Seeding => {
-                self.num_seeders += 1;
+                        torrent_data.peers.insert(peer_id, peer)
+                    }
+                    PeerStatus::Seeding => {
+                        torrent_data.num_seeders += 1;
 
-                self.peers.insert(peer_id, peer)
-            }
-            PeerStatus::Stopped => self.peers.remove(&peer_id),
-        };
+                        torrent_data.peers.insert(peer_id, peer)
+                    }
+                    PeerStatus::Stopped => torrent_data.peers.remove(&peer_id),
+                };
 
-        match opt_removed_peer.map(|peer| peer.status) {
-            Some(PeerStatus::Leeching) => {
-                self.num_leechers -= 1;
+                match opt_removed_peer.map(|peer| peer.status) {
+                    Some(PeerStatus::Leeching) => {
+                        torrent_data.num_leechers -= 1;
+                    }
+                    Some(PeerStatus::Seeding) => {
+                        torrent_data.num_seeders -= 1;
+                    }
+                    _ => {}
+                }
             }
-            Some(PeerStatus::Seeding) => {
-                self.num_seeders -= 1;
+            Self::Stack(peers) => {
+                if let Err((k, v)) = peers.insert(peer_id, peer) {
+                    let mut new_peers = IndexMap::default();
+
+                    new_peers.reserve(peers.len());
+
+                    let mut num_seeders = 0;
+
+                    for (k, v) in peers.iter() {
+                        if v.status == PeerStatus::Seeding {
+                            num_seeders += 1;
+                        }
+
+                        new_peers.insert(*k, *v);
+                    }
+
+                    let num_leechers = peers.len() - num_seeders;
+
+                    *self = Self::Heap(TorrentDataIndexMap {
+                        peers: new_peers,
+                        num_seeders,
+                        num_leechers,
+                    });
+
+                    self.update_peer(k, v);
+                }
             }
-            _ => {}
         }
     }
 
@@ -77,63 +114,97 @@ impl<I: Ip> TorrentData<I> {
         peer_id: PeerId,
         max_num_peers_to_take: usize,
     ) -> Vec<ResponsePeer<I>> {
-        extract_response_peers(
-            rng,
-            &self.peers,
-            max_num_peers_to_take,
-            peer_id,
-            Peer::to_response_peer,
-        )
+        match self {
+            Self::Heap(torrent_data) => extract_response_peers(
+                rng,
+                &torrent_data.peers,
+                max_num_peers_to_take,
+                peer_id,
+                Peer::to_response_peer,
+            ),
+            Self::Stack(peers) => peers
+                .iter()
+                .filter(|(k, _)| **k != peer_id)
+                .take(max_num_peers_to_take)
+                .map(|(_, v)| v.to_response_peer())
+                .collect(),
+        }
     }
 
     pub fn num_leechers(&self) -> usize {
-        self.num_leechers
+        match self {
+            Self::Heap(TorrentDataIndexMap { num_leechers, .. }) => *num_leechers,
+            Self::Stack(peers) => peers
+                .values()
+                .filter(|p| p.status == PeerStatus::Seeding)
+                .count(),
+        }
     }
 
     pub fn num_seeders(&self) -> usize {
-        self.num_seeders
+        match self {
+            Self::Heap(TorrentDataIndexMap { num_seeders, .. }) => *num_seeders,
+            Self::Stack(peers) => peers
+                .values()
+                .filter(|p| p.status != PeerStatus::Seeding)
+                .count(),
+        }
+    }
+
+    pub fn num_peers(&self) -> usize {
+        match self {
+            Self::Heap(torrent_data) => torrent_data.peers.len(),
+            Self::Stack(peers) => peers.len(),
+        }
     }
 
     pub fn scrape_statistics(&self) -> TorrentScrapeStatistics {
         create_torrent_scrape_statistics(
-            self.num_seeders.try_into().unwrap_or(i32::MAX),
-            self.num_leechers.try_into().unwrap_or(i32::MAX),
+            self.num_seeders().try_into().unwrap_or(i32::MAX),
+            self.num_leechers().try_into().unwrap_or(i32::MAX),
         )
     }
 
     /// Remove inactive peers and reclaim space
     fn clean(&mut self, now: SecondsSinceServerStart) {
-        self.peers.retain(|_, peer| {
-            if peer.valid_until.valid(now) {
-                true
-            } else {
-                match peer.status {
-                    PeerStatus::Seeding => {
-                        self.num_seeders -= 1;
-                    }
-                    PeerStatus::Leeching => {
-                        self.num_leechers -= 1;
-                    }
-                    _ => (),
-                };
+        match self {
+            Self::Heap(torrent_data) => {
+                torrent_data.peers.retain(|_, peer| {
+                    if peer.valid_until.valid(now) {
+                        true
+                    } else {
+                        match peer.status {
+                            PeerStatus::Seeding => {
+                                torrent_data.num_seeders -= 1;
+                            }
+                            PeerStatus::Leeching => {
+                                torrent_data.num_leechers -= 1;
+                            }
+                            _ => (),
+                        };
 
-                false
+                        false
+                    }
+                });
+
+                if !torrent_data.peers.is_empty() {
+                    torrent_data.peers.shrink_to_fit();
+                }
             }
-        });
-
-        if !self.peers.is_empty() {
-            self.peers.shrink_to_fit();
+            Self::Stack(peers) => {
+                *peers = peers
+                    .iter()
+                    .filter(|(_, p)| p.valid_until.valid(now))
+                    .map(|(k, v)| (*k, *v))
+                    .collect();
+            }
         }
     }
 }
 
 impl<I: Ip> Default for TorrentData<I> {
     fn default() -> Self {
-        Self {
-            peers: Default::default(),
-            num_seeders: 0,
-            num_leechers: 0,
-        }
+        Self::Stack(Default::default())
     }
 }
 
@@ -174,15 +245,13 @@ impl<I: Ip> TorrentMap<I> {
 
             torrent.clean(now);
 
-            num_peers += torrent.peers.len();
+            let n = torrent.num_peers();
+
+            num_peers += n;
 
             match opt_histogram {
-                Some(ref mut histogram) if torrent.peers.len() != 0 => {
-                    let n = torrent
-                        .peers
-                        .len()
-                        .try_into()
-                        .expect("Couldn't fit usize into u64");
+                Some(ref mut histogram) if n != 0 => {
+                    let n = n.try_into().expect("Couldn't fit usize into u64");
 
                     if let Err(err) = histogram.record(n) {
                         ::log::error!("Couldn't record {} to histogram: {:#}", n, err);
@@ -191,7 +260,7 @@ impl<I: Ip> TorrentMap<I> {
                 _ => (),
             }
 
-            !torrent.peers.is_empty()
+            n != 0
         });
 
         self.0.shrink_to_fit();

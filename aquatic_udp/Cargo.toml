@@ -32,6 +32,7 @@ crossbeam-channel = "0.5"
 getrandom = "0.2"
 hashbrown = { version = "0.12", default-features = false }
 hdrhistogram = "7"
+heapless = "0.7"
 hex = "0.4"
 libc = "0.2"
 log = "0.4"
