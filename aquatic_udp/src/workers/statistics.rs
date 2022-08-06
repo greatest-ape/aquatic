@@ -308,6 +308,10 @@ pub fn run_statistics_worker(
 }
 
 fn print_to_stdout(config: &Config, statistics: &FormattedStatistics) {
+    println!(
+        "  bandwidth: {:>7} Mbit/s in, {:7} Mbit/s out",
+        statistics.rx_mbits, statistics.tx_mbits,
+    );
     println!("  requests/second: {:>10}", statistics.requests_per_second);
     println!("  responses/second");
     println!(
@@ -330,19 +334,15 @@ fn print_to_stdout(config: &Config, statistics: &FormattedStatistics) {
         "    error:         {:>10}",
         statistics.responses_per_second_error
     );
+    println!("  torrents:        {:>10}", statistics.num_torrents);
     println!(
-        "  bandwidth: {:>7} Mbit/s in, {:7} Mbit/s out",
-        statistics.rx_mbits, statistics.tx_mbits,
-    );
-    println!("  number of torrents: {}", statistics.num_torrents);
-    println!(
-        "  number of peers: {} (updated every {} seconds)",
+        "  peers:           {:>10} (updated every {}s)",
         statistics.num_peers, config.cleaning.torrent_cleaning_interval
     );
 
     if config.statistics.extended {
         println!(
-            "  peers per torrent (updated every {} seconds):",
+            "  peers per torrent (updated every {}s)",
             config.cleaning.torrent_cleaning_interval
         );
         println!("    min            {:>10}", statistics.peer_histogram.p0);
