@@ -7,6 +7,7 @@ use std::time::Instant;
 
 use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
 use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_common::{CanonicalSocketAddr, PanicSentinel, ValidUntil};
@@ -25,6 +26,7 @@ pub fn run_swarm_worker(
     server_start_instant: ServerStartInstant,
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
     response_sender: ConnectedResponseSender,
+    statistics_sender: Sender<StatisticsMessage>,
     worker_index: SwarmWorkerIndex,
 ) {
     let mut torrents = TorrentMaps::default();
@@ -86,15 +88,26 @@ pub fn run_swarm_worker(
             peer_valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age);
 
             if now > last_cleaning + cleaning_interval {
-                let (ipv4, ipv6) = torrents.clean_and_get_num_peers(
+                let (ipv4, ipv6) = torrents.clean_and_get_statistics(
                     &config,
                     &state.access_list,
                     server_start_instant,
                 );
 
                 if config.statistics.active() {
-                    state.statistics_ipv4.peers[worker_index.0].store(ipv4, Ordering::Release);
-                    state.statistics_ipv6.peers[worker_index.0].store(ipv6, Ordering::Release);
+                    state.statistics_ipv4.peers[worker_index.0].store(ipv4.0, Ordering::Release);
+                    state.statistics_ipv6.peers[worker_index.0].store(ipv6.0, Ordering::Release);
+
+                    if let Some(message) = ipv4.1.map(StatisticsMessage::Ipv4PeerHistogram) {
+                        if let Err(err) = statistics_sender.try_send(message) {
+                            ::log::error!("couldn't send statistics message: {:#}", err)
+                        }
+                    }
+                    if let Some(message) = ipv6.1.map(StatisticsMessage::Ipv6PeerHistogram) {
+                        if let Err(err) = statistics_sender.try_send(message) {
+                            ::log::error!("couldn't send statistics message: {:#}", err)
+                        }
+                    }
                 }
 
                 last_cleaning = now;

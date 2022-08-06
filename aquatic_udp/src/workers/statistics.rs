@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -6,6 +7,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use aquatic_common::PanicSentinel;
+use crossbeam_channel::Receiver;
+use hdrhistogram::Histogram;
 use num_format::{Locale, ToFormattedString};
 use serde::Serialize;
 use time::format_description::well_known::Rfc2822;
@@ -23,6 +26,49 @@ const STYLESHEET_CONTENTS: &str = concat!(
     "</style>"
 );
 
+#[derive(Clone, Copy, Debug, Serialize)]
+struct PeerHistogramStatistics {
+    p0: u64,
+    p10: u64,
+    p20: u64,
+    p30: u64,
+    p40: u64,
+    p50: u64,
+    p60: u64,
+    p70: u64,
+    p80: u64,
+    p90: u64,
+    p95: u64,
+    p99: u64,
+    p100: u64,
+}
+
+impl PeerHistogramStatistics {
+    fn new(h: &Histogram<u64>) -> Self {
+        Self {
+            p0: h.value_at_percentile(0.0),
+            p10: h.value_at_percentile(10.0),
+            p20: h.value_at_percentile(20.0),
+            p30: h.value_at_percentile(30.0),
+            p40: h.value_at_percentile(40.0),
+            p50: h.value_at_percentile(50.0),
+            p60: h.value_at_percentile(60.0),
+            p70: h.value_at_percentile(70.0),
+            p80: h.value_at_percentile(80.0),
+            p90: h.value_at_percentile(90.0),
+            p95: h.value_at_percentile(95.0),
+            p99: h.value_at_percentile(99.0),
+            p100: h.value_at_percentile(100.0),
+        }
+    }
+}
+
+impl Display for PeerHistogramStatistics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "p0: {}, p10: {}, p20: {}, p30: {}, p40: {}, p50: {}, p60: {}, p70: {}, p80: {}, p90: {}, p95: {}, p99: {}, p100: {}", self.p0, self.p10, self.p20, self.p30, self.p40, self.p50, self.p60, self.p70, self.p80, self.p90, self.p95, self.p99, self.p100)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct CollectedStatistics {
     requests_per_second: f64,
@@ -34,10 +80,15 @@ struct CollectedStatistics {
     bytes_sent_per_second: f64,
     num_torrents: usize,
     num_peers: usize,
+    peer_histogram: PeerHistogramStatistics,
 }
 
 impl CollectedStatistics {
-    fn from_shared(statistics: &Arc<Statistics>, last: &mut Instant) -> Self {
+    fn from_shared(
+        statistics: &Arc<Statistics>,
+        peer_histogram: &Histogram<u64>,
+        last: &mut Instant,
+    ) -> Self {
         let requests_received = statistics.requests_received.fetch_and(0, Ordering::Relaxed) as f64;
         let responses_sent_connect = statistics
             .responses_sent_connect
@@ -56,6 +107,8 @@ impl CollectedStatistics {
         let num_torrents = Self::sum_atomic_usizes(&statistics.torrents);
         let num_peers = Self::sum_atomic_usizes(&statistics.peers);
 
+        let peer_histogram = PeerHistogramStatistics::new(peer_histogram);
+
         let now = Instant::now();
 
         let elapsed = (now - *last).as_secs_f64();
@@ -72,6 +125,7 @@ impl CollectedStatistics {
             bytes_sent_per_second: bytes_sent / elapsed,
             num_torrents,
             num_peers,
+            peer_histogram,
         }
     }
 
@@ -107,6 +161,7 @@ impl Into<FormattedStatistics> for CollectedStatistics {
             tx_mbits: format!("{:.2}", tx_mbits),
             num_torrents: self.num_torrents.to_formatted_string(&Locale::en),
             num_peers: self.num_peers.to_formatted_string(&Locale::en),
+            peer_histogram: self.peer_histogram,
         }
     }
 }
@@ -123,6 +178,7 @@ struct FormattedStatistics {
     tx_mbits: String,
     num_torrents: String,
     num_peers: String,
+    peer_histogram: PeerHistogramStatistics,
 }
 
 #[derive(Debug, Serialize)]
@@ -130,13 +186,47 @@ struct TemplateData {
     stylesheet: String,
     ipv4_active: bool,
     ipv6_active: bool,
+    extended_active: bool,
     ipv4: FormattedStatistics,
     ipv6: FormattedStatistics,
     last_updated: String,
     peer_update_interval: String,
 }
 
-pub fn run_statistics_worker(_sentinel: PanicSentinel, config: Config, state: State) {
+struct PeerHistograms {
+    pending: Vec<Histogram<u64>>,
+    last_complete: Histogram<u64>,
+}
+
+impl Default for PeerHistograms {
+    fn default() -> Self {
+        Self {
+            pending: Vec::new(),
+            last_complete: Histogram::new(3).expect("create peer histogram"),
+        }
+    }
+}
+
+impl PeerHistograms {
+    fn update(&mut self, config: &Config, histogram: Histogram<u64>) {
+        self.pending.push(histogram);
+
+        if self.pending.len() == config.swarm_workers {
+            self.last_complete = self.pending.drain(..).sum();
+        }
+    }
+
+    fn current(&self) -> &Histogram<u64> {
+        &self.last_complete
+    }
+}
+
+pub fn run_statistics_worker(
+    _sentinel: PanicSentinel,
+    config: Config,
+    state: State,
+    statistics_receiver: Receiver<StatisticsMessage>,
+) {
     let tt = if config.statistics.write_html_to_file {
         let mut tt = TinyTemplate::new();
 
@@ -154,13 +244,31 @@ pub fn run_statistics_worker(_sentinel: PanicSentinel, config: Config, state: St
     let mut last_ipv4 = Instant::now();
     let mut last_ipv6 = Instant::now();
 
+    let mut peer_histograms_ipv4 = PeerHistograms::default();
+    let mut peer_histograms_ipv6 = PeerHistograms::default();
+
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
 
-        let statistics_ipv4 =
-            CollectedStatistics::from_shared(&state.statistics_ipv4, &mut last_ipv4).into();
-        let statistics_ipv6 =
-            CollectedStatistics::from_shared(&state.statistics_ipv6, &mut last_ipv6).into();
+        for message in statistics_receiver.try_iter() {
+            match message {
+                StatisticsMessage::Ipv4PeerHistogram(h) => peer_histograms_ipv4.update(&config, h),
+                StatisticsMessage::Ipv6PeerHistogram(h) => peer_histograms_ipv6.update(&config, h),
+            }
+        }
+
+        let statistics_ipv4 = CollectedStatistics::from_shared(
+            &state.statistics_ipv4,
+            peer_histograms_ipv4.current(),
+            &mut last_ipv4,
+        )
+        .into();
+        let statistics_ipv6 = CollectedStatistics::from_shared(
+            &state.statistics_ipv6,
+            peer_histograms_ipv6.current(),
+            &mut last_ipv6,
+        )
+        .into();
 
         if config.statistics.print_to_stdout {
             println!("General:");
@@ -183,6 +291,7 @@ pub fn run_statistics_worker(_sentinel: PanicSentinel, config: Config, state: St
                 stylesheet: STYLESHEET_CONTENTS.to_string(),
                 ipv4_active: config.network.ipv4_active(),
                 ipv6_active: config.network.ipv6_active(),
+                extended_active: config.statistics.extended,
                 ipv4: statistics_ipv4,
                 ipv6: statistics_ipv6,
                 last_updated: OffsetDateTime::now_utc()
@@ -199,6 +308,10 @@ pub fn run_statistics_worker(_sentinel: PanicSentinel, config: Config, state: St
 }
 
 fn print_to_stdout(config: &Config, statistics: &FormattedStatistics) {
+    println!(
+        "  bandwidth: {:>7} Mbit/s in, {:7} Mbit/s out",
+        statistics.rx_mbits, statistics.tx_mbits,
+    );
     println!("  requests/second: {:>10}", statistics.requests_per_second);
     println!("  responses/second");
     println!(
@@ -221,15 +334,31 @@ fn print_to_stdout(config: &Config, statistics: &FormattedStatistics) {
         "    error:         {:>10}",
         statistics.responses_per_second_error
     );
+    println!("  torrents:        {:>10}", statistics.num_torrents);
     println!(
-        "  bandwidth: {:>7} Mbit/s in, {:7} Mbit/s out",
-        statistics.rx_mbits, statistics.tx_mbits,
-    );
-    println!("  number of torrents: {}", statistics.num_torrents);
-    println!(
-        "  number of peers: {} (updated every {} seconds)",
+        "  peers:           {:>10} (updated every {}s)",
         statistics.num_peers, config.cleaning.torrent_cleaning_interval
     );
+
+    if config.statistics.extended {
+        println!(
+            "  peers per torrent (updated every {}s)",
+            config.cleaning.torrent_cleaning_interval
+        );
+        println!("    min            {:>10}", statistics.peer_histogram.p0);
+        println!("    p10            {:>10}", statistics.peer_histogram.p10);
+        println!("    p20            {:>10}", statistics.peer_histogram.p20);
+        println!("    p30            {:>10}", statistics.peer_histogram.p30);
+        println!("    p40            {:>10}", statistics.peer_histogram.p40);
+        println!("    p50            {:>10}", statistics.peer_histogram.p50);
+        println!("    p60            {:>10}", statistics.peer_histogram.p60);
+        println!("    p70            {:>10}", statistics.peer_histogram.p70);
+        println!("    p80            {:>10}", statistics.peer_histogram.p80);
+        println!("    p90            {:>10}", statistics.peer_histogram.p90);
+        println!("    p95            {:>10}", statistics.peer_histogram.p95);
+        println!("    p99            {:>10}", statistics.peer_histogram.p99);
+        println!("    max            {:>10}", statistics.peer_histogram.p100);
+    }
 }
 
 fn save_html_to_file(
