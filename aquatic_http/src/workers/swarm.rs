@@ -16,7 +16,7 @@ use rand::SeedableRng;
 use smartstring::{LazyCompact, SmartString};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
-use aquatic_common::{extract_response_peers, PanicSentinel};
+use aquatic_common::{extract_response_peers, IndexMap, PanicSentinel};
 use aquatic_common::{AmortizedIndexMap, CanonicalSocketAddr};
 use aquatic_common::{SecondsSinceServerStart, ServerStartInstant, ValidUntil};
 use aquatic_http_protocol::common::*;
@@ -78,7 +78,7 @@ pub struct PeerMapKey<I: Ip> {
     pub ip_or_key: Either<I, SmartString<LazyCompact>>,
 }
 
-pub type PeerMap<I> = AmortizedIndexMap<PeerMapKey<I>, Peer<I>>;
+pub type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
 
 pub struct TorrentData<I: Ip> {
     pub peers: PeerMap<I>,

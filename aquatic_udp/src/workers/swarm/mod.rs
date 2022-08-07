@@ -17,7 +17,7 @@ use aquatic_udp_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
-use storage::{Peer, TorrentMap, TorrentMaps};
+use storage::{TorrentMap, TorrentMaps};
 
 pub fn run_swarm_worker(
     _sentinel: PanicSentinel,
@@ -145,16 +145,17 @@ fn handle_announce_request<I: Ip>(
         )
     };
 
-    let peer = Peer {
-        ip_address: peer_ip,
-        port: request.port,
-        status: PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left),
-        valid_until: peer_valid_until,
-    };
-
     let torrent_data = torrents.0.entry(request.info_hash).or_default();
 
-    torrent_data.update_peer(request.peer_id, peer);
+    let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
+
+    torrent_data.update_peer(
+        request.peer_id,
+        peer_ip,
+        request.port,
+        peer_status,
+        peer_valid_until,
+    );
 
     let response_peers =
         torrent_data.extract_response_peers(rng, request.peer_id, max_num_peers_to_take);
