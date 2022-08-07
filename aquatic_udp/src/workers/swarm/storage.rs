@@ -1,3 +1,4 @@
+use std::iter::once;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
@@ -19,8 +20,10 @@ use crate::config::Config;
 
 use super::create_torrent_scrape_statistics;
 
-#[derive(Clone, Debug)]
-struct Peer<I: Ip> {
+const LINEAR_LIMIT: usize = 16;
+
+#[derive(Clone, Debug, Copy)]
+pub struct Peer<I: Ip> {
     ip_address: I,
     port: Port,
     is_seeder: bool,
@@ -38,119 +41,189 @@ impl<I: Ip> Peer<I> {
 
 type PeerMap<I> = IndexMap<PeerId, Peer<I>>;
 
-pub struct TorrentData<I: Ip> {
+pub struct TorrentDataMap<I: Ip> {
     peers: PeerMap<I>,
     num_seeders: usize,
     num_leechers: usize,
 }
 
+pub enum TorrentData<I: Ip> {
+    Many(TorrentDataMap<I>),
+    Few(Vec<(PeerId, Peer<I>)>),
+}
+
 impl<I: Ip> TorrentData<I> {
     pub fn update_peer(
         &mut self,
+        rng: &mut SmallRng,
+        max_num_peers_to_take: usize,
         peer_id: PeerId,
         ip_address: I,
         port: Port,
         status: PeerStatus,
         valid_until: ValidUntil,
-    ) {
-        let opt_removed_peer = match status {
-            PeerStatus::Leeching => {
+    ) -> Vec<ResponsePeer<I>> {
+        match self {
+            Self::Few(peers) => {
+                let mut response_peers = Vec::with_capacity(peers.len());
+
+                peers.retain(|(k, v)| {
+                    if *k == peer_id {
+                        false
+                    } else {
+                        response_peers.push(v.to_response_peer());
+
+                        true
+                    }
+                });
+
+                if let PeerStatus::Stopped = status {
+                    return Vec::new();
+                }
+
                 let peer = Peer {
                     ip_address,
                     port,
-                    is_seeder: false,
+                    is_seeder: matches!(status, PeerStatus::Seeding),
                     valid_until,
                 };
 
-                self.num_leechers += 1;
+                if peers.len() < LINEAR_LIMIT {
+                    peers.push((peer_id, peer));
+                } else {
+                    let mut new_peers = IndexMap::default();
+                    let mut num_seeders = 0;
 
-                self.peers.insert(peer_id, peer)
+                    new_peers.reserve(LINEAR_LIMIT);
+
+                    for (k, v) in peers
+                        .into_iter()
+                        .map(|(k, v)| (*k, *v))
+                        .chain(once((peer_id, peer)))
+                    {
+                        if v.is_seeder {
+                            num_seeders += 1;
+                        }
+
+                        new_peers.insert(k, v);
+                    }
+
+                    *self = Self::Many(TorrentDataMap {
+                        peers: new_peers,
+                        num_seeders,
+                        num_leechers: LINEAR_LIMIT - num_seeders,
+                    });
+                }
+
+                response_peers.truncate(max_num_peers_to_take);
+
+                response_peers
             }
-            PeerStatus::Seeding => {
-                let peer = Peer {
-                    ip_address,
-                    port,
-                    is_seeder: true,
-                    valid_until,
+            Self::Many(data) => {
+                let opt_removed_peer = match status {
+                    PeerStatus::Leeching => {
+                        let peer = Peer {
+                            ip_address,
+                            port,
+                            is_seeder: false,
+                            valid_until,
+                        };
+
+                        data.num_leechers += 1;
+
+                        data.peers.insert(peer_id, peer)
+                    }
+                    PeerStatus::Seeding => {
+                        let peer = Peer {
+                            ip_address,
+                            port,
+                            is_seeder: true,
+                            valid_until,
+                        };
+
+                        data.num_seeders += 1;
+
+                        data.peers.insert(peer_id, peer)
+                    }
+                    PeerStatus::Stopped => data.peers.remove(&peer_id),
                 };
 
-                self.num_seeders += 1;
+                match opt_removed_peer.map(|peer| peer.is_seeder) {
+                    Some(true) => {
+                        data.num_leechers -= 1;
+                    }
+                    Some(false) => {
+                        data.num_seeders -= 1;
+                    }
+                    None => {}
+                }
 
-                self.peers.insert(peer_id, peer)
+                extract_response_peers(
+                    rng,
+                    &data.peers,
+                    max_num_peers_to_take,
+                    peer_id,
+                    Peer::to_response_peer,
+                )
             }
-            PeerStatus::Stopped => self.peers.remove(&peer_id),
-        };
-
-        match opt_removed_peer.map(|peer| peer.is_seeder) {
-            Some(true) => {
-                self.num_leechers -= 1;
-            }
-            Some(false) => {
-                self.num_seeders -= 1;
-            }
-            None => {}
         }
     }
 
-    pub fn extract_response_peers(
-        &self,
-        rng: &mut SmallRng,
-        peer_id: PeerId,
-        max_num_peers_to_take: usize,
-    ) -> Vec<ResponsePeer<I>> {
-        extract_response_peers(
-            rng,
-            &self.peers,
-            max_num_peers_to_take,
-            peer_id,
-            Peer::to_response_peer,
-        )
-    }
-
     pub fn num_leechers(&self) -> usize {
-        self.num_leechers
+        match self {
+            Self::Few(peers) => peers.iter().filter(|(_, peer)| !peer.is_seeder).count(),
+            Self::Many(TorrentDataMap { num_leechers, .. }) => *num_leechers,
+        }
     }
 
     pub fn num_seeders(&self) -> usize {
-        self.num_seeders
+        match self {
+            Self::Few(peers) => peers.iter().filter(|(_, peer)| peer.is_seeder).count(),
+            Self::Many(TorrentDataMap { num_leechers, .. }) => *num_leechers,
+        }
+    }
+
+    pub fn num_peers(&self) -> usize {
+        match self {
+            Self::Few(peers) => peers.len(),
+            Self::Many(TorrentDataMap { peers, .. }) => peers.len(),
+        }
     }
 
     pub fn scrape_statistics(&self) -> TorrentScrapeStatistics {
         create_torrent_scrape_statistics(
-            self.num_seeders.try_into().unwrap_or(i32::MAX),
-            self.num_leechers.try_into().unwrap_or(i32::MAX),
+            self.num_seeders().try_into().unwrap_or(i32::MAX),
+            self.num_leechers().try_into().unwrap_or(i32::MAX),
         )
     }
 
     /// Remove inactive peers and reclaim space
     fn clean(&mut self, now: SecondsSinceServerStart) {
-        self.peers.retain(|_, peer| {
-            if peer.valid_until.valid(now) {
-                true
-            } else {
-                if peer.is_seeder {
-                    self.num_seeders -= 1;
+        if let Self::Many(data) = self {
+            data.peers.retain(|_, peer| {
+                if peer.valid_until.valid(now) {
+                    true
                 } else {
-                    self.num_leechers -= 1;
+                    if peer.is_seeder {
+                        data.num_seeders -= 1;
+                    } else {
+                        data.num_leechers -= 1;
+                    }
+
+                    false
                 }
+            });
 
-                false
+            if !data.peers.is_empty() {
+                data.peers.shrink_to_fit();
             }
-        });
-
-        if !self.peers.is_empty() {
-            self.peers.shrink_to_fit();
         }
     }
 }
 
 impl<I: Ip> Default for TorrentData<I> {
     fn default() -> Self {
-        Self {
-            peers: Default::default(),
-            num_seeders: 0,
-            num_leechers: 0,
-        }
+        Self::Few(Default::default())
     }
 }
 
@@ -191,15 +264,13 @@ impl<I: Ip> TorrentMap<I> {
 
             torrent.clean(now);
 
-            num_peers += torrent.peers.len();
+            let n = torrent.num_peers();
+
+            num_peers += n;
 
             match opt_histogram {
-                Some(ref mut histogram) if torrent.peers.len() != 0 => {
-                    let n = torrent
-                        .peers
-                        .len()
-                        .try_into()
-                        .expect("Couldn't fit usize into u64");
+                Some(ref mut histogram) if n != 0 => {
+                    let n = n.try_into().expect("Couldn't fit usize into u64");
 
                     if let Err(err) = histogram.record(n) {
                         ::log::error!("Couldn't record {} to histogram: {:#}", n, err);
@@ -208,7 +279,7 @@ impl<I: Ip> TorrentMap<I> {
                 _ => (),
             }
 
-            !torrent.peers.is_empty()
+            n != 0
         });
 
         self.0.shrink_to_fit();

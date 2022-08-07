@@ -2,7 +2,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rand::Rng;
 use rand_distr::Pareto;
 
-pub const PARETO_SHAPE: f64 = 0.1;
+pub const PARETO_SHAPE: f64 = 2.0;
 pub const NUM_INFO_HASHES: usize = 10_000;
 
 pub fn create_progress_bar(name: &str, iterations: u64) -> ProgressBar {

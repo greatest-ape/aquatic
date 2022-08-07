@@ -149,16 +149,15 @@ fn handle_announce_request<I: Ip>(
 
     let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
 
-    torrent_data.update_peer(
+    let response_peers = torrent_data.update_peer(
+        rng,
+        max_num_peers_to_take,
         request.peer_id,
         peer_ip,
         request.port,
         peer_status,
         peer_valid_until,
     );
-
-    let response_peers =
-        torrent_data.extract_response_peers(rng, request.peer_id, max_num_peers_to_take);
 
     AnnounceResponse {
         transaction_id: request.transaction_id,
