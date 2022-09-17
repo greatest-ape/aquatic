@@ -163,8 +163,9 @@ fn handle_announce_request<I: Ip>(
     AnnounceResponse {
         transaction_id: request.transaction_id,
         announce_interval: AnnounceInterval(config.protocol.peer_announce_interval),
-        leechers: NumberOfPeers(torrent_data.num_leechers() as i32),
-        seeders: NumberOfPeers(torrent_data.num_seeders() as i32),
+        // convert usize torrent_data.num_leechers() to i32
+        leechers: NumberOfPeers(torrent_data.num_leechers().try_into().unwrap_or(0)),
+        seeders: NumberOfPeers(torrent_data.num_seeders().try_into().unwrap_or(0)),
         peers: response_peers,
     }
 }
