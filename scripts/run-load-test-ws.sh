@@ -2,4 +2,4 @@
 
 . ./scripts/env-native-cpu-without-avx-512
 
-cargo run --profile "release-debug" --bin aquatic_ws_load_test -- $@
+cargo run --profile "release-debug" -p aquatic_ws_load_test -- $@

@@ -83,10 +83,10 @@ impl<I: Ip> TorrentData<I> {
 
         match opt_removed_peer.map(|peer| peer.is_seeder) {
             Some(true) => {
-                self.num_leechers -= 1;
+                self.num_seeders -= 1;
             }
             Some(false) => {
-                self.num_seeders -= 1;
+                self.num_leechers -= 1;
             }
             None => {}
         }
