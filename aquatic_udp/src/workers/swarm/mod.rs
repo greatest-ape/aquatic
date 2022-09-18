@@ -136,11 +136,11 @@ fn handle_announce_request<I: Ip>(
     peer_ip: I,
     peer_valid_until: ValidUntil,
 ) -> AnnounceResponse<I> {
-    let max_num_peers_to_take = if request.peers_wanted.0 <= 0 {
-        config.protocol.max_response_peers as usize
+    let max_num_peers_to_take: usize = if request.peers_wanted.0 <= 0 {
+        config.protocol.max_response_peers
     } else {
         ::std::cmp::min(
-            config.protocol.max_response_peers as usize,
+            config.protocol.max_response_peers,
             request.peers_wanted.0.try_into().unwrap(),
         )
     };
