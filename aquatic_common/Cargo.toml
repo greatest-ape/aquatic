@@ -17,7 +17,7 @@ rustls = ["dep:rustls", "rustls-pemfile"]
 [dependencies]
 aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
 
-ahash = "0.7"
+ahash = "0.8"
 anyhow = "1"
 arc-swap = "1"
 duplicate = "0.4"
