@@ -2,11 +2,13 @@
 
 ## High priority
 
+* Only return peers when AnnounceEvent != Stopped
+* Do new udp load test round
+* Release new version
+
 ## Medium priority
 
 * Consider replacing unmaintained indexmap-amortized with plain indexmap
-* udp: use regular indexmap for peers and possibly inline variant with few peers
-
 * Run cargo-fuzz on protocol crates
 
 * quit whole program if any thread panics
