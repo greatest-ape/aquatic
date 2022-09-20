@@ -15,9 +15,9 @@
 
 * Rename request workers to swarm workers
 * Switch to thin LTO
-* Use proper workspace path declarations, remove workspace patch section
+* Use proper workspace path declarations and remove workspace patch section
 * Reduce space taken by ValidUntil struct from 128 to 32 bits
-* Use regular (non-amortized) IndexMap for peer and pending scrape response maps
+* Use regular (non-amortized) IndexMap for peer and pending scrape response maps (but not for torrent maps)
 * Improve privilege dropping
 * Quit whole program if any thread panics
 * Update dependencies
