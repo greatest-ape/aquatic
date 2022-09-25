@@ -386,18 +386,22 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
 
     ::log::debug!("peer request numwant: {:?}", request.numwant);
 
-    let max_num_peers_to_take = match request.numwant {
-        Some(0) | None => config.protocol.max_peers,
-        Some(numwant) => numwant.min(config.protocol.max_peers),
-    };
+    let response_peers = if let PeerStatus::Stopped = peer_status {
+        Vec::new()
+    } else {
+        let max_num_peers_to_take = match request.numwant {
+            Some(0) | None => config.protocol.max_peers,
+            Some(numwant) => numwant.min(config.protocol.max_peers),
+        };
 
-    let response_peers: Vec<ResponsePeer<I>> = extract_response_peers(
-        rng,
-        &torrent_data.peers,
-        max_num_peers_to_take,
-        peer_map_key,
-        Peer::to_response_peer,
-    );
+        extract_response_peers(
+            rng,
+            &torrent_data.peers,
+            max_num_peers_to_take,
+            peer_map_key,
+            Peer::to_response_peer,
+        )
+    };
 
     (
         torrent_data.num_seeders,
