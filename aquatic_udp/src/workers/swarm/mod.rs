@@ -157,8 +157,11 @@ fn handle_announce_request<I: Ip>(
         peer_valid_until,
     );
 
-    let response_peers =
-        torrent_data.extract_response_peers(rng, request.peer_id, max_num_peers_to_take);
+    let response_peers = if let PeerStatus::Stopped = peer_status {
+        Vec::new()
+    } else {
+        torrent_data.extract_response_peers(rng, request.peer_id, max_num_peers_to_take)
+    };
 
     AnnounceResponse {
         transaction_id: request.transaction_id,
