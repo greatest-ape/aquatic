@@ -1,13 +1,14 @@
 [package]
 name = "aquatic_ws"
-version = "0.2.0"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
 description = "High-performance open WebTorrent tracker"
-repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["webtorrent", "websocket", "peer-to-peer", "torrent", "bittorrent"]
-readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "aquatic_ws"
@@ -16,9 +17,9 @@ name = "aquatic_ws"
 name = "aquatic_ws"
 
 [dependencies]
-aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls", "glommio"] }
-aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
-aquatic_ws_protocol = { version = "0.2.0", path = "../aquatic_ws_protocol" }
+aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
+aquatic_toml_config.workspace = true
+aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
 async-tungstenite = "0.17"

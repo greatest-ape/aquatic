@@ -1,20 +1,21 @@
 [package]
 name = "aquatic_udp_bench"
-version = "0.2.0"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
-repository = "https://github.com/greatest-ape/aquatic"
-readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "aquatic_udp_bench"
 
 [dependencies]
-aquatic_common = { version = "0.2.0", path = "../aquatic_common" }
-aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
-aquatic_udp = { version = "0.2.0", path = "../aquatic_udp" }
-aquatic_udp_protocol = { version = "0.2.0", path = "../aquatic_udp_protocol" }
+aquatic_common.workspace = true
+aquatic_toml_config.workspace = true
+aquatic_udp.workspace = true
+aquatic_udp_protocol.workspace = true
 
 anyhow = "1"
 crossbeam-channel = "0.5"

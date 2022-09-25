@@ -14,22 +14,28 @@
 ### Changed
 
 * Rename request workers to swarm workers
-* Switch to thin LTO
+* Switch to thin LTO for faster compile times
 * Use proper workspace path declarations and remove workspace patch section
-* Reduce space taken by ValidUntil struct from 128 to 32 bits
+* Use [Rust 1.64 workspace inheritance](https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html)
+* Reduce space taken by ValidUntil struct from 128 to 32 bits, reducing memory
+  consumtion for each stored peer by same amount
 * Use regular (non-amortized) IndexMap for peer and pending scrape response maps (but not for torrent maps)
 * Improve privilege dropping
 * Quit whole program if any thread panics
 * Update dependencies
-* _aquatic_udp_: replace ConnectionMap with BLAKE3-based connection validator
+* _aquatic_udp_: replace ConnectionMap with BLAKE3-based connection validator,
+  greatly decreasing memory consumtion
+* _aquatic_udp_: don't return any response peers if announce event is stopped
 * _aquatic_udp_: ignore requests with source port value of zero
+* _aquatic_http_: don't return any response peers if announce event is stopped
 * _aquatic_ws_: reduce size of various structs
 * _aquatic_ws_: make TLS optional
 * _aquatic_ws_: support reverse proxies
 
 ### Fixed
 
-* Fail on unrecognized config keys
+* Forbid unrecognized keys when parsing config files
+* Fix warnings from invalid avx512 key included in `./scripts/env-native-cpu-without-avx-512`
 * _aquatic_http_protocol_: explicity check for /scrape path
 * _aquatic_http_protocol_: return NeedMoreData until headers are fully parsed
 * _aquatic_http_protocol_: fix issues with ScrapeRequest::write and AnnounceRequest::write

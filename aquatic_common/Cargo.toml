@@ -1,12 +1,13 @@
 [package]
 name = "aquatic_common"
-version = "0.2.0"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
 description = "aquatic BitTorrent tracker common code"
-repository = "https://github.com/greatest-ape/aquatic"
-readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "aquatic_common"
@@ -15,7 +16,7 @@ name = "aquatic_common"
 rustls = ["dep:rustls", "rustls-pemfile"]
 
 [dependencies]
-aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
+aquatic_toml_config.workspace = true
 
 ahash = "0.8"
 anyhow = "1"

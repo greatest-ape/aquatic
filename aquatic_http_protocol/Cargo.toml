@@ -1,13 +1,14 @@
 [package]
 name = "aquatic_http_protocol"
-version = "0.2.0"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
-repository = "https://github.com/greatest-ape/aquatic"
 description = "HTTP BitTorrent tracker protocol"
 keywords = ["http", "protocol", "peer-to-peer", "torrent", "bittorrent"]
-readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "aquatic_http_protocol"
