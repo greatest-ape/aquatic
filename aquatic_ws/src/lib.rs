@@ -80,7 +80,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             config.swarm_workers,
             WorkerIndex::SocketWorker(i),
         )?;
-        let builder = LocalExecutorBuilder::new(placement).name("socket");
+        let builder = LocalExecutorBuilder::new(placement).name(&format!("socket-{:02}", i + 1));
 
         let executor = builder
             .spawn(move || async move {
@@ -118,7 +118,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             config.swarm_workers,
             WorkerIndex::SwarmWorker(i),
         )?;
-        let builder = LocalExecutorBuilder::new(placement).name("request");
+        let builder = LocalExecutorBuilder::new(placement).name(&format!("swarm-{:02}", i + 1));
 
         let executor = builder
             .spawn(move || async move {

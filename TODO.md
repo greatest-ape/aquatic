@@ -2,7 +2,6 @@
 
 ## High priority
 
-* Only return peers when AnnounceEvent != Stopped
 * Do new udp load test round
 * Release new version
 
