@@ -25,7 +25,9 @@
 * Update dependencies
 * _aquatic_udp_: replace ConnectionMap with BLAKE3-based connection validator,
   greatly decreasing memory consumtion
+* _aquatic_udp_: don't return any response peers if announce event is stopped
 * _aquatic_udp_: ignore requests with source port value of zero
+* _aquatic_http_: don't return any response peers if announce event is stopped
 * _aquatic_ws_: reduce size of various structs
 * _aquatic_ws_: make TLS optional
 * _aquatic_ws_: support reverse proxies
@@ -33,6 +35,7 @@
 ### Fixed
 
 * Forbid unrecognized keys when parsing config files
+* Fix warnings from invalid avx512 key included in `./scripts/env-native-cpu-without-avx-512`
 * _aquatic_http_protocol_: explicity check for /scrape path
 * _aquatic_http_protocol_: return NeedMoreData until headers are fully parsed
 * _aquatic_http_protocol_: fix issues with ScrapeRequest::write and AnnounceRequest::write
