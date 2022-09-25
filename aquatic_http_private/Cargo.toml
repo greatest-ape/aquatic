@@ -1,11 +1,13 @@
 [package]
 name = "aquatic_http_private"
-version = "0.2.0"
-edition = "2021"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-license = "Apache-2.0"
-repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["http", "benchmark", "peer-to-peer", "torrent", "bittorrent"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "aquatic_http_private"
@@ -14,9 +16,9 @@ name = "aquatic_http_private"
 name = "aquatic_http_private"
 
 [dependencies]
-aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls"] }
-aquatic_http_protocol = { version = "0.2.0", path = "../aquatic_http_protocol", features = ["axum"] }
-aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
+aquatic_common = { workspace = true, features = ["rustls"] }
+aquatic_http_protocol = { workspace = true, features = ["axum"] }
+aquatic_toml_config.workspace = true
 
 anyhow = "1"
 axum = { version = "0.5", default-features = false, features = ["headers", "http1", "matched-path", "original-uri"] }

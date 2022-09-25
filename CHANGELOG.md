@@ -16,6 +16,7 @@
 * Rename request workers to swarm workers
 * Switch to thin LTO
 * Use proper workspace path declarations and remove workspace patch section
+* Use [Rust 1.64 workspace inheritance](https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html)
 * Reduce space taken by ValidUntil struct from 128 to 32 bits
 * Use regular (non-amortized) IndexMap for peer and pending scrape response maps (but not for torrent maps)
 * Improve privilege dropping

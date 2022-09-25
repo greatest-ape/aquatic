@@ -1,5 +1,4 @@
 [workspace]
-
 members = [ 
     "aquatic",
     "aquatic_common",
@@ -17,6 +16,26 @@ members = [
     "aquatic_ws_load_test",
     "aquatic_ws_protocol",
 ]
+
+[workspace.package]
+version = "0.2.0"
+authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/greatest-ape/aquatic"
+readme = "./README.md"
+rust-version = "1.64"
+
+[workspace.dependencies]
+aquatic_common = { version = "0.2.0", path = "./aquatic_common" }
+aquatic_http_protocol = { version = "0.2.0", path = "./aquatic_http_protocol" }
+aquatic_http = { version = "0.2.0", path = "./aquatic_http" }
+aquatic_toml_config = { version = "0.2.0", path = "./aquatic_toml_config" }
+aquatic_toml_config_derive = { version = "0.2.0", path = "./aquatic_toml_config_derive" }
+aquatic_udp_protocol = { version = "0.2.0", path = "./aquatic_udp_protocol" }
+aquatic_udp = { version = "0.2.0", path = "./aquatic_udp" }
+aquatic_ws_protocol = { version = "0.2.0", path = "./aquatic_ws_protocol" }
+aquatic_ws = { version = "0.2.0", path = "./aquatic_ws" }
 
 [patch.crates-io]
 membarrier = { git = "https://github.com/glommer/membarrier-rs.git", branch = "issue-22" }

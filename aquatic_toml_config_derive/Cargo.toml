@@ -1,14 +1,15 @@
 [package]
 name = "aquatic_toml_config_derive"
-version = "0.2.0"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
 description = "Serialize toml with comments"
-repository = "https://github.com/greatest-ape/aquatic"
 exclude = ["target"]
 keywords = ["toml"]
-readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [lib]
 proc-macro = true

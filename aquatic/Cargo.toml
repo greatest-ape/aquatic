@@ -1,20 +1,21 @@
 [package]
 name = "aquatic"
-version = "0.2.0"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
 description = "High-performance open BitTorrent tracker (UDP, HTTP, WebTorrent)"
-repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["bittorrent", "torrent", "webtorrent"]
-readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "aquatic"
 
 [dependencies]
-aquatic_common = { version = "0.2.0", path = "../aquatic_common" }
-aquatic_http = { version = "0.2.0", path = "../aquatic_http" }
-aquatic_udp = { version = "0.2.0", path = "../aquatic_udp" }
-aquatic_ws = { version = "0.2.0", path = "../aquatic_ws" }
+aquatic_common.workspace = true
+aquatic_http.workspace = true
+aquatic_udp.workspace = true
+aquatic_ws.workspace = true
 mimalloc = { version = "0.1", default-features = false }

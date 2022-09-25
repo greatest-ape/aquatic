@@ -1,13 +1,14 @@
 [package]
 name = "aquatic_http"
-version = "0.2.0"
-authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
 description = "High-performance open BitTorrent tracker (HTTP over TLS)"
-repository = "https://github.com/greatest-ape/aquatic"
 keywords = ["http", "server", "peer-to-peer", "torrent", "bittorrent"]
-readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "aquatic_http"
@@ -16,9 +17,9 @@ name = "aquatic_http"
 name = "aquatic_http"
 
 [dependencies]
-aquatic_common = { version = "0.2.0", path = "../aquatic_common", features = ["rustls", "glommio"] }
-aquatic_http_protocol = { version = "0.2.0", path = "../aquatic_http_protocol" }
-aquatic_toml_config = { version = "0.2.0", path = "../aquatic_toml_config" }
+aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
+aquatic_http_protocol.workspace = true
+aquatic_toml_config.workspace = true
 
 anyhow = "1"
 cfg-if = "1"
