@@ -344,8 +344,6 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
         valid_until,
     };
 
-    ::log::debug!("peer: {:?}", peer);
-
     let ip_or_key = request
         .key
         .map(Either::Right)
@@ -355,8 +353,6 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
         peer_id: request.peer_id,
         ip_or_key,
     };
-
-    ::log::debug!("peer map key: {:?}", peer_map_key);
 
     let opt_removed_peer = match peer_status {
         PeerStatus::Leeching => {
@@ -372,8 +368,6 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
         PeerStatus::Stopped => torrent_data.peers.remove(&peer_map_key),
     };
 
-    ::log::debug!("opt_removed_peer: {:?}", opt_removed_peer);
-
     match opt_removed_peer.map(|peer| peer.status) {
         Some(PeerStatus::Leeching) => {
             torrent_data.num_leechers -= 1;
@@ -383,8 +377,6 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
         }
         _ => {}
     }
-
-    ::log::debug!("peer request numwant: {:?}", request.numwant);
 
     let response_peers = if let PeerStatus::Stopped = peer_status {
         Vec::new()

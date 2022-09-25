@@ -248,13 +248,9 @@ impl Connection {
 
             match Request::from_bytes(&self.request_buffer[..self.request_buffer_position]) {
                 Ok(request) => {
-                    ::log::debug!("received request: {:?}", request);
-
                     return Ok(Either::Right(request));
                 }
                 Err(RequestParseError::Invalid(err)) => {
-                    ::log::debug!("invalid request: {:?}", err);
-
                     let response = FailureResponse {
                         failure_reason: "Invalid request".into(),
                     };
