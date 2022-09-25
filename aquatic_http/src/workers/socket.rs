@@ -255,6 +255,8 @@ impl Connection {
                         failure_reason: "Invalid request".into(),
                     };
 
+                    ::log::debug!("Invalid request: {:#}", err);
+
                     return Ok(Either::Left(response));
                 }
                 Err(RequestParseError::NeedMoreData) => {
