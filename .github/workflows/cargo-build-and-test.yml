@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Install latest stable Rust
       uses: actions-rs/toolchain@v1
       with:
@@ -23,6 +23,8 @@ jobs:
         override: true
     - name: Install dependencies
       run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
+    - name: Setup Rust dependency caching
+      uses: Swatinem/rust-cache@v2
     - name: Build
       run: |
         cargo build --verbose -p aquatic_udp --features "cpu-pinning"
@@ -36,12 +38,14 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Install latest stable Rust
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         override: true
+    - name: Setup Rust dependency caching
+      uses: Swatinem/rust-cache@v2
     - name: Build
       run: cargo build --verbose -p aquatic_udp
