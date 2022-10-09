@@ -1,4 +1,4 @@
-name: 'cargo: build and test'
+name: CI
 
 on:
   push:
@@ -10,9 +10,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-test-linux:
+  build-linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
     - uses: actions/checkout@v3
     - name: Install latest stable Rust
@@ -30,9 +30,6 @@ jobs:
         cargo build --verbose -p aquatic_udp --features "cpu-pinning"
         cargo build --verbose -p aquatic_http
         cargo build --verbose -p aquatic_ws
-    - name: Run tests
-      run: cargo test --verbose --workspace --profile "test-fast"
-
 
   build-macos:
     runs-on: macos-latest
@@ -49,3 +46,35 @@ jobs:
       uses: Swatinem/rust-cache@v2
     - name: Build
       run: cargo build --verbose -p aquatic_udp
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install latest stable Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+    - name: Install dependencies
+      run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
+    - name: Setup Rust dependency caching
+      uses: Swatinem/rust-cache@v2
+    - name: Run tests
+      run: cargo test --verbose --workspace --profile "test-fast"
+
+  test-file-transfers:
+    runs-on: ubuntu-latest
+    name: "Test BitTorrent file transfers over UDP, TLS and WSS"
+    timeout-minutes: 20
+    container:
+      image: rust:1-bullseye
+      options: --ulimit memlock=524288:524288
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Test file transfers
+        uses: ./.github/actions/test-file-transfers
+        id: test_file_transfers

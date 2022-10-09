@@ -1,5 +1,5 @@
-name: 'test-transfer'
-description: 'test aquatic file transfer'
+name: 'test-file-transfers'
+description: 'test aquatic file transfers'
 outputs:
   # http_ipv4:
   #   description: 'HTTP IPv4 status'
