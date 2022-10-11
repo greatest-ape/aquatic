@@ -42,3 +42,4 @@
 * _aquatic_http_protocol_: expose write and parse methods for subtypes
 * _aquatic_http_load_test_: exclusively use TLS 1.3
 * _aquatic_ws_: remove peer from swarms immediately when connection is closed
+* _aquatic_ws_: allow peers to use multiple peer IDs, as long as they only use one per info hash
