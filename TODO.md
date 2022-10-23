@@ -3,6 +3,7 @@
 ## High priority
 
 * Do new udp load test round
+* udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
 * Release new version
 
 ## Medium priority
