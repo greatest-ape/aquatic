@@ -4,6 +4,7 @@
 
 * Do new udp load test round
 * udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
+* ws: wait for crates release of glommio with membarrier fix
 * Release new version
 
 ## Medium priority
