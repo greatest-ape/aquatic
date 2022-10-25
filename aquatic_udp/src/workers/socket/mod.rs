@@ -259,19 +259,19 @@ impl SocketWorker {
             self.shared_state
                 .statistics_ipv4
                 .requests_received
-                .fetch_add(requests_received_ipv4, Ordering::Release);
+                .fetch_add(requests_received_ipv4, Ordering::Relaxed);
             self.shared_state
                 .statistics_ipv6
                 .requests_received
-                .fetch_add(requests_received_ipv6, Ordering::Release);
+                .fetch_add(requests_received_ipv6, Ordering::Relaxed);
             self.shared_state
                 .statistics_ipv4
                 .bytes_received
-                .fetch_add(bytes_received_ipv4, Ordering::Release);
+                .fetch_add(bytes_received_ipv4, Ordering::Relaxed);
             self.shared_state
                 .statistics_ipv6
                 .bytes_received
-                .fetch_add(bytes_received_ipv6, Ordering::Release);
+                .fetch_add(bytes_received_ipv6, Ordering::Relaxed);
         }
     }
 
