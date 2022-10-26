@@ -5,7 +5,7 @@ use aquatic_common::CanonicalSocketAddr;
 use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressIterator;
 use rand::Rng;
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 
 use aquatic_udp::common::*;
 use aquatic_udp_protocol::*;
@@ -93,7 +93,7 @@ pub fn create_requests(
     number: usize,
     hashes_per_request: usize,
 ) -> Vec<(ScrapeRequest, CanonicalSocketAddr)> {
-    let pareto = Pareto::new(1., PARETO_SHAPE).unwrap();
+    let gamma = Gamma::new(GAMMA_SHAPE, GAMMA_SCALE).unwrap();
 
     let max_index = info_hashes.len() - 1;
 
@@ -103,7 +103,7 @@ pub fn create_requests(
         let mut request_info_hashes = Vec::new();
 
         for _ in 0..hashes_per_request {
-            let info_hash_index = pareto_usize(rng, pareto, max_index);
+            let info_hash_index = gamma_usize(rng, gamma, max_index);
             request_info_hashes.push(info_hashes[info_hash_index])
         }
 
