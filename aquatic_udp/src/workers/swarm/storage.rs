@@ -41,7 +41,6 @@ type PeerMap<I> = IndexMap<PeerId, Peer<I>>;
 pub struct TorrentData<I: Ip> {
     peers: PeerMap<I>,
     num_seeders: usize,
-    num_leechers: usize,
 }
 
 impl<I: Ip> TorrentData<I> {
@@ -62,8 +61,6 @@ impl<I: Ip> TorrentData<I> {
                     valid_until,
                 };
 
-                self.num_leechers += 1;
-
                 self.peers.insert(peer_id, peer)
             }
             PeerStatus::Seeding => {
@@ -81,14 +78,11 @@ impl<I: Ip> TorrentData<I> {
             PeerStatus::Stopped => self.peers.remove(&peer_id),
         };
 
-        match opt_removed_peer.map(|peer| peer.is_seeder) {
-            Some(true) => {
-                self.num_seeders -= 1;
-            }
-            Some(false) => {
-                self.num_leechers -= 1;
-            }
-            None => {}
+        if let Some(Peer {
+            is_seeder: true, ..
+        }) = opt_removed_peer
+        {
+            self.num_seeders -= 1;
         }
     }
 
@@ -108,7 +102,7 @@ impl<I: Ip> TorrentData<I> {
     }
 
     pub fn num_leechers(&self) -> usize {
-        self.num_leechers
+        self.peers.len() - self.num_seeders
     }
 
     pub fn num_seeders(&self) -> usize {
@@ -118,24 +112,20 @@ impl<I: Ip> TorrentData<I> {
     pub fn scrape_statistics(&self) -> TorrentScrapeStatistics {
         create_torrent_scrape_statistics(
             self.num_seeders.try_into().unwrap_or(i32::MAX),
-            self.num_leechers.try_into().unwrap_or(i32::MAX),
+            self.num_leechers().try_into().unwrap_or(i32::MAX),
         )
     }
 
     /// Remove inactive peers and reclaim space
     fn clean(&mut self, now: SecondsSinceServerStart) {
         self.peers.retain(|_, peer| {
-            if peer.valid_until.valid(now) {
-                true
-            } else {
-                if peer.is_seeder {
-                    self.num_seeders -= 1;
-                } else {
-                    self.num_leechers -= 1;
-                }
+            let keep = peer.valid_until.valid(now);
 
-                false
+            if (!keep) & peer.is_seeder {
+                self.num_seeders -= 1;
             }
+
+            keep
         });
 
         if !self.peers.is_empty() {
@@ -149,7 +139,6 @@ impl<I: Ip> Default for TorrentData<I> {
         Self {
             peers: Default::default(),
             num_seeders: 0,
-            num_leechers: 0,
         }
     }
 }

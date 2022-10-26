@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 
 use crate::common::*;
 use crate::config::*;
@@ -88,12 +88,12 @@ fn create_scrape_request(config: &Config, state: &LoadTestState, rng: &mut impl 
 
 #[inline]
 fn select_info_hash_index(config: &Config, state: &LoadTestState, rng: &mut impl Rng) -> usize {
-    pareto_usize(rng, &state.pareto, config.torrents.number_of_torrents - 1)
+    gamma_usize(rng, &state.gamma, config.torrents.number_of_torrents - 1)
 }
 
 #[inline]
-fn pareto_usize(rng: &mut impl Rng, pareto: &Arc<Pareto<f64>>, max: usize) -> usize {
-    let p: f64 = pareto.sample(rng);
+fn gamma_usize(rng: &mut impl Rng, gamma: &Arc<Gamma<f64>>, max: usize) -> usize {
+    let p: f64 = gamma.sample(rng);
     let p = (p.min(101.0f64) - 1.0) / 100.0;
 
     (p * max as f64) as usize

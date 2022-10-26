@@ -45,10 +45,6 @@ impl Default for Config {
 pub struct TorrentConfig {
     pub offers_per_request: usize,
     pub number_of_torrents: usize,
-    /// Pareto shape
-    ///
-    /// Fake peers choose torrents according to Pareto distribution.
-    pub torrent_selection_pareto_shape: f64,
     /// Probability that a generated peer is a seeder
     pub peer_seeder_probability: f64,
     /// Probability that a generated request is a announce request, as part
@@ -57,6 +53,10 @@ pub struct TorrentConfig {
     /// Probability that a generated request is a scrape request, as part
     /// of sum of the various weight arguments.
     pub weight_scrape: usize,
+    /// Peers choose torrents according to this Gamma distribution shape
+    pub torrent_gamma_shape: f64,
+    /// Peers choose torrents according to this Gamma distribution scale
+    pub torrent_gamma_scale: f64,
 }
 
 impl Default for TorrentConfig {
@@ -65,9 +65,10 @@ impl Default for TorrentConfig {
             offers_per_request: 10,
             number_of_torrents: 10_000,
             peer_seeder_probability: 0.25,
-            torrent_selection_pareto_shape: 2.0,
             weight_announce: 5,
             weight_scrape: 0,
+            torrent_gamma_shape: 0.2,
+            torrent_gamma_scale: 100.0,
         }
     }
 }

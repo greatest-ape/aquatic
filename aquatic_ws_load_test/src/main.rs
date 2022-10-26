@@ -6,7 +6,7 @@ use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_fo
 use aquatic_common::cpu_pinning::WorkerIndex;
 use glommio::LocalExecutorBuilder;
 use rand::prelude::*;
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 
 mod common;
 mod config;
@@ -44,12 +44,16 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         info_hashes.push(InfoHash(rng.gen()));
     }
 
-    let pareto = Pareto::new(1.0, config.torrents.torrent_selection_pareto_shape).unwrap();
+    let gamma = Gamma::new(
+        config.torrents.torrent_gamma_shape,
+        config.torrents.torrent_gamma_scale,
+    )
+    .unwrap();
 
     let state = LoadTestState {
         info_hashes: Arc::new(info_hashes),
         statistics: Arc::new(Statistics::default()),
-        pareto: Arc::new(pareto),
+        gamma: Arc::new(gamma),
     };
 
     let tls_config = create_tls_config().unwrap();

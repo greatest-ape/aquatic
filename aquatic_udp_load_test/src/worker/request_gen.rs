@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 
 use aquatic_udp_protocol::*;
 
@@ -12,7 +12,7 @@ use crate::utils::*;
 
 pub fn process_response(
     rng: &mut impl Rng,
-    pareto: Pareto<f64>,
+    gamma: Gamma<f64>,
     info_hashes: &Arc<Vec<InfoHash>>,
     config: &Config,
     torrent_peers: &mut TorrentPeerMap,
@@ -32,7 +32,7 @@ pub fn process_response(
                     torrent_peer
                 })
                 .unwrap_or_else(|| {
-                    create_torrent_peer(config, rng, pareto, info_hashes, r.connection_id)
+                    create_torrent_peer(config, rng, gamma, info_hashes, r.connection_id)
                 });
 
             let new_transaction_id = generate_transaction_id(rng);
@@ -190,7 +190,7 @@ fn create_scrape_request(
 fn create_torrent_peer(
     config: &Config,
     rng: &mut impl Rng,
-    pareto: Pareto<f64>,
+    gamma: Gamma<f64>,
     info_hashes: &Arc<Vec<InfoHash>>,
     connection_id: ConnectionId,
 ) -> TorrentPeer {
@@ -199,10 +199,10 @@ fn create_torrent_peer(
     let mut scrape_hash_indeces = Vec::new();
 
     for _ in 0..num_scape_hashes {
-        scrape_hash_indeces.push(select_info_hash_index(config, rng, pareto))
+        scrape_hash_indeces.push(select_info_hash_index(config, rng, gamma))
     }
 
-    let info_hash_index = select_info_hash_index(config, rng, pareto);
+    let info_hash_index = select_info_hash_index(config, rng, gamma);
 
     TorrentPeer {
         info_hash: info_hashes[info_hash_index],
@@ -213,6 +213,6 @@ fn create_torrent_peer(
     }
 }
 
-fn select_info_hash_index(config: &Config, rng: &mut impl Rng, pareto: Pareto<f64>) -> usize {
-    pareto_usize(rng, pareto, config.requests.number_of_torrents - 1)
+fn select_info_hash_index(config: &Config, rng: &mut impl Rng, gamma: Gamma<f64>) -> usize {
+    gamma_usize(rng, gamma, config.requests.number_of_torrents - 1)
 }
