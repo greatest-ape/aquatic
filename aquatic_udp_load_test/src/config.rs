@@ -101,10 +101,10 @@ pub struct RequestConfig {
     /// Probability that a generated request is a scrape request, as part
     /// of sum of the various weight arguments.
     pub weight_scrape: usize,
-    /// Pareto shape
-    ///
-    /// Fake peers choose torrents according to Pareto distribution.
-    pub torrent_selection_pareto_shape: f64,
+    /// Peers choose torrents according to this Gamma distribution shape
+    pub torrent_gamma_shape: f64,
+    /// Peers choose torrents according to this Gamma distribution scale
+    pub torrent_gamma_scale: f64,
     /// Probability that a generated peer is a seeder
     pub peer_seeder_probability: f64,
     /// Probability that an additional connect request will be sent for each
@@ -116,12 +116,13 @@ impl Default for RequestConfig {
     fn default() -> Self {
         Self {
             number_of_torrents: 10_000,
-            peer_seeder_probability: 0.25,
             scrape_max_torrents: 50,
             weight_connect: 0,
-            weight_announce: 5,
+            weight_announce: 100,
             weight_scrape: 1,
-            torrent_selection_pareto_shape: 2.0,
+            torrent_gamma_shape: 0.2,
+            torrent_gamma_scale: 100.0,
+            peer_seeder_probability: 0.25,
             additional_request_probability: 0.5,
         }
     }

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 
 use aquatic_udp_protocol::*;
 
@@ -12,7 +12,7 @@ use crate::utils::*;
 
 pub fn process_response(
     rng: &mut impl Rng,
-    pareto: Pareto<f64>,
+    pareto: Gamma<f64>,
     info_hashes: &Arc<Vec<InfoHash>>,
     config: &Config,
     torrent_peers: &mut TorrentPeerMap,
@@ -190,7 +190,7 @@ fn create_scrape_request(
 fn create_torrent_peer(
     config: &Config,
     rng: &mut impl Rng,
-    pareto: Pareto<f64>,
+    pareto: Gamma<f64>,
     info_hashes: &Arc<Vec<InfoHash>>,
     connection_id: ConnectionId,
 ) -> TorrentPeer {
@@ -213,6 +213,6 @@ fn create_torrent_peer(
     }
 }
 
-fn select_info_hash_index(config: &Config, rng: &mut impl Rng, pareto: Pareto<f64>) -> usize {
+fn select_info_hash_index(config: &Config, rng: &mut impl Rng, pareto: Gamma<f64>) -> usize {
     pareto_usize(rng, pareto, config.requests.number_of_torrents - 1)
 }

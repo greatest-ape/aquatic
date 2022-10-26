@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 
 mod common;
 mod config;
@@ -58,7 +58,11 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         statistics: Arc::new(Statistics::default()),
     };
 
-    let pareto = Pareto::new(1.0, config.requests.torrent_selection_pareto_shape).unwrap();
+    let pareto = Gamma::new(
+        config.requests.torrent_gamma_shape,
+        config.requests.torrent_gamma_scale,
+    )
+    .unwrap();
 
     // Start workers
 

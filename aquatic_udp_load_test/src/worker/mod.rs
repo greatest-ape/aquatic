@@ -8,7 +8,7 @@ use std::time::Duration;
 use mio::{net::UdpSocket, Events, Interest, Poll, Token};
 use rand::Rng;
 use rand::{prelude::SmallRng, thread_rng, SeedableRng};
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::*;
@@ -21,7 +21,7 @@ const MAX_PACKET_SIZE: usize = 8192;
 
 pub fn run_worker_thread(
     state: LoadTestState,
-    pareto: Pareto<f64>,
+    pareto: Gamma<f64>,
     config: &Config,
     addr: SocketAddr,
 ) {
