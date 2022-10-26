@@ -1,6 +1,6 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
-use rand_distr::Pareto;
+use rand_distr::Gamma;
 
 pub use aquatic_ws_protocol::*;
 
@@ -19,7 +19,7 @@ pub struct Statistics {
 pub struct LoadTestState {
     pub info_hashes: Arc<Vec<InfoHash>>,
     pub statistics: Arc<Statistics>,
-    pub pareto: Arc<Pareto<f64>>,
+    pub gamma: Arc<Gamma<f64>>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]

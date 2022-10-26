@@ -58,7 +58,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         statistics: Arc::new(Statistics::default()),
     };
 
-    let pareto = Gamma::new(
+    let gamma = Gamma::new(
         config.requests.torrent_gamma_shape,
         config.requests.torrent_gamma_scale,
     )
@@ -92,7 +92,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i as usize),
             );
 
-            run_worker_thread(state, pareto, &config, addr)
+            run_worker_thread(state, gamma, &config, addr)
         })?;
     }
 

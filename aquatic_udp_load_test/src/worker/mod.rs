@@ -21,7 +21,7 @@ const MAX_PACKET_SIZE: usize = 8192;
 
 pub fn run_worker_thread(
     state: LoadTestState,
-    pareto: Gamma<f64>,
+    gamma: Gamma<f64>,
     config: &Config,
     addr: SocketAddr,
 ) {
@@ -80,7 +80,7 @@ pub fn run_worker_thread(
 
                             let opt_request = process_response(
                                 &mut rng,
-                                pareto,
+                                gamma,
                                 &state.info_hashes,
                                 &config,
                                 &mut torrent_peers,

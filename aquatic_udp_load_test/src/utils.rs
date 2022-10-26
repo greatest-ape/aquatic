@@ -3,8 +3,8 @@ use rand_distr::Gamma;
 
 use aquatic_udp_protocol::*;
 
-pub fn pareto_usize(rng: &mut impl Rng, pareto: Gamma<f64>, max: usize) -> usize {
-    let p: f64 = rng.sample(pareto);
+pub fn gamma_usize(rng: &mut impl Rng, gamma: Gamma<f64>, max: usize) -> usize {
+    let p: f64 = rng.sample(gamma);
     let p = (p.min(101.0f64) - 1.0) / 100.0;
 
     (p * max as f64) as usize
