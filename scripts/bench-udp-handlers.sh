@@ -2,4 +2,4 @@
 
 . ./scripts/env-native-cpu-without-avx-512
 
-cargo run --release -p aquatic_udp_bench -- $@
+cargo run --profile "release-debug" -p aquatic_udp_bench -- $@
