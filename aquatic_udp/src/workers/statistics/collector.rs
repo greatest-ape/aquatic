@@ -35,7 +35,7 @@ impl StatisticsCollector {
         }
     }
 
-    pub fn collect_from_shared(&mut self) -> FormattedStatistics {
+    pub fn collect_from_shared(&mut self) -> CollectedStatistics {
         let requests_received = Self::fetch_and_reset(&self.shared.requests_received);
         let responses_sent_connect = Self::fetch_and_reset(&self.shared.responses_sent_connect);
         let responses_sent_announce = Self::fetch_and_reset(&self.shared.responses_sent_announce);
@@ -43,29 +43,50 @@ impl StatisticsCollector {
         let responses_sent_error = Self::fetch_and_reset(&self.shared.responses_sent_error);
         let bytes_received = Self::fetch_and_reset(&self.shared.bytes_received);
         let bytes_sent = Self::fetch_and_reset(&self.shared.bytes_sent);
-
         let num_torrents = Self::sum_atomic_usizes(&self.shared.torrents);
         let num_peers = Self::sum_atomic_usizes(&self.shared.peers);
 
-        let now = Instant::now();
+        let elapsed = {
+            let now = Instant::now();
 
-        let elapsed = (now - self.last_update).as_secs_f64();
+            let elapsed = (now - self.last_update).as_secs_f64();
 
-        self.last_update = now;
+            self.last_update = now;
 
-        let collected_statistics = CollectedStatistics {
-            requests_per_second: requests_received / elapsed,
-            responses_per_second_connect: responses_sent_connect / elapsed,
-            responses_per_second_announce: responses_sent_announce / elapsed,
-            responses_per_second_scrape: responses_sent_scrape / elapsed,
-            responses_per_second_error: responses_sent_error / elapsed,
-            bytes_received_per_second: bytes_received / elapsed,
-            bytes_sent_per_second: bytes_sent / elapsed,
-            num_torrents,
-            num_peers,
+            elapsed
         };
 
-        FormattedStatistics::new(collected_statistics, self.last_complete_histogram.clone())
+        let requests_per_second = requests_received / elapsed;
+        let responses_per_second_connect = responses_sent_connect / elapsed;
+        let responses_per_second_announce = responses_sent_announce / elapsed;
+        let responses_per_second_scrape = responses_sent_scrape / elapsed;
+        let responses_per_second_error = responses_sent_error / elapsed;
+        let bytes_received_per_second = bytes_received / elapsed;
+        let bytes_sent_per_second = bytes_sent / elapsed;
+
+        let responses_per_second_total = responses_per_second_connect
+            + responses_per_second_announce
+            + responses_per_second_scrape
+            + responses_per_second_error;
+
+        CollectedStatistics {
+            requests_per_second: (requests_per_second as usize).to_formatted_string(&Locale::en),
+            responses_per_second_total: (responses_per_second_total as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_connect: (responses_per_second_connect as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_announce: (responses_per_second_announce as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_scrape: (responses_per_second_scrape as usize)
+                .to_formatted_string(&Locale::en),
+            responses_per_second_error: (responses_per_second_error as usize)
+                .to_formatted_string(&Locale::en),
+            rx_mbits: format!("{:.2}", bytes_received_per_second * 8.0 / 1_000_000.0),
+            tx_mbits: format!("{:.2}", bytes_sent_per_second * 8.0 / 1_000_000.0),
+            num_torrents: num_torrents.to_formatted_string(&Locale::en),
+            num_peers: num_peers.to_formatted_string(&Locale::en),
+            peer_histogram: self.last_complete_histogram.clone(),
+        }
     }
 
     fn sum_atomic_usizes(values: &[AtomicUsize]) -> usize {
@@ -77,21 +98,8 @@ impl StatisticsCollector {
     }
 }
 
-#[derive(Clone, Debug)]
-struct CollectedStatistics {
-    requests_per_second: f64,
-    responses_per_second_connect: f64,
-    responses_per_second_announce: f64,
-    responses_per_second_scrape: f64,
-    responses_per_second_error: f64,
-    bytes_received_per_second: f64,
-    bytes_sent_per_second: f64,
-    num_torrents: usize,
-    num_peers: usize,
-}
-
 #[derive(Clone, Debug, Serialize)]
-pub struct FormattedStatistics {
+pub struct CollectedStatistics {
     pub requests_per_second: String,
     pub responses_per_second_total: String,
     pub responses_per_second_connect: String,
@@ -103,38 +111,6 @@ pub struct FormattedStatistics {
     pub num_torrents: String,
     pub num_peers: String,
     pub peer_histogram: PeerHistogramStatistics,
-}
-
-impl FormattedStatistics {
-    fn new(statistics: CollectedStatistics, peer_histogram: PeerHistogramStatistics) -> Self {
-        let rx_mbits = statistics.bytes_received_per_second * 8.0 / 1_000_000.0;
-        let tx_mbits = statistics.bytes_sent_per_second * 8.0 / 1_000_000.0;
-
-        let responses_per_second_total = statistics.responses_per_second_connect
-            + statistics.responses_per_second_announce
-            + statistics.responses_per_second_scrape
-            + statistics.responses_per_second_error;
-
-        FormattedStatistics {
-            requests_per_second: (statistics.requests_per_second as usize)
-                .to_formatted_string(&Locale::en),
-            responses_per_second_total: (responses_per_second_total as usize)
-                .to_formatted_string(&Locale::en),
-            responses_per_second_connect: (statistics.responses_per_second_connect as usize)
-                .to_formatted_string(&Locale::en),
-            responses_per_second_announce: (statistics.responses_per_second_announce as usize)
-                .to_formatted_string(&Locale::en),
-            responses_per_second_scrape: (statistics.responses_per_second_scrape as usize)
-                .to_formatted_string(&Locale::en),
-            responses_per_second_error: (statistics.responses_per_second_error as usize)
-                .to_formatted_string(&Locale::en),
-            rx_mbits: format!("{:.2}", rx_mbits),
-            tx_mbits: format!("{:.2}", tx_mbits),
-            num_torrents: statistics.num_torrents.to_formatted_string(&Locale::en),
-            num_peers: statistics.num_peers.to_formatted_string(&Locale::en),
-            peer_histogram,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Default)]

@@ -12,7 +12,7 @@ use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 use tinytemplate::TinyTemplate;
 
-use collector::{FormattedStatistics, StatisticsCollector};
+use collector::{CollectedStatistics, StatisticsCollector};
 
 use crate::common::*;
 use crate::config::Config;
@@ -31,8 +31,8 @@ struct TemplateData {
     ipv4_active: bool,
     ipv6_active: bool,
     extended_active: bool,
-    ipv4: FormattedStatistics,
-    ipv6: FormattedStatistics,
+    ipv4: CollectedStatistics,
+    ipv6: CollectedStatistics,
     last_updated: String,
     peer_update_interval: String,
 }
@@ -113,7 +113,7 @@ pub fn run_statistics_worker(
     }
 }
 
-fn print_to_stdout(config: &Config, statistics: &FormattedStatistics) {
+fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
     println!(
         "  bandwidth: {:>7} Mbit/s in, {:7} Mbit/s out",
         statistics.rx_mbits, statistics.tx_mbits,
