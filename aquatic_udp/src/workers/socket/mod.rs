@@ -25,6 +25,24 @@ use crate::config::Config;
 use storage::PendingScrapeResponseSlab;
 use validator::ConnectionValidator;
 
+/// Bytes of data transmitted when sending an IPv4 UDP packet, in addition to payload size
+///
+/// Consists of:
+/// - 8 bit ethernet frame
+/// - 14 + 4 bit MAC header and checksum
+/// - 20 bit IPv4 header
+/// - 8 bit udp header
+const EXTRA_PACKET_SIZE_IPV4: usize = 8 + 18 + 20 + 8;
+
+/// Bytes of data transmitted when sending an IPv4 UDP packet, in addition to payload size
+///
+/// Consists of:
+/// - 8 bit ethernet frame
+/// - 14 + 4 bit MAC header and checksum
+/// - 40 bit IPv6 header
+/// - 8 bit udp header
+const EXTRA_PACKET_SIZE_IPV6: usize = 8 + 18 + 40 + 8;
+
 pub struct SocketWorker {
     config: Config,
     shared_state: State,
@@ -241,12 +259,12 @@ impl SocketWorker {
                         if request_parsable {
                             requests_received_ipv4 += 1;
                         }
-                        bytes_received_ipv4 += bytes_read;
+                        bytes_received_ipv4 += bytes_read + EXTRA_PACKET_SIZE_IPV4;
                     } else {
                         if request_parsable {
                             requests_received_ipv6 += 1;
                         }
-                        bytes_received_ipv6 += bytes_read;
+                        bytes_received_ipv6 += bytes_read + EXTRA_PACKET_SIZE_IPV6;
                     }
                 }
                 Err(err) if err.kind() == ErrorKind::WouldBlock => {
@@ -379,12 +397,22 @@ impl SocketWorker {
         match socket.send_to(&cursor.get_ref()[..bytes_written], addr) {
             Ok(amt) if config.statistics.active() => {
                 let stats = if canonical_addr.is_ipv4() {
-                    &shared_state.statistics_ipv4
-                } else {
-                    &shared_state.statistics_ipv6
-                };
+                    let stats = &shared_state.statistics_ipv4;
 
-                stats.bytes_sent.fetch_add(amt, Ordering::Relaxed);
+                    stats
+                        .bytes_sent
+                        .fetch_add(amt + EXTRA_PACKET_SIZE_IPV4, Ordering::Relaxed);
+
+                    stats
+                } else {
+                    let stats = &shared_state.statistics_ipv6;
+
+                    stats
+                        .bytes_sent
+                        .fetch_add(amt + EXTRA_PACKET_SIZE_IPV6, Ordering::Relaxed);
+
+                    stats
+                };
 
                 match response {
                     Response::Connect(_) => {
