@@ -19,7 +19,7 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.17"
+async-tungstenite = "0.18"
 futures = "0.3"
 futures-rustls = "0.22"
 glommio = "0.7"
