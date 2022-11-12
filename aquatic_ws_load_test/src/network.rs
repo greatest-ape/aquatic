@@ -51,7 +51,7 @@ async fn periodically_open_connections(
             if let Err(err) =
                 Connection::run(config, tls_config, load_test_state, num_active_connections).await
             {
-                eprintln!("connection creation error: {:?}", err);
+                ::log::info!("connection creation error: {:#}", err);
             }
         })
         .detach();
@@ -105,7 +105,7 @@ impl Connection {
         *num_active_connections.borrow_mut() += 1;
 
         if let Err(err) = connection.run_connection_loop().await {
-            eprintln!("connection error: {}", err);
+            ::log::info!("connection error: {:#}", err);
         }
 
         *num_active_connections.borrow_mut() -= 1;
@@ -169,7 +169,7 @@ impl Connection {
                 message
             }
             message => {
-                eprintln!(
+                ::log::warn!(
                     "Received WebSocket message of unexpected type: {:?}",
                     message
                 );
@@ -219,12 +219,12 @@ impl Connection {
                     .responses_error
                     .fetch_add(1, Ordering::SeqCst);
 
-                eprintln!("received error response: {:?}", response.failure_reason);
+                ::log::warn!("received error response: {:?}", response.failure_reason);
 
                 self.can_send = true;
             }
             Err(err) => {
-                eprintln!("error deserializing message: {:?}", err);
+                ::log::error!("error deserializing message: {:#}", err);
             }
         }
 

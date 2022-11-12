@@ -22,14 +22,14 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.17"
+async-tungstenite = "0.18"
 cfg-if = "1"
 either = "1"
 futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.22"
 glommio = "0.7"
-hashbrown = { version = "0.12", features = ["serde"] }
+hashbrown = { version = "0.13", features = ["serde"] }
 httparse = "1"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }

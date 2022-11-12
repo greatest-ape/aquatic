@@ -85,3 +85,9 @@
 
 * Remove peer from swarms immediately when connection is closed
 * Allow peers to use multiple peer IDs, as long as they only use one per info hash
+
+### aquatic_ws_load_test
+
+#### Changed
+
+* Exclusively use TLS 1.3

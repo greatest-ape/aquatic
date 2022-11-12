@@ -29,7 +29,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_address: "127.0.0.1:3000".parse().unwrap(),
-            log_level: LogLevel::Error,
+            log_level: LogLevel::Warn,
             num_workers: 1,
             num_connections_per_worker: 16,
             connection_creation_interval_ms: 10,

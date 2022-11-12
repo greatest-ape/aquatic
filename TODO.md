@@ -33,7 +33,6 @@
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
   * SinkExt::send maybe doesn't wake up properly?
     * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
-  * Consider using simd-json known-key feature
 
 * aquatic_http_private
   * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
@@ -42,8 +41,13 @@
     * check user token length
   * site will likely want num_seeders and num_leechers for all torrents..
 
-* extract_response_peers
-  * don't assume requesting peer is in list?
+* Performance hyperoptimization (receive interrupts on correct core)
+  * If there is no network card RSS support, do eBPF XDP CpuMap redirect based on packet info, to
+    cpus where socket workers run. Support is work in progress in the larger Rust eBPF
+    implementations, but exists in rebpf
+  * Pin socket workers
+  * Set SO_INCOMING_CPU (which should be fixed in very recent Linux?) to currently pinned thread
+  * How does this relate to (currently unused) so_attach_reuseport_cbpf code?
 
 ## Low priority
 
@@ -56,7 +60,6 @@
 * aquatic_ws
   * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
 
-* so_attach_reuseport_cbpf
 * extract response peers: extract "one extra" to compensate for removal,
   of sender if present in selection?
 

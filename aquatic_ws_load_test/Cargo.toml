@@ -19,7 +19,7 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.17"
+async-tungstenite = "0.18"
 futures = "0.3"
 futures-rustls = "0.22"
 glommio = "0.7"
@@ -27,7 +27,7 @@ log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
-rustls = { version = "0.20", features = ["dangerous_configuration"] }
+rustls = { version = "0.20", default-features = false, features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tungstenite = "0.17"
