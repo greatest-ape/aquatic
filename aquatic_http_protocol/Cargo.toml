@@ -38,7 +38,7 @@ smartstring = "1"
 urlencoding = "2"
 
 [dev-dependencies]
-bendy = { version = "0.3", features = ["std", "serde"] }
+bendy = { version = "0.4.0-beta.2", features = ["std", "serde"] }
 criterion = "0.3"
 quickcheck = "1"
 quickcheck_macros = "1"
