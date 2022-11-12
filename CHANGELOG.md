@@ -2,27 +2,14 @@
 
 ## Unreleased
 
-### Added
+### General
 
-#### General
+#### Added
 
 * Add cli flag for printing parsed config
 * Add `aquatic_http_private`, an experiment for integrating with private trackers
 
-#### aquatic_udp
-
-* Add optional response resend buffer for use on on operating systems that
-  don't buffer outgoing UDP traffic
-* Add optional extended statistics
-* Add Dockerfile to make it easier to get started
-
-#### aquatic_ws
-
-* Add HTTP health check route when running without TLS
-
-### Changed
-
-#### General
+#### Changed
 
 * Rename request workers to swarm workers
 * Switch to thin LTO for faster compile times
@@ -36,46 +23,65 @@
 * Quit whole program if any thread panics
 * Update dependencies
 
-#### aquatic_udp
+#### Fixed
+
+* Forbid unrecognized keys when parsing config files
+* Stop including invalid avx512 key in `./scripts/env-native-cpu-without-avx-512`
+
+### aquatic_udp
+
+#### Added
+
+* Add optional response resend buffer for use on on operating systems that
+  don't buffer outgoing UDP traffic
+* Add optional extended statistics (peers per torrent histogram)
+* Add Dockerfile to make it easier to get started
+
+#### Changed
 
 * Replace ConnectionMap with BLAKE3-based connection validator, greatly
   decreasing memory consumtion
 * Don't return any response peers if announce event is stopped
 * Ignore requests with source port value of zero
 
-#### aquatic_http
-
-* Don't return any response peers if announce event is stopped
-
-#### aquatic_ws
-
-* Make TLS optional
-* Support reverse proxies
-* Reduce size of various structs
-
-### Fixed
-
-#### General
-
-* Forbid unrecognized keys when parsing config files
-* Stop including invalid avx512 key in `./scripts/env-native-cpu-without-avx-512`
-
-#### aquatic_udp
+#### Fixed
 
 * When calculating bandwidth statistics, include size of protocol headers
 
-#### aquatic_http_protocol
+### aquatic_http
+
+#### Changed
+
+* Don't return any response peers if announce event is stopped
+
+### aquatic_http_protocol
+
+#### Fixed
 
 * Explicity check for /scrape path
 * Return NeedMoreData until headers are fully parsed
 * Fix issues with ScrapeRequest::write and AnnounceRequest::write
 * Expose write and parse methods for subtypes
 
-#### aquatic_http_load_test
+### aquatic_http_load_test
+
+#### Changed
 
 * Exclusively use TLS 1.3
 
-#### aquatic_ws
+### aquatic_ws
+
+#### Added
+
+* Add HTTP health check route when running without TLS
+
+#### Changed
+
+* Make TLS optional
+* Support reverse proxies
+* Reduce size of various structs
+
+#### Fixed
 
 * Remove peer from swarms immediately when connection is closed
 * Allow peers to use multiple peer IDs, as long as they only use one per info hash
