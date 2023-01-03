@@ -430,7 +430,9 @@ async fn run_stream_agnostic_connection<
     .unwrap()
     .detach();
 
-    race(reader_handle, writer_handle).await.unwrap()
+    race(reader_handle, writer_handle)
+        .await
+        .expect("reader/writer task should not be closed")
 }
 
 struct ConnectionReader<S> {
