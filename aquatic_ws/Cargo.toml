@@ -22,7 +22,7 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.18"
+async-tungstenite = "0.19"
 cfg-if = "1"
 either = "1"
 futures = "0.3"
@@ -41,7 +41,7 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 socket2 = { version = "0.4", features = ["all"] }
-tungstenite = "0.17"
+tungstenite = "0.18"
 
 [dev-dependencies]
 quickcheck = "1"
