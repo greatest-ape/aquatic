@@ -455,7 +455,11 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                 yield_if_needed().await;
             }
 
-            let message = self.ws_in.next().await.unwrap()?;
+            let message = self
+                .ws_in
+                .next()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("Stream ended"))??;
 
             match InMessage::from_ws_message(message) {
                 Ok(in_message) => {
