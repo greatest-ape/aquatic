@@ -430,9 +430,7 @@ async fn run_stream_agnostic_connection<
     .unwrap()
     .detach();
 
-    race(reader_handle, writer_handle)
-        .await
-        .expect("reader/writer task should not be closed")
+    race(reader_handle, writer_handle).await.unwrap()
 }
 
 struct ConnectionReader<S> {
@@ -457,11 +455,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                 yield_if_needed().await;
             }
 
-            let message = self
-                .ws_in
-                .next()
-                .await
-                .ok_or_else(|| anyhow::anyhow!("Stream ended"))??;
+            let message = self.ws_in.next().await.unwrap()?;
 
             match InMessage::from_ws_message(message) {
                 Ok(in_message) => {
