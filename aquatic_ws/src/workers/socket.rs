@@ -432,7 +432,7 @@ async fn run_stream_agnostic_connection<
 
     race(reader_handle, writer_handle)
         .await
-        .expect("reader/writer task should not be closed")
+        .ok_or_else(|| anyhow::anyhow!("reader/writer task closed"))?
 }
 
 struct ConnectionReader<S> {
