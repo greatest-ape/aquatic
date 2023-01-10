@@ -463,15 +463,34 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                 .await
                 .ok_or_else(|| anyhow::anyhow!("Stream ended"))??;
 
-            match InMessage::from_ws_message(message) {
-                Ok(in_message) => {
-                    self.handle_in_message(in_message).await?;
-                }
-                Err(err) => {
-                    ::log::debug!("Couldn't parse in_message: {:?}", err);
+            match &message {
+                tungstenite::Message::Text(_) | tungstenite::Message::Binary(_) => {
+                    match InMessage::from_ws_message(message) {
+                        Ok(in_message) => {
+                            self.handle_in_message(in_message).await?;
+                        }
+                        Err(err) => {
+                            ::log::debug!("Couldn't parse in_message: {:?}", err);
 
-                    self.send_error_response("Invalid request".into(), None, None)
-                        .await?;
+                            self.send_error_response("Invalid request".into(), None, None)
+                                .await?;
+                        }
+                    }
+                }
+                tungstenite::Message::Ping(_) => {
+                    ::log::trace!("Received ping message");
+                    // tungstenite sends a pong response by itself
+                }
+                tungstenite::Message::Pong(_) => {
+                    ::log::trace!("Received pong message");
+                }
+                tungstenite::Message::Close(_) => {
+                    ::log::debug!("Client sent close frame");
+
+                    break Ok(());
+                }
+                tungstenite::Message::Frame(_) => {
+                    ::log::warn!("Read raw websocket frame, this should not happen");
                 }
             }
 
