@@ -31,7 +31,6 @@ httparse = "1"
 itoa = "1"
 log = "0.4"
 memchr = "2"
-rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
 serde_bencode = "0.2"
 smartstring = "1"
