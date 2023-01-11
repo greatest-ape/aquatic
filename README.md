@@ -80,15 +80,12 @@ that you want to use. Recommended proportions:
 <table>
  <tr>
   <td></td>
-  <th colspan="4">aquatic_udp</th>
+  <th colspan="1">aquatic_udp</th>
   <th colspan="3">aquatic_ws</th>
  </tr>
  <tr>
   <th scope="row">CPU cores</th>
-  <td>2-5</td>
-  <td>6-9</td>
-  <td>10-15</td>
-  <td>>=16</td>
+  <td>N</td>
   <td>2-11</td>
   <td>12-19</td>
   <td>>=20</td>
@@ -96,19 +93,13 @@ that you want to use. Recommended proportions:
  <tr>
   <th scope="row">Swarm workers</th>
   <td>1</td>
-  <td>2</td>
-  <td>3</td>
-  <td>4</td>
   <td>1</td>
   <td>2</td>
   <td>3</td>
  </tr>
  <tr>
   <th scope="row">Socket workers</th>
-  <td>1-4</td>
-  <td>4-7</td>
-  <td>7-12</td>
-  <td>>=12</td>
+  <td>N-1</td>
   <td>1-10</td>
   <td>10-17</td>
   <td>>=17</td>
@@ -180,9 +171,9 @@ This is the most mature of the implementations. I consider it ready for producti
 
 #### Performance
 
-![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-28.png)
+![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2023-01-11.png)
 
-More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.pdf). Please note that request workers have been renamed to swarm workers.
+More details are available [here](./documents/aquatic-udp-load-test-2023-01-11.pdf).
 
 #### Optimisation attempts that didn't work out
 
