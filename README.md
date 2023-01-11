@@ -92,14 +92,14 @@ that you want to use. Recommended proportions:
  </tr>
  <tr>
   <th scope="row">Swarm workers</th>
-  <td>N-1</td>
+  <td>1</td>
   <td>1</td>
   <td>2</td>
   <td>3</td>
  </tr>
  <tr>
   <th scope="row">Socket workers</th>
-  <td>1</td>
+  <td>N-1</td>
   <td>1-10</td>
   <td>10-17</td>
   <td>>=17</td>
