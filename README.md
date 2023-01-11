@@ -180,9 +180,9 @@ This is the most mature of the implementations. I consider it ready for producti
 
 #### Performance
 
-![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2021-11-28.png)
+![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2023-01-11.png)
 
-More details are available [here](./documents/aquatic-udp-load-test-2021-11-28.pdf). Please note that request workers have been renamed to swarm workers.
+More details are available [here](./documents/aquatic-udp-load-test-2023-01-11.pdf).
 
 #### Optimisation attempts that didn't work out
 
