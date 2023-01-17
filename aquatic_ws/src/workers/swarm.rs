@@ -58,7 +58,6 @@ type PeerMap = IndexMap<PeerId, Peer>;
 struct TorrentData {
     pub peers: PeerMap,
     pub num_seeders: usize,
-    pub num_leechers: usize,
 }
 
 impl Default for TorrentData {
@@ -67,7 +66,6 @@ impl Default for TorrentData {
         Self {
             peers: Default::default(),
             num_seeders: 0,
-            num_leechers: 0,
         }
     }
 }
@@ -77,10 +75,12 @@ impl TorrentData {
         if let Some(peer) = self.peers.remove(&peer_id) {
             if peer.seeder {
                 self.num_seeders -= 1;
-            } else {
-                self.num_leechers -= 1;
             }
         }
+    }
+
+    pub fn num_leechers(&self) -> usize {
+        self.peers.len() - self.num_seeders
     }
 }
 
@@ -102,8 +102,8 @@ impl TorrentMaps {
         let mut access_list_cache = create_access_list_cache(access_list);
         let now = server_start_instant.seconds_elapsed();
 
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4, now);
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6, now);
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4, now, "4");
+        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6, now, "6");
     }
 
     fn clean_torrent_map(
@@ -111,7 +111,10 @@ impl TorrentMaps {
         access_list_cache: &mut AccessListCache,
         torrent_map: &mut TorrentMap,
         now: SecondsSinceServerStart,
+        ip_version: &'static str,
     ) {
+        let mut total_num_peers = 0u64;
+
         torrent_map.retain(|info_hash, torrent_data| {
             if !access_list_cache
                 .load()
@@ -121,26 +124,28 @@ impl TorrentMaps {
             }
 
             let num_seeders = &mut torrent_data.num_seeders;
-            let num_leechers = &mut torrent_data.num_leechers;
 
             torrent_data.peers.retain(|_, peer| {
                 let keep = peer.valid_until.valid(now);
 
-                if !keep {
-                    if peer.seeder {
-                        *num_seeders -= 1;
-                    } else {
-                        *num_leechers -= 1;
-                    }
+                if (!keep) & peer.seeder {
+                    *num_seeders -= 1;
                 }
 
                 keep
             });
 
+            total_num_peers += torrent_data.peers.len() as u64;
+
             !torrent_data.peers.is_empty()
         });
 
         torrent_map.shrink_to_fit();
+
+        let total_num_peers = total_num_peers as f64;
+
+        #[cfg(feature = "metrics")]
+        ::metrics::gauge!("aquatic_peers", total_num_peers, "ip_version" => ip_version);
     }
 }
 
@@ -172,6 +177,27 @@ pub async fn run_swarm_worker(
             torrents.borrow_mut().clean(&config, &access_list, server_start_instant);
 
             Some(Duration::from_secs(config.cleaning.torrent_cleaning_interval))
+        })()
+    }));
+
+    // Periodically update torrent count metrics
+    #[cfg(feature = "metrics")]
+    TimerActionRepeat::repeat(enclose!((config, torrents) move || {
+        enclose!((config, torrents) move || async move {
+            let torrents = torrents.borrow_mut();
+
+            ::metrics::gauge!(
+                "aquatic_torrents",
+                torrents.ipv4.len() as f64,
+                "ip_version" => "4"
+            );
+            ::metrics::gauge!(
+                "aquatic_torrents",
+                torrents.ipv6.len() as f64,
+                "ip_version" => "6"
+            );
+
+            Some(Duration::from_secs(config.metrics.torrent_count_update_interval))
         })()
     }));
 
@@ -307,11 +333,12 @@ fn handle_announce_request(
     request_sender_meta: InMessageMeta,
     request: AnnounceRequest,
 ) {
-    let torrent_data: &mut TorrentData = if let IpVersion::V4 = request_sender_meta.ip_version {
-        torrent_maps.ipv4.entry(request.info_hash).or_default()
-    } else {
-        torrent_maps.ipv6.entry(request.info_hash).or_default()
-    };
+    let (torrent_data, ip_version): (&mut TorrentData, &'static str) =
+        if let IpVersion::V4 = request_sender_meta.ip_version {
+            (torrent_maps.ipv4.entry(request.info_hash).or_default(), "4")
+        } else {
+            (torrent_maps.ipv6.entry(request.info_hash).or_default(), "6")
+        };
 
     // If there is already a peer with this peer_id, check that connection id
     // is same as that of request sender. Otherwise, ignore request. Since
@@ -334,8 +361,6 @@ fn handle_announce_request(
 
         let opt_removed_peer = match peer_status {
             PeerStatus::Leeching => {
-                torrent_data.num_leechers += 1;
-
                 let peer = Peer {
                     connection_id: request_sender_meta.connection_id,
                     consumer_id: request_sender_meta.out_message_consumer_id,
@@ -360,14 +385,13 @@ fn handle_announce_request(
             PeerStatus::Stopped => torrent_data.peers.remove(&request.peer_id),
         };
 
-        match opt_removed_peer.map(|peer| peer.seeder) {
-            Some(false) => {
-                torrent_data.num_leechers -= 1;
-            }
-            Some(true) => {
+        if let Some(removed_peer) = opt_removed_peer {
+            if removed_peer.seeder {
                 torrent_data.num_seeders -= 1;
             }
-            _ => {}
+        } else {
+            #[cfg(feature = "metrics")]
+            ::metrics::increment_gauge!("aquatic_peers", 1.0, "ip_version" => ip_version);
         }
     }
 
@@ -437,7 +461,7 @@ fn handle_announce_request(
         action: AnnounceAction,
         info_hash: request.info_hash,
         complete: torrent_data.num_seeders,
-        incomplete: torrent_data.num_leechers,
+        incomplete: torrent_data.num_leechers(),
         announce_interval: config.protocol.peer_announce_interval,
     });
 
@@ -475,7 +499,7 @@ fn handle_scrape_request(
             let stats = ScrapeStatistics {
                 complete: torrent_data.num_seeders,
                 downloaded: 0, // No implementation planned
-                incomplete: torrent_data.num_leechers,
+                incomplete: torrent_data.num_leechers(),
             };
 
             out_message.files.insert(info_hash, stats);

@@ -232,6 +232,29 @@ proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
 
 More details are available [here](./documents/aquatic-ws-load-test-2022-03-29.pdf). Please note that request workers have been renamed to swarm workers.
 
+#### Prometheus
+
+`aquatic_ws` supports exporting [Prometheus](https://prometheus.io/) metrics.
+
+Pass the `prometheus` feature when building:
+
+```sh
+. ./scripts/env-native-cpu-without-avx-512
+cargo build --release -p aquatic_ws --features "prometheus"
+```
+
+Then activate the prometheus endpoint in the configuration file:
+
+```toml
+[metrics]
+# Run a prometheus endpoint
+run_prometheus_endpoint = true
+# Address to run prometheus endpoint on
+prometheus_endpoint_address = "0.0.0.0:9000"
+# Update metrics for torrent count this often (seconds)
+torrent_count_update_interval = 10
+```
+
 ## Load testing
 
 There are load test binaries for all protocols. They use a CLI structure
