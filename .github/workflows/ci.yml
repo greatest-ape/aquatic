@@ -29,7 +29,7 @@ jobs:
       run: |
         cargo build --verbose -p aquatic_udp --features "cpu-pinning"
         cargo build --verbose -p aquatic_http
-        cargo build --verbose -p aquatic_ws
+        cargo build --verbose -p aquatic_ws --features "prometheus"
 
   build-macos:
     runs-on: macos-latest
