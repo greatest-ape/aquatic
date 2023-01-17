@@ -154,6 +154,8 @@ pub struct MetricsConfig {
     pub run_prometheus_endpoint: bool,
     /// Address to run prometheus endpoint on
     pub prometheus_endpoint_address: SocketAddr,
+    /// Update metrics for torrent count this often, in seconds
+    pub torrent_count_update_interval: u64,
 }
 
 #[cfg(feature = "metrics")]
@@ -162,6 +164,7 @@ impl Default for MetricsConfig {
         Self {
             run_prometheus_endpoint: false,
             prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
+            torrent_count_update_interval: 10,
         }
     }
 }

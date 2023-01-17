@@ -180,6 +180,27 @@ pub async fn run_swarm_worker(
         })()
     }));
 
+    // Periodically update torrent count metrics
+    #[cfg(feature = "metrics")]
+    TimerActionRepeat::repeat(enclose!((config, torrents) move || {
+        enclose!((config, torrents) move || async move {
+            let torrents = torrents.borrow_mut();
+
+            ::metrics::gauge!(
+                "aquatic_torrents",
+                torrents.ipv4.len() as f64,
+                "ip_version" => "4"
+            );
+            ::metrics::gauge!(
+                "aquatic_torrents",
+                torrents.ipv6.len() as f64,
+                "ip_version" => "6"
+            );
+
+            Some(Duration::from_secs(config.metrics.torrent_count_update_interval))
+        })()
+    }));
+
     let mut handles = Vec::new();
 
     for (_, receiver) in control_message_receivers.streams() {
