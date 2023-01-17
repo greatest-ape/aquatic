@@ -35,6 +35,21 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
+    #[cfg(feature = "prometheus")]
+    if config.metrics.run_prometheus_endpoint {
+        use metrics_exporter_prometheus::PrometheusBuilder;
+
+        PrometheusBuilder::new()
+            .with_http_listener(config.metrics.prometheus_endpoint_address)
+            .install()
+            .with_context(|| {
+                format!(
+                    "Install prometheus endpoint on {}",
+                    config.metrics.prometheus_endpoint_address
+                )
+            })?;
+    }
+
     let state = State::default();
 
     update_access_list(&config.access_list, &state.access_list)?;

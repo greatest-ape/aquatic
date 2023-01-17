@@ -28,6 +28,8 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
+    #[cfg(feature = "metrics")]
+    pub metrics: MetricsConfig,
     pub cpu_pinning: CpuPinningConfigAsc,
 }
 
@@ -42,6 +44,8 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
+            #[cfg(feature = "metrics")]
+            metrics: Default::default(),
             cpu_pinning: Default::default(),
         }
     }
@@ -139,6 +143,33 @@ impl Default for CleaningConfig {
             max_connection_idle: 60 * 5,
             connection_cleaning_interval: 30,
         }
+    }
+}
+
+#[cfg(feature = "metrics")]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MetricsConfig {
+    /// Run a prometheus endpoint
+    pub run_prometheus_endpoint: bool,
+    /// Address to run prometheus endpoint on
+    pub prometheus_endpoint_address: SocketAddr,
+}
+
+#[cfg(feature = "metrics")]
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        Self {
+            run_prometheus_endpoint: false,
+            prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
+        }
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl MetricsConfig {
+    pub fn active(&self) -> bool {
+        self.run_prometheus_endpoint
     }
 }
 

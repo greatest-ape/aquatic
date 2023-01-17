@@ -16,6 +16,10 @@ name = "aquatic_ws"
 [[bin]]
 name = "aquatic_ws"
 
+[features]
+prometheus = ["metrics", "metrics-exporter-prometheus"]
+metrics = ["dep:metrics"]
+
 [dependencies]
 aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
 aquatic_toml_config.workspace = true
@@ -31,6 +35,8 @@ glommio = "0.7"
 hashbrown = { version = "0.13", features = ["serde"] }
 httparse = "1"
 log = "0.4"
+metrics = { version = "0.20", optional = true }
+metrics-exporter-prometheus = { version = "0.11", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }

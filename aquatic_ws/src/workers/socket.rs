@@ -152,6 +152,9 @@ pub async fn run_socket_worker(
                 ::log::trace!("accepting stream, assigning id {}", key);
 
                 let task_handle = spawn_local_into(enclose!((config, access_list, control_message_senders, in_message_senders, connection_slab, opt_tls_config) async move {
+                    #[cfg(feature = "metrics")]
+                    ::metrics::increment_gauge!("aquatic_active_connections", 1.0);
+
                     if let Err(err) = run_connection(
                         config.clone(),
                         access_list,
@@ -172,6 +175,9 @@ pub async fn run_socket_worker(
                     }
 
                     // Clean up after closed connection
+
+                    #[cfg(feature = "metrics")]
+                    ::metrics::decrement_gauge!("aquatic_active_connections", 1.0);
 
                     // Remove reference in separate statement to avoid
                     // multiple RefCell borrows
@@ -501,6 +507,9 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
     async fn handle_in_message(&mut self, in_message: InMessage) -> anyhow::Result<()> {
         match in_message {
             InMessage::AnnounceRequest(announce_request) => {
+                #[cfg(feature = "metrics")]
+                ::metrics::increment_counter!("aquatic_requests_total", "type" => "announce");
+
                 let info_hash = announce_request.info_hash;
 
                 if self
@@ -571,6 +580,9 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                 }
             }
             InMessage::ScrapeRequest(ScrapeRequest { info_hashes, .. }) => {
+                #[cfg(feature = "metrics")]
+                ::metrics::increment_counter!("aquatic_requests_total", "type" => "scrape");
+
                 let info_hashes = if let Some(info_hashes) = info_hashes {
                     info_hashes
                 } else {
@@ -642,10 +654,18 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
             info_hash,
         });
 
-        self.out_message_sender
+        let result = self
+            .out_message_sender
             .send((self.make_connection_meta(None).into(), out_message))
             .await
-            .map_err(|err| anyhow::anyhow!("ConnectionReader::send_error_response failed: {}", err))
+            .map_err(|err| {
+                anyhow::anyhow!("ConnectionReader::send_error_response failed: {}", err)
+            });
+
+        #[cfg(feature = "metrics")]
+        ::metrics::increment_counter!("aquatic_responses_total", "type" => "error");
+
+        result
     }
 
     fn make_connection_meta(&self, pending_scrape_id: Option<PendingScrapeId>) -> InMessageMeta {
@@ -728,6 +748,18 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
 
         match result {
             Ok(Ok(())) => {
+                #[cfg(feature = "metrics")]
+                let out_message_type = match &out_message {
+                    OutMessage::Offer(_) => "offer",
+                    OutMessage::Answer(_) => "offer_answer",
+                    OutMessage::AnnounceResponse(_) => "announce",
+                    OutMessage::ScrapeResponse(_) => "scrape",
+                    OutMessage::ErrorResponse(_) => "error",
+                };
+
+                #[cfg(feature = "metrics")]
+                ::metrics::increment_counter!("aquatic_responses_total", "type" => out_message_type);
+
                 self.connection_slab
                     .borrow_mut()
                     .get_mut(self.connection_id.0)
