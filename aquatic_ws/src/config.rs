@@ -169,13 +169,6 @@ impl Default for MetricsConfig {
     }
 }
 
-#[cfg(feature = "metrics")]
-impl MetricsConfig {
-    pub fn active(&self) -> bool {
-        self.run_prometheus_endpoint
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::Config;
