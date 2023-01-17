@@ -154,7 +154,7 @@ pub struct MetricsConfig {
     pub run_prometheus_endpoint: bool,
     /// Address to run prometheus endpoint on
     pub prometheus_endpoint_address: SocketAddr,
-    /// Update metrics for torrent count this often, in seconds
+    /// Update metrics for torrent count this often (seconds)
     pub torrent_count_update_interval: u64,
 }
 
