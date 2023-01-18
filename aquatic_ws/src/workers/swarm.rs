@@ -22,6 +22,9 @@ use crate::common::*;
 use crate::config::Config;
 use crate::SHARED_IN_CHANNEL_SIZE;
 
+#[cfg(feature = "metrics")]
+thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
+
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum PeerStatus {
     Seeding,
@@ -145,7 +148,12 @@ impl TorrentMaps {
         let total_num_peers = total_num_peers as f64;
 
         #[cfg(feature = "metrics")]
-        ::metrics::gauge!("aquatic_peers", total_num_peers, "ip_version" => ip_version);
+        ::metrics::gauge!(
+            "aquatic_peers",
+            total_num_peers,
+            "ip_version" => ip_version,
+            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+        );
     }
 }
 
@@ -157,7 +165,11 @@ pub async fn run_swarm_worker(
     in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
     server_start_instant: ServerStartInstant,
+    worker_index: usize,
 ) {
+    #[cfg(feature = "metrics")]
+    WORKER_INDEX.with(|index| index.set(worker_index));
+
     let (_, mut control_message_receivers) = control_message_mesh_builder
         .join(Role::Consumer)
         .await
@@ -189,12 +201,14 @@ pub async fn run_swarm_worker(
             ::metrics::gauge!(
                 "aquatic_torrents",
                 torrents.ipv4.len() as f64,
-                "ip_version" => "4"
+                "ip_version" => "4",
+                "worker_index" => worker_index.to_string(),
             );
             ::metrics::gauge!(
                 "aquatic_torrents",
                 torrents.ipv6.len() as f64,
-                "ip_version" => "6"
+                "ip_version" => "6",
+                "worker_index" => worker_index.to_string(),
             );
 
             Some(Duration::from_secs(config.metrics.torrent_count_update_interval))
@@ -392,10 +406,20 @@ fn handle_announce_request(
         #[cfg(feature = "metrics")]
         match peer_status {
             PeerStatus::Stopped if opt_removed_peer.is_some() => {
-                ::metrics::decrement_gauge!("aquatic_peers", 1.0, "ip_version" => ip_version);
+                ::metrics::decrement_gauge!(
+                    "aquatic_peers",
+                    1.0,
+                    "ip_version" => ip_version,
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+                );
             }
             PeerStatus::Leeching | PeerStatus::Seeding if opt_removed_peer.is_none() => {
-                ::metrics::increment_gauge!("aquatic_peers", 1.0, "ip_version" => ip_version);
+                ::metrics::increment_gauge!(
+                    "aquatic_peers",
+                    1.0,
+                    "ip_version" => ip_version,
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+                );
             }
             _ => {}
         }

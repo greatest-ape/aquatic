@@ -34,6 +34,9 @@ use crate::common::*;
 
 const LOCAL_CHANNEL_SIZE: usize = 16;
 
+#[cfg(feature = "metrics")]
+thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
+
 struct PendingScrapeResponse {
     pending_worker_out_messages: usize,
     stats: HashMap<InfoHash, ScrapeStatistics>,
@@ -60,7 +63,11 @@ pub async fn run_socket_worker(
     out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
     priv_dropper: PrivilegeDropper,
     server_start_instant: ServerStartInstant,
+    worker_index: usize,
 ) {
+    #[cfg(feature = "metrics")]
+    WORKER_INDEX.with(|index| index.set(worker_index));
+
     let config = Rc::new(config);
     let access_list = state.access_list;
 
@@ -156,7 +163,8 @@ pub async fn run_socket_worker(
                     ::metrics::increment_gauge!(
                         "aquatic_active_connections",
                         1.0,
-                        "ip_version" => ip_version_to_metrics_str(ip_version)
+                        "ip_version" => ip_version_to_metrics_str(ip_version),
+                        "worker_index" => worker_index.to_string(),
                     );
 
                     if let Err(err) = run_connection(
@@ -184,7 +192,8 @@ pub async fn run_socket_worker(
                     ::metrics::decrement_gauge!(
                         "aquatic_active_connections",
                         1.0,
-                        "ip_version" => ip_version_to_metrics_str(ip_version)
+                        "ip_version" => ip_version_to_metrics_str(ip_version),
+                        "worker_index" => worker_index.to_string(),
                     );
 
                     // Remove reference in separate statement to avoid
@@ -520,7 +529,8 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                 ::metrics::increment_counter!(
                     "aquatic_requests_total",
                     "type" => "announce",
-                    "ip_version" => ip_version_to_metrics_str(self.ip_version)
+                    "ip_version" => ip_version_to_metrics_str(self.ip_version),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
                 );
 
                 let info_hash = announce_request.info_hash;
@@ -597,7 +607,8 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                 ::metrics::increment_counter!(
                     "aquatic_requests_total",
                     "type" => "scrape",
-                    "ip_version" => ip_version_to_metrics_str(self.ip_version)
+                    "ip_version" => ip_version_to_metrics_str(self.ip_version),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
                 );
 
                 let info_hashes = if let Some(info_hashes) = info_hashes {
@@ -681,9 +692,10 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
         #[cfg(feature = "metrics")]
         ::metrics::increment_counter!(
-            "aquatic_requests_total",
+            "aquatic_responses_total",
             "type" => "error",
-            "ip_version" => ip_version_to_metrics_str(self.ip_version)
+            "ip_version" => ip_version_to_metrics_str(self.ip_version),
+            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
         );
 
         result
@@ -784,6 +796,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                         "aquatic_responses_total",
                         "type" => out_message_type,
                         "ip_version" => ip_version_to_metrics_str(self.ip_version),
+                        "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
                     );
                 }
 
