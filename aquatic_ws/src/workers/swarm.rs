@@ -385,13 +385,19 @@ fn handle_announce_request(
             PeerStatus::Stopped => torrent_data.peers.remove(&request.peer_id),
         };
 
-        if let Some(removed_peer) = opt_removed_peer {
-            if removed_peer.seeder {
-                torrent_data.num_seeders -= 1;
+        if let Some(&Peer { seeder: true, .. }) = opt_removed_peer.as_ref() {
+            torrent_data.num_seeders -= 1;
+        }
+
+        #[cfg(feature = "metrics")]
+        match peer_status {
+            PeerStatus::Stopped if opt_removed_peer.is_some() => {
+                ::metrics::decrement_gauge!("aquatic_peers", 1.0, "ip_version" => ip_version);
             }
-        } else {
-            #[cfg(feature = "metrics")]
-            ::metrics::increment_gauge!("aquatic_peers", 1.0, "ip_version" => ip_version);
+            PeerStatus::Leeching | PeerStatus::Seeding if opt_removed_peer.is_none() => {
+                ::metrics::increment_gauge!("aquatic_peers", 1.0, "ip_version" => ip_version);
+            }
+            _ => {}
         }
     }
 
