@@ -818,7 +818,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
             }
             Ok(Err(err)) => Err(err.into()),
             Err(err) => {
-                ::log::debug!("send_out_message: sending to peer took to long: {}", err);
+                ::log::debug!("send_out_message: sending to peer took too long: {}", err);
 
                 Ok(())
             }
