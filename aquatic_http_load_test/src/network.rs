@@ -230,6 +230,11 @@ impl Connection {
                             }
                         }
 
+                        self.load_test_state
+                            .statistics
+                            .bytes_received
+                            .fetch_add(interesting_bytes.len(), Ordering::Relaxed);
+
                         break;
                     }
                     Err(err) => {
