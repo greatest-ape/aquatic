@@ -27,10 +27,26 @@ use aquatic_http_protocol::response::*;
 use crate::common::*;
 use crate::config::Config;
 
-pub trait Ip: ::std::fmt::Debug + Copy + Eq + ::std::hash::Hash {}
+#[cfg(feature = "metrics")]
+thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
 
-impl Ip for Ipv4Addr {}
-impl Ip for Ipv6Addr {}
+pub trait Ip: ::std::fmt::Debug + Copy + Eq + ::std::hash::Hash {
+    #[cfg(feature = "metrics")]
+    fn ip_version_str() -> &'static str;
+}
+
+impl Ip for Ipv4Addr {
+    #[cfg(feature = "metrics")]
+    fn ip_version_str() -> &'static str {
+        "4"
+    }
+}
+impl Ip for Ipv6Addr {
+    #[cfg(feature = "metrics")]
+    fn ip_version_str() -> &'static str {
+        "6"
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum PeerStatus {
@@ -59,8 +75,8 @@ impl PeerStatus {
 pub struct Peer<I: Ip> {
     pub ip_address: I,
     pub port: u16,
-    pub status: PeerStatus,
     pub valid_until: ValidUntil,
+    pub seeder: bool,
 }
 
 impl<I: Ip> Peer<I> {
@@ -83,7 +99,6 @@ pub type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
 pub struct TorrentData<I: Ip> {
     pub peers: PeerMap<I>,
     pub num_seeders: usize,
-    pub num_leechers: usize,
 }
 
 impl<I: Ip> Default for TorrentData<I> {
@@ -92,8 +107,13 @@ impl<I: Ip> Default for TorrentData<I> {
         Self {
             peers: Default::default(),
             num_seeders: 0,
-            num_leechers: 0,
         }
+    }
+}
+
+impl<I: Ip> TorrentData<I> {
+    fn num_leechers(&self) -> usize {
+        self.peers.len() - self.num_seeders
     }
 }
 
@@ -126,6 +146,8 @@ impl TorrentMaps {
         torrent_map: &mut TorrentMap<I>,
         now: SecondsSinceServerStart,
     ) {
+        let mut total_num_peers = 0;
+
         torrent_map.retain(|info_hash, torrent_data| {
             if !access_list_cache
                 .load()
@@ -135,28 +157,31 @@ impl TorrentMaps {
             }
 
             let num_seeders = &mut torrent_data.num_seeders;
-            let num_leechers = &mut torrent_data.num_leechers;
 
             torrent_data.peers.retain(|_, peer| {
                 let keep = peer.valid_until.valid(now);
 
-                if !keep {
-                    match peer.status {
-                        PeerStatus::Seeding => {
-                            *num_seeders -= 1;
-                        }
-                        PeerStatus::Leeching => {
-                            *num_leechers -= 1;
-                        }
-                        _ => (),
-                    };
+                if (!keep) & peer.seeder {
+                    *num_seeders -= 1;
                 }
 
                 keep
             });
 
+            total_num_peers += torrent_data.peers.len() as u64;
+
             !torrent_data.peers.is_empty()
         });
+
+        let total_num_peers = total_num_peers as f64;
+
+        #[cfg(feature = "metrics")]
+        ::metrics::gauge!(
+            "aquatic_peers",
+            total_num_peers,
+            "ip_version" => I::ip_version_str(),
+            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+        );
 
         torrent_map.shrink_to_fit();
     }
@@ -168,7 +193,11 @@ pub async fn run_swarm_worker(
     state: State,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     server_start_instant: ServerStartInstant,
+    worker_index: usize,
 ) {
+    #[cfg(feature = "metrics")]
+    WORKER_INDEX.with(|index| index.set(worker_index));
+
     let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
 
     let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
@@ -195,6 +224,29 @@ pub async fn run_swarm_worker(
             *peer_valid_until.borrow_mut() = ValidUntil::new(server_start_instant, max_peer_age);
 
             Some(Duration::from_secs(1))
+        })()
+    }));
+
+    // Periodically update torrent count metrics
+    #[cfg(feature = "metrics")]
+    TimerActionRepeat::repeat(enclose!((config, torrents) move || {
+        enclose!((config, torrents, worker_index) move || async move {
+            let torrents = torrents.borrow_mut();
+
+            ::metrics::gauge!(
+                "aquatic_torrents",
+                torrents.ipv4.len() as f64,
+                "ip_version" => "4",
+                "worker_index" => worker_index.to_string(),
+            );
+            ::metrics::gauge!(
+                "aquatic_torrents",
+                torrents.ipv6.len() as f64,
+                "ip_version" => "6",
+                "worker_index" => worker_index.to_string(),
+            );
+
+            Some(Duration::from_secs(config.metrics.torrent_count_update_interval))
         })()
     }));
 
@@ -337,13 +389,6 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
     let peer_status =
         PeerStatus::from_event_and_bytes_left(request.event, Some(request.bytes_left));
 
-    let peer = Peer {
-        ip_address: peer_ip_address,
-        port: request.port,
-        status: peer_status,
-        valid_until,
-    };
-
     let ip_or_key = request
         .key
         .map(Either::Right)
@@ -356,24 +401,51 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
 
     let opt_removed_peer = match peer_status {
         PeerStatus::Leeching => {
-            torrent_data.num_leechers += 1;
+            let peer = Peer {
+                ip_address: peer_ip_address,
+                port: request.port,
+                valid_until,
+                seeder: false,
+            };
 
             torrent_data.peers.insert(peer_map_key.clone(), peer)
         }
         PeerStatus::Seeding => {
             torrent_data.num_seeders += 1;
 
+            let peer = Peer {
+                ip_address: peer_ip_address,
+                port: request.port,
+                valid_until,
+                seeder: true,
+            };
+
             torrent_data.peers.insert(peer_map_key.clone(), peer)
         }
         PeerStatus::Stopped => torrent_data.peers.remove(&peer_map_key),
     };
 
-    match opt_removed_peer.map(|peer| peer.status) {
-        Some(PeerStatus::Leeching) => {
-            torrent_data.num_leechers -= 1;
+    if let Some(&Peer { seeder: true, .. }) = opt_removed_peer.as_ref() {
+        torrent_data.num_seeders -= 1;
+    }
+
+    #[cfg(feature = "metrics")]
+    match peer_status {
+        PeerStatus::Stopped if opt_removed_peer.is_some() => {
+            ::metrics::decrement_gauge!(
+                "aquatic_peers",
+                1.0,
+                "ip_version" => I::ip_version_str(),
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+            );
         }
-        Some(PeerStatus::Seeding) => {
-            torrent_data.num_seeders -= 1;
+        PeerStatus::Leeching | PeerStatus::Seeding if opt_removed_peer.is_none() => {
+            ::metrics::increment_gauge!(
+                "aquatic_peers",
+                1.0,
+                "ip_version" => I::ip_version_str(),
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+            );
         }
         _ => {}
     }
@@ -397,7 +469,7 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
 
     (
         torrent_data.num_seeders,
-        torrent_data.num_leechers,
+        torrent_data.num_leechers(),
         response_peers,
     )
 }
@@ -427,7 +499,7 @@ pub fn handle_scrape_request(
                 let stats = ScrapeStatistics {
                     complete: torrent_data.num_seeders,
                     downloaded: 0, // No implementation planned
-                    incomplete: torrent_data.num_leechers,
+                    incomplete: torrent_data.num_leechers(),
                 };
 
                 response.files.insert(info_hash, stats);
@@ -439,7 +511,7 @@ pub fn handle_scrape_request(
                 let stats = ScrapeStatistics {
                     complete: torrent_data.num_seeders,
                     downloaded: 0, // No implementation planned
-                    incomplete: torrent_data.num_leechers,
+                    incomplete: torrent_data.num_leechers(),
                 };
 
                 response.files.insert(info_hash, stats);

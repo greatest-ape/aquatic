@@ -39,6 +39,9 @@ const RESPONSE_HEADER_A: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: ";
 const RESPONSE_HEADER_B: &[u8] = b"        ";
 const RESPONSE_HEADER_C: &[u8] = b"\r\n\r\n";
 
+#[cfg(feature = "metrics")]
+thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
+
 static RESPONSE_HEADER: Lazy<Vec<u8>> =
     Lazy::new(|| [RESPONSE_HEADER_A, RESPONSE_HEADER_B, RESPONSE_HEADER_C].concat());
 
@@ -60,7 +63,11 @@ pub async fn run_socket_worker(
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     priv_dropper: PrivilegeDropper,
     server_start_instant: ServerStartInstant,
+    worker_index: usize,
 ) {
+    #[cfg(feature = "metrics")]
+    WORKER_INDEX.with(|index| index.set(worker_index));
+
     let config = Rc::new(config);
     let access_list = state.access_list;
 
@@ -93,16 +100,49 @@ pub async fn run_socket_worker(
                 });
 
                 let task_handle = spawn_local(enclose!((config, access_list, request_senders, tls_config, connection_slab) async move {
-                    if let Err(err) = Connection::run(
-                        config,
-                        access_list,
-                        request_senders,
-                        server_start_instant,
-                        ConnectionId(key),
-                        tls_config,
-                        connection_slab.clone(),
-                        stream
-                    ).await {
+                    let result = match stream.peer_addr() {
+                        Ok(peer_addr) => {
+                            let peer_addr = CanonicalSocketAddr::new(peer_addr);
+
+                            #[cfg(feature = "metrics")]
+                            let ip_version_str = peer_addr_to_ip_version_str(&peer_addr);
+
+                            #[cfg(feature = "metrics")]
+                            ::metrics::increment_gauge!(
+                                "aquatic_active_connections",
+                                1.0,
+                                "ip_version" => ip_version_str,
+                                "worker_index" => worker_index.to_string(),
+                            );
+
+                            let result = Connection::run(
+                                config,
+                                access_list,
+                                request_senders,
+                                server_start_instant,
+                                ConnectionId(key),
+                                tls_config,
+                                connection_slab.clone(),
+                                stream,
+                                peer_addr
+                            ).await;
+
+                            #[cfg(feature = "metrics")]
+                            ::metrics::decrement_gauge!(
+                                "aquatic_active_connections",
+                                1.0,
+                                "ip_version" => ip_version_str,
+                                "worker_index" => worker_index.to_string(),
+                            );
+
+                            result
+                        }
+                        Err(err) => {
+                            Err(anyhow::anyhow!("Couldn't get peer addr: {:?}", err))
+                        }
+                    };
+
+                    if let Err(err) = result {
                         ::log::debug!("Connection::run() error: {:?}", err);
                     }
 
@@ -171,12 +211,8 @@ impl Connection {
         tls_config: Arc<RustlsConfig>,
         connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
         stream: TcpStream,
+        peer_addr: CanonicalSocketAddr,
     ) -> anyhow::Result<()> {
-        let peer_addr = stream
-            .peer_addr()
-            .map_err(|err| anyhow::anyhow!("Couldn't get peer addr: {:?}", err))?;
-        let peer_addr = CanonicalSocketAddr::new(peer_addr);
-
         let tls_acceptor: TlsAcceptor = tls_config.into();
         let stream = tls_acceptor.accept(stream).await?;
 
@@ -288,6 +324,14 @@ impl Connection {
 
         match request {
             Request::Announce(request) => {
+                #[cfg(feature = "metrics")]
+                ::metrics::increment_counter!(
+                    "aquatic_requests_total",
+                    "type" => "announce",
+                    "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+                );
+
                 let info_hash = request.info_hash;
 
                 if self
@@ -327,6 +371,14 @@ impl Connection {
                 }
             }
             Request::Scrape(ScrapeRequest { info_hashes }) => {
+                #[cfg(feature = "metrics")]
+                ::metrics::increment_counter!(
+                    "aquatic_requests_total",
+                    "type" => "scrape",
+                    "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+                );
+
                 let mut info_hashes_by_worker: BTreeMap<usize, Vec<InfoHash>> = BTreeMap::new();
 
                 for info_hash in info_hashes.into_iter() {
@@ -454,6 +506,22 @@ impl Connection {
         self.stream.write(&self.response_buffer[..position]).await?;
         self.stream.flush().await?;
 
+        #[cfg(feature = "metrics")]
+        {
+            let response_type = match response {
+                Response::Announce(_) => "announce",
+                Response::Scrape(_) => "scrape",
+                Response::Failure(_) => "error",
+            };
+
+            ::metrics::increment_counter!(
+                "aquatic_responses_total",
+                "type" => response_type,
+                "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr),
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+            );
+        }
+
         Ok(())
     }
 }
@@ -495,4 +563,13 @@ fn create_tcp_listener(
     priv_dropper.after_socket_creation()?;
 
     Ok(unsafe { TcpListener::from_raw_fd(socket.into_raw_fd()) })
+}
+
+#[cfg(feature = "metrics")]
+fn peer_addr_to_ip_version_str(addr: &CanonicalSocketAddr) -> &'static str {
+    if addr.is_ipv4() {
+        "4"
+    } else {
+        "6"
+    }
 }

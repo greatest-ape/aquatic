@@ -29,6 +29,8 @@ pub struct Config {
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
     pub cpu_pinning: CpuPinningConfigAsc,
+    #[cfg(feature = "metrics")]
+    pub metrics: MetricsConfig,
 }
 
 impl Default for Config {
@@ -43,6 +45,8 @@ impl Default for Config {
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
             cpu_pinning: Default::default(),
+            #[cfg(feature = "metrics")]
+            metrics: Default::default(),
         }
     }
 }
@@ -124,6 +128,29 @@ impl Default for CleaningConfig {
             connection_cleaning_interval: 60,
             max_peer_age: 1800,
             max_connection_idle: 180,
+        }
+    }
+}
+
+#[cfg(feature = "metrics")]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MetricsConfig {
+    /// Run a prometheus endpoint
+    pub run_prometheus_endpoint: bool,
+    /// Address to run prometheus endpoint on
+    pub prometheus_endpoint_address: SocketAddr,
+    /// Update metrics for torrent count this often (seconds)
+    pub torrent_count_update_interval: u64,
+}
+
+#[cfg(feature = "metrics")]
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        Self {
+            run_prometheus_endpoint: false,
+            prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
+            torrent_count_update_interval: 10,
         }
     }
 }

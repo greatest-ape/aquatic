@@ -16,6 +16,10 @@ name = "aquatic_http"
 [[bin]]
 name = "aquatic_http"
 
+[features]
+prometheus = ["metrics", "metrics-exporter-prometheus"]
+metrics = ["dep:metrics"]
+
 [dependencies]
 aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
 aquatic_http_protocol.workspace = true
@@ -31,6 +35,8 @@ glommio = "0.7"
 itoa = "1"
 libc = "0.2"
 log = "0.4"
+metrics = { version = "0.20", optional = true }
+metrics-exporter-prometheus = { version = "0.11", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 memchr = "2"
 privdrop = "0.5"
