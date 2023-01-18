@@ -102,22 +102,23 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
         let statistics = state.statistics.as_ref();
 
-        let responses_announce =
-            statistics.responses_announce.fetch_and(0, Ordering::SeqCst) as f64;
+        let responses_announce = statistics
+            .responses_announce
+            .fetch_and(0, Ordering::Relaxed) as f64;
         // let response_peers = statistics.response_peers
         //     .fetch_and(0, Ordering::SeqCst) as f64;
 
         let requests_per_second =
-            statistics.requests.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.requests.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
         let responses_scrape_per_second =
-            statistics.responses_scrape.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.responses_scrape.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
         let responses_failure_per_second =
-            statistics.responses_failure.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.responses_failure.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
 
         let bytes_sent_per_second =
-            statistics.bytes_sent.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.bytes_sent.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
         let bytes_received_per_second =
-            statistics.bytes_received.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.bytes_received.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
 
         let responses_announce_per_second = responses_announce / interval_f64;
 
