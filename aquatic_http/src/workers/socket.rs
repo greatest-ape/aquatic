@@ -39,6 +39,9 @@ const RESPONSE_HEADER_A: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: ";
 const RESPONSE_HEADER_B: &[u8] = b"        ";
 const RESPONSE_HEADER_C: &[u8] = b"\r\n\r\n";
 
+#[cfg(feature = "metrics")]
+thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
+
 static RESPONSE_HEADER: Lazy<Vec<u8>> =
     Lazy::new(|| [RESPONSE_HEADER_A, RESPONSE_HEADER_B, RESPONSE_HEADER_C].concat());
 
@@ -60,7 +63,11 @@ pub async fn run_socket_worker(
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     priv_dropper: PrivilegeDropper,
     server_start_instant: ServerStartInstant,
+    worker_index: usize,
 ) {
+    #[cfg(feature = "metrics")]
+    WORKER_INDEX.with(|index| index.set(worker_index));
+
     let config = Rc::new(config);
     let access_list = state.access_list;
 
@@ -105,6 +112,7 @@ pub async fn run_socket_worker(
                                 "aquatic_active_connections",
                                 1.0,
                                 "ip_version" => ip_version_str,
+                                "worker_index" => worker_index.to_string(),
                             );
 
                             let result = Connection::run(
@@ -124,6 +132,7 @@ pub async fn run_socket_worker(
                                 "aquatic_active_connections",
                                 1.0,
                                 "ip_version" => ip_version_str,
+                                "worker_index" => worker_index.to_string(),
                             );
 
                             result
@@ -319,7 +328,8 @@ impl Connection {
                 ::metrics::increment_counter!(
                     "aquatic_requests_total",
                     "type" => "announce",
-                    "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr)
+                    "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
                 );
 
                 let info_hash = request.info_hash;
@@ -365,7 +375,8 @@ impl Connection {
                 ::metrics::increment_counter!(
                     "aquatic_requests_total",
                     "type" => "scrape",
-                    "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr)
+                    "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
                 );
 
                 let mut info_hashes_by_worker: BTreeMap<usize, Vec<InfoHash>> = BTreeMap::new();
@@ -507,6 +518,7 @@ impl Connection {
                 "aquatic_responses_total",
                 "type" => response_type,
                 "ip_version" => peer_addr_to_ip_version_str(&self.peer_addr),
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
             );
         }
 

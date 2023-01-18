@@ -92,6 +92,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     request_mesh_builder,
                     priv_dropper,
                     server_start_instant,
+                    i,
                 )
                 .await
             })
@@ -122,6 +123,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     state,
                     request_mesh_builder,
                     server_start_instant,
+                    i,
                 )
                 .await
             })
