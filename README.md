@@ -124,6 +124,26 @@ parsing fails, the program exits. Later failures result in in emitting of
 an error-level log message, while successful updates of the access list result
 in emitting of an info-level log message.
 
+#### Prometheus
+
+`aquatic_http` and `aquatic_ws` support exporting [Prometheus](https://prometheus.io/) metrics.
+
+Pass the `prometheus` feature when building:
+
+```sh
+. ./scripts/env-native-cpu-without-avx-512
+cargo build --release -p aquatic_ws --features "prometheus"
+cargo build --release -p aquatic_http --features "prometheus"
+```
+
+Then activate the prometheus endpoint in the configuration file:
+
+```toml
+[metrics]
+run_prometheus_endpoint = true
+prometheus_endpoint_address = "0.0.0.0:9000"
+```
+
 ### Running
 
 If you're running `aquatic_http` or `aquatic_ws`, please make sure locked memory
@@ -231,29 +251,6 @@ proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
 ![WebTorrent tracker throughput comparison](./documents/aquatic-ws-load-test-illustration-2022-03-29.png)
 
 More details are available [here](./documents/aquatic-ws-load-test-2022-03-29.pdf). Please note that request workers have been renamed to swarm workers.
-
-#### Prometheus
-
-`aquatic_ws` supports exporting [Prometheus](https://prometheus.io/) metrics.
-
-Pass the `prometheus` feature when building:
-
-```sh
-. ./scripts/env-native-cpu-without-avx-512
-cargo build --release -p aquatic_ws --features "prometheus"
-```
-
-Then activate the prometheus endpoint in the configuration file:
-
-```toml
-[metrics]
-# Run a prometheus endpoint
-run_prometheus_endpoint = true
-# Address to run prometheus endpoint on
-prometheus_endpoint_address = "0.0.0.0:9000"
-# Update metrics for torrent count this often (seconds)
-torrent_count_update_interval = 10
-```
 
 ## Load testing
 
