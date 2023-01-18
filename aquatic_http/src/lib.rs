@@ -1,3 +1,4 @@
+use anyhow::Context;
 use aquatic_common::{
     access_list::update_access_list,
     cpu_pinning::{
@@ -29,6 +30,21 @@ const SHARED_CHANNEL_SIZE: usize = 1024;
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
+
+    #[cfg(feature = "prometheus")]
+    if config.metrics.run_prometheus_endpoint {
+        use metrics_exporter_prometheus::PrometheusBuilder;
+
+        PrometheusBuilder::new()
+            .with_http_listener(config.metrics.prometheus_endpoint_address)
+            .install()
+            .with_context(|| {
+                format!(
+                    "Install prometheus endpoint on {}",
+                    config.metrics.prometheus_endpoint_address
+                )
+            })?;
+    }
 
     let state = State::default();
 
