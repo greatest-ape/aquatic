@@ -149,7 +149,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .requests
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = false;
             }
@@ -183,7 +183,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_offer
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.send_answer = Some((offer.peer_id, offer.offer_id));
 
@@ -193,7 +193,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_answer
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = true;
             }
@@ -201,7 +201,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_announce
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = true;
             }
@@ -209,7 +209,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_scrape
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = true;
             }
@@ -217,7 +217,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_error
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 ::log::warn!("received error response: {:?}", response.failure_reason);
 
