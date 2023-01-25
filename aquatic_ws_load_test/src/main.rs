@@ -128,8 +128,9 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
         let statistics = state.statistics.as_ref();
 
-        let responses_announce =
-            statistics.responses_announce.fetch_and(0, Ordering::Relaxed) as f64;
+        let responses_announce = statistics
+            .responses_announce
+            .fetch_and(0, Ordering::Relaxed) as f64;
         // let response_peers = statistics.response_peers
         //     .fetch_and(0, Ordering::Relaxed) as f64;
 
