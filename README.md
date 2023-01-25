@@ -228,9 +228,9 @@ without knowing the exact setup.
 
 #### Performance
 
-![HTTP BitTorrent tracker throughput comparison](./documents/aquatic-http-load-test-illustration-2022-04-11.png)
+![HTTP BitTorrent tracker throughput comparison](./documents/aquatic-http-load-test-illustration-2023-01-25.png)
 
-More details are available [here](./documents/aquatic-http-load-test-2022-04-11.pdf). Please note that request workers have been renamed to swarm workers.
+More details are available [here](./documents/aquatic-http-load-test-2023-01-25.pdf).
 
 ### aquatic_ws: WebTorrent tracker
 
