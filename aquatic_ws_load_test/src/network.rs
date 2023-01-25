@@ -92,6 +92,8 @@ impl Connection {
         );
         let (stream, _) = client_async(request, stream).await?;
 
+        let statistics = load_test_state.statistics.clone();
+
         let mut connection = Connection {
             config,
             load_test_state,
@@ -103,12 +105,14 @@ impl Connection {
         };
 
         *num_active_connections.borrow_mut() += 1;
+        statistics.connections.fetch_add(1, Ordering::Relaxed);
 
         if let Err(err) = connection.run_connection_loop().await {
             ::log::info!("connection error: {:#}", err);
         }
 
         *num_active_connections.borrow_mut() -= 1;
+        statistics.connections.fetch_sub(1, Ordering::Relaxed);
 
         Ok(())
     }

@@ -146,6 +146,8 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
         let responses_announce_per_second = responses_announce / interval_f64;
 
+        let connections = statistics.connections.load(Ordering::Relaxed);
+
         let responses_per_second = responses_announce_per_second
             + responses_offer_per_second
             + responses_answer_per_second
@@ -165,6 +167,7 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
         println!("  - Answer responses:   {:.2}", responses_answer_per_second);
         println!("  - Scrape responses:   {:.2}", responses_scrape_per_second);
         println!("  - Error responses:   {:.2}", responses_error_per_second);
+        println!("Active connections: {}", connections);
 
         let time_elapsed = start_time.elapsed();
         let duration = Duration::from_secs(config.duration as u64);
