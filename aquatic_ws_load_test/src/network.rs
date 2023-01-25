@@ -92,6 +92,8 @@ impl Connection {
         );
         let (stream, _) = client_async(request, stream).await?;
 
+        let statistics = load_test_state.statistics.clone();
+
         let mut connection = Connection {
             config,
             load_test_state,
@@ -103,12 +105,14 @@ impl Connection {
         };
 
         *num_active_connections.borrow_mut() += 1;
+        statistics.connections.fetch_add(1, Ordering::Relaxed);
 
         if let Err(err) = connection.run_connection_loop().await {
             ::log::info!("connection error: {:#}", err);
         }
 
         *num_active_connections.borrow_mut() -= 1;
+        statistics.connections.fetch_sub(1, Ordering::Relaxed);
 
         Ok(())
     }
@@ -149,7 +153,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .requests
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = false;
             }
@@ -183,7 +187,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_offer
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.send_answer = Some((offer.peer_id, offer.offer_id));
 
@@ -193,7 +197,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_answer
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = true;
             }
@@ -201,7 +205,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_announce
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = true;
             }
@@ -209,7 +213,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_scrape
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 self.can_send = true;
             }
@@ -217,7 +221,7 @@ impl Connection {
                 self.load_test_state
                     .statistics
                     .responses_error
-                    .fetch_add(1, Ordering::SeqCst);
+                    .fetch_add(1, Ordering::Relaxed);
 
                 ::log::warn!("received error response: {:?}", response.failure_reason);
 

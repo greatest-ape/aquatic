@@ -128,23 +128,26 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
         let statistics = state.statistics.as_ref();
 
-        let responses_announce =
-            statistics.responses_announce.fetch_and(0, Ordering::SeqCst) as f64;
+        let responses_announce = statistics
+            .responses_announce
+            .fetch_and(0, Ordering::Relaxed) as f64;
         // let response_peers = statistics.response_peers
-        //     .fetch_and(0, Ordering::SeqCst) as f64;
+        //     .fetch_and(0, Ordering::Relaxed) as f64;
 
         let requests_per_second =
-            statistics.requests.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.requests.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
         let responses_offer_per_second =
-            statistics.responses_offer.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.responses_offer.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
         let responses_answer_per_second =
-            statistics.responses_answer.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.responses_answer.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
         let responses_scrape_per_second =
-            statistics.responses_scrape.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.responses_scrape.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
         let responses_error_per_second =
-            statistics.responses_error.fetch_and(0, Ordering::SeqCst) as f64 / interval_f64;
+            statistics.responses_error.fetch_and(0, Ordering::Relaxed) as f64 / interval_f64;
 
         let responses_announce_per_second = responses_announce / interval_f64;
+
+        let connections = statistics.connections.load(Ordering::Relaxed);
 
         let responses_per_second = responses_announce_per_second
             + responses_offer_per_second
@@ -165,6 +168,7 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
         println!("  - Answer responses:   {:.2}", responses_answer_per_second);
         println!("  - Scrape responses:   {:.2}", responses_scrape_per_second);
         println!("  - Error responses:   {:.2}", responses_error_per_second);
+        println!("Active connections: {}", connections);
 
         let time_elapsed = start_time.elapsed();
         let duration = Duration::from_secs(config.duration as u64);
