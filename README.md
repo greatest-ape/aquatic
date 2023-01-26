@@ -248,9 +248,9 @@ proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
 
 #### Performance
 
-![WebTorrent tracker throughput comparison](./documents/aquatic-ws-load-test-illustration-2022-03-29.png)
+![WebTorrent tracker throughput comparison](./documents/aquatic-ws-load-test-illustration-2023-01-25.png)
 
-More details are available [here](./documents/aquatic-ws-load-test-2022-03-29.pdf). Please note that request workers have been renamed to swarm workers.
+More details are available [here](./documents/aquatic-ws-load-test-2023-01-25.pdf).
 
 ## Load testing
 
