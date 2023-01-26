@@ -15,6 +15,7 @@ pub struct Config {
     pub num_connections_per_worker: usize,
     pub connection_creation_interval_ms: u64,
     pub duration: usize,
+    pub measure_after_max_connections_reached: bool,
     pub torrents: TorrentConfig,
     pub cpu_pinning: CpuPinningConfigDesc,
 }
@@ -34,6 +35,7 @@ impl Default for Config {
             num_connections_per_worker: 16,
             connection_creation_interval_ms: 10,
             duration: 0,
+            measure_after_max_connections_reached: true,
             torrents: TorrentConfig::default(),
             cpu_pinning: Default::default(),
         }
