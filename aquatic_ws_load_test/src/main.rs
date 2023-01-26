@@ -118,6 +118,7 @@ fn create_tls_config() -> anyhow::Result<Arc<rustls::ClientConfig>> {
 
 fn monitor_statistics(state: LoadTestState, config: &Config) {
     let start_time = Instant::now();
+    let mut time_max_connections_reached = None;
     let mut report_avg_response_vec: Vec<f64> = Vec::new();
 
     let interval = 5;
@@ -155,7 +156,15 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
             + responses_scrape_per_second
             + responses_error_per_second;
 
-        report_avg_response_vec.push(responses_per_second);
+        if !config.measure_after_max_connections_reached || time_max_connections_reached.is_some() {
+            report_avg_response_vec.push(responses_per_second);
+        } else if connections >= config.num_workers * config.num_connections_per_worker {
+            time_max_connections_reached = Some(Instant::now());
+
+            println!();
+            println!("Max connections reached");
+            println!();
+        }
 
         println!();
         println!("Requests out: {:.2}/second", requests_per_second);
@@ -170,26 +179,43 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
         println!("  - Error responses:   {:.2}", responses_error_per_second);
         println!("Active connections: {}", connections);
 
-        let time_elapsed = start_time.elapsed();
-        let duration = Duration::from_secs(config.duration as u64);
+        if config.measure_after_max_connections_reached {
+            if let Some(start) = time_max_connections_reached {
+                let time_elapsed = start.elapsed();
 
-        if config.duration != 0 && time_elapsed >= duration {
-            let report_len = report_avg_response_vec.len() as f64;
-            let report_sum: f64 = report_avg_response_vec.into_iter().sum();
-            let report_avg: f64 = report_sum / report_len;
+                if config.duration != 0
+                    && time_elapsed >= Duration::from_secs(config.duration as u64)
+                {
+                    report(config, report_avg_response_vec, time_elapsed);
 
-            println!(
-                concat!(
-                    "\n# aquatic load test report\n\n",
-                    "Test ran for {} seconds.\n",
-                    "Average responses per second: {:.2}\n\nConfig: {:#?}\n"
-                ),
-                time_elapsed.as_secs(),
-                report_avg,
-                config
-            );
+                    break;
+                }
+            }
+        } else {
+            let time_elapsed = start_time.elapsed();
 
-            break;
+            if config.duration != 0 && time_elapsed >= Duration::from_secs(config.duration as u64) {
+                report(config, report_avg_response_vec, time_elapsed);
+
+                break;
+            }
         }
     }
+}
+
+fn report(config: &Config, report_avg_response_vec: Vec<f64>, time_elapsed: Duration) {
+    let report_len = report_avg_response_vec.len() as f64;
+    let report_sum: f64 = report_avg_response_vec.into_iter().sum();
+    let report_avg: f64 = report_sum / report_len;
+
+    println!(
+        concat!(
+            "\n# aquatic load test report\n\n",
+            "Test ran for {} seconds.\n",
+            "Average responses per second: {:.2}\n\nConfig: {:#?}\n"
+        ),
+        time_elapsed.as_secs(),
+        report_avg,
+        config
+    );
 }
