@@ -6,6 +6,13 @@
 * udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
 * ws: wait for crates release of glommio with membarrier fix (PR #558)
 * Release new version
+* Consider storing torrents in separate IndexMaps. The amount should be a power
+  of 2 and should be configurable. They could be stored in a Vec and the index
+  could be calculated by taking the first N bits of the info hash. Each such map
+  would also store when it was last cleaned. There would then be a small
+  configurable random chance that when an announce request is being processed,
+  the map will be cleaned. When doing the normal cleaning round, recently
+  cleaned maps would be skipped.
 
 ## Medium priority
 

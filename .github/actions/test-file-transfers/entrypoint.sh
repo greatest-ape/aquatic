@@ -27,20 +27,13 @@ go build -o $HOME/gotorrent ./cmd/torrent
 cd ..
 file $HOME/gotorrent
 
-# Clone repository if necessary, go to repository directory
+# Go to repository directory
 
 if [[ -z "${GITHUB_WORKSPACE}" ]]; then
-    cd "$HOME"
-
-    git clone https://github.com/greatest-ape/aquatic.git
-
-    cd aquatic
+    exit 1
 else
     cd "$GITHUB_WORKSPACE"
 fi
-
-echo "last aquatic commits:"
-git log --oneline -3
 
 # Setup bogus TLS certificate
 
