@@ -50,7 +50,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
     let (response_sender, response_receiver) = unbounded();
 
     let response_sender = ConnectedResponseSender::new(vec![response_sender]);
-    let (statistics_sender, _) = unbounded();
 
     let server_start_instant = ServerStartInstant::new();
 
@@ -66,7 +65,6 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
                 server_start_instant,
                 request_receiver,
                 response_sender,
-                statistics_sender,
                 SwarmWorkerIndex(0),
             )
         });

@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use anyhow::Context;
 use aquatic_common::PanicSentinel;
-use crossbeam_channel::Receiver;
 use serde::Serialize;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
@@ -37,12 +36,7 @@ struct TemplateData {
     peer_update_interval: String,
 }
 
-pub fn run_statistics_worker(
-    _sentinel: PanicSentinel,
-    config: Config,
-    shared_state: State,
-    statistics_receiver: Receiver<StatisticsMessage>,
-) {
+pub fn run_statistics_worker(_sentinel: PanicSentinel, config: Config, shared_state: State) {
     let opt_tt = if config.statistics.write_html_to_file {
         let mut tt = TinyTemplate::new();
 
@@ -62,13 +56,6 @@ pub fn run_statistics_worker(
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
-
-        for message in statistics_receiver.try_iter() {
-            match message {
-                StatisticsMessage::Ipv4PeerHistogram(h) => ipv4_collector.add_histogram(&config, h),
-                StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(&config, h),
-            }
-        }
 
         let statistics_ipv4 = ipv4_collector.collect_from_shared();
         let statistics_ipv6 = ipv6_collector.collect_from_shared();

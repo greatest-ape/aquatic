@@ -42,8 +42,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut response_senders = Vec::new();
     let mut response_receivers = BTreeMap::new();
 
-    let (statistics_sender, statistics_receiver) = unbounded();
-
     let server_start_instant = ServerStartInstant::new();
 
     for i in 0..config.swarm_workers {
@@ -74,7 +72,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
         let request_receiver = request_receivers.remove(&i).unwrap().clone();
         let response_sender = ConnectedResponseSender::new(response_senders.clone());
-        let statistics_sender = statistics_sender.clone();
 
         Builder::new()
             .name(format!("swarm-{:02}", i + 1))
@@ -94,7 +91,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     server_start_instant,
                     request_receiver,
                     response_sender,
-                    statistics_sender,
                     SwarmWorkerIndex(i),
                 )
             })
@@ -152,12 +148,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Util,
                 );
 
-                workers::statistics::run_statistics_worker(
-                    sentinel,
-                    config,
-                    state,
-                    statistics_receiver,
-                );
+                workers::statistics::run_statistics_worker(sentinel, config, state);
             })
             .with_context(|| "spawn statistics worker")?;
     }

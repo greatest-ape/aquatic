@@ -177,7 +177,7 @@ impl Default for StatisticsConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct CleaningConfig {
     /// Clean torrents this often (seconds)
-    pub torrent_cleaning_interval: u64,
+    pub torrent_cleaning_interval: u32,
     /// Clean pending scrape responses this often (seconds)
     ///
     /// In regular operation, there should be no pending scrape responses
@@ -191,6 +191,11 @@ pub struct CleaningConfig {
     /// Remove pending scrape responses that have not been returned from swarm
     /// workers for this long (seconds)
     pub max_pending_scrape_age: u32,
+    /// Number of torrents map, as power of 2
+    pub num_torrent_maps_pow2: u8,
+    /// Probability of cleaning a single torrent map while processing an
+    /// announce request
+    pub request_cleaning_probability: f64,
 }
 
 impl Default for CleaningConfig {
@@ -201,6 +206,8 @@ impl Default for CleaningConfig {
             max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
             max_pending_scrape_age: 60,
+            num_torrent_maps_pow2: 10,
+            request_cleaning_probability: 1e-6,
         }
     }
 }
