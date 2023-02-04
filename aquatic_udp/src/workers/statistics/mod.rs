@@ -29,7 +29,6 @@ struct TemplateData {
     stylesheet: String,
     ipv4_active: bool,
     ipv6_active: bool,
-    extended_active: bool,
     ipv4: CollectedStatistics,
     ipv6: CollectedStatistics,
     last_updated: String,
@@ -84,7 +83,6 @@ pub fn run_statistics_worker(_sentinel: PanicSentinel, config: Config, shared_st
                 stylesheet: STYLESHEET_CONTENTS.to_string(),
                 ipv4_active: config.network.ipv4_active(),
                 ipv6_active: config.network.ipv6_active(),
-                extended_active: config.statistics.extended,
                 ipv4: statistics_ipv4,
                 ipv6: statistics_ipv6,
                 last_updated: OffsetDateTime::now_utc()
@@ -132,26 +130,6 @@ fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
         "  peers:           {:>10} (updated every {}s)",
         statistics.num_peers, config.cleaning.torrent_cleaning_interval
     );
-
-    if config.statistics.extended {
-        println!(
-            "  peers per torrent (updated every {}s)",
-            config.cleaning.torrent_cleaning_interval
-        );
-        println!("    min            {:>10}", statistics.peer_histogram.p0);
-        println!("    p10            {:>10}", statistics.peer_histogram.p10);
-        println!("    p20            {:>10}", statistics.peer_histogram.p20);
-        println!("    p30            {:>10}", statistics.peer_histogram.p30);
-        println!("    p40            {:>10}", statistics.peer_histogram.p40);
-        println!("    p50            {:>10}", statistics.peer_histogram.p50);
-        println!("    p60            {:>10}", statistics.peer_histogram.p60);
-        println!("    p70            {:>10}", statistics.peer_histogram.p70);
-        println!("    p80            {:>10}", statistics.peer_histogram.p80);
-        println!("    p90            {:>10}", statistics.peer_histogram.p90);
-        println!("    p95            {:>10}", statistics.peer_histogram.p95);
-        println!("    p99            {:>10}", statistics.peer_histogram.p99);
-        println!("    max            {:>10}", statistics.peer_histogram.p100);
-    }
 }
 
 fn save_html_to_file(

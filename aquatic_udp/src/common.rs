@@ -9,7 +9,6 @@ use crossbeam_channel::{Sender, TrySendError};
 use aquatic_common::access_list::AccessListArcSwap;
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::*;
-use hdrhistogram::Histogram;
 
 use crate::config::Config;
 
@@ -131,11 +130,6 @@ impl PeerStatus {
             Self::Leeching
         }
     }
-}
-
-pub enum StatisticsMessage {
-    Ipv4PeerHistogram(Histogram<u64>),
-    Ipv6PeerHistogram(Histogram<u64>),
 }
 
 pub struct Statistics {
