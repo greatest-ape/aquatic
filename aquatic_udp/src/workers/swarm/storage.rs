@@ -18,27 +18,138 @@ use crate::config::Config;
 
 use super::create_torrent_scrape_statistics;
 
-#[derive(Clone, Debug)]
-struct Peer<I> {
-    ip_address: I,
-    port: Port,
-    is_seeder: bool,
-    valid_until: ValidUntil,
+pub struct ProtocolTorrentMaps {
+    pub ipv4: TorrentMaps<Ipv4Addr>,
+    pub ipv6: TorrentMaps<Ipv6Addr>,
 }
 
-impl<I: Ip> Peer<I> {
-    fn to_response_peer(&self) -> ResponsePeer<I> {
-        ResponsePeer {
-            ip_address: self.ip_address,
-            port: self.port,
+impl ProtocolTorrentMaps {
+    pub fn new(config: &Config, start_instant: ServerStartInstant) -> Self {
+        Self {
+            ipv4: TorrentMaps::new(config, start_instant),
+            ipv6: TorrentMaps::new(config, start_instant),
+        }
+    }
+
+    /// Remove forbidden or inactive torrents, reclaim space and update peer count statistics
+    pub fn clean_and_update_peer_statistics(
+        &mut self,
+        config: &Config,
+        shared_state: &State,
+        worker_index: SwarmWorkerIndex,
+        server_start_instant: ServerStartInstant,
+    ) {
+        let mut cache = create_access_list_cache(&shared_state.access_list);
+        let mode = config.access_list.mode;
+        let now = server_start_instant.seconds_elapsed();
+
+        let mut ipv4_peers_removed = 0;
+        let mut ipv6_peers_removed = 0;
+
+        for map in self.ipv4.0.iter_mut() {
+            if map.needs_cleaning(now) {
+                ipv4_peers_removed +=
+                    map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
+            }
+        }
+        for map in self.ipv6.0.iter_mut() {
+            if map.needs_cleaning(now) {
+                ipv6_peers_removed +=
+                    map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
+            }
+        }
+
+        if config.statistics.active() {
+            shared_state.statistics_ipv4.peers[worker_index.0]
+                .fetch_sub(ipv4_peers_removed, Ordering::Relaxed);
+            shared_state.statistics_ipv6.peers[worker_index.0]
+                .fetch_sub(ipv6_peers_removed, Ordering::Relaxed);
         }
     }
 }
 
-type PeerMap<I> = IndexMap<PeerId, Peer<I>>;
+pub struct TorrentMaps<I>(Vec<TorrentMap<I>>);
+
+impl<I: Ip> TorrentMaps<I> {
+    fn new(config: &Config, start_instant: ServerStartInstant) -> Self {
+        let next_cleaning_due =
+            ValidUntil::new(start_instant, config.cleaning.torrent_cleaning_interval);
+
+        let maps = ::std::iter::repeat_with(|| TorrentMap {
+            torrents: Default::default(),
+            next_cleaning_due,
+        })
+        .take(2usize.pow(config.cleaning.num_torrent_maps_pow2 as u32))
+        .collect();
+
+        Self(maps)
+    }
+
+    pub fn get_map(&mut self, info_hash_bytes: [u8; 20]) -> &mut TorrentMap<I> {
+        let index =
+            (info_hash_bytes[0] as usize + (info_hash_bytes[1] as usize >> 8)).min(self.0.len());
+
+        self.0.get_mut(index).unwrap()
+    }
+
+    pub fn total_num_torrents(&self) -> usize {
+        self.0.iter().map(|map| map.num_torrents()).sum()
+    }
+}
+
+pub struct TorrentMap<I> {
+    pub torrents: IndexMap<InfoHash, TorrentData<I>>,
+    next_cleaning_due: ValidUntil,
+}
+
+impl<I: Ip> TorrentMap<I> {
+    /// Remove forbidden or inactive torrents, reclaim space and return number of removed peers
+    pub fn clean_and_get_num_removed_peers(
+        &mut self,
+        config: &Config,
+        access_list_cache: &mut AccessListCache,
+        access_list_mode: AccessListMode,
+        now: SecondsSinceServerStart,
+    ) -> usize {
+        let mut num_peers_before = 0;
+        let mut num_peers_after = 0;
+
+        self.torrents.retain(|info_hash, torrent| {
+            num_peers_before += torrent.peers.len();
+
+            if !access_list_cache
+                .load()
+                .allows(access_list_mode, &info_hash.0)
+            {
+                return false;
+            }
+
+            torrent.clean(now);
+
+            num_peers_after += torrent.peers.len();
+
+            !torrent.peers.is_empty()
+        });
+
+        self.torrents.shrink_to_fit();
+
+        self.next_cleaning_due =
+            ValidUntil::new_with_now(now, config.cleaning.torrent_cleaning_interval);
+
+        num_peers_before - num_peers_after
+    }
+
+    pub fn num_torrents(&self) -> usize {
+        self.torrents.len()
+    }
+
+    pub fn needs_cleaning(&self, now: SecondsSinceServerStart) -> bool {
+        !self.next_cleaning_due.valid(now)
+    }
+}
 
 pub struct TorrentData<I> {
-    peers: PeerMap<I>,
+    peers: IndexMap<PeerId, Peer<I>>,
     num_seeders: usize,
 }
 
@@ -152,7 +263,7 @@ impl<I: Ip> TorrentData<I> {
     }
 }
 
-impl<I: Ip> Default for TorrentData<I> {
+impl<I> Default for TorrentData<I> {
     fn default() -> Self {
         Self {
             peers: Default::default(),
@@ -161,132 +272,19 @@ impl<I: Ip> Default for TorrentData<I> {
     }
 }
 
-pub struct TorrentMap<I> {
-    pub torrents: IndexMap<InfoHash, TorrentData<I>>,
-    next_cleaning_due: ValidUntil,
+#[derive(Clone, Debug)]
+struct Peer<I> {
+    ip_address: I,
+    port: Port,
+    is_seeder: bool,
+    valid_until: ValidUntil,
 }
 
-impl<I: Ip> TorrentMap<I> {
-    /// Remove forbidden or inactive torrents, reclaim space and return number of removed peers
-    pub fn clean_and_get_num_removed_peers(
-        &mut self,
-        config: &Config,
-        access_list_cache: &mut AccessListCache,
-        access_list_mode: AccessListMode,
-        now: SecondsSinceServerStart,
-    ) -> usize {
-        let mut num_peers_before = 0;
-        let mut num_peers_after = 0;
-
-        self.torrents.retain(|info_hash, torrent| {
-            num_peers_before += torrent.peers.len();
-
-            if !access_list_cache
-                .load()
-                .allows(access_list_mode, &info_hash.0)
-            {
-                return false;
-            }
-
-            torrent.clean(now);
-
-            num_peers_after += torrent.peers.len();
-
-            !torrent.peers.is_empty()
-        });
-
-        self.torrents.shrink_to_fit();
-
-        self.next_cleaning_due =
-            ValidUntil::new_with_now(now, config.cleaning.torrent_cleaning_interval);
-
-        num_peers_before - num_peers_after
-    }
-
-    pub fn num_torrents(&self) -> usize {
-        self.torrents.len()
-    }
-
-    pub fn needs_cleaning(&self, now: SecondsSinceServerStart) -> bool {
-        !self.next_cleaning_due.valid(now)
-    }
-}
-
-pub struct TorrentMaps<I>(Vec<TorrentMap<I>>);
-
-impl<I: Ip> TorrentMaps<I> {
-    fn new(config: &Config, start_instant: ServerStartInstant) -> Self {
-        let next_cleaning_due =
-            ValidUntil::new(start_instant, config.cleaning.torrent_cleaning_interval);
-
-        let maps = ::std::iter::repeat_with(|| TorrentMap {
-            torrents: Default::default(),
-            next_cleaning_due,
-        })
-        .take(2usize.pow(config.cleaning.num_torrent_maps_pow2 as u32))
-        .collect();
-
-        Self(maps)
-    }
-
-    pub fn get_map(&mut self, info_hash_bytes: [u8; 20]) -> &mut TorrentMap<I> {
-        let index =
-            (info_hash_bytes[0] as usize + (info_hash_bytes[1] as usize >> 8)).min(self.0.len());
-
-        self.0.get_mut(index).unwrap()
-    }
-
-    pub fn total_num_torrents(&self) -> usize {
-        self.0.iter().map(|map| map.num_torrents()).sum()
-    }
-}
-
-pub struct ProtocolTorrentMaps {
-    pub ipv4: TorrentMaps<Ipv4Addr>,
-    pub ipv6: TorrentMaps<Ipv6Addr>,
-}
-
-impl ProtocolTorrentMaps {
-    pub fn new(config: &Config, start_instant: ServerStartInstant) -> Self {
-        Self {
-            ipv4: TorrentMaps::new(config, start_instant),
-            ipv6: TorrentMaps::new(config, start_instant),
-        }
-    }
-
-    /// Remove forbidden or inactive torrents, reclaim space and update peer count statistics
-    pub fn clean_and_update_peer_statistics(
-        &mut self,
-        config: &Config,
-        shared_state: &State,
-        worker_index: SwarmWorkerIndex,
-        server_start_instant: ServerStartInstant,
-    ) {
-        let mut cache = create_access_list_cache(&shared_state.access_list);
-        let mode = config.access_list.mode;
-        let now = server_start_instant.seconds_elapsed();
-
-        let mut ipv4_peers_removed = 0;
-        let mut ipv6_peers_removed = 0;
-
-        for map in self.ipv4.0.iter_mut() {
-            if map.needs_cleaning(now) {
-                ipv4_peers_removed +=
-                    map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
-            }
-        }
-        for map in self.ipv6.0.iter_mut() {
-            if map.needs_cleaning(now) {
-                ipv6_peers_removed +=
-                    map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
-            }
-        }
-
-        if config.statistics.active() {
-            shared_state.statistics_ipv4.peers[worker_index.0]
-                .fetch_sub(ipv4_peers_removed, Ordering::Relaxed);
-            shared_state.statistics_ipv6.peers[worker_index.0]
-                .fetch_sub(ipv6_peers_removed, Ordering::Relaxed);
+impl<I: Ip> Peer<I> {
+    fn to_response_peer(&self) -> ResponsePeer<I> {
+        ResponsePeer {
+            ip_address: self.ip_address,
+            port: self.port,
         }
     }
 }
@@ -323,7 +321,7 @@ mod tests {
             let gen_num_peers = data.0 as u32;
             let req_num_peers = data.1 as usize;
 
-            let mut peer_map: PeerMap<Ipv4Addr> = Default::default();
+            let mut peer_map: IndexMap<PeerId, Peer<Ipv4Addr>> = Default::default();
 
             let mut opt_sender_key = None;
             let mut opt_sender_peer = None;
