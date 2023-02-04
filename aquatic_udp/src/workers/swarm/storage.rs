@@ -46,18 +46,29 @@ impl ProtocolTorrentMaps {
         let mut ipv4_peers_removed = 0;
         let mut ipv6_peers_removed = 0;
 
+        let mut cleaned_maps = 0;
+
         for map in self.ipv4.maps.iter_mut() {
             if map.needs_cleaning(now) {
                 ipv4_peers_removed +=
                     map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
+                cleaned_maps += 1;
             }
         }
         for map in self.ipv6.maps.iter_mut() {
             if map.needs_cleaning(now) {
                 ipv6_peers_removed +=
                     map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
+                cleaned_maps += 1;
             }
         }
+
+        ::log::info!(
+            "Performed regular cleaning of {}/{} torrent maps, removing {} peers",
+            cleaned_maps,
+            self.ipv4.maps.len() + self.ipv6.maps.len(),
+            ipv4_peers_removed + ipv6_peers_removed
+        );
 
         if config.statistics.active() {
             shared_state.statistics_ipv4.peers[worker_index.0]

@@ -140,25 +140,22 @@ fn handle_announce_request<I: Ip>(
     let torrent_map = torrent_maps.get_map(request.info_hash.0);
 
     if rng.gen_bool(config.cleaning.request_cleaning_probability) {
+        let mut access_list_cache = create_access_list_cache(access_list);
         let now = server_start_instant.seconds_elapsed();
 
-        if torrent_map.needs_cleaning(now) {
-            let mut access_list_cache = create_access_list_cache(access_list);
+        let num_removed_peers = torrent_map.clean_and_get_num_removed_peers(
+            config,
+            &mut access_list_cache,
+            config.access_list.mode,
+            now,
+        );
 
-            let num_removed_peers = torrent_map.clean_and_get_num_removed_peers(
-                config,
-                &mut access_list_cache,
-                config.access_list.mode,
-                now,
-            );
+        statistics.peers[worker_index.0].fetch_sub(num_removed_peers, Ordering::Relaxed);
 
-            statistics.peers[worker_index.0].fetch_sub(num_removed_peers, Ordering::Relaxed);
-
-            ::log::info!(
-                "Cleaned torrent map during announce request, removing {} peers",
-                num_removed_peers
-            );
-        }
+        ::log::info!(
+            "Cleaned torrent map during announce request, removing {} peers",
+            num_removed_peers
+        );
     }
 
     let torrent_data = torrent_map.torrents.entry(request.info_hash).or_default();
