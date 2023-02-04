@@ -200,7 +200,7 @@ impl Default for CleaningConfig {
             max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
             max_pending_scrape_age: 60,
-            num_torrent_maps_pow2: 6,
+            num_torrent_maps_pow2: 10,
             request_cleaning_probability: 1e-6,
         }
     }
