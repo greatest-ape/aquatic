@@ -46,13 +46,13 @@ impl ProtocolTorrentMaps {
         let mut ipv4_peers_removed = 0;
         let mut ipv6_peers_removed = 0;
 
-        for map in self.ipv4.0.iter_mut() {
+        for map in self.ipv4.maps.iter_mut() {
             if map.needs_cleaning(now) {
                 ipv4_peers_removed +=
                     map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
             }
         }
-        for map in self.ipv6.0.iter_mut() {
+        for map in self.ipv6.maps.iter_mut() {
             if map.needs_cleaning(now) {
                 ipv6_peers_removed +=
                     map.clean_and_get_num_removed_peers(config, &mut cache, mode, now);
@@ -68,7 +68,10 @@ impl ProtocolTorrentMaps {
     }
 }
 
-pub struct TorrentMaps<I>(Vec<TorrentMap<I>>);
+pub struct TorrentMaps<I> {
+    maps: Vec<TorrentMap<I>>,
+    mask: usize,
+}
 
 impl<I: Ip> TorrentMaps<I> {
     fn new(config: &Config, start_instant: ServerStartInstant) -> Self {
@@ -82,18 +85,19 @@ impl<I: Ip> TorrentMaps<I> {
         .take(2usize.pow(config.cleaning.num_torrent_maps_pow2 as u32))
         .collect();
 
-        Self(maps)
+        let mask = !((!0) << config.cleaning.num_torrent_maps_pow2);
+
+        Self { maps, mask }
     }
 
     pub fn get_map(&mut self, info_hash_bytes: [u8; 20]) -> &mut TorrentMap<I> {
-        let index =
-            (info_hash_bytes[0] as usize + (info_hash_bytes[1] as usize >> 8)).min(self.0.len());
+        let index = info_hash_bytes[0] as usize + (info_hash_bytes[1] as usize >> 8) & self.mask;
 
-        self.0.get_mut(index).unwrap()
+        self.maps.get_mut(index).unwrap()
     }
 
     pub fn total_num_torrents(&self) -> usize {
-        self.0.iter().map(|map| map.num_torrents()).sum()
+        self.maps.iter().map(|map| map.num_torrents()).sum()
     }
 }
 

@@ -153,6 +153,11 @@ fn handle_announce_request<I: Ip>(
             );
 
             statistics.peers[worker_index.0].fetch_sub(num_removed_peers, Ordering::Relaxed);
+
+            ::log::info!(
+                "Cleaned torrent map during announce request, removing {} peers",
+                num_removed_peers
+            );
         }
     }
 
