@@ -73,36 +73,35 @@ More details are available in the respective configuration files.
 
 #### Workers
 
-To increase performance, number of worker threads can be increased. The sum of
-`socket_workers` and `swarm_workers` should equal the total number of CPU cores
-that you want to use. Recommended proportions:
+To increase performance, number of worker threads can be increased. Recommended proportions based on number of available CPU cores:
 
 <table>
  <tr>
   <td></td>
-  <th colspan="1">aquatic_udp</th>
-  <th colspan="3">aquatic_ws</th>
+  <th colspan="1">udp</th>
+  <th colspan="1">http</th>
+  <th colspan="2">ws</th>
  </tr>
  <tr>
-  <th scope="row">CPU cores</th>
+  <th scope="row">CPU cores (N)</th>
   <td>N</td>
-  <td>2-11</td>
-  <td>12-19</td>
-  <td>>=20</td>
+  <td>N</td>
+  <td>1-7</td>
+  <td>>=8</td>
  </tr>
  <tr>
   <th scope="row">Swarm workers</th>
   <td>1</td>
   <td>1</td>
+  <td>1</td>
   <td>2</td>
-  <td>3</td>
  </tr>
  <tr>
   <th scope="row">Socket workers</th>
-  <td>N-1</td>
-  <td>1-10</td>
-  <td>10-17</td>
-  <td>>=17</td>
+  <td>N</td>
+  <td>N</td>
+  <td>N</td>
+  <td>N-2</td>
  </tr>
 </table>
 
