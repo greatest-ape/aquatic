@@ -26,6 +26,7 @@ harness = false
 [dependencies]
 anyhow = "1"
 axum = { version = "0.5", optional = true, default-features = false }
+compact_str = { version = "0.7", features = ["serde"] }
 hex = { version = "0.4", default-features = false }
 httparse = "1"
 itoa = "1"
@@ -33,7 +34,6 @@ log = "0.4"
 memchr = "2"
 serde = { version = "1", features = ["derive"] }
 serde_bencode = "0.2"
-smartstring = "1"
 urlencoding = "2"
 
 [dev-dependencies]

@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use anyhow::Context;
-use smartstring::{LazyCompact, SmartString};
+use compact_str::CompactString;
 
 use super::common::*;
 use super::utils::*;
@@ -17,7 +17,7 @@ pub struct AnnounceRequest {
     pub event: AnnounceEvent,
     /// Number of response peers wanted
     pub numwant: Option<usize>,
-    pub key: Option<SmartString<LazyCompact>>,
+    pub key: Option<CompactString>,
 }
 
 impl AnnounceRequest {

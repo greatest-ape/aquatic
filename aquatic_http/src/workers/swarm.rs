@@ -5,7 +5,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use either::Either;
 use futures_lite::{Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role};
 use glommio::timer::TimerActionRepeat;
@@ -13,7 +12,6 @@ use glommio::{enclose, prelude::*};
 use rand::prelude::SmallRng;
 use rand::Rng;
 use rand::SeedableRng;
-use smartstring::{LazyCompact, SmartString};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::{
@@ -92,7 +90,7 @@ impl<I: Ip> Peer<I> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PeerMapKey<I: Ip> {
     pub peer_id: PeerId,
-    pub ip_or_key: Either<I, SmartString<LazyCompact>>,
+    pub ip: I,
 }
 
 pub type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
@@ -390,14 +388,9 @@ pub fn upsert_peer_and_get_response_peers<I: Ip>(
     let peer_status =
         PeerStatus::from_event_and_bytes_left(request.event, Some(request.bytes_left));
 
-    let ip_or_key = request
-        .key
-        .map(Either::Right)
-        .unwrap_or_else(|| Either::Left(peer_ip_address));
-
     let peer_map_key = PeerMapKey {
         peer_id: request.peer_id,
-        ip_or_key,
+        ip: peer_ip_address,
     };
 
     let opt_removed_peer = match peer_status {
