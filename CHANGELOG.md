@@ -17,8 +17,8 @@
 * Use [Rust 1.64 workspace inheritance](https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html)
 * Reduce space taken by ValidUntil struct from 128 to 32 bits, reducing memory
   consumption for each stored peer by same amount
-* Use regular (non-amortized) IndexMap for peer and pending scrape response
-  maps (but not for torrent maps)
+* Use regular indexmap instead of amortized-indexmap. This goes for torrent,
+  peer and pending scrape response maps 
 * Improve privilege dropping
 * Quit whole program if any thread panics
 * Update dependencies

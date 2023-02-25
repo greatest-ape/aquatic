@@ -1,8 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use aquatic_common::{
-    AmortizedIndexMap, IndexMap, SecondsSinceServerStart, ServerStartInstant, ValidUntil,
-};
+use aquatic_common::{IndexMap, SecondsSinceServerStart, ServerStartInstant, ValidUntil};
 use aquatic_http_protocol::common::{AnnounceEvent, InfoHash, PeerId};
 use aquatic_http_protocol::response::ResponsePeer;
 
@@ -76,7 +74,7 @@ impl<I: Ip> Default for TorrentData<I> {
     }
 }
 
-pub type TorrentMap<I> = AmortizedIndexMap<InfoHash, TorrentData<I>>;
+pub type TorrentMap<I> = IndexMap<InfoHash, TorrentData<I>>;
 
 #[derive(Default)]
 pub struct TorrentMaps {

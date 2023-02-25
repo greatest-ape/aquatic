@@ -13,11 +13,11 @@ of sub-implementations for different protocols:
 [mio]: https://github.com/tokio-rs/mio
 [glommio]: https://github.com/DataDog/glommio
 
-| Name         | Protocol                                   | OS requirements              |
-|--------------|--------------------------------------------|------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]                      | Unix-like (using [mio])      |
-| aquatic_http | [BitTorrent over HTTP] with TLS ([rustls]) | Linux 5.8+ (using [glommio]) |
-| aquatic_ws   | [WebTorrent] over TLS ([rustls], optional) | Linux 5.8+ (using [glommio]) |
+| Name         | Protocol                                     | OS requirements              |
+|--------------|----------------------------------------------|------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]                        | Unix-like (using [mio])      |
+| aquatic_http | [BitTorrent over HTTP] over TLS ([rustls])   | Linux 5.8+ (using [glommio]) |
+| aquatic_ws   | [WebTorrent], optionally over TLS ([rustls]) | Linux 5.8+ (using [glommio]) |
 
 Features at a glance:
 
