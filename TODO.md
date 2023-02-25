@@ -2,10 +2,18 @@
 
 ## High priority
 
-* Do new udp load test round
-* udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
+* udp prometheus metrics
 * ws: wait for crates release of glommio with membarrier fix (PR #558)
 * Release new version
+* More non-CI integration tests?
+* Remove aquatic_http_private?
+
+## Medium priority
+
+* Consider replacing unmaintained indexmap-amortized with plain indexmap
+* Run cargo-fuzz on protocol crates
+* udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
+
 * Consider storing torrents in separate IndexMaps. The amount should be a power
   of 2 and should be configurable. They could be stored in a Vec and the index
   could be calculated by taking the first N bits of the info hash. Each such map
@@ -13,11 +21,6 @@
   configurable random chance that when an announce request is being processed,
   the map will be cleaned. When doing the normal cleaning round, recently
   cleaned maps would be skipped.
-
-## Medium priority
-
-* Consider replacing unmaintained indexmap-amortized with plain indexmap
-* Run cargo-fuzz on protocol crates
 
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
