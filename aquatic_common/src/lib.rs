@@ -16,9 +16,6 @@ pub mod rustls_config;
 /// IndexMap using AHash hasher
 pub type IndexMap<K, V> = indexmap::IndexMap<K, V, RandomState>;
 
-/// Amortized IndexMap using AHash hasher
-pub type AmortizedIndexMap<K, V> = indexmap_amortized::IndexMap<K, V, RandomState>;
-
 /// Peer, connection or similar valid until this instant
 #[derive(Debug, Clone, Copy)]
 pub struct ValidUntil(SecondsSinceServerStart);

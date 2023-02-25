@@ -13,8 +13,7 @@ use hashbrown::HashMap;
 use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_common::{
-    extract_response_peers, AmortizedIndexMap, IndexMap, PanicSentinel, SecondsSinceServerStart,
-    ServerStartInstant,
+    extract_response_peers, IndexMap, PanicSentinel, SecondsSinceServerStart, ServerStartInstant,
 };
 use aquatic_ws_protocol::*;
 
@@ -87,7 +86,7 @@ impl TorrentData {
     }
 }
 
-type TorrentMap = AmortizedIndexMap<InfoHash, TorrentData>;
+type TorrentMap = IndexMap<InfoHash, TorrentData>;
 
 #[derive(Default)]
 struct TorrentMaps {

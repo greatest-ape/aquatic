@@ -81,7 +81,6 @@ dependencies = [
  "hex",
  "hwloc",
  "indexmap",
- "indexmap-amortized",
  "libc",
  "log",
  "privdrop",
@@ -416,12 +415,6 @@ checksum = "d7c57d12312ff59c811c0643f4d80830505833c9ffaebd193d819392b265be8e"
 dependencies = [
  "num-traits",
 ]
-
-[[package]]
-name = "atone"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a8a5a5e2e3b1e128ec3783765c91c1f392172c1fffc90fd1b96a13bb18e0dd6"
 
 [[package]]
 name = "atty"
@@ -1229,15 +1222,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "griddle"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e46a17d0c5d05b045e3814403914aeeb952aa9832f47b1d7ab123ab3d1660454"
-dependencies = [
- "hashbrown 0.9.1",
-]
-
-[[package]]
 name = "half"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1252,12 +1236,6 @@ dependencies = [
  "hashbrown 0.13.2",
  "serde",
 ]
-
-[[package]]
-name = "hashbrown"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
 name = "hashbrown"
@@ -1455,17 +1433,6 @@ checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
-]
-
-[[package]]
-name = "indexmap-amortized"
-version = "1.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81b5a05ffb45214e51fdd40c1f773ab57c74d2a7b41cfadc7ea443acf0359df1"
-dependencies = [
- "atone",
- "autocfg",
- "griddle",
 ]
 
 [[package]]

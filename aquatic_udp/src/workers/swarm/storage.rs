@@ -7,7 +7,7 @@ use aquatic_common::SecondsSinceServerStart;
 use aquatic_common::ServerStartInstant;
 use aquatic_common::{
     access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache, AccessListMode},
-    extract_response_peers, AmortizedIndexMap, ValidUntil,
+    extract_response_peers, ValidUntil,
 };
 
 use aquatic_udp_protocol::*;
@@ -144,7 +144,7 @@ impl<I: Ip> Default for TorrentData<I> {
 }
 
 #[derive(Default)]
-pub struct TorrentMap<I: Ip>(pub AmortizedIndexMap<InfoHash, TorrentData<I>>);
+pub struct TorrentMap<I: Ip>(pub IndexMap<InfoHash, TorrentData<I>>);
 
 impl<I: Ip> TorrentMap<I> {
     /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
