@@ -68,12 +68,13 @@ Make adjustments to the files. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
 Note that both `aquatic_http` and `aquatic_ws` require configuring certificate
-and private key files to run over TLS (which is optional for `aquatic_ws`).
+and private key files to run over TLS. `aquatic_http` __only__ runs over TLS.
 More details are available in the respective configuration files.
 
 #### Workers
 
-To increase performance, number of worker threads can be increased. Recommended proportions based on number of available CPU cores:
+To increase performance, number of worker threads can be increased.
+Recommended proportions based on number of physical CPU cores:
 
 <table>
  <tr>
