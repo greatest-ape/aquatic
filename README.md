@@ -68,12 +68,13 @@ Make adjustments to the files. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
 Note that both `aquatic_http` and `aquatic_ws` require configuring certificate
-and private key files to run over TLS (which is optional for `aquatic_ws`).
+and private key files to run over TLS. `aquatic_http` __only__ runs over TLS.
 More details are available in the respective configuration files.
 
 #### Workers
 
-To increase performance, number of worker threads can be increased. Recommended proportions based on number of available CPU cores:
+To increase performance, number of worker threads can be increased.
+Recommended proportions based on number of physical CPU cores:
 
 <table>
  <tr>
@@ -125,17 +126,18 @@ in emitting of an info-level log message.
 
 #### Prometheus
 
-`aquatic_http` and `aquatic_ws` support exporting [Prometheus](https://prometheus.io/) metrics.
+Exporting [Prometheus](https://prometheus.io/) metrics is supported. Activate
+the endpoint in the configuration file:
 
-Pass the `prometheus` feature when building:
+##### aquatic_udp
 
-```sh
-. ./scripts/env-native-cpu-without-avx-512
-cargo build --release -p aquatic_ws --features "prometheus"
-cargo build --release -p aquatic_http --features "prometheus"
+```toml
+[statistics]
+run_prometheus_endpoint = true
+prometheus_endpoint_address = "0.0.0.0:9000"
 ```
 
-Then activate the prometheus endpoint in the configuration file:
+##### aquatic_http and aquatic_ws
 
 ```toml
 [metrics]

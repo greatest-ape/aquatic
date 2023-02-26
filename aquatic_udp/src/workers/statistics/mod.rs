@@ -57,8 +57,16 @@ pub fn run_statistics_worker(
         None
     };
 
-    let mut ipv4_collector = StatisticsCollector::new(shared_state.statistics_ipv4);
-    let mut ipv6_collector = StatisticsCollector::new(shared_state.statistics_ipv6);
+    let mut ipv4_collector = StatisticsCollector::new(
+        shared_state.statistics_ipv4,
+        #[cfg(feature = "prometheus")]
+        "4".into(),
+    );
+    let mut ipv6_collector = StatisticsCollector::new(
+        shared_state.statistics_ipv6,
+        #[cfg(feature = "prometheus")]
+        "6".into(),
+    );
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
@@ -70,8 +78,14 @@ pub fn run_statistics_worker(
             }
         }
 
-        let statistics_ipv4 = ipv4_collector.collect_from_shared();
-        let statistics_ipv6 = ipv6_collector.collect_from_shared();
+        let statistics_ipv4 = ipv4_collector.collect_from_shared(
+            #[cfg(feature = "prometheus")]
+            &config,
+        );
+        let statistics_ipv6 = ipv6_collector.collect_from_shared(
+            #[cfg(feature = "prometheus")]
+            &config,
+        );
 
         if config.statistics.print_to_stdout {
             println!("General:");
@@ -151,7 +165,7 @@ fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
             "  peers per torrent (updated every {}s)",
             config.cleaning.torrent_cleaning_interval
         );
-        println!("    min            {:>10}", statistics.peer_histogram.p0);
+        println!("    min            {:>10}", statistics.peer_histogram.min);
         println!("    p10            {:>10}", statistics.peer_histogram.p10);
         println!("    p20            {:>10}", statistics.peer_histogram.p20);
         println!("    p30            {:>10}", statistics.peer_histogram.p30);
@@ -163,7 +177,8 @@ fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
         println!("    p90            {:>10}", statistics.peer_histogram.p90);
         println!("    p95            {:>10}", statistics.peer_histogram.p95);
         println!("    p99            {:>10}", statistics.peer_histogram.p99);
-        println!("    max            {:>10}", statistics.peer_histogram.p100);
+        println!("    p99.9          {:>10}", statistics.peer_histogram.p999);
+        println!("    max            {:>10}", statistics.peer_histogram.max);
     }
 }
 

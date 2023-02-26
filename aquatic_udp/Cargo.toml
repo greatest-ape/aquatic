@@ -17,7 +17,9 @@ name = "aquatic_udp"
 name = "aquatic_udp"
 
 [features]
+default = ["prometheus"]
 cpu-pinning = ["aquatic_common/hwloc"]
+prometheus = ["metrics", "metrics-exporter-prometheus"]
 
 [dependencies]
 aquatic_common.workspace = true
@@ -35,6 +37,8 @@ hdrhistogram = "7"
 hex = "0.4"
 libc = "0.2"
 log = "0.4"
+metrics = { version = "0.20", optional = true }
+metrics-exporter-prometheus = { version = "0.11", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }
 num-format = "0.4"

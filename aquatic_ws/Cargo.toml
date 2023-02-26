@@ -17,6 +17,7 @@ name = "aquatic_ws"
 name = "aquatic_ws"
 
 [features]
+default = ["prometheus"]
 prometheus = ["metrics", "metrics-exporter-prometheus"]
 metrics = ["dep:metrics"]
 

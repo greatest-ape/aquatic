@@ -231,6 +231,8 @@ dependencies = [
  "hex",
  "libc",
  "log",
+ "metrics",
+ "metrics-exporter-prometheus",
  "mimalloc",
  "mio",
  "num-format",
