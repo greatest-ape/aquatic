@@ -125,9 +125,8 @@ in emitting of an info-level log message.
 
 #### Prometheus
 
-Exporting [Prometheus](https://prometheus.io/) metrics is supported.
-
-Activate the prometheus endpoint in the configuration file:
+Exporting [Prometheus](https://prometheus.io/) metrics is supported. Activate
+the endpoint in the configuration file:
 
 ##### aquatic_udp
 
