@@ -2,7 +2,6 @@
 
 ## High priority
 
-* udp prometheus metrics
 * ws: wait for crates release of glommio with membarrier fix (PR #558)
 * Release new version
 * More non-CI integration tests?
