@@ -14,16 +14,18 @@ pub struct StatisticsCollector {
     last_update: Instant,
     pending_histograms: Vec<Histogram<u64>>,
     last_complete_histogram: PeerHistogramStatistics,
+    #[cfg(feature = "prometheus")]
     ip_version: String,
 }
 
 impl StatisticsCollector {
-    pub fn new(shared: Arc<Statistics>, ip_version: String) -> Self {
+    pub fn new(shared: Arc<Statistics>, #[cfg(feature = "prometheus")] ip_version: String) -> Self {
         Self {
             shared,
             last_update: Instant::now(),
             pending_histograms: Vec::new(),
             last_complete_histogram: Default::default(),
+            #[cfg(feature = "prometheus")]
             ip_version,
         }
     }
@@ -37,7 +39,10 @@ impl StatisticsCollector {
         }
     }
 
-    pub fn collect_from_shared(&mut self, config: &Config) -> CollectedStatistics {
+    pub fn collect_from_shared(
+        &mut self,
+        #[cfg(feature = "prometheus")] config: &Config,
+    ) -> CollectedStatistics {
         let requests_received = Self::fetch_and_reset(&self.shared.requests_received);
         let responses_sent_connect = Self::fetch_and_reset(&self.shared.responses_sent_connect);
         let responses_sent_announce = Self::fetch_and_reset(&self.shared.responses_sent_announce);

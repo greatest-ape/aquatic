@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
+use cfg_if::cfg_if;
 use serde::Deserialize;
 
 use aquatic_common::cli::LogLevel;
@@ -154,15 +155,25 @@ pub struct StatisticsConfig {
     /// Path to save HTML file to
     pub html_file_path: PathBuf,
     /// Run a prometheus endpoint
+    #[cfg(feature = "prometheus")]
     pub run_prometheus_endpoint: bool,
     /// Address to run prometheus endpoint on
+    #[cfg(feature = "prometheus")]
     pub prometheus_endpoint_address: SocketAddr,
 }
 
 impl StatisticsConfig {
-    pub fn active(&self) -> bool {
-        (self.interval != 0)
-            & (self.print_to_stdout | self.write_html_to_file | self.run_prometheus_endpoint)
+    cfg_if! {
+        if #[cfg(feature = "prometheus")] {
+            pub fn active(&self) -> bool {
+                (self.interval != 0) &
+                    (self.print_to_stdout | self.write_html_to_file | self.run_prometheus_endpoint)
+            }
+        } else {
+            pub fn active(&self) -> bool {
+                (self.interval != 0) & (self.print_to_stdout | self.write_html_to_file)
+            }
+        }
     }
 }
 
@@ -174,7 +185,9 @@ impl Default for StatisticsConfig {
             print_to_stdout: false,
             write_html_to_file: false,
             html_file_path: "tmp/statistics.html".into(),
+            #[cfg(feature = "prometheus")]
             run_prometheus_endpoint: false,
+            #[cfg(feature = "prometheus")]
             prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
         }
     }
