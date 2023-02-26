@@ -125,20 +125,23 @@ in emitting of an info-level log message.
 
 #### Prometheus
 
-`aquatic_http` and `aquatic_ws` support exporting [Prometheus](https://prometheus.io/) metrics.
+Exporting [Prometheus](https://prometheus.io/) metrics is supported.
 
-Pass the `prometheus` feature when building:
+To use, activate the prometheus endpoint in the configuration file:
 
-```sh
-. ./scripts/env-native-cpu-without-avx-512
-cargo build --release -p aquatic_ws --features "prometheus"
-cargo build --release -p aquatic_http --features "prometheus"
-```
-
-Then activate the prometheus endpoint in the configuration file:
+##### aquatic_http and aquatic_ws
 
 ```toml
 [metrics]
+run_prometheus_endpoint = true
+prometheus_endpoint_address = "0.0.0.0:9000"
+```
+
+##### aquatic_udp
+
+```toml
+[statistics]
+interval = 5
 run_prometheus_endpoint = true
 prometheus_endpoint_address = "0.0.0.0:9000"
 ```

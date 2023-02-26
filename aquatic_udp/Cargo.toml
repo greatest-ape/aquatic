@@ -17,6 +17,7 @@ name = "aquatic_udp"
 name = "aquatic_udp"
 
 [features]
+default = ["prometheus"]
 cpu-pinning = ["aquatic_common/hwloc"]
 prometheus = ["metrics", "metrics-exporter-prometheus"]
 

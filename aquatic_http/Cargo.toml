@@ -17,6 +17,7 @@ name = "aquatic_http"
 name = "aquatic_http"
 
 [features]
+default = ["prometheus"]
 prometheus = ["metrics", "metrics-exporter-prometheus"]
 metrics = ["dep:metrics"]
 
