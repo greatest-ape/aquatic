@@ -6,6 +6,7 @@
 
 #### Added
 
+* Support exposing a Prometheus endpoint for metrics
 * Add cli flag for printing parsed config
 * Add `aquatic_http_private`, an experiment for integrating with private trackers
 
@@ -50,10 +51,6 @@
 
 ### aquatic_http
 
-#### Added
-
-* Support exposing a Prometheus endpoint for metrics
-
 #### Changed
 
 * Don't return any response peers if announce event is stopped
@@ -78,7 +75,6 @@
 #### Added
 
 * Add HTTP health check route when running without TLS
-* Support exposing a Prometheus endpoint for metrics
 
 #### Changed
 
