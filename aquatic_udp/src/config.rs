@@ -153,11 +153,16 @@ pub struct StatisticsConfig {
     pub write_html_to_file: bool,
     /// Path to save HTML file to
     pub html_file_path: PathBuf,
+    /// Run a prometheus endpoint
+    pub run_prometheus_endpoint: bool,
+    /// Address to run prometheus endpoint on
+    pub prometheus_endpoint_address: SocketAddr,
 }
 
 impl StatisticsConfig {
     pub fn active(&self) -> bool {
-        (self.interval != 0) & (self.print_to_stdout | self.write_html_to_file)
+        (self.interval != 0)
+            & (self.print_to_stdout | self.write_html_to_file | self.run_prometheus_endpoint)
     }
 }
 
@@ -169,6 +174,8 @@ impl Default for StatisticsConfig {
             print_to_stdout: false,
             write_html_to_file: false,
             html_file_path: "tmp/statistics.html".into(),
+            run_prometheus_endpoint: false,
+            prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
         }
     }
 }

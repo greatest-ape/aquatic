@@ -141,6 +141,21 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
         let config = config.clone();
 
+        #[cfg(feature = "prometheus")]
+        if config.statistics.run_prometheus_endpoint {
+            use metrics_exporter_prometheus::PrometheusBuilder;
+
+            PrometheusBuilder::new()
+                .with_http_listener(config.statistics.prometheus_endpoint_address)
+                .install()
+                .with_context(|| {
+                    format!(
+                        "Install prometheus endpoint on {}",
+                        config.statistics.prometheus_endpoint_address
+                    )
+                })?;
+        }
+
         Builder::new()
             .name("statistics".into())
             .spawn(move || {

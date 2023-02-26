@@ -57,8 +57,8 @@ pub fn run_statistics_worker(
         None
     };
 
-    let mut ipv4_collector = StatisticsCollector::new(shared_state.statistics_ipv4);
-    let mut ipv6_collector = StatisticsCollector::new(shared_state.statistics_ipv6);
+    let mut ipv4_collector = StatisticsCollector::new(shared_state.statistics_ipv4, "4".into());
+    let mut ipv6_collector = StatisticsCollector::new(shared_state.statistics_ipv6, "6".into());
 
     loop {
         ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
@@ -70,8 +70,8 @@ pub fn run_statistics_worker(
             }
         }
 
-        let statistics_ipv4 = ipv4_collector.collect_from_shared();
-        let statistics_ipv6 = ipv6_collector.collect_from_shared();
+        let statistics_ipv4 = ipv4_collector.collect_from_shared(&config);
+        let statistics_ipv6 = ipv6_collector.collect_from_shared(&config);
 
         if config.statistics.print_to_stdout {
             println!("General:");
