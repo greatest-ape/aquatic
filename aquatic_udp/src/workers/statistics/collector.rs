@@ -129,8 +129,10 @@ impl StatisticsCollector {
                 );
             }
 
-            self.last_complete_histogram
-                .update_metrics(self.ip_version.clone());
+            if config.statistics.extended {
+                self.last_complete_histogram
+                    .update_metrics(self.ip_version.clone());
+            }
         }
 
         let num_peers: usize = num_peers_by_worker.into_iter().sum();
