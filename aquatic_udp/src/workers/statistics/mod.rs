@@ -151,7 +151,7 @@ fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
             "  peers per torrent (updated every {}s)",
             config.cleaning.torrent_cleaning_interval
         );
-        println!("    min            {:>10}", statistics.peer_histogram.p0);
+        println!("    min            {:>10}", statistics.peer_histogram.min);
         println!("    p10            {:>10}", statistics.peer_histogram.p10);
         println!("    p20            {:>10}", statistics.peer_histogram.p20);
         println!("    p30            {:>10}", statistics.peer_histogram.p30);
@@ -163,7 +163,8 @@ fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
         println!("    p90            {:>10}", statistics.peer_histogram.p90);
         println!("    p95            {:>10}", statistics.peer_histogram.p95);
         println!("    p99            {:>10}", statistics.peer_histogram.p99);
-        println!("    max            {:>10}", statistics.peer_histogram.p100);
+        println!("    p99.9          {:>10}", statistics.peer_histogram.p999);
+        println!("    max            {:>10}", statistics.peer_histogram.max);
     }
 }
 

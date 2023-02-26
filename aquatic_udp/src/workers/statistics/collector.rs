@@ -128,6 +128,9 @@ impl StatisticsCollector {
                     "worker_index" => worker_index.to_string(),
                 );
             }
+
+            self.last_complete_histogram
+                .update_metrics(self.ip_version.clone());
         }
 
         let num_peers: usize = num_peers_by_worker.into_iter().sum();
@@ -188,7 +191,7 @@ pub struct CollectedStatistics {
 
 #[derive(Clone, Debug, Serialize, Default)]
 pub struct PeerHistogramStatistics {
-    pub p0: u64,
+    pub min: u64,
     pub p10: u64,
     pub p20: u64,
     pub p30: u64,
@@ -200,13 +203,14 @@ pub struct PeerHistogramStatistics {
     pub p90: u64,
     pub p95: u64,
     pub p99: u64,
-    pub p100: u64,
+    pub p999: u64,
+    pub max: u64,
 }
 
 impl PeerHistogramStatistics {
     fn new(h: Histogram<u64>) -> Self {
         Self {
-            p0: h.value_at_percentile(0.0),
+            min: h.min(),
             p10: h.value_at_percentile(10.0),
             p20: h.value_at_percentile(20.0),
             p30: h.value_at_percentile(30.0),
@@ -218,7 +222,90 @@ impl PeerHistogramStatistics {
             p90: h.value_at_percentile(90.0),
             p95: h.value_at_percentile(95.0),
             p99: h.value_at_percentile(99.0),
-            p100: h.value_at_percentile(100.0),
+            p999: h.value_at_percentile(99.9),
+            max: h.max(),
         }
+    }
+
+    #[cfg(feature = "prometheus")]
+    fn update_metrics(&self, ip_version: String) {
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.min as f64,
+            "type" => "max",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p10 as f64,
+            "type" => "p10",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p20 as f64,
+            "type" => "p20",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p30 as f64,
+            "type" => "p30",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p40 as f64,
+            "type" => "p40",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p50 as f64,
+            "type" => "p50",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p60 as f64,
+            "type" => "p60",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p70 as f64,
+            "type" => "p70",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p80 as f64,
+            "type" => "p80",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p90 as f64,
+            "type" => "p90",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p99 as f64,
+            "type" => "p99",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.p999 as f64,
+            "type" => "p99.9",
+            "ip_version" => ip_version.clone(),
+        );
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            self.max as f64,
+            "type" => "max",
+            "ip_version" => ip_version.clone(),
+        );
     }
 }

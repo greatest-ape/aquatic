@@ -76,7 +76,7 @@
         <caption>Updated every { peer_update_interval } seconds</caption>
         <tr>
             <th scope="row">Minimum</th>
-            <td>{ ipv4.peer_histogram.p0 }</td>
+            <td>{ ipv4.peer_histogram.min }</td>
         </tr>
         <tr>
             <th scope="row">10th percentile</th>
@@ -123,8 +123,12 @@
             <td>{ ipv4.peer_histogram.p99 }</td>
         </tr>
         <tr>
+            <th scope="row">99.9th percentile</th>
+            <td>{ ipv4.peer_histogram.p999 }</td>
+        </tr>
+        <tr>
             <th scope="row">Maximum</th>
-            <td>{ ipv4.peer_histogram.p100 }</td>
+            <td>{ ipv4.peer_histogram.max }</td>
         </tr>
     </table>
     
@@ -188,7 +192,7 @@
         <caption>Updated every { peer_update_interval } seconds</caption>
         <tr>
             <th scope="row">Minimum</th>
-            <td>{ ipv6.peer_histogram.p0 }</td>
+            <td>{ ipv6.peer_histogram.min }</td>
         </tr>
         <tr>
             <th scope="row">10th percentile</th>
@@ -235,8 +239,12 @@
             <td>{ ipv6.peer_histogram.p99 }</td>
         </tr>
         <tr>
+            <th scope="row">99.9th percentile</th>
+            <td>{ ipv6.peer_histogram.p999 }</td>
+        </tr>
+        <tr>
             <th scope="row">Maximum</th>
-            <td>{ ipv6.peer_histogram.p100 }</td>
+            <td>{ ipv6.peer_histogram.max }</td>
         </tr>
     </table>
     
