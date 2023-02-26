@@ -23,7 +23,7 @@ Features at a glance:
 
 - Multithreaded design for handling large amounts of traffic
 - All data is stored in-memory (no database needed)
-- IPv4 and IPv6 support, with separate swarms
+- IPv4 and IPv6 support
 - Supports forbidding/allowing info hashes
 - Built-in TLS support (no reverse proxy needed)
 - Automated CI testing of full file transfers
@@ -137,7 +137,7 @@ run_prometheus_endpoint = true
 prometheus_endpoint_address = "0.0.0.0:9000"
 ```
 
-##### aquatic_http and aquatic_ws
+##### aquatic_http / aquatic_ws
 
 ```toml
 [metrics]
