@@ -35,6 +35,7 @@ getrandom = "0.2"
 hashbrown = { version = "0.13", default-features = false }
 hdrhistogram = "7"
 hex = "0.4"
+io-uring = "0.5"
 libc = "0.2"
 log = "0.4"
 metrics = { version = "0.20", optional = true }

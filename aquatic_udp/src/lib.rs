@@ -122,7 +122,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::SocketWorker(i),
                 );
 
-                SocketWorker::run(
+                workers::socket::uring::SocketWorker::run(
                     sentinel,
                     state,
                     config,
