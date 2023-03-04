@@ -96,9 +96,16 @@ impl SocketWorker {
 
         buf_ring.rc.register(&mut ring).unwrap();
 
+        let mut recv_msg_multi_name = libc::sockaddr_in {
+            sin_family: 0,
+            sin_port: 0,
+            sin_addr: libc::in_addr { s_addr: 0 },
+            sin_zero: [0; 8],
+        };
+
         let recv_msg_multi_msghdr = msghdr {
-            msg_name: null_mut(),
-            msg_namelen: 0,
+            msg_name: &mut recv_msg_multi_name as *mut _ as *mut libc::c_void,
+            msg_namelen: core::mem::size_of::<libc::sockaddr_in>() as u32,
             msg_iov: null_mut(),
             msg_iovlen: 0,
             msg_control: null_mut(),
@@ -225,7 +232,7 @@ impl SocketWorker {
                     let addr = unsafe {
                         let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in);
 
-                        SocketAddrV4::new(name_data.sin_addr.s_addr.into(), name_data.sin_port)
+                        SocketAddrV4::new(u32::from_be(name_data.sin_addr.s_addr).into(), u16::from_be(name_data.sin_port))
                     };
 
                     match Request::from_bytes(
