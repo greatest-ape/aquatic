@@ -10,7 +10,7 @@ use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
-use io_uring::cqueue::buffer_select;
+use io_uring::cqueue::{buffer_select, more};
 use io_uring::opcode::{RecvMsgMulti, SendMsg};
 use io_uring::types::{Fixed, RecvMsgOut};
 use io_uring::IoUring;
@@ -121,12 +121,6 @@ impl SocketWorker {
         .build()
         .user_data(u64::MAX);
 
-        unsafe {
-            ring.submission().push(&recv_msg_multi).unwrap();
-        }
-
-        assert_eq!(1, ring.submitter().submit_and_wait(1).unwrap());
-
         const NUM_OUT: usize = 64;
 
         let mut out_msg_names = [libc::sockaddr_in {
@@ -158,6 +152,8 @@ impl SocketWorker {
                 msg_flags: 0,
             })
             .collect();
+
+        let mut resubmit_recv = true;
 
         loop {
             let mut num_out_added = 0;
@@ -232,7 +228,10 @@ impl SocketWorker {
                     let addr = unsafe {
                         let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in);
 
-                        SocketAddrV4::new(u32::from_be(name_data.sin_addr.s_addr).into(), u16::from_be(name_data.sin_port))
+                        SocketAddrV4::new(
+                            u32::from_be(name_data.sin_addr.s_addr).into(),
+                            u16::from_be(name_data.sin_port),
+                        )
                     };
 
                     match Request::from_bytes(
@@ -247,6 +246,10 @@ impl SocketWorker {
                         ),
                         Err(err) => {}
                     }
+
+                    if !more(cqe.flags()) {
+                        resubmit_recv = true;
+                    }
                 } else {
                     let result = cqe.result();
 
@@ -254,6 +257,16 @@ impl SocketWorker {
                         panic!("{:#}", ::std::io::Error::from_raw_os_error(-result));
                     }
                 }
+            }
+
+            if resubmit_recv {
+                unsafe {
+                    ring.submission().push(&recv_msg_multi).unwrap();
+                }
+
+                ring.submitter().submit_and_wait(1).unwrap();
+
+                resubmit_recv = false;
             }
         }
     }
