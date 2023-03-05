@@ -1,16 +1,34 @@
-// From: https://github.com/tokio-rs/io-uring/blob/31afc513b173b92365b0dc31e886c07cfa235f5e/io-uring-test/src/tests/register_buf_ring.rs
+// Copyright 2019 quininer kel
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Copied from https://github.com/tokio-rs/io-uring/blob/31afc513b173b92365b0dc31e886c07cfa235f5e/io-uring-test/src/tests/register_buf_ring.rs
+// with some changes:
+// - Remove code not pertaining to buffer rings
+// - Remove unused imports
+// - Change visibility of some symbols
+// - Add #[allow(dead_code)] at some places
 
 // Create tests for registering buf_rings and for the buf_ring entries.
 // The entry point in this file can be found by searching for 'pub'.
 
 use io_uring::types;
 use io_uring::types::BufRingEntry;
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use io_uring::{cqueue, squeue, IoUring};
 
 use std::cell::Cell;
 use std::fmt;
 use std::io;
-use std::os::unix::io::AsRawFd;
 use std::ptr;
 use std::rc::Rc;
 use std::sync::atomic::{self, AtomicU16};
@@ -235,6 +253,7 @@ impl InnerBufRing {
 
     // Unregister the buffer ring from the io_uring.
     // Normally this is done automatically when the BufRing goes out of scope.
+    #[allow(dead_code)]
     pub fn unregister<S, C>(&self, ring: &mut IoUring<S, C>) -> io::Result<()>
     where
         S: squeue::EntryMarker,
@@ -375,6 +394,7 @@ impl Builder {
     }
 
     // The number of buffers to allocate. If left zero, the ring_entries value will be used.
+    #[allow(dead_code)]
     pub fn buf_cnt(mut self, buf_cnt: u16) -> Builder {
         self.buf_cnt = buf_cnt;
         self
