@@ -10,7 +10,8 @@ use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
 use io_uring::cqueue::more;
-use io_uring::types::Fixed;
+use io_uring::opcode::Timeout;
+use io_uring::types::{Fixed, Timespec};
 use io_uring::IoUring;
 
 use aquatic_common::{
@@ -34,6 +35,7 @@ const SEND_ENTRIES: usize = 512;
 const BUF_LEN: usize = 8192;
 
 const RECV_USER_DATA: u64 = u64::MAX;
+const TIMEOUT_USER_DATA: u64 = u64::MAX - 1;
 const SOCKET_FIXED: Fixed = Fixed(0);
 
 pub struct SocketWorker {
@@ -101,6 +103,8 @@ impl SocketWorker {
             .unwrap();
 
         buf_ring.rc.register(&mut ring).unwrap();
+
+        let timeout_timespec = Timespec::new().sec(1);
 
         let mut send_buffers = SendBuffers::new(&self.config, SEND_ENTRIES);
         let recv_msg_helper = RecvHelper::new(&self.config);
@@ -197,7 +201,17 @@ impl SocketWorker {
                 }
             }
 
-            ring.submitter().submit_and_wait(num_send_added).unwrap();
+            unsafe {
+                let entry = Timeout::new(&timeout_timespec as *const _)
+                    .build()
+                    .user_data(TIMEOUT_USER_DATA);
+
+                ring.submission().push(&entry).unwrap();
+            }
+
+            ring.submitter()
+                .submit_and_wait(num_send_added + 1)
+                .unwrap();
 
             ring.completion().sync();
 
@@ -205,62 +219,77 @@ impl SocketWorker {
             let cq_len = ring.completion().len();
 
             for cqe in ring.completion() {
-                if cqe.user_data() == RECV_USER_DATA {
-                    recv_in_cq += 1;
+                match cqe.user_data() {
+                    RECV_USER_DATA => {
+                        recv_in_cq += 1;
 
-                    let result = cqe.result();
+                        let result = cqe.result();
 
-                    if result < 0 {
-                        // Expect ENOBUFS when the buf_ring is empty.
-                        ::log::error!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
-                    } else {
-                        let buffer = buf_ring
-                            .rc
-                            .get_buf(buf_ring.clone(), result as u32, cqe.flags())
-                            .unwrap();
+                        if result < 0 {
+                            // Expect ENOBUFS when the buf_ring is empty.
+                            ::log::error!(
+                                "recv: {:#}",
+                                ::std::io::Error::from_raw_os_error(-result)
+                            );
+                        } else {
+                            let buffer = buf_ring
+                                .rc
+                                .get_buf(buf_ring.clone(), result as u32, cqe.flags())
+                                .unwrap();
 
-                        match recv_msg_helper.parse(buffer.as_slice()) {
-                            (Ok(request), addr) => self.handle_request(
-                                &mut local_responses,
-                                pending_scrape_valid_until,
-                                request,
-                                addr,
-                            ),
-                            (
-                                Err(RequestParseError::Sendable {
-                                    connection_id,
-                                    transaction_id,
-                                    err,
-                                }),
-                                addr,
-                            ) => {
-                                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
-
-                                if self.validator.connection_id_valid(addr, connection_id) {
-                                    let response = ErrorResponse {
+                            match recv_msg_helper.parse(buffer.as_slice()) {
+                                (Ok(request), addr) => self.handle_request(
+                                    &mut local_responses,
+                                    pending_scrape_valid_until,
+                                    request,
+                                    addr,
+                                ),
+                                (
+                                    Err(RequestParseError::Sendable {
+                                        connection_id,
                                         transaction_id,
-                                        message: err.right_or("Parse error").into(),
-                                    };
+                                        err,
+                                    }),
+                                    addr,
+                                ) => {
+                                    ::log::debug!(
+                                        "Couldn't parse request from {:?}: {}",
+                                        addr,
+                                        err
+                                    );
 
-                                    local_responses.push_back((response.into(), addr));
+                                    if self.validator.connection_id_valid(addr, connection_id) {
+                                        let response = ErrorResponse {
+                                            transaction_id,
+                                            message: err.right_or("Parse error").into(),
+                                        };
+
+                                        local_responses.push_back((response.into(), addr));
+                                    }
+                                }
+                                (Err(RequestParseError::Unsendable { err }), addr) => {
+                                    ::log::debug!(
+                                        "Couldn't parse request from {:?}: {}",
+                                        addr,
+                                        err
+                                    );
                                 }
                             }
-                            (Err(RequestParseError::Unsendable { err }), addr) => {
-                                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
-                            }
+                        }
+
+                        if !more(cqe.flags()) {
+                            resubmit_recv = true;
                         }
                     }
+                    TIMEOUT_USER_DATA => {}
+                    send_buffer_index => {
+                        send_buffers.mark_index_as_free(send_buffer_index as usize);
 
-                    if !more(cqe.flags()) {
-                        resubmit_recv = true;
-                    }
-                } else {
-                    send_buffers.mark_index_as_free(cqe.user_data() as usize);
+                        let result = cqe.result();
 
-                    let result = cqe.result();
-
-                    if result < 0 {
-                        panic!("send: {:#}", ::std::io::Error::from_raw_os_error(-result));
+                        if result < 0 {
+                            panic!("send: {:#}", ::std::io::Error::from_raw_os_error(-result));
+                        }
                     }
                 }
             }
