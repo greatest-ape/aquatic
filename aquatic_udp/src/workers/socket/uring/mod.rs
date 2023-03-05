@@ -123,7 +123,7 @@ impl SocketWorker {
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = local_responses.pop_front() {
-                    match send_buffers.try_add(send_buffer_index, response, addr) {
+                    match send_buffers.prepare_entry(send_buffer_index, response, addr) {
                         Ok((index, entry)) => {
                             unsafe {
                                 ring.submission().push(&entry).unwrap();
@@ -132,10 +132,13 @@ impl SocketWorker {
                             send_buffer_index = index + 1;
                             num_send_added += 1;
                         }
-                        Err(r) => {
-                            local_responses.push_front(r);
+                        Err(send_buffers::Error::NoBuffers((response, addr))) => {
+                            local_responses.push_front((response, addr));
 
                             break;
+                        }
+                        Err(send_buffers::Error::SerializationFailed(err)) => {
+                            ::log::error!("write response to buffer: {:#}", err);
                         }
                     }
                 } else {
@@ -174,7 +177,7 @@ impl SocketWorker {
                     }
                 };
 
-                match send_buffers.try_add(send_buffer_index, response, addr) {
+                match send_buffers.prepare_entry(send_buffer_index, response, addr) {
                     Ok((index, entry)) => {
                         unsafe {
                             ring.submission().push(&entry).unwrap();
@@ -183,10 +186,13 @@ impl SocketWorker {
                         send_buffer_index = index + 1;
                         num_send_added += 1;
                     }
-                    Err((response, addr)) => {
+                    Err(send_buffers::Error::NoBuffers((response, addr))) => {
                         local_responses.push_back((response, addr));
 
                         break;
+                    }
+                    Err(send_buffers::Error::SerializationFailed(err)) => {
+                        ::log::error!("write response to buffer: {:#}", err);
                     }
                 }
             }

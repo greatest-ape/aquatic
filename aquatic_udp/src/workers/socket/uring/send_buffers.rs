@@ -8,6 +8,11 @@ use crate::config::Config;
 
 use super::{BUF_LEN, SOCKET_FIXED};
 
+pub enum Error {
+    NoBuffers((Response, CanonicalSocketAddr)),
+    SerializationFailed(std::io::Error),
+}
+
 pub struct SendBuffers {
     network_address: IpAddr,
     names_v4: Vec<libc::sockaddr_in>,
@@ -96,12 +101,40 @@ impl SendBuffers {
         }
     }
 
-    fn prepare_entry(
+    pub fn mark_index_as_free(&mut self, index: usize) {
+        self.free[index] = true;
+    }
+
+    pub fn prepare_entry(
+        &mut self,
+        index: usize,
+        response: Response,
+        addr: CanonicalSocketAddr,
+    ) -> Result<(usize, io_uring::squeue::Entry), Error> {
+        if let Some(index) = self.next_free_index(index) {
+            self.prepare_entry_at_index(index, &response, addr)
+                .map(|entry| (index, entry))
+        } else {
+            Err(Error::NoBuffers((response, addr)))
+        }
+    }
+
+    fn next_free_index(&mut self, index: usize) -> Option<usize> {
+        for (i, free) in self.free[index..].iter().copied().enumerate() {
+            if free {
+                return Some(index + i);
+            }
+        }
+
+        None
+    }
+
+    fn prepare_entry_at_index(
         &mut self,
         index: usize,
         response: &Response,
         addr: CanonicalSocketAddr,
-    ) -> Option<io_uring::squeue::Entry> {
+    ) -> Result<io_uring::squeue::Entry, Error> {
         // Set receiver socket addr
         if self.network_address.is_ipv4() {
             let msg_name = self.names_v4.get_mut(index).unwrap();
@@ -139,46 +172,11 @@ impl SendBuffers {
 
                 *self.free.get_mut(index).unwrap() = false;
 
-                Some(
-                    SendMsg::new(SOCKET_FIXED, msg_hdr)
-                        .build()
-                        .user_data(index as u64),
-                )
+                Ok(SendMsg::new(SOCKET_FIXED, msg_hdr)
+                    .build()
+                    .user_data(index as u64))
             }
-            Err(err) => {
-                ::log::error!("Converting response to bytes failed: {:#}", err);
-
-                None
-            }
+            Err(err) => Err(Error::SerializationFailed(err)),
         }
-    }
-
-    fn next_free_index(&mut self, index: usize) -> Option<usize> {
-        for (i, free) in self.free[index..].iter().copied().enumerate() {
-            if free {
-                return Some(index + i);
-            }
-        }
-
-        None
-    }
-
-    pub fn try_add(
-        &mut self,
-        index: usize,
-        response: Response,
-        addr: CanonicalSocketAddr,
-    ) -> Result<(usize, io_uring::squeue::Entry), (Response, CanonicalSocketAddr)> {
-        if let Some(index) = self.next_free_index(index) {
-            if let Some(entry) = self.prepare_entry(index, &response, addr) {
-                return Ok((index, entry));
-            }
-        }
-
-        Err((response, addr))
-    }
-
-    pub fn mark_index_as_free(&mut self, index: usize) {
-        self.free[index] = true;
     }
 }
