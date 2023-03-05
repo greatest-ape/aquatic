@@ -2,7 +2,7 @@ mod buf_ring;
 
 use std::collections::VecDeque;
 use std::io::Cursor;
-use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, UdpSocket};
 use std::os::fd::AsRawFd;
 use std::ptr::null_mut;
 
@@ -15,7 +15,6 @@ use io_uring::opcode::{RecvMsgMulti, SendMsg};
 use io_uring::types::{Fixed, RecvMsgOut};
 use io_uring::IoUring;
 use libc::{c_void, msghdr};
-use mio::net::UdpSocket;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_common::{
@@ -33,6 +32,9 @@ use super::validator::ConnectionValidator;
 const RING_ENTRIES: u32 = 1024;
 const SEND_ENTRIES: usize = 512;
 const BUF_LEN: usize = 8192;
+
+const RECV_USER_DATA: u64 = u64::MAX;
+const SOCKET_FIXED: Fixed = Fixed(0);
 
 struct SendBuffers {
     network_address: IpAddr,
@@ -166,7 +168,7 @@ impl SendBuffers {
                 *self.free.get_mut(index).unwrap() = false;
 
                 Some(
-                    SendMsg::new(Fixed(0), msg_hdr)
+                    SendMsg::new(SOCKET_FIXED, msg_hdr)
                         .build()
                         .user_data(index as u64),
                 )
@@ -249,9 +251,9 @@ impl RecvMsgMultiHelper {
             &*self.msghdr_v6
         };
 
-        RecvMsgMulti::new(Fixed(0), msghdr, buf_group)
+        RecvMsgMulti::new(SOCKET_FIXED, msghdr, buf_group)
             .build()
-            .user_data(u64::MAX)
+            .user_data(RECV_USER_DATA)
     }
 
     pub fn parse(
@@ -316,8 +318,7 @@ impl SocketWorker {
         response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
         priv_dropper: PrivilegeDropper,
     ) {
-        let socket =
-            UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
+        let socket = create_socket(&config, priv_dropper).expect("create socket");
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
 
         let mut worker = Self {
@@ -473,7 +474,7 @@ impl SocketWorker {
             let cq_len = ring.completion().len();
 
             for cqe in ring.completion() {
-                if cqe.user_data() == u64::MAX {
+                if cqe.user_data() == RECV_USER_DATA {
                     recv_in_cq += 1;
 
                     let result = cqe.result();
