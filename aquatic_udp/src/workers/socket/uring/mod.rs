@@ -114,18 +114,18 @@ impl SocketWorker {
 
         buf_ring.rc.register(&mut ring).unwrap();
 
+        let timeout_entry = Timeout::new(&self.timeout_timespec as *const _)
+            .build()
+            .user_data(USER_DATA_TIMEOUT);
+
         let mut resubmit_recv = true;
+        let mut resubmit_timeout = false;
+
+        unsafe {
+            ring.submission().push(&timeout_entry).unwrap();
+        }
 
         loop {
-            // Enqueue timeout
-            unsafe {
-                let entry = Timeout::new(&self.timeout_timespec as *const _)
-                    .build()
-                    .user_data(USER_DATA_TIMEOUT);
-
-                ring.submission().push(&entry).unwrap();
-            }
-
             let mut num_send_added = 0;
 
             let sq_space = {
@@ -231,7 +231,9 @@ impl SocketWorker {
 
                         recv_in_cq += 1;
                     }
-                    USER_DATA_TIMEOUT => {}
+                    USER_DATA_TIMEOUT => {
+                        resubmit_timeout = true;
+                    }
                     send_buffer_index => {
                         self.send_buffers
                             .mark_index_as_free(send_buffer_index as usize);
@@ -266,6 +268,14 @@ impl SocketWorker {
                 ring.submitter().submit().unwrap();
 
                 resubmit_recv = false;
+            }
+
+            if resubmit_timeout {
+                unsafe {
+                    ring.submission().push(&timeout_entry).unwrap();
+                }
+
+                resubmit_timeout = false;
             }
         }
     }
