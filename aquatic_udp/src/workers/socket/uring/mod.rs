@@ -35,7 +35,8 @@ const SEND_ENTRIES: usize = 512;
 const BUF_LEN: usize = 8192;
 
 const USER_DATA_RECV: u64 = u64::MAX;
-const USER_DATA_TIMEOUT: u64 = u64::MAX - 1;
+const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 1;
+const USER_DATA_CLEANING_TIMEOUT: u64 = u64::MAX - 2;
 
 const SOCKET_IDENTIFIER: Fixed = Fixed(0);
 
@@ -51,7 +52,8 @@ pub struct SocketWorker {
     send_buffers: SendBuffers,
     recv_helper: RecvHelper,
     local_responses: VecDeque<(Response, CanonicalSocketAddr)>,
-    timeout_timespec: Timespec,
+    pulse_timeout: Timespec,
+    cleaning_timeout: Timespec,
     socket: UdpSocket,
 }
 
@@ -70,6 +72,8 @@ impl SocketWorker {
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
         let send_buffers = SendBuffers::new(&config, SEND_ENTRIES);
         let recv_helper = RecvHelper::new(&config);
+        let cleaning_timeout =
+            Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval);
 
         let mut worker = Self {
             config,
@@ -83,7 +87,8 @@ impl SocketWorker {
             send_buffers,
             recv_helper,
             local_responses: Default::default(),
-            timeout_timespec: Timespec::new().sec(1),
+            pulse_timeout: Timespec::new().sec(1),
+            cleaning_timeout,
             socket,
         };
 
@@ -114,15 +119,22 @@ impl SocketWorker {
 
         buf_ring.rc.register(&mut ring).unwrap();
 
-        let timeout_entry = Timeout::new(&self.timeout_timespec as *const _)
+        // This timeout makes it possible to avoid busy-polling and enables
+        // regular updates of pending_scrape_valid_until
+        let pulse_timeout_entry = Timeout::new(&self.pulse_timeout as *const _)
             .build()
-            .user_data(USER_DATA_TIMEOUT);
+            .user_data(USER_DATA_PULSE_TIMEOUT);
+        let cleaning_timeout_entry = Timeout::new(&self.cleaning_timeout as *const _)
+            .build()
+            .user_data(USER_DATA_CLEANING_TIMEOUT);
 
         let mut resubmit_recv = true;
-        let mut resubmit_timeout = false;
+        let mut resubmit_pulse_timeout = false;
+        let mut resubmit_cleaning_timeout = false;
 
         unsafe {
-            ring.submission().push(&timeout_entry).unwrap();
+            ring.submission().push(&pulse_timeout_entry).unwrap();
+            ring.submission().push(&cleaning_timeout_entry).unwrap();
         }
 
         loop {
@@ -231,13 +243,19 @@ impl SocketWorker {
 
                         recv_in_cq += 1;
                     }
-                    USER_DATA_TIMEOUT => {
+                    USER_DATA_PULSE_TIMEOUT => {
                         pending_scrape_valid_until = ValidUntil::new(
                             self.server_start_instant,
                             self.config.cleaning.max_pending_scrape_age,
                         );
 
-                        resubmit_timeout = true;
+                        resubmit_pulse_timeout = true;
+                    }
+                    USER_DATA_CLEANING_TIMEOUT => {
+                        self.pending_scrape_responses
+                            .clean(self.server_start_instant.seconds_elapsed());
+
+                        resubmit_cleaning_timeout = true;
                     }
                     send_buffer_index => {
                         self.send_buffers
@@ -275,12 +293,20 @@ impl SocketWorker {
                 resubmit_recv = false;
             }
 
-            if resubmit_timeout {
+            if resubmit_pulse_timeout {
                 unsafe {
-                    ring.submission().push(&timeout_entry).unwrap();
+                    ring.submission().push(&pulse_timeout_entry).unwrap();
                 }
 
-                resubmit_timeout = false;
+                resubmit_pulse_timeout = false;
+            }
+
+            if resubmit_cleaning_timeout {
+                unsafe {
+                    ring.submission().push(&cleaning_timeout_entry).unwrap();
+                }
+
+                resubmit_cleaning_timeout = false;
             }
         }
     }

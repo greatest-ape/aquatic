@@ -7,7 +7,6 @@
   * pin?
   * thiserror
   * statistics
-  * cleaning
   * profile
 
 * ws: wait for crates release of glommio with membarrier fix (PR #558)
