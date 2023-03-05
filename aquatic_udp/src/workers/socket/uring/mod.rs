@@ -180,6 +180,16 @@ impl SendBuffers {
         }
     }
 
+    pub fn next_free_index(&mut self, index: usize) -> Option<usize> {
+        for (i, free) in self.free[index..].iter().copied().enumerate() {
+            if free {
+                return Some(index + i);
+            }
+        }
+
+        None
+    }
+
     pub fn mark_index_as_free(&mut self, index: usize) {
         self.free[index] = true;
     }
@@ -379,20 +389,11 @@ impl SocketWorker {
             };
 
             // Enqueue local responses
-            'outer: for _ in 0..sq_space {
-                // Find next free index
-                loop {
-                    match send_buffers.free.get(send_buffer_index) {
-                        Some(true) => {
-                            break;
-                        }
-                        Some(false) => {
-                            send_buffer_index += 1;
-                        }
-                        None => {
-                            break 'outer;
-                        }
-                    }
+            for _ in 0..sq_space {
+                if let Some(index) = send_buffers.next_free_index(send_buffer_index) {
+                    send_buffer_index = index;
+                } else {
+                    break;
                 }
 
                 if let Some((response, addr)) = local_responses.pop_front() {
@@ -404,9 +405,8 @@ impl SocketWorker {
                         }
 
                         num_send_added += 1;
+                        send_buffer_index += 1;
                     }
-
-                    send_buffer_index += 1;
                 } else {
                     break;
                 }
@@ -421,20 +421,11 @@ impl SocketWorker {
             };
 
             // Enqueue responses from swarm workers
-            'outer: for _ in 0..sq_space {
-                // Find next free index
-                loop {
-                    match send_buffers.free.get(send_buffer_index) {
-                        Some(true) => {
-                            break;
-                        }
-                        Some(false) => {
-                            send_buffer_index += 1;
-                        }
-                        None => {
-                            break 'outer;
-                        }
-                    }
+            for _ in 0..sq_space {
+                if let Some(index) = send_buffers.next_free_index(send_buffer_index) {
+                    send_buffer_index = index;
+                } else {
+                    break;
                 }
 
                 if let Ok((response, addr)) = self.response_receiver.try_recv() {
@@ -456,9 +447,8 @@ impl SocketWorker {
                             }
 
                             num_send_added += 1;
+                            send_buffer_index += 1;
                         }
-
-                        send_buffer_index += 1;
                     }
                 } else {
                     break;
