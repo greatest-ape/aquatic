@@ -187,7 +187,7 @@ impl SocketWorker {
                 sq.capacity() - sq.len()
             };
 
-            // Enqueue responses from swarm workers
+            // Enqueue swarm worker responses
             'outer: for _ in 0..sq_space {
                 let (response, addr) = loop {
                     match self.response_receiver.try_recv() {
@@ -229,14 +229,12 @@ impl SocketWorker {
                 }
             }
 
+            // Wait for all sendmsg entries to complete, as well as at least
+            // one recvmsg or timeout, in order to avoid busy-polling if there
+            // is no incoming data.
             ring.submitter()
                 .submit_and_wait(num_send_added + 1)
                 .unwrap();
-
-            ring.completion().sync();
-
-            let mut recv_in_cq = 0;
-            let cq_len = ring.completion().len();
 
             for cqe in ring.completion() {
                 match cqe.user_data() {
@@ -246,8 +244,6 @@ impl SocketWorker {
                         if !io_uring::cqueue::more(cqe.flags()) {
                             squeue_buf.push(recv_entry.clone());
                         }
-
-                        recv_in_cq += 1;
                     }
                     USER_DATA_PULSE_TIMEOUT => {
                         pending_scrape_valid_until = ValidUntil::new(
@@ -278,10 +274,6 @@ impl SocketWorker {
                     }
                 }
             }
-
-            ::log::info!(
-                "num_send_added: {num_send_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}"
-            );
 
             self.send_buffers.reset_index();
         }
