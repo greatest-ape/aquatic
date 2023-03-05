@@ -185,6 +185,8 @@ impl SendBuffers {
 }
 
 struct RecvMsgMultiHelper {
+    network_address: IpAddr,
+    max_scrape_torrents: u8,
     #[allow(dead_code)]
     name_v4: Box<libc::sockaddr_in>,
     msghdr_v4: Box<libc::msghdr>,
@@ -194,7 +196,7 @@ struct RecvMsgMultiHelper {
 }
 
 impl RecvMsgMultiHelper {
-    fn new() -> Self {
+    fn new(config: &Config) -> Self {
         let mut name_v4 = Box::new(libc::sockaddr_in {
             sin_family: 0,
             sin_port: 0,
@@ -231,6 +233,8 @@ impl RecvMsgMultiHelper {
         });
 
         Self {
+            network_address: config.network.address.ip(),
+            max_scrape_torrents: config.protocol.max_scrape_torrents,
             name_v4,
             msghdr_v4,
             name_v6,
@@ -238,29 +242,32 @@ impl RecvMsgMultiHelper {
         }
     }
 
-    pub fn msghdr(&self, config: &Config) -> &libc::msghdr {
-        if config.network.address.is_ipv4() {
-            &self.msghdr_v4
+    pub fn create_entry(&self, buf_group: u16) -> io_uring::squeue::Entry {
+        let msghdr: *const libc::msghdr = if self.network_address.is_ipv4() {
+            &*self.msghdr_v4
         } else {
-            &self.msghdr_v6
-        }
-    }
+            &*self.msghdr_v6
+        };
 
-    pub fn create_entry(&self, config: &Config, buf_group: u16) -> io_uring::squeue::Entry {
-        RecvMsgMulti::new(Fixed(0), self.msghdr(config), buf_group)
+        RecvMsgMulti::new(Fixed(0), msghdr, buf_group)
             .build()
             .user_data(u64::MAX)
     }
 
     pub fn parse(
         &self,
-        config: &Config,
         buffer: &[u8],
     ) -> (Result<Request, RequestParseError>, CanonicalSocketAddr) {
-        let msg = RecvMsgOut::parse(buffer, self.msghdr(&config)).unwrap();
+        let msghdr = if self.network_address.is_ipv4() {
+            &self.msghdr_v4
+        } else {
+            &self.msghdr_v6
+        };
+
+        let msg = RecvMsgOut::parse(buffer, msghdr).unwrap();
 
         let addr = unsafe {
-            if config.network.address.is_ipv4() {
+            if self.network_address.is_ipv4() {
                 let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in);
 
                 SocketAddr::V4(SocketAddrV4::new(
@@ -280,7 +287,7 @@ impl RecvMsgMultiHelper {
         };
 
         (
-            Request::from_bytes(msg.payload_data(), config.protocol.max_scrape_torrents),
+            Request::from_bytes(msg.payload_data(), self.max_scrape_torrents),
             CanonicalSocketAddr::new(addr),
         )
     }
@@ -354,7 +361,7 @@ impl SocketWorker {
         buf_ring.rc.register(&mut ring).unwrap();
 
         let mut send_buffers = SendBuffers::new(&self.config, SEND_ENTRIES);
-        let recv_msg_helper = RecvMsgMultiHelper::new();
+        let recv_msg_helper = RecvMsgMultiHelper::new(&self.config);
 
         let mut resubmit_recv = true;
 
@@ -480,7 +487,7 @@ impl SocketWorker {
                             .get_buf(buf_ring.clone(), result as u32, cqe.flags())
                             .unwrap();
 
-                        match recv_msg_helper.parse(&self.config, buffer.as_slice()) {
+                        match recv_msg_helper.parse(buffer.as_slice()) {
                             (Ok(request), addr) => self.handle_request(
                                 &mut local_responses,
                                 pending_scrape_valid_until,
@@ -531,8 +538,8 @@ impl SocketWorker {
             );
 
             if resubmit_recv {
-                let recv_msg_multi = recv_msg_helper
-                    .create_entry(&self.config, buf_ring.rc.bgid().try_into().unwrap());
+                let recv_msg_multi =
+                    recv_msg_helper.create_entry(buf_ring.rc.bgid().try_into().unwrap());
 
                 unsafe {
                     ring.submission().push(&recv_msg_multi).unwrap();
