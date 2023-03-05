@@ -31,6 +31,106 @@ use crate::config::Config;
 use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 
+struct OutMessageStorage {
+    pub names: Vec<libc::sockaddr_in>,
+    pub buffers: Vec<[u8; 8192]>,
+    pub iovecs: Vec<libc::iovec>,
+    pub msghdrs: Vec<libc::msghdr>,
+    pub free: Vec<bool>,
+}
+
+impl OutMessageStorage {
+    fn new(capacity: usize) -> Self {
+        let mut names = ::std::iter::repeat(libc::sockaddr_in {
+            sin_family: 0,
+            sin_port: 0,
+            sin_addr: libc::in_addr { s_addr: 0 },
+            sin_zero: [0; 8],
+        })
+        .take(capacity)
+        .collect::<Vec<_>>();
+
+        let mut buffers = ::std::iter::repeat([0u8; 8192])
+            .take(capacity)
+            .collect::<Vec<_>>();
+
+        let mut iovecs = buffers
+            .iter_mut()
+            .map(|buffer| libc::iovec {
+                iov_base: buffer.as_mut_ptr() as *mut libc::c_void,
+                iov_len: buffer.len(),
+            })
+            .collect::<Vec<_>>();
+
+        let msghdrs = names
+            .iter_mut()
+            .zip(iovecs.iter_mut())
+            .map(|(msg_name, msg_iov)| libc::msghdr {
+                msg_name: msg_name as *mut _ as *mut c_void,
+                msg_namelen: core::mem::size_of::<libc::sockaddr_in>() as u32,
+                msg_iov: msg_iov as *mut _,
+                msg_iovlen: 1,
+                msg_control: null_mut(),
+                msg_controllen: 0,
+                msg_flags: 0,
+            })
+            .collect::<Vec<_>>();
+
+        Self {
+            names,
+            buffers,
+            iovecs,
+            msghdrs,
+            free: ::std::iter::repeat(true).take(capacity).collect(),
+        }
+    }
+
+    fn add_entry(
+        &mut self,
+        index: usize,
+        response: Response,
+        addr: CanonicalSocketAddr,
+    ) -> Option<io_uring::squeue::Entry> {
+        let msg_hdr = self.msghdrs.get_mut(index).unwrap();
+        let msg_name = self.names.get_mut(index).unwrap();
+        let buf = self.buffers.get_mut(index).unwrap();
+        let iov = self.iovecs.get_mut(index).unwrap();
+
+        let addr = addr.get_ipv4().unwrap();
+
+        msg_name.sin_port = addr.port().to_be();
+        msg_name.sin_addr.s_addr = if let IpAddr::V4(addr) = addr.ip() {
+            u32::from(addr).to_be()
+        } else {
+            panic!("ipv6");
+        };
+
+        let mut cursor = Cursor::new(buf.as_mut_slice());
+
+        match response.write(&mut cursor) {
+            Ok(()) => {
+                iov.iov_len = cursor.position() as usize;
+                *self.free.get_mut(index).unwrap() = false;
+
+                Some(
+                    SendMsg::new(Fixed(0), msg_hdr)
+                        .build()
+                        .user_data(index as u64),
+                )
+            }
+            Err(err) => {
+                ::log::error!("Converting response to bytes failed: {:#}", err);
+
+                None
+            }
+        }
+    }
+
+    fn mark_index_as_free(&mut self, index: usize) {
+        self.free[index] = true;
+    }
+}
+
 pub struct SocketWorker {
     config: Config,
     shared_state: State,
@@ -76,7 +176,7 @@ impl SocketWorker {
     }
 
     pub fn run_inner(&mut self) {
-        let mut local_responses = Vec::new();
+        let mut local_responses: Vec<(Response, CanonicalSocketAddr)> = Vec::new();
         let mut pending_scrape_valid_until = ValidUntil::new(
             self.server_start_instant,
             self.config.cleaning.max_pending_scrape_age,
@@ -121,88 +221,87 @@ impl SocketWorker {
         .build()
         .user_data(u64::MAX);
 
-        const NUM_OUT: usize = 64;
-
-        let mut out_msg_names = [libc::sockaddr_in {
-            sin_family: 0,
-            sin_port: 0,
-            sin_addr: libc::in_addr { s_addr: 0 },
-            sin_zero: [0; 8],
-        }; NUM_OUT];
-        let mut iov_buffers: Vec<[u8; 8192]> =
-            ::std::iter::repeat([0u8; 8192]).take(NUM_OUT).collect();
-        let mut iovs: Vec<libc::iovec> = iov_buffers
-            .iter_mut()
-            .map(|buffer| libc::iovec {
-                iov_base: buffer.as_mut_ptr() as *mut libc::c_void,
-                iov_len: buffer.len(),
-            })
-            .collect();
-
-        let mut out_msg_hdrs: Vec<libc::msghdr> = out_msg_names
-            .iter_mut()
-            .zip(iovs.iter_mut())
-            .map(|(msg_name, msg_iov)| libc::msghdr {
-                msg_name: msg_name as *mut _ as *mut c_void,
-                msg_namelen: core::mem::size_of::<libc::sockaddr_in>() as u32,
-                msg_iov: msg_iov as *mut _,
-                msg_iovlen: msg_iov.iov_len,
-                msg_control: null_mut(),
-                msg_controllen: 0,
-                msg_flags: 0,
-            })
-            .collect();
+        let mut out = OutMessageStorage::new(64);
 
         let mut resubmit_recv = true;
 
         loop {
             let mut num_out_added = 0;
 
-            for (i, (response, addr)) in self.response_receiver.try_iter().enumerate() {
-                let opt_response = match response {
-                    ConnectedResponse::Scrape(r) => self
-                        .pending_scrape_responses
-                        .add_and_get_finished(r)
-                        .map(Response::Scrape),
-                    ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
-                    ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
-                };
+            let mut out_index = 0;
 
-                if let Some(response) = opt_response {
-                    let msg_hdr = out_msg_hdrs.get_mut(i).unwrap();
-                    let msg_name = out_msg_names.get_mut(i).unwrap();
-                    let buf = iov_buffers.get_mut(i).unwrap();
-                    let iov = iovs.get_mut(i).unwrap();
-
-                    let addr = addr.get_ipv4().unwrap();
-
-                    msg_name.sin_port = addr.port();
-                    msg_name.sin_addr.s_addr = if let IpAddr::V4(addr) = addr.ip() {
-                        addr.into()
-                    } else {
-                        panic!("ipv6");
-                    };
-
-                    let mut cursor = Cursor::new(buf.as_mut_slice());
-
-                    match response.write(&mut cursor) {
-                        Ok(()) => {
-                            iov.iov_len = cursor.position() as usize;
-
-                            let send = SendMsg::new(Fixed(0), msg_hdr)
-                                .build()
-                                .user_data(num_out_added as u64);
-
-                            unsafe {
-                                ring.submission().push(&send).unwrap();
-
-                                num_out_added += 1;
-                            }
+            // Enqueue local responses
+            'outer: loop {
+                // Find next free index
+                loop {
+                    match out.free.get(out_index) {
+                        Some(true) => {
+                            break;
                         }
-                        Err(err) => {
-                            ::log::error!("Converting response to bytes failed: {:#}", err);
+                        Some(false) => {
+                            out_index += 1;
+                        }
+                        None => {
+                            break 'outer;
                         }
                     }
+                }
+
+                if let Some((response, addr)) = local_responses.pop() {
+                    if let Some(entry) = out.add_entry(out_index, response, addr) {
+                        unsafe {
+                            ring.submission().push(&entry).unwrap();
+                        }
+
+                        num_out_added += 1;
+                    }
+
+                    out_index += 1;
+                } else {
+                    break;
+                }
+            }
+
+            // Enqueue responses from swarm workers
+            'outer: loop {
+                // Find next free index
+                loop {
+                    match out.free.get(out_index) {
+                        Some(true) => {
+                            break;
+                        }
+                        Some(false) => {
+                            out_index += 1;
+                        }
+                        None => {
+                            break 'outer;
+                        }
+                    }
+                }
+
+                if let Ok((response, addr)) = self.response_receiver.try_recv() {
+                    let opt_response = match response {
+                        ConnectedResponse::Scrape(r) => self
+                            .pending_scrape_responses
+                            .add_and_get_finished(r)
+                            .map(Response::Scrape),
+                        ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
+                        ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
+                    };
+
+                    if let Some(response) = opt_response {
+                        if let Some(entry) = out.add_entry(out_index, response, addr) {
+                            unsafe {
+                                ring.submission().push(&entry).unwrap();
+                            }
+
+                            num_out_added += 1;
+                        }
+
+                        out_index += 1;
+                    }
+                } else {
+                    break;
                 }
             }
 
@@ -214,47 +313,50 @@ impl SocketWorker {
 
                     if result < 0 {
                         // Expect ENOBUFS when the buf_ring is empty.
-                        panic!("{:#}", ::std::io::Error::from_raw_os_error(-result));
-                    }
+                        ::log::error!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
+                    } else {
+                        let result = result as u32;
 
-                    let result = result as u32;
+                        let buffer = buf_ring
+                            .rc
+                            .get_buf(buf_ring.clone(), result, cqe.flags())
+                            .unwrap();
+                        let msg =
+                            RecvMsgOut::parse(buffer.as_slice(), &recv_msg_multi_msghdr).unwrap();
 
-                    let buffer = buf_ring
-                        .rc
-                        .get_buf(buf_ring.clone(), result, cqe.flags())
-                        .unwrap();
-                    let msg = RecvMsgOut::parse(buffer.as_slice(), &recv_msg_multi_msghdr).unwrap();
+                        let addr = unsafe {
+                            let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in);
 
-                    let addr = unsafe {
-                        let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in);
+                            SocketAddrV4::new(
+                                u32::from_be(name_data.sin_addr.s_addr).into(),
+                                u16::from_be(name_data.sin_port),
+                            )
+                        };
 
-                        SocketAddrV4::new(
-                            u32::from_be(name_data.sin_addr.s_addr).into(),
-                            u16::from_be(name_data.sin_port),
-                        )
-                    };
-
-                    match Request::from_bytes(
-                        msg.payload_data(),
-                        self.config.protocol.max_scrape_torrents,
-                    ) {
-                        Ok(request) => self.handle_request(
-                            &mut local_responses,
-                            pending_scrape_valid_until,
-                            request,
-                            CanonicalSocketAddr::new(addr.into()),
-                        ),
-                        Err(err) => {}
+                        match Request::from_bytes(
+                            msg.payload_data(),
+                            self.config.protocol.max_scrape_torrents,
+                        ) {
+                            Ok(request) => self.handle_request(
+                                &mut local_responses,
+                                pending_scrape_valid_until,
+                                request,
+                                CanonicalSocketAddr::new(addr.into()),
+                            ),
+                            Err(err) => {}
+                        }
                     }
 
                     if !more(cqe.flags()) {
                         resubmit_recv = true;
                     }
                 } else {
+                    out.mark_index_as_free(cqe.user_data() as usize);
+
                     let result = cqe.result();
 
                     if result < 0 {
-                        panic!("{:#}", ::std::io::Error::from_raw_os_error(-result));
+                        panic!("send: {:#}", ::std::io::Error::from_raw_os_error(-result));
                     }
                 }
             }
@@ -278,8 +380,6 @@ impl SocketWorker {
         request: Request,
         src: CanonicalSocketAddr,
     ) {
-        dbg!(request.clone());
-        dbg!(src);
         let access_list_mode = self.config.access_list.mode;
 
         match request {
