@@ -50,6 +50,7 @@ pub struct SocketWorker {
     pending_scrape_responses: PendingScrapeResponseSlab,
     send_buffers: SendBuffers,
     recv_helper: RecvHelper,
+    local_responses: VecDeque<(Response, CanonicalSocketAddr)>,
     socket: UdpSocket,
 }
 
@@ -80,6 +81,7 @@ impl SocketWorker {
             pending_scrape_responses: Default::default(),
             send_buffers,
             recv_helper,
+            local_responses: Default::default(),
             socket,
         };
 
@@ -87,7 +89,6 @@ impl SocketWorker {
     }
 
     pub fn run_inner(&mut self) {
-        let mut local_responses: VecDeque<(Response, CanonicalSocketAddr)> = VecDeque::new();
         let mut pending_scrape_valid_until = ValidUntil::new(
             self.server_start_instant,
             self.config.cleaning.max_pending_scrape_age,
@@ -129,7 +130,7 @@ impl SocketWorker {
 
             // Enqueue local responses
             for _ in 0..sq_space {
-                if let Some((response, addr)) = local_responses.pop_front() {
+                if let Some((response, addr)) = self.local_responses.pop_front() {
                     match self
                         .send_buffers
                         .prepare_entry(send_buffer_index, response, addr)
@@ -143,7 +144,7 @@ impl SocketWorker {
                             num_send_added += 1;
                         }
                         Err(send_buffers::Error::NoBuffers((response, addr))) => {
-                            local_responses.push_front((response, addr));
+                            self.local_responses.push_front((response, addr));
 
                             break;
                         }
@@ -200,7 +201,7 @@ impl SocketWorker {
                         num_send_added += 1;
                     }
                     Err(send_buffers::Error::NoBuffers((response, addr))) => {
-                        local_responses.push_back((response, addr));
+                        self.local_responses.push_back((response, addr));
 
                         break;
                     }
@@ -230,12 +231,7 @@ impl SocketWorker {
             for cqe in ring.completion() {
                 match cqe.user_data() {
                     USER_DATA_RECV => {
-                        self.handle_recv_cqe(
-                            &buf_ring,
-                            &mut local_responses,
-                            pending_scrape_valid_until,
-                            &cqe,
-                        );
+                        self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe);
 
                         if !io_uring::cqueue::more(cqe.flags()) {
                             resubmit_recv = true;
@@ -283,7 +279,6 @@ impl SocketWorker {
     fn handle_recv_cqe(
         &mut self,
         buf_ring: &FixedSizeBufRing,
-        local_responses: &mut VecDeque<(Response, CanonicalSocketAddr)>,
         pending_scrape_valid_until: ValidUntil,
         cqe: &io_uring::cqueue::Entry,
     ) {
@@ -302,9 +297,7 @@ impl SocketWorker {
             .unwrap();
 
         match self.recv_helper.parse(buffer.as_slice()) {
-            (Ok(request), addr) => {
-                self.handle_request(local_responses, pending_scrape_valid_until, request, addr)
-            }
+            (Ok(request), addr) => self.handle_request(pending_scrape_valid_until, request, addr),
             (
                 Err(RequestParseError::Sendable {
                     connection_id,
@@ -321,7 +314,7 @@ impl SocketWorker {
                         message: err.right_or("Parse error").into(),
                     };
 
-                    local_responses.push_back((response.into(), addr));
+                    self.local_responses.push_back((response.into(), addr));
                 }
             }
             (Err(RequestParseError::Unsendable { err }), addr) => {
@@ -332,7 +325,6 @@ impl SocketWorker {
 
     fn handle_request(
         &mut self,
-        local_responses: &mut VecDeque<(Response, CanonicalSocketAddr)>,
         pending_scrape_valid_until: ValidUntil,
         request: Request,
         src: CanonicalSocketAddr,
@@ -348,7 +340,7 @@ impl SocketWorker {
                     transaction_id: request.transaction_id,
                 });
 
-                local_responses.push_back((response, src))
+                self.local_responses.push_back((response, src))
             }
             Request::Announce(request) => {
                 if self
@@ -374,7 +366,7 @@ impl SocketWorker {
                             message: "Info hash not allowed".into(),
                         });
 
-                        local_responses.push_back((response, src))
+                        self.local_responses.push_back((response, src))
                     }
                 }
             }
