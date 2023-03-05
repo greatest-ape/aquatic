@@ -8,7 +8,6 @@
   * thiserror
   * statistics
   * cleaning
-  * queue timeout before send
   * profile
 
 * ws: wait for crates release of glommio with membarrier fix (PR #558)

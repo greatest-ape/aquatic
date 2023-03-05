@@ -117,6 +117,15 @@ impl SocketWorker {
         let mut resubmit_recv = true;
 
         loop {
+            // Enqueue timeout
+            unsafe {
+                let entry = Timeout::new(&self.timeout_timespec as *const _)
+                    .build()
+                    .user_data(USER_DATA_TIMEOUT);
+
+                ring.submission().push(&entry).unwrap();
+            }
+
             let mut num_send_added = 0;
             let mut send_buffer_index = 0;
 
@@ -209,14 +218,6 @@ impl SocketWorker {
                         ::log::error!("write response to buffer: {:#}", err);
                     }
                 }
-            }
-
-            unsafe {
-                let entry = Timeout::new(&self.timeout_timespec as *const _)
-                    .build()
-                    .user_data(USER_DATA_TIMEOUT);
-
-                ring.submission().push(&entry).unwrap();
             }
 
             ring.submitter()
