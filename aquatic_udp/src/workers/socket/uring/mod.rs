@@ -248,7 +248,7 @@ impl SocketWorker {
                 }
             }
 
-            println!(
+            ::log::info!(
                 "num_send_added: {num_send_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}"
             );
 
@@ -285,10 +285,17 @@ impl SocketWorker {
             return;
         }
 
-        let buffer = buf_ring
+        let buffer = match buf_ring
             .rc
             .get_buf(buf_ring.clone(), result as u32, cqe.flags())
-            .unwrap();
+        {
+            Ok(buffer) => buffer,
+            Err(err) => {
+                ::log::error!("Couldn't get buffer: {:#}", err);
+
+                return;
+            }
+        };
 
         match self.recv_helper.parse(buffer.as_slice()) {
             (Ok(request), addr) => self.handle_request(pending_scrape_valid_until, request, addr),
