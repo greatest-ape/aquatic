@@ -1,25 +1,21 @@
 mod buf_ring;
 
 use std::collections::VecDeque;
-use std::io::{Cursor, ErrorKind};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::io::Cursor;
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::AsRawFd;
-use std::ptr::{null, null_mut};
-use std::rc::Rc;
-use std::sync::atomic::Ordering;
-use std::time::{Duration, Instant};
+use std::ptr::null_mut;
 
 use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
-use io_uring::cqueue::{buffer_select, more};
+use io_uring::cqueue::more;
 use io_uring::opcode::{RecvMsgMulti, SendMsg};
 use io_uring::types::{Fixed, RecvMsgOut};
 use io_uring::IoUring;
-use libc::{c_void, msghdr, sockaddr_in};
+use libc::{c_void, msghdr};
 use mio::net::UdpSocket;
-use mio::{Events, Interest, Poll, Token};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_common::{
@@ -38,15 +34,15 @@ const RING_ENTRIES: u32 = 1024;
 const SEND_ENTRIES: usize = 512;
 const BUF_LEN: usize = 8192;
 
-struct OutMessageStorage {
-    pub names: Vec<libc::sockaddr_in>,
-    pub buffers: Vec<[u8; BUF_LEN]>,
-    pub iovecs: Vec<libc::iovec>,
-    pub msghdrs: Vec<libc::msghdr>,
-    pub free: Vec<bool>,
+struct SendMsgBuffers {
+    names: Vec<libc::sockaddr_in>,
+    buffers: Vec<[u8; BUF_LEN]>,
+    iovecs: Vec<libc::iovec>,
+    msghdrs: Vec<libc::msghdr>,
+    free: Vec<bool>,
 }
 
-impl OutMessageStorage {
+impl SendMsgBuffers {
     fn new(capacity: usize) -> Self {
         let mut names = ::std::iter::repeat(libc::sockaddr_in {
             sin_family: 0,
@@ -138,14 +134,16 @@ impl OutMessageStorage {
     }
 }
 
-struct RecvMsgStorage {
+struct RecvMsgMultiHelper {
+    #[allow(dead_code)]
     name_v4: Box<libc::sockaddr_in>,
     msghdr_v4: Box<libc::msghdr>,
+    #[allow(dead_code)]
     name_v6: Box<libc::sockaddr_in6>,
     msghdr_v6: Box<libc::msghdr>,
 }
 
-impl RecvMsgStorage {
+impl RecvMsgMultiHelper {
     fn new() -> Self {
         let mut name_v4 = Box::new(libc::sockaddr_in {
             sin_family: 0,
@@ -248,7 +246,6 @@ pub struct SocketWorker {
     server_start_instant: ServerStartInstant,
     pending_scrape_responses: PendingScrapeResponseSlab,
     socket: UdpSocket,
-    buffer: [u8; BUFFER_SIZE],
 }
 
 impl SocketWorker {
@@ -276,7 +273,6 @@ impl SocketWorker {
             access_list_cache,
             pending_scrape_responses: Default::default(),
             socket,
-            buffer: [0; BUFFER_SIZE],
         };
 
         worker.run_inner();
@@ -307,8 +303,8 @@ impl SocketWorker {
 
         buf_ring.rc.register(&mut ring).unwrap();
 
-        let mut out = OutMessageStorage::new(SEND_ENTRIES);
-        let recv_msg_storage = RecvMsgStorage::new();
+        let mut out = SendMsgBuffers::new(SEND_ENTRIES);
+        let recv_msg_storage = RecvMsgMultiHelper::new();
 
         let mut resubmit_recv = true;
 
@@ -476,7 +472,9 @@ impl SocketWorker {
                 }
             }
 
-            println!("num_send_added: {num_send_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}");
+            println!(
+                "num_send_added: {num_send_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}"
+            );
 
             if resubmit_recv {
                 let recv_msg_multi = recv_msg_storage
