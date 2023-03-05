@@ -2,6 +2,12 @@
 
 ## High priority
 
+* udp uring
+  * test ipv6
+  * pin?
+  * thiserror
+  * profile
+
 * ws: wait for crates release of glommio with membarrier fix (PR #558)
 * Release new version
 * More non-CI integration tests?
@@ -9,7 +15,6 @@
 
 ## Medium priority
 
-* Consider replacing unmaintained indexmap-amortized with plain indexmap
 * Run cargo-fuzz on protocol crates
 * udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
 
