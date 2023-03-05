@@ -6,7 +6,7 @@ use io_uring::opcode::SendMsg;
 
 use crate::config::Config;
 
-use super::{BUF_LEN, SOCKET_FIXED};
+use super::{BUF_LEN, SOCKET_IDENTIFIER};
 
 pub enum Error {
     NoBuffers((Response, CanonicalSocketAddr)),
@@ -172,7 +172,7 @@ impl SendBuffers {
 
                 *self.free.get_mut(index).unwrap() = false;
 
-                Ok(SendMsg::new(SOCKET_FIXED, msg_hdr)
+                Ok(SendMsg::new(SOCKET_IDENTIFIER, msg_hdr)
                     .build()
                     .user_data(index as u64))
             }

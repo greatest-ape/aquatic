@@ -9,7 +9,7 @@ use io_uring::{opcode::RecvMsgMulti, types::RecvMsgOut};
 
 use crate::config::Config;
 
-use super::{RECV_USER_DATA, SOCKET_FIXED};
+use super::{SOCKET_IDENTIFIER, USER_DATA_RECV};
 
 pub struct RecvHelper {
     network_address: IpAddr,
@@ -76,9 +76,9 @@ impl RecvHelper {
             &*self.msghdr_v6
         };
 
-        RecvMsgMulti::new(SOCKET_FIXED, msghdr, buf_group)
+        RecvMsgMulti::new(SOCKET_IDENTIFIER, msghdr, buf_group)
             .build()
-            .user_data(RECV_USER_DATA)
+            .user_data(USER_DATA_RECV)
     }
 
     pub fn parse(

@@ -9,7 +9,6 @@ use std::os::fd::AsRawFd;
 use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
-use io_uring::cqueue::more;
 use io_uring::opcode::Timeout;
 use io_uring::types::{Fixed, Timespec};
 use io_uring::IoUring;
@@ -34,9 +33,10 @@ const RING_ENTRIES: u32 = 1024;
 const SEND_ENTRIES: usize = 512;
 const BUF_LEN: usize = 8192;
 
-const RECV_USER_DATA: u64 = u64::MAX;
-const TIMEOUT_USER_DATA: u64 = u64::MAX - 1;
-const SOCKET_FIXED: Fixed = Fixed(0);
+const USER_DATA_RECV: u64 = u64::MAX;
+const USER_DATA_TIMEOUT: u64 = u64::MAX - 1;
+
+const SOCKET_IDENTIFIER: Fixed = Fixed(0);
 
 pub struct SocketWorker {
     config: Config,
@@ -113,7 +113,6 @@ impl SocketWorker {
 
         loop {
             let mut num_send_added = 0;
-
             let mut send_buffer_index = 0;
 
             let sq_space = {
@@ -204,7 +203,7 @@ impl SocketWorker {
             unsafe {
                 let entry = Timeout::new(&timeout_timespec as *const _)
                     .build()
-                    .user_data(TIMEOUT_USER_DATA);
+                    .user_data(USER_DATA_TIMEOUT);
 
                 ring.submission().push(&entry).unwrap();
             }
@@ -220,13 +219,13 @@ impl SocketWorker {
 
             for cqe in ring.completion() {
                 match cqe.user_data() {
-                    RECV_USER_DATA => {
+                    USER_DATA_RECV => {
                         recv_in_cq += 1;
 
                         let result = cqe.result();
 
                         if result < 0 {
-                            // Expect ENOBUFS when the buf_ring is empty.
+                            // Will produce ENOBUFS if there were no free buffers
                             ::log::error!(
                                 "recv: {:#}",
                                 ::std::io::Error::from_raw_os_error(-result)
@@ -277,11 +276,11 @@ impl SocketWorker {
                             }
                         }
 
-                        if !more(cqe.flags()) {
+                        if !io_uring::cqueue::more(cqe.flags()) {
                             resubmit_recv = true;
                         }
                     }
-                    TIMEOUT_USER_DATA => {}
+                    USER_DATA_TIMEOUT => {}
                     send_buffer_index => {
                         send_buffers.mark_index_as_free(send_buffer_index as usize);
 
