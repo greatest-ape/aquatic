@@ -232,6 +232,11 @@ impl SocketWorker {
                         recv_in_cq += 1;
                     }
                     USER_DATA_TIMEOUT => {
+                        pending_scrape_valid_until = ValidUntil::new(
+                            self.server_start_instant,
+                            self.config.cleaning.max_pending_scrape_age,
+                        );
+
                         resubmit_timeout = true;
                     }
                     send_buffer_index => {
