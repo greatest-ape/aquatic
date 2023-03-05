@@ -1,6 +1,7 @@
-pub mod mio;
+mod mio;
 mod storage;
-pub mod uring;
+#[cfg(feature = "io-uring")]
+mod uring;
 pub mod validator;
 
 use anyhow::Context;
@@ -8,6 +9,14 @@ use aquatic_common::privileges::PrivilegeDropper;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::config::Config;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "io-uring")] {
+        pub use self::uring::SocketWorker;
+    } else {
+        pub use self::mio::SocketWorker;
+    }
+}
 
 fn create_socket(
     config: &Config,

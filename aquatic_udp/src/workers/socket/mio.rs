@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "io-uring", allow(dead_code))]
+
 use std::io::{Cursor, ErrorKind};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
