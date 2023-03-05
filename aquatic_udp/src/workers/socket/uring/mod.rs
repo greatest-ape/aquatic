@@ -51,6 +51,7 @@ pub struct SocketWorker {
     send_buffers: SendBuffers,
     recv_helper: RecvHelper,
     local_responses: VecDeque<(Response, CanonicalSocketAddr)>,
+    timeout_timespec: Timespec,
     socket: UdpSocket,
 }
 
@@ -82,6 +83,7 @@ impl SocketWorker {
             send_buffers,
             recv_helper,
             local_responses: Default::default(),
+            timeout_timespec: Timespec::new().sec(1),
             socket,
         };
 
@@ -111,8 +113,6 @@ impl SocketWorker {
             .unwrap();
 
         buf_ring.rc.register(&mut ring).unwrap();
-
-        let timeout_timespec = Timespec::new().sec(1);
 
         let mut resubmit_recv = true;
 
@@ -212,7 +212,7 @@ impl SocketWorker {
             }
 
             unsafe {
-                let entry = Timeout::new(&timeout_timespec as *const _)
+                let entry = Timeout::new(&self.timeout_timespec as *const _)
                     .build()
                     .user_data(USER_DATA_TIMEOUT);
 
