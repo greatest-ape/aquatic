@@ -22,6 +22,7 @@ use aquatic_udp_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
+use self::buf_ring::FixedSizeBufRing;
 use self::recv_helper::RecvHelper;
 use self::send_buffers::SendBuffers;
 
@@ -47,6 +48,8 @@ pub struct SocketWorker {
     validator: ConnectionValidator,
     server_start_instant: ServerStartInstant,
     pending_scrape_responses: PendingScrapeResponseSlab,
+    send_buffers: SendBuffers,
+    recv_helper: RecvHelper,
     socket: UdpSocket,
 }
 
@@ -63,6 +66,8 @@ impl SocketWorker {
     ) {
         let socket = create_socket(&config, priv_dropper).expect("create socket");
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
+        let send_buffers = SendBuffers::new(&config, SEND_ENTRIES);
+        let recv_helper = RecvHelper::new(&config);
 
         let mut worker = Self {
             config,
@@ -73,6 +78,8 @@ impl SocketWorker {
             response_receiver,
             access_list_cache,
             pending_scrape_responses: Default::default(),
+            send_buffers,
+            recv_helper,
             socket,
         };
 
@@ -106,9 +113,6 @@ impl SocketWorker {
 
         let timeout_timespec = Timespec::new().sec(1);
 
-        let mut send_buffers = SendBuffers::new(&self.config, SEND_ENTRIES);
-        let recv_msg_helper = RecvHelper::new(&self.config);
-
         let mut resubmit_recv = true;
 
         loop {
@@ -126,7 +130,10 @@ impl SocketWorker {
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = local_responses.pop_front() {
-                    match send_buffers.prepare_entry(send_buffer_index, response, addr) {
+                    match self
+                        .send_buffers
+                        .prepare_entry(send_buffer_index, response, addr)
+                    {
                         Ok((index, entry)) => {
                             unsafe {
                                 ring.submission().push(&entry).unwrap();
@@ -180,7 +187,10 @@ impl SocketWorker {
                     }
                 };
 
-                match send_buffers.prepare_entry(send_buffer_index, response, addr) {
+                match self
+                    .send_buffers
+                    .prepare_entry(send_buffer_index, response, addr)
+                {
                     Ok((index, entry)) => {
                         unsafe {
                             ring.submission().push(&entry).unwrap();
@@ -220,74 +230,31 @@ impl SocketWorker {
             for cqe in ring.completion() {
                 match cqe.user_data() {
                     USER_DATA_RECV => {
-                        recv_in_cq += 1;
-
-                        let result = cqe.result();
-
-                        if result < 0 {
-                            // Will produce ENOBUFS if there were no free buffers
-                            ::log::error!(
-                                "recv: {:#}",
-                                ::std::io::Error::from_raw_os_error(-result)
-                            );
-                        } else {
-                            let buffer = buf_ring
-                                .rc
-                                .get_buf(buf_ring.clone(), result as u32, cqe.flags())
-                                .unwrap();
-
-                            match recv_msg_helper.parse(buffer.as_slice()) {
-                                (Ok(request), addr) => self.handle_request(
-                                    &mut local_responses,
-                                    pending_scrape_valid_until,
-                                    request,
-                                    addr,
-                                ),
-                                (
-                                    Err(RequestParseError::Sendable {
-                                        connection_id,
-                                        transaction_id,
-                                        err,
-                                    }),
-                                    addr,
-                                ) => {
-                                    ::log::debug!(
-                                        "Couldn't parse request from {:?}: {}",
-                                        addr,
-                                        err
-                                    );
-
-                                    if self.validator.connection_id_valid(addr, connection_id) {
-                                        let response = ErrorResponse {
-                                            transaction_id,
-                                            message: err.right_or("Parse error").into(),
-                                        };
-
-                                        local_responses.push_back((response.into(), addr));
-                                    }
-                                }
-                                (Err(RequestParseError::Unsendable { err }), addr) => {
-                                    ::log::debug!(
-                                        "Couldn't parse request from {:?}: {}",
-                                        addr,
-                                        err
-                                    );
-                                }
-                            }
-                        }
+                        self.handle_recv_cqe(
+                            &buf_ring,
+                            &mut local_responses,
+                            pending_scrape_valid_until,
+                            &cqe,
+                        );
 
                         if !io_uring::cqueue::more(cqe.flags()) {
                             resubmit_recv = true;
                         }
+
+                        recv_in_cq += 1;
                     }
                     USER_DATA_TIMEOUT => {}
                     send_buffer_index => {
-                        send_buffers.mark_index_as_free(send_buffer_index as usize);
+                        self.send_buffers
+                            .mark_index_as_free(send_buffer_index as usize);
 
                         let result = cqe.result();
 
                         if result < 0 {
-                            panic!("send: {:#}", ::std::io::Error::from_raw_os_error(-result));
+                            ::log::error!(
+                                "send: {:#}",
+                                ::std::io::Error::from_raw_os_error(-result)
+                            );
                         }
                     }
                 }
@@ -298,8 +265,9 @@ impl SocketWorker {
             );
 
             if resubmit_recv {
-                let recv_msg_multi =
-                    recv_msg_helper.create_entry(buf_ring.rc.bgid().try_into().unwrap());
+                let recv_msg_multi = self
+                    .recv_helper
+                    .create_entry(buf_ring.rc.bgid().try_into().unwrap());
 
                 unsafe {
                     ring.submission().push(&recv_msg_multi).unwrap();
@@ -308,6 +276,56 @@ impl SocketWorker {
                 ring.submitter().submit().unwrap();
 
                 resubmit_recv = false;
+            }
+        }
+    }
+
+    fn handle_recv_cqe(
+        &mut self,
+        buf_ring: &FixedSizeBufRing,
+        local_responses: &mut VecDeque<(Response, CanonicalSocketAddr)>,
+        pending_scrape_valid_until: ValidUntil,
+        cqe: &io_uring::cqueue::Entry,
+    ) {
+        let result = cqe.result();
+
+        if result < 0 {
+            // Will produce ENOBUFS if there were no free buffers
+            ::log::error!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
+
+            return;
+        }
+
+        let buffer = buf_ring
+            .rc
+            .get_buf(buf_ring.clone(), result as u32, cqe.flags())
+            .unwrap();
+
+        match self.recv_helper.parse(buffer.as_slice()) {
+            (Ok(request), addr) => {
+                self.handle_request(local_responses, pending_scrape_valid_until, request, addr)
+            }
+            (
+                Err(RequestParseError::Sendable {
+                    connection_id,
+                    transaction_id,
+                    err,
+                }),
+                addr,
+            ) => {
+                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
+
+                if self.validator.connection_id_valid(addr, connection_id) {
+                    let response = ErrorResponse {
+                        transaction_id,
+                        message: err.right_or("Parse error").into(),
+                    };
+
+                    local_responses.push_back((response.into(), addr));
+                }
+            }
+            (Err(RequestParseError::Unsendable { err }), addr) => {
+                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
             }
         }
     }
