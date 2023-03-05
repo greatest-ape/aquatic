@@ -127,7 +127,6 @@ impl SocketWorker {
             }
 
             let mut num_send_added = 0;
-            let mut send_buffer_index = 0;
 
             let sq_space = {
                 let mut sq = ring.submission();
@@ -140,16 +139,12 @@ impl SocketWorker {
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = self.local_responses.pop_front() {
-                    match self
-                        .send_buffers
-                        .prepare_entry(send_buffer_index, response, addr)
-                    {
-                        Ok((index, entry)) => {
+                    match self.send_buffers.prepare_entry(response, addr) {
+                        Ok(entry) => {
                             unsafe {
                                 ring.submission().push(&entry).unwrap();
                             }
 
-                            send_buffer_index = index + 1;
                             num_send_added += 1;
                         }
                         Err(send_buffers::Error::NoBuffers((response, addr))) => {
@@ -197,16 +192,12 @@ impl SocketWorker {
                     }
                 };
 
-                match self
-                    .send_buffers
-                    .prepare_entry(send_buffer_index, response, addr)
-                {
-                    Ok((index, entry)) => {
+                match self.send_buffers.prepare_entry(response, addr) {
+                    Ok(entry) => {
                         unsafe {
                             ring.submission().push(&entry).unwrap();
                         }
 
-                        send_buffer_index = index + 1;
                         num_send_added += 1;
                     }
                     Err(send_buffers::Error::NoBuffers((response, addr))) => {
@@ -260,6 +251,8 @@ impl SocketWorker {
             println!(
                 "num_send_added: {num_send_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}"
             );
+
+            self.send_buffers.reset_index();
 
             if resubmit_recv {
                 let recv_msg_multi = self

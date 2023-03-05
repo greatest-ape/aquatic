@@ -14,6 +14,7 @@ pub enum Error {
 }
 
 pub struct SendBuffers {
+    likely_next_free_index: usize,
     network_address: IpAddr,
     names_v4: Vec<libc::sockaddr_in>,
     names_v6: Vec<libc::sockaddr_in6>,
@@ -91,6 +92,7 @@ impl SendBuffers {
         };
 
         Self {
+            likely_next_free_index: 0,
             network_address: config.network.address.ip(),
             names_v4,
             names_v6,
@@ -107,22 +109,36 @@ impl SendBuffers {
 
     pub fn prepare_entry(
         &mut self,
-        index: usize,
         response: Response,
         addr: CanonicalSocketAddr,
-    ) -> Result<(usize, io_uring::squeue::Entry), Error> {
-        if let Some(index) = self.next_free_index(index) {
-            self.prepare_entry_at_index(index, &response, addr)
-                .map(|entry| (index, entry))
+    ) -> Result<io_uring::squeue::Entry, Error> {
+        if let Some(index) = self.next_free_index(self.likely_next_free_index) {
+            match self.prepare_entry_at_index(index, &response, addr) {
+                Ok(entry) => {
+                    self.likely_next_free_index = index + 1;
+
+                    Ok(entry)
+                }
+                Err(err) => Err(err),
+            }
         } else {
             Err(Error::NoBuffers((response, addr)))
         }
     }
 
-    fn next_free_index(&mut self, index: usize) -> Option<usize> {
-        for (i, free) in self.free[index..].iter().copied().enumerate() {
+    /// Call after going through completion queue
+    pub fn reset_index(&mut self) {
+        self.likely_next_free_index = 0;
+    }
+
+    fn next_free_index(&mut self, start_index: usize) -> Option<usize> {
+        if start_index >= self.free.len() {
+            return None;
+        }
+
+        for (i, free) in self.free[start_index..].iter().copied().enumerate() {
             if free {
-                return Some(index + i);
+                return Some(start_index + i);
             }
         }
 
