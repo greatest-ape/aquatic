@@ -186,7 +186,12 @@ impl SocketWorker {
             self.config.cleaning.max_pending_scrape_age,
         );
 
-        let mut ring = IoUring::new(RING_ENTRIES).expect("create uring");
+        let mut ring = IoUring::builder()
+            // .setup_coop_taskrun()
+            .setup_single_issuer()
+            .setup_sqpoll(1000)
+            .build(RING_ENTRIES)
+            .unwrap();
 
         ring.submitter()
             .register_files(&[self.socket.as_raw_fd()])
@@ -234,8 +239,16 @@ impl SocketWorker {
 
             let mut out_index = 0;
 
+            let sq_space = {
+                let mut sq = ring.submission();
+
+                sq.sync();
+
+                sq.capacity() - sq.len()
+            };
+
             // Enqueue local responses
-            'outer: loop {
+            'outer: for _ in 0..sq_space {
                 // Find next free index
                 loop {
                     match out.free.get(out_index) {
@@ -266,8 +279,16 @@ impl SocketWorker {
                 }
             }
 
+            let sq_space = {
+                let mut sq = ring.submission();
+
+                sq.sync();
+
+                sq.capacity() - sq.len()
+            };
+
             // Enqueue responses from swarm workers
-            'outer: loop {
+            'outer: for _ in 0..sq_space {
                 // Find next free index
                 loop {
                     match out.free.get(out_index) {
@@ -309,7 +330,9 @@ impl SocketWorker {
                 }
             }
 
-            ring.submitter().submit_and_wait(num_out_added).unwrap();
+            // ring.submitter().submit().unwrap();
+
+            ring.completion().sync();
 
             let mut recv_in_cq = 0;
             let cq_len = ring.completion().len();
@@ -369,16 +392,20 @@ impl SocketWorker {
                 }
             }
 
-            dbg!(num_out_added, cq_len, recv_in_cq);
+            // println!("num_out_added: {num_out_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}");
 
             if resubmit_recv {
                 unsafe {
                     ring.submission().push(&recv_msg_multi).unwrap();
                 }
 
-                ring.submitter().submit_and_wait(1).unwrap();
+                ring.submitter().submit().unwrap();
 
                 resubmit_recv = false;
+            }
+
+            if ring.submission().need_wakeup() {
+                ring.submitter().submit_and_wait(1).unwrap();
             }
         }
     }
