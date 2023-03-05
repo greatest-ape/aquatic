@@ -21,7 +21,6 @@ use common::{
 };
 use config::Config;
 use workers::socket::validator::ConnectionValidator;
-use workers::socket::SocketWorker;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");

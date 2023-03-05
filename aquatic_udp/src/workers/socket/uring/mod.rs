@@ -1,3 +1,5 @@
+mod buf_ring;
+
 use std::collections::VecDeque;
 use std::io::{Cursor, ErrorKind};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -297,7 +299,7 @@ impl SocketWorker {
             .register_files(&[self.socket.as_raw_fd()])
             .unwrap();
 
-        let buf_ring = super::buf_ring::Builder::new(0)
+        let buf_ring = buf_ring::Builder::new(0)
             .ring_entries(RING_ENTRIES.try_into().unwrap())
             .buf_len(BUF_LEN)
             .build()
@@ -474,7 +476,7 @@ impl SocketWorker {
                 }
             }
 
-            // println!("num_out_added: {num_out_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}");
+            println!("num_send_added: {num_send_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}");
 
             if resubmit_recv {
                 let recv_msg_multi = recv_msg_storage
