@@ -126,7 +126,7 @@ impl SendBuffers {
     fn prepare_entry(
         &mut self,
         index: usize,
-        response: Response,
+        response: &Response,
         addr: CanonicalSocketAddr,
     ) -> Option<io_uring::squeue::Entry> {
         // Set receiver socket addr
@@ -188,6 +188,21 @@ impl SendBuffers {
         }
 
         None
+    }
+
+    pub fn try_add(
+        &mut self,
+        index: usize,
+        response: Response,
+        addr: CanonicalSocketAddr,
+    ) -> Result<(usize, io_uring::squeue::Entry), (Response, CanonicalSocketAddr)> {
+        if let Some(index) = self.next_free_index(index) {
+            if let Some(entry) = self.prepare_entry(index, &response, addr) {
+                return Ok((index, entry));
+            }
+        }
+
+        Err((response, addr))
     }
 
     pub fn mark_index_as_free(&mut self, index: usize) {
@@ -390,22 +405,21 @@ impl SocketWorker {
 
             // Enqueue local responses
             for _ in 0..sq_space {
-                if let Some(index) = send_buffers.next_free_index(send_buffer_index) {
-                    send_buffer_index = index;
-                } else {
-                    break;
-                }
-
                 if let Some((response, addr)) = local_responses.pop_front() {
-                    if let Some(entry) =
-                        send_buffers.prepare_entry(send_buffer_index, response, addr)
-                    {
-                        unsafe {
-                            ring.submission().push(&entry).unwrap();
-                        }
+                    match send_buffers.try_add(send_buffer_index, response, addr) {
+                        Ok((index, entry)) => {
+                            unsafe {
+                                ring.submission().push(&entry).unwrap();
+                            }
 
-                        num_send_added += 1;
-                        send_buffer_index += 1;
+                            send_buffer_index = index + 1;
+                            num_send_added += 1;
+                        }
+                        Err(r) => {
+                            local_responses.push_front(r);
+
+                            break;
+                        }
                     }
                 } else {
                     break;
@@ -421,37 +435,42 @@ impl SocketWorker {
             };
 
             // Enqueue responses from swarm workers
-            for _ in 0..sq_space {
-                if let Some(index) = send_buffers.next_free_index(send_buffer_index) {
-                    send_buffer_index = index;
-                } else {
-                    break;
-                }
-
-                if let Ok((response, addr)) = self.response_receiver.try_recv() {
-                    let opt_response = match response {
-                        ConnectedResponse::Scrape(r) => self
-                            .pending_scrape_responses
-                            .add_and_get_finished(r)
-                            .map(Response::Scrape),
-                        ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
-                        ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
-                    };
-
-                    if let Some(response) = opt_response {
-                        if let Some(entry) =
-                            send_buffers.prepare_entry(send_buffer_index, response, addr)
-                        {
-                            unsafe {
-                                ring.submission().push(&entry).unwrap();
+            'outer: for _ in 0..sq_space {
+                let (response, addr) = loop {
+                    match self.response_receiver.try_recv() {
+                        Ok((ConnectedResponse::AnnounceIpv4(response), addr)) => {
+                            break (Response::AnnounceIpv4(response), addr);
+                        }
+                        Ok((ConnectedResponse::AnnounceIpv6(response), addr)) => {
+                            break (Response::AnnounceIpv6(response), addr);
+                        }
+                        Ok((ConnectedResponse::Scrape(response), addr)) => {
+                            if let Some(response) =
+                                self.pending_scrape_responses.add_and_get_finished(response)
+                            {
+                                break (Response::Scrape(response), addr);
                             }
-
-                            num_send_added += 1;
-                            send_buffer_index += 1;
+                        }
+                        Err(_) => {
+                            break 'outer;
                         }
                     }
-                } else {
-                    break;
+                };
+
+                match send_buffers.try_add(send_buffer_index, response, addr) {
+                    Ok((index, entry)) => {
+                        unsafe {
+                            ring.submission().push(&entry).unwrap();
+                        }
+
+                        send_buffer_index = index + 1;
+                        num_send_added += 1;
+                    }
+                    Err((response, addr)) => {
+                        local_responses.push_back((response, addr));
+
+                        break;
+                    }
                 }
             }
 
