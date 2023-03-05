@@ -9,6 +9,7 @@
   * statistics
   * profile
   * CI
+  * uring load test?
 
 * ws: wait for crates release of glommio with membarrier fix (PR #558)
 * Release new version
