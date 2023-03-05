@@ -31,6 +31,8 @@ use crate::config::Config;
 use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 
+const RING_ENTRIES: u32 = 1024;
+
 struct OutMessageStorage {
     pub names: Vec<libc::sockaddr_in>,
     pub buffers: Vec<[u8; 8192]>,
@@ -182,14 +184,14 @@ impl SocketWorker {
             self.config.cleaning.max_pending_scrape_age,
         );
 
-        let mut ring = IoUring::new(128).expect("create uring");
+        let mut ring = IoUring::new(RING_ENTRIES).expect("create uring");
 
         ring.submitter()
             .register_files(&[self.socket.as_raw_fd()])
             .unwrap();
 
         let buf_ring = super::buf_ring::Builder::new(0)
-            .ring_entries(128)
+            .ring_entries(RING_ENTRIES.try_into().unwrap())
             .buf_len(8192)
             .build()
             .unwrap();
