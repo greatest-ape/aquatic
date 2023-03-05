@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::io::{Cursor, ErrorKind};
-use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::AsRawFd;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
@@ -136,6 +136,106 @@ impl OutMessageStorage {
     }
 }
 
+struct RecvMsgStorage {
+    name_v4: Box<libc::sockaddr_in>,
+    msghdr_v4: Box<libc::msghdr>,
+    name_v6: Box<libc::sockaddr_in6>,
+    msghdr_v6: Box<libc::msghdr>,
+}
+
+impl RecvMsgStorage {
+    fn new() -> Self {
+        let mut name_v4 = Box::new(libc::sockaddr_in {
+            sin_family: 0,
+            sin_port: 0,
+            sin_addr: libc::in_addr { s_addr: 0 },
+            sin_zero: [0; 8],
+        });
+
+        let msghdr_v4 = Box::new(msghdr {
+            msg_name: &mut name_v4 as *mut _ as *mut libc::c_void,
+            msg_namelen: core::mem::size_of::<libc::sockaddr_in>() as u32,
+            msg_iov: null_mut(),
+            msg_iovlen: 0,
+            msg_control: null_mut(),
+            msg_controllen: 0,
+            msg_flags: 0,
+        });
+
+        let mut name_v6 = Box::new(libc::sockaddr_in6 {
+            sin6_family: 0,
+            sin6_port: 0,
+            sin6_flowinfo: 0,
+            sin6_addr: libc::in6_addr { s6_addr: [0; 16] },
+            sin6_scope_id: 0,
+        });
+
+        let msghdr_v6 = Box::new(msghdr {
+            msg_name: &mut name_v6 as *mut _ as *mut libc::c_void,
+            msg_namelen: core::mem::size_of::<libc::sockaddr_in6>() as u32,
+            msg_iov: null_mut(),
+            msg_iovlen: 0,
+            msg_control: null_mut(),
+            msg_controllen: 0,
+            msg_flags: 0,
+        });
+
+        Self {
+            name_v4,
+            msghdr_v4,
+            name_v6,
+            msghdr_v6,
+        }
+    }
+
+    pub fn msghdr(&self, config: &Config) -> &libc::msghdr {
+        if config.network.address.is_ipv4() {
+            &self.msghdr_v4
+        } else {
+            &self.msghdr_v6
+        }
+    }
+
+    pub fn create_entry(&self, config: &Config, buf_group: u16) -> io_uring::squeue::Entry {
+        RecvMsgMulti::new(Fixed(0), self.msghdr(config), buf_group)
+            .build()
+            .user_data(u64::MAX)
+    }
+
+    pub fn parse(
+        &self,
+        config: &Config,
+        buffer: &[u8],
+    ) -> (Result<Request, RequestParseError>, CanonicalSocketAddr) {
+        let msg = RecvMsgOut::parse(buffer, self.msghdr(&config)).unwrap();
+
+        let addr = unsafe {
+            if config.network.address.is_ipv4() {
+                let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in);
+
+                SocketAddr::V4(SocketAddrV4::new(
+                    u32::from_be(name_data.sin_addr.s_addr).into(),
+                    u16::from_be(name_data.sin_port),
+                ))
+            } else {
+                let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in6);
+
+                SocketAddr::V6(SocketAddrV6::new(
+                    Ipv6Addr::from(name_data.sin6_addr.s6_addr),
+                    u16::from_be(name_data.sin6_port),
+                    u32::from_be(name_data.sin6_flowinfo),
+                    u32::from_be(name_data.sin6_scope_id),
+                ))
+            }
+        };
+
+        (
+            Request::from_bytes(msg.payload_data(), config.protocol.max_scrape_torrents),
+            CanonicalSocketAddr::new(addr),
+        )
+    }
+}
+
 pub struct SocketWorker {
     config: Config,
     shared_state: State,
@@ -205,32 +305,8 @@ impl SocketWorker {
 
         buf_ring.rc.register(&mut ring).unwrap();
 
-        let mut recv_msg_multi_name = libc::sockaddr_in {
-            sin_family: 0,
-            sin_port: 0,
-            sin_addr: libc::in_addr { s_addr: 0 },
-            sin_zero: [0; 8],
-        };
-
-        let recv_msg_multi_msghdr = msghdr {
-            msg_name: &mut recv_msg_multi_name as *mut _ as *mut libc::c_void,
-            msg_namelen: core::mem::size_of::<libc::sockaddr_in>() as u32,
-            msg_iov: null_mut(),
-            msg_iovlen: 0,
-            msg_control: null_mut(),
-            msg_controllen: 0,
-            msg_flags: 0,
-        };
-
-        let recv_msg_multi = RecvMsgMulti::new(
-            Fixed(0),
-            &recv_msg_multi_msghdr as *const _,
-            buf_ring.rc.bgid(),
-        )
-        .build()
-        .user_data(u64::MAX);
-
         let mut out = OutMessageStorage::new(SEND_ENTRIES);
+        let recv_msg_storage = RecvMsgStorage::new();
 
         let mut resubmit_recv = true;
 
@@ -340,41 +416,47 @@ impl SocketWorker {
             for cqe in ring.completion() {
                 if cqe.user_data() == u64::MAX {
                     recv_in_cq += 1;
+
                     let result = cqe.result();
 
                     if result < 0 {
                         // Expect ENOBUFS when the buf_ring is empty.
                         ::log::error!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
                     } else {
-                        let result = result as u32;
-
                         let buffer = buf_ring
                             .rc
-                            .get_buf(buf_ring.clone(), result, cqe.flags())
+                            .get_buf(buf_ring.clone(), result as u32, cqe.flags())
                             .unwrap();
-                        let msg =
-                            RecvMsgOut::parse(buffer.as_slice(), &recv_msg_multi_msghdr).unwrap();
 
-                        let addr = unsafe {
-                            let name_data = *(msg.name_data().as_ptr() as *const libc::sockaddr_in);
-
-                            SocketAddrV4::new(
-                                u32::from_be(name_data.sin_addr.s_addr).into(),
-                                u16::from_be(name_data.sin_port),
-                            )
-                        };
-
-                        match Request::from_bytes(
-                            msg.payload_data(),
-                            self.config.protocol.max_scrape_torrents,
-                        ) {
-                            Ok(request) => self.handle_request(
+                        match recv_msg_storage.parse(&self.config, buffer.as_slice()) {
+                            (Ok(request), addr) => self.handle_request(
                                 &mut local_responses,
                                 pending_scrape_valid_until,
                                 request,
-                                CanonicalSocketAddr::new(addr.into()),
+                                addr,
                             ),
-                            Err(err) => {}
+                            (
+                                Err(RequestParseError::Sendable {
+                                    connection_id,
+                                    transaction_id,
+                                    err,
+                                }),
+                                addr,
+                            ) => {
+                                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
+
+                                if self.validator.connection_id_valid(addr, connection_id) {
+                                    let response = ErrorResponse {
+                                        transaction_id,
+                                        message: err.right_or("Parse error").into(),
+                                    };
+
+                                    local_responses.push_back((response.into(), addr));
+                                }
+                            }
+                            (Err(RequestParseError::Unsendable { err }), addr) => {
+                                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
+                            }
                         }
                     }
 
@@ -395,6 +477,9 @@ impl SocketWorker {
             // println!("num_out_added: {num_out_added}, cq_len: {cq_len}, recv_in_cq: {recv_in_cq}");
 
             if resubmit_recv {
+                let recv_msg_multi = recv_msg_storage
+                    .create_entry(&self.config, buf_ring.rc.bgid().try_into().unwrap());
+
                 unsafe {
                     ring.submission().push(&recv_msg_multi).unwrap();
                 }
