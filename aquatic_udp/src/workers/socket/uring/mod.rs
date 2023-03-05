@@ -22,7 +22,7 @@ use aquatic_udp_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
-use self::recv_helper::RecvMsgMultiHelper;
+use self::recv_helper::RecvHelper;
 use self::send_buffers::SendBuffers;
 
 use super::create_socket;
@@ -103,7 +103,7 @@ impl SocketWorker {
         buf_ring.rc.register(&mut ring).unwrap();
 
         let mut send_buffers = SendBuffers::new(&self.config, SEND_ENTRIES);
-        let recv_msg_helper = RecvMsgMultiHelper::new(&self.config);
+        let recv_msg_helper = RecvHelper::new(&self.config);
 
         let mut resubmit_recv = true;
 

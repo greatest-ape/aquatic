@@ -11,7 +11,7 @@ use crate::config::Config;
 
 use super::{RECV_USER_DATA, SOCKET_FIXED};
 
-pub struct RecvMsgMultiHelper {
+pub struct RecvHelper {
     network_address: IpAddr,
     max_scrape_torrents: u8,
     #[allow(dead_code)]
@@ -22,7 +22,7 @@ pub struct RecvMsgMultiHelper {
     msghdr_v6: Box<libc::msghdr>,
 }
 
-impl RecvMsgMultiHelper {
+impl RecvHelper {
     pub fn new(config: &Config) -> Self {
         let mut name_v4 = Box::new(libc::sockaddr_in {
             sin_family: 0,
