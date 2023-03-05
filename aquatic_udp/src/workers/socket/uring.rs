@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io::{Cursor, ErrorKind};
 use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 use std::os::fd::AsRawFd;
@@ -180,7 +181,7 @@ impl SocketWorker {
     }
 
     pub fn run_inner(&mut self) {
-        let mut local_responses: Vec<(Response, CanonicalSocketAddr)> = Vec::new();
+        let mut local_responses: VecDeque<(Response, CanonicalSocketAddr)> = VecDeque::new();
         let mut pending_scrape_valid_until = ValidUntil::new(
             self.server_start_instant,
             self.config.cleaning.max_pending_scrape_age,
@@ -263,7 +264,7 @@ impl SocketWorker {
                     }
                 }
 
-                if let Some((response, addr)) = local_responses.pop() {
+                if let Some((response, addr)) = local_responses.pop_front() {
                     if let Some(entry) = out.add_entry(out_index, response, addr) {
                         unsafe {
                             ring.submission().push(&entry).unwrap();
@@ -407,7 +408,7 @@ impl SocketWorker {
 
     fn handle_request(
         &mut self,
-        local_responses: &mut Vec<(Response, CanonicalSocketAddr)>,
+        local_responses: &mut VecDeque<(Response, CanonicalSocketAddr)>,
         pending_scrape_valid_until: ValidUntil,
         request: Request,
         src: CanonicalSocketAddr,
@@ -423,7 +424,7 @@ impl SocketWorker {
                     transaction_id: request.transaction_id,
                 });
 
-                local_responses.push((response, src))
+                local_responses.push_back((response, src))
             }
             Request::Announce(request) => {
                 if self
@@ -449,7 +450,7 @@ impl SocketWorker {
                             message: "Info hash not allowed".into(),
                         });
 
-                        local_responses.push((response, src))
+                        local_responses.push_back((response, src))
                     }
                 }
             }
