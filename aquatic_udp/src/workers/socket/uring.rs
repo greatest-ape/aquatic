@@ -189,7 +189,6 @@ impl SocketWorker {
         let mut ring = IoUring::builder()
             // .setup_coop_taskrun()
             .setup_single_issuer()
-            .setup_sqpoll(1000)
             .build(RING_ENTRIES)
             .unwrap();
 
@@ -235,7 +234,7 @@ impl SocketWorker {
         let mut resubmit_recv = true;
 
         loop {
-            let mut num_out_added = 0;
+            let mut num_send_added = 0;
 
             let mut out_index = 0;
 
@@ -270,7 +269,7 @@ impl SocketWorker {
                             ring.submission().push(&entry).unwrap();
                         }
 
-                        num_out_added += 1;
+                        num_send_added += 1;
                     }
 
                     out_index += 1;
@@ -320,7 +319,7 @@ impl SocketWorker {
                                 ring.submission().push(&entry).unwrap();
                             }
 
-                            num_out_added += 1;
+                            num_send_added += 1;
                         }
 
                         out_index += 1;
@@ -330,7 +329,7 @@ impl SocketWorker {
                 }
             }
 
-            // ring.submitter().submit().unwrap();
+            ring.submitter().submit_and_wait(num_send_added).unwrap();
 
             ring.completion().sync();
 
@@ -402,10 +401,6 @@ impl SocketWorker {
                 ring.submitter().submit().unwrap();
 
                 resubmit_recv = false;
-            }
-
-            if ring.submission().need_wakeup() {
-                ring.submitter().submit_and_wait(1).unwrap();
             }
         }
     }
