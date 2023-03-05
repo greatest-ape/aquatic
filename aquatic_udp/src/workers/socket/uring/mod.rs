@@ -96,11 +96,6 @@ impl SocketWorker {
     }
 
     pub fn run_inner(&mut self) {
-        let mut pending_scrape_valid_until = ValidUntil::new(
-            self.server_start_instant,
-            self.config.cleaning.max_pending_scrape_age,
-        );
-
         let mut ring = IoUring::builder()
             .setup_coop_taskrun()
             .setup_single_issuer()
@@ -119,6 +114,14 @@ impl SocketWorker {
 
         buf_ring.rc.register(&mut ring).unwrap();
 
+        let mut pending_scrape_valid_until = ValidUntil::new(
+            self.server_start_instant,
+            self.config.cleaning.max_pending_scrape_age,
+        );
+
+        let recv_entry = self
+            .recv_helper
+            .create_entry(buf_ring.rc.bgid().try_into().unwrap());
         // This timeout makes it possible to avoid busy-polling and enables
         // regular updates of pending_scrape_valid_until
         let pulse_timeout_entry = Timeout::new(&self.pulse_timeout as *const _)
@@ -128,16 +131,19 @@ impl SocketWorker {
             .build()
             .user_data(USER_DATA_CLEANING_TIMEOUT);
 
-        let mut resubmit_recv = true;
-        let mut resubmit_pulse_timeout = false;
-        let mut resubmit_cleaning_timeout = false;
-
-        unsafe {
-            ring.submission().push(&pulse_timeout_entry).unwrap();
-            ring.submission().push(&cleaning_timeout_entry).unwrap();
-        }
+        let mut squeue_buf = vec![
+            recv_entry.clone(),
+            pulse_timeout_entry.clone(),
+            cleaning_timeout_entry.clone(),
+        ];
 
         loop {
+            for sqe in squeue_buf.drain(..) {
+                unsafe {
+                    ring.submission().push(&sqe).unwrap();
+                }
+            }
+
             let mut num_send_added = 0;
 
             let sq_space = {
@@ -238,7 +244,7 @@ impl SocketWorker {
                         self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe);
 
                         if !io_uring::cqueue::more(cqe.flags()) {
-                            resubmit_recv = true;
+                            squeue_buf.push(recv_entry.clone());
                         }
 
                         recv_in_cq += 1;
@@ -249,13 +255,13 @@ impl SocketWorker {
                             self.config.cleaning.max_pending_scrape_age,
                         );
 
-                        resubmit_pulse_timeout = true;
+                        squeue_buf.push(pulse_timeout_entry.clone());
                     }
                     USER_DATA_CLEANING_TIMEOUT => {
                         self.pending_scrape_responses
                             .clean(self.server_start_instant.seconds_elapsed());
 
-                        resubmit_cleaning_timeout = true;
+                        squeue_buf.push(cleaning_timeout_entry.clone());
                     }
                     send_buffer_index => {
                         self.send_buffers
@@ -278,36 +284,6 @@ impl SocketWorker {
             );
 
             self.send_buffers.reset_index();
-
-            if resubmit_recv {
-                let recv_msg_multi = self
-                    .recv_helper
-                    .create_entry(buf_ring.rc.bgid().try_into().unwrap());
-
-                unsafe {
-                    ring.submission().push(&recv_msg_multi).unwrap();
-                }
-
-                ring.submitter().submit().unwrap();
-
-                resubmit_recv = false;
-            }
-
-            if resubmit_pulse_timeout {
-                unsafe {
-                    ring.submission().push(&pulse_timeout_entry).unwrap();
-                }
-
-                resubmit_pulse_timeout = false;
-            }
-
-            if resubmit_cleaning_timeout {
-                unsafe {
-                    ring.submission().push(&cleaning_timeout_entry).unwrap();
-                }
-
-                resubmit_cleaning_timeout = false;
-            }
         }
     }
 
