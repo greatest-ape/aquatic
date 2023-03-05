@@ -32,10 +32,12 @@ use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 
 const RING_ENTRIES: u32 = 1024;
+const SEND_ENTRIES: usize = 512;
+const BUF_LEN: usize = 8192;
 
 struct OutMessageStorage {
     pub names: Vec<libc::sockaddr_in>,
-    pub buffers: Vec<[u8; 8192]>,
+    pub buffers: Vec<[u8; BUF_LEN]>,
     pub iovecs: Vec<libc::iovec>,
     pub msghdrs: Vec<libc::msghdr>,
     pub free: Vec<bool>,
@@ -52,7 +54,7 @@ impl OutMessageStorage {
         .take(capacity)
         .collect::<Vec<_>>();
 
-        let mut buffers = ::std::iter::repeat([0u8; 8192])
+        let mut buffers = ::std::iter::repeat([0u8; BUF_LEN])
             .take(capacity)
             .collect::<Vec<_>>();
 
@@ -192,7 +194,7 @@ impl SocketWorker {
 
         let buf_ring = super::buf_ring::Builder::new(0)
             .ring_entries(RING_ENTRIES.try_into().unwrap())
-            .buf_len(8192)
+            .buf_len(BUF_LEN)
             .build()
             .unwrap();
 
@@ -223,7 +225,7 @@ impl SocketWorker {
         .build()
         .user_data(u64::MAX);
 
-        let mut out = OutMessageStorage::new(64);
+        let mut out = OutMessageStorage::new(SEND_ENTRIES);
 
         let mut resubmit_recv = true;
 
@@ -309,8 +311,12 @@ impl SocketWorker {
 
             ring.submitter().submit_and_wait(num_out_added).unwrap();
 
+            let mut recv_in_cq = 0;
+            let cq_len = ring.completion().len();
+
             for cqe in ring.completion() {
                 if cqe.user_data() == u64::MAX {
+                    recv_in_cq += 1;
                     let result = cqe.result();
 
                     if result < 0 {
@@ -362,6 +368,8 @@ impl SocketWorker {
                     }
                 }
             }
+
+            dbg!(num_out_added, cq_len, recv_in_cq);
 
             if resubmit_recv {
                 unsafe {
