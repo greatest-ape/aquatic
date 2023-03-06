@@ -152,9 +152,7 @@ impl SocketWorker {
             let mut num_send_added = 0;
 
             let sq_space = {
-                let mut sq = ring.submission();
-
-                sq.sync();
+                let sq = ring.submission();
 
                 sq.capacity() - sq.len()
             };
@@ -187,9 +185,7 @@ impl SocketWorker {
             }
 
             let sq_space = {
-                let mut sq = ring.submission();
-
-                sq.sync();
+                let sq = ring.submission();
 
                 sq.capacity() - sq.len()
             };
