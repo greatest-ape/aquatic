@@ -6,12 +6,13 @@ use std::collections::VecDeque;
 use std::net::UdpSocket;
 use std::os::fd::AsRawFd;
 
+use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
 use io_uring::opcode::Timeout;
 use io_uring::types::{Fixed, Timespec};
-use io_uring::IoUring;
+use io_uring::{IoUring, Probe};
 
 use aquatic_common::{
     access_list::create_access_list_cache, privileges::PrivilegeDropper, CanonicalSocketAddr,
@@ -402,4 +403,31 @@ impl SocketWorker {
             }
         }
     }
+}
+
+pub fn supported_on_current_kernel() -> anyhow::Result<()> {
+    let opcodes = [
+        // We can't probe for RecvMsgMulti, so we probe for SendZc, which was
+        // also introduced in Linux 6.0
+        io_uring::opcode::SendZc::CODE,
+    ];
+
+    let ring = IoUring::new(1).with_context(|| "create ring")?;
+
+    let mut probe = Probe::new();
+
+    ring.submitter()
+        .register_probe(&mut probe)
+        .with_context(|| "register probe")?;
+
+    for opcode in opcodes {
+        if !probe.is_supported(opcode) {
+            return Err(anyhow::anyhow!(
+                "io_uring opcode {:b} not supported",
+                opcode
+            ));
+        }
+    }
+
+    Ok(())
 }

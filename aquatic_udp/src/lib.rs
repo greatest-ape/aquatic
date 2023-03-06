@@ -20,7 +20,7 @@ use common::{
     ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, SwarmWorkerIndex,
 };
 use config::Config;
-use workers::socket::validator::ConnectionValidator;
+use workers::socket::ConnectionValidator;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -121,7 +121,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::SocketWorker(i),
                 );
 
-                workers::socket::SocketWorker::run(
+                workers::socket::run_socket_worker(
                     sentinel,
                     state,
                     config,

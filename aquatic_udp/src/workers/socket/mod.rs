@@ -2,20 +2,66 @@ mod mio;
 mod storage;
 #[cfg(feature = "io-uring")]
 mod uring;
-pub mod validator;
+mod validator;
 
 use anyhow::Context;
-use aquatic_common::privileges::PrivilegeDropper;
+use aquatic_common::{
+    privileges::PrivilegeDropper, CanonicalSocketAddr, PanicSentinel, ServerStartInstant,
+};
+use crossbeam_channel::Receiver;
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::config::Config;
+use crate::{
+    common::{ConnectedRequestSender, ConnectedResponse, State},
+    config::Config,
+};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "io-uring")] {
-        pub use self::uring::SocketWorker;
-    } else {
-        pub use self::mio::SocketWorker;
+pub use self::validator::ConnectionValidator;
+
+pub fn run_socket_worker(
+    sentinel: PanicSentinel,
+    shared_state: State,
+    config: Config,
+    validator: ConnectionValidator,
+    server_start_instant: ServerStartInstant,
+    request_sender: ConnectedRequestSender,
+    response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
+    priv_dropper: PrivilegeDropper,
+) {
+    #[cfg(feature = "io-uring")]
+    match self::uring::supported_on_current_kernel() {
+        Ok(()) => {
+            self::uring::SocketWorker::run(
+                sentinel,
+                shared_state,
+                config,
+                validator,
+                server_start_instant,
+                request_sender,
+                response_receiver,
+                priv_dropper,
+            );
+
+            return;
+        }
+        Err(err) => {
+            ::log::warn!(
+                "Falling back to mio because of lacking kernel io_uring support: {:#}",
+                err
+            );
+        }
     }
+
+    self::mio::SocketWorker::run(
+        sentinel,
+        shared_state,
+        config,
+        validator,
+        server_start_instant,
+        request_sender,
+        response_receiver,
+        priv_dropper,
+    );
 }
 
 fn create_socket(
