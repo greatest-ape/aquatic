@@ -5,6 +5,7 @@ mod send_buffers;
 use std::collections::VecDeque;
 use std::net::UdpSocket;
 use std::os::fd::AsRawFd;
+use std::sync::atomic::Ordering;
 
 use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
@@ -27,9 +28,9 @@ use self::buf_ring::FixedSizeBufRing;
 use self::recv_helper::RecvHelper;
 use self::send_buffers::SendBuffers;
 
-use super::create_socket;
 use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
+use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
 const RING_ENTRIES: u32 = 1024;
 const SEND_ENTRIES: usize = 512;
@@ -139,6 +140,9 @@ impl SocketWorker {
         ];
 
         loop {
+            let mut bytes_received_ipv4 = 0;
+            let mut bytes_received_ipv6 = 0;
+
             for sqe in squeue_buf.drain(..) {
                 unsafe {
                     ring.submission().push(&sqe).unwrap();
@@ -240,7 +244,17 @@ impl SocketWorker {
             for cqe in ring.completion() {
                 match cqe.user_data() {
                     USER_DATA_RECV => {
-                        self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe);
+                        if let Some((addr, bytes_received)) =
+                            self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe)
+                        {
+                            if self.config.statistics.active() {
+                                if addr.is_ipv4() {
+                                    bytes_received_ipv4 += bytes_received + EXTRA_PACKET_SIZE_IPV4;
+                                } else {
+                                    bytes_received_ipv6 += bytes_received + EXTRA_PACKET_SIZE_IPV6;
+                                }
+                            }
+                        }
 
                         if !io_uring::cqueue::more(cqe.flags()) {
                             squeue_buf.push(recv_entry.clone());
@@ -277,6 +291,17 @@ impl SocketWorker {
             }
 
             self.send_buffers.reset_index();
+
+            if self.config.statistics.active() {
+                self.shared_state
+                    .statistics_ipv4
+                    .bytes_received
+                    .fetch_add(bytes_received_ipv4, Ordering::Relaxed);
+                self.shared_state
+                    .statistics_ipv6
+                    .bytes_received
+                    .fetch_add(bytes_received_ipv6, Ordering::Relaxed);
+            }
         }
     }
 
@@ -285,14 +310,14 @@ impl SocketWorker {
         buf_ring: &FixedSizeBufRing,
         pending_scrape_valid_until: ValidUntil,
         cqe: &io_uring::cqueue::Entry,
-    ) {
+    ) -> Option<(CanonicalSocketAddr, usize)> {
         let result = cqe.result();
 
         if result < 0 {
             // Will produce ENOBUFS if there were no free buffers
-            ::log::error!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
+            ::log::warn!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
 
-            return;
+            return None;
         }
 
         let buffer = match buf_ring
@@ -303,20 +328,21 @@ impl SocketWorker {
             Err(err) => {
                 ::log::error!("Couldn't get buffer: {:#}", err);
 
-                return;
+                return None;
             }
         };
 
-        match self.recv_helper.parse(buffer.as_slice()) {
-            (Ok(request), addr) => self.handle_request(pending_scrape_valid_until, request, addr),
-            (
-                Err(RequestParseError::Sendable {
-                    connection_id,
-                    transaction_id,
-                    err,
-                }),
-                addr,
-            ) => {
+        let buffer = buffer.as_slice();
+
+        let (res_request, addr) = self.recv_helper.parse(buffer);
+
+        match res_request {
+            Ok(request) => self.handle_request(pending_scrape_valid_until, request, addr),
+            Err(RequestParseError::Sendable {
+                connection_id,
+                transaction_id,
+                err,
+            }) => {
                 ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
 
                 if self.validator.connection_id_valid(addr, connection_id) {
@@ -328,10 +354,12 @@ impl SocketWorker {
                     self.local_responses.push_back((response.into(), addr));
                 }
             }
-            (Err(RequestParseError::Unsendable { err }), addr) => {
+            Err(RequestParseError::Unsendable { err }) => {
                 ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
             }
         }
+
+        Some((addr, buffer.len()))
     }
 
     fn handle_request(

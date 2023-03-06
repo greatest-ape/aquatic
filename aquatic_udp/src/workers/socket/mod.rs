@@ -18,6 +18,24 @@ use crate::{
 
 pub use self::validator::ConnectionValidator;
 
+/// Bytes of data transmitted when sending an IPv4 UDP packet, in addition to payload size
+///
+/// Consists of:
+/// - 8 bit ethernet frame
+/// - 14 + 4 bit MAC header and checksum
+/// - 20 bit IPv4 header
+/// - 8 bit udp header
+const EXTRA_PACKET_SIZE_IPV4: usize = 8 + 18 + 20 + 8;
+
+/// Bytes of data transmitted when sending an IPv4 UDP packet, in addition to payload size
+///
+/// Consists of:
+/// - 8 bit ethernet frame
+/// - 14 + 4 bit MAC header and checksum
+/// - 40 bit IPv6 header
+/// - 8 bit udp header
+const EXTRA_PACKET_SIZE_IPV6: usize = 8 + 18 + 40 + 8;
+
 pub fn run_socket_worker(
     sentinel: PanicSentinel,
     shared_state: State,
