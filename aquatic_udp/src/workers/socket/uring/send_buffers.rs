@@ -1,4 +1,8 @@
-use std::{io::Cursor, net::IpAddr, ptr::null_mut};
+use std::{
+    io::Cursor,
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
+    ptr::null_mut,
+};
 
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::Response;
@@ -22,6 +26,8 @@ pub struct SendBuffers {
     iovecs: Vec<libc::iovec>,
     msghdrs: Vec<libc::msghdr>,
     free: Vec<bool>,
+    // Only used for statistics
+    receiver_is_ipv4: Vec<bool>,
 }
 
 impl SendBuffers {
@@ -100,7 +106,12 @@ impl SendBuffers {
             iovecs,
             msghdrs,
             free: ::std::iter::repeat(true).take(capacity).collect(),
+            receiver_is_ipv4: ::std::iter::repeat(true).take(capacity).collect(),
         }
+    }
+
+    pub fn receiver_is_ipv4(&mut self, index: usize) -> bool {
+        self.receiver_is_ipv4[index]
     }
 
     pub fn mark_index_as_free(&mut self, index: usize) {
@@ -153,6 +164,8 @@ impl SendBuffers {
     ) -> Result<io_uring::squeue::Entry, Error> {
         // Set receiver socket addr
         if self.network_address.is_ipv4() {
+            self.receiver_is_ipv4[index] = true;
+
             let msg_name = self.names_v4.get_mut(index).unwrap();
 
             let addr = addr.get_ipv4().unwrap();
@@ -164,6 +177,8 @@ impl SendBuffers {
                 panic!("ipv6 address in ipv4 mode");
             };
         } else {
+            self.receiver_is_ipv4[index] = false;
+
             let msg_name = self.names_v6.get_mut(index).unwrap();
 
             let addr = addr.get_ipv6_mapped();

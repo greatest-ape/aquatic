@@ -142,6 +142,8 @@ impl SocketWorker {
         loop {
             let mut bytes_received_ipv4 = 0;
             let mut bytes_received_ipv6 = 0;
+            let mut bytes_sent_ipv4 = 0;
+            let mut bytes_sent_ipv6 = 0;
 
             for sqe in squeue_buf.drain(..) {
                 unsafe {
@@ -275,9 +277,6 @@ impl SocketWorker {
                         squeue_buf.push(cleaning_timeout_entry.clone());
                     }
                     send_buffer_index => {
-                        self.send_buffers
-                            .mark_index_as_free(send_buffer_index as usize);
-
                         let result = cqe.result();
 
                         if result < 0 {
@@ -285,7 +284,21 @@ impl SocketWorker {
                                 "send: {:#}",
                                 ::std::io::Error::from_raw_os_error(-result)
                             );
+                        } else if self.config.statistics.active() {
+                            let bytes_sent = result as usize;
+
+                            if self
+                                .send_buffers
+                                .receiver_is_ipv4(send_buffer_index as usize)
+                            {
+                                bytes_sent_ipv4 += bytes_sent + EXTRA_PACKET_SIZE_IPV4;
+                            } else {
+                                bytes_sent_ipv6 += bytes_sent + EXTRA_PACKET_SIZE_IPV6;
+                            }
                         }
+
+                        self.send_buffers
+                            .mark_index_as_free(send_buffer_index as usize);
                     }
                 }
             }
@@ -301,6 +314,14 @@ impl SocketWorker {
                     .statistics_ipv6
                     .bytes_received
                     .fetch_add(bytes_received_ipv6, Ordering::Relaxed);
+                self.shared_state
+                    .statistics_ipv4
+                    .bytes_sent
+                    .fetch_add(bytes_sent_ipv4, Ordering::Relaxed);
+                self.shared_state
+                    .statistics_ipv6
+                    .bytes_sent
+                    .fetch_add(bytes_sent_ipv6, Ordering::Relaxed);
             }
         }
     }
