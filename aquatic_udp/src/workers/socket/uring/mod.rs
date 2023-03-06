@@ -140,8 +140,6 @@ impl SocketWorker {
         ];
 
         loop {
-            let mut bytes_received_ipv4 = 0;
-            let mut bytes_received_ipv6 = 0;
             let mut bytes_sent_ipv4 = 0;
             let mut bytes_sent_ipv6 = 0;
 
@@ -164,15 +162,17 @@ impl SocketWorker {
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = self.local_responses.pop_front() {
-                    match self.send_buffers.prepare_entry(response, addr) {
+                    match self.send_buffers.prepare_entry(&response, addr) {
                         Ok(entry) => {
                             unsafe {
                                 ring.submission().push(&entry).unwrap();
                             }
 
+                            self.update_response_statistics(&response, addr);
+
                             num_send_added += 1;
                         }
-                        Err(send_buffers::Error::NoBuffers((response, addr))) => {
+                        Err(send_buffers::Error::NoBuffers) => {
                             self.local_responses.push_front((response, addr));
 
                             break;
@@ -217,15 +217,17 @@ impl SocketWorker {
                     }
                 };
 
-                match self.send_buffers.prepare_entry(response, addr) {
+                match self.send_buffers.prepare_entry(&response, addr) {
                     Ok(entry) => {
                         unsafe {
                             ring.submission().push(&entry).unwrap();
                         }
 
+                        self.update_response_statistics(&response, addr);
+
                         num_send_added += 1;
                     }
-                    Err(send_buffers::Error::NoBuffers((response, addr))) => {
+                    Err(send_buffers::Error::NoBuffers) => {
                         self.local_responses.push_back((response, addr));
 
                         break;
@@ -246,17 +248,7 @@ impl SocketWorker {
             for cqe in ring.completion() {
                 match cqe.user_data() {
                     USER_DATA_RECV => {
-                        if let Some((addr, bytes_received)) =
-                            self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe)
-                        {
-                            if self.config.statistics.active() {
-                                if addr.is_ipv4() {
-                                    bytes_received_ipv4 += bytes_received + EXTRA_PACKET_SIZE_IPV4;
-                                } else {
-                                    bytes_received_ipv6 += bytes_received + EXTRA_PACKET_SIZE_IPV6;
-                                }
-                            }
-                        }
+                        self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe);
 
                         if !io_uring::cqueue::more(cqe.flags()) {
                             squeue_buf.push(recv_entry.clone());
@@ -308,14 +300,6 @@ impl SocketWorker {
             if self.config.statistics.active() {
                 self.shared_state
                     .statistics_ipv4
-                    .bytes_received
-                    .fetch_add(bytes_received_ipv4, Ordering::Relaxed);
-                self.shared_state
-                    .statistics_ipv6
-                    .bytes_received
-                    .fetch_add(bytes_received_ipv6, Ordering::Relaxed);
-                self.shared_state
-                    .statistics_ipv4
                     .bytes_sent
                     .fetch_add(bytes_sent_ipv4, Ordering::Relaxed);
                 self.shared_state
@@ -331,14 +315,14 @@ impl SocketWorker {
         buf_ring: &FixedSizeBufRing,
         pending_scrape_valid_until: ValidUntil,
         cqe: &io_uring::cqueue::Entry,
-    ) -> Option<(CanonicalSocketAddr, usize)> {
+    ) {
         let result = cqe.result();
 
         if result < 0 {
             // Will produce ENOBUFS if there were no free buffers
             ::log::warn!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
 
-            return None;
+            return;
         }
 
         let buffer = match buf_ring
@@ -349,7 +333,7 @@ impl SocketWorker {
             Err(err) => {
                 ::log::error!("Couldn't get buffer: {:#}", err);
 
-                return None;
+                return;
             }
         };
 
@@ -380,7 +364,27 @@ impl SocketWorker {
             }
         }
 
-        Some((addr, buffer.len()))
+        if self.config.statistics.active() {
+            if addr.is_ipv4() {
+                self.shared_state
+                    .statistics_ipv4
+                    .bytes_received
+                    .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV4, Ordering::Relaxed);
+                self.shared_state
+                    .statistics_ipv4
+                    .requests_received
+                    .fetch_add(1, Ordering::Relaxed);
+            } else {
+                self.shared_state
+                    .statistics_ipv6
+                    .bytes_received
+                    .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV6, Ordering::Relaxed);
+                self.shared_state
+                    .statistics_ipv6
+                    .requests_received
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+        }
     }
 
     fn handle_request(
@@ -400,7 +404,7 @@ impl SocketWorker {
                     transaction_id: request.transaction_id,
                 });
 
-                self.local_responses.push_back((response, src))
+                self.local_responses.push_back((response, src));
             }
             Request::Announce(request) => {
                 if self
@@ -448,6 +452,39 @@ impl SocketWorker {
                             src,
                         );
                     }
+                }
+            }
+        }
+    }
+
+    fn update_response_statistics(&self, response: &Response, addr: CanonicalSocketAddr) {
+        if self.config.statistics.active() {
+            let statistics = if addr.is_ipv4() {
+                &self.shared_state.statistics_ipv4
+            } else {
+                &self.shared_state.statistics_ipv6
+            };
+
+            match response {
+                Response::Connect(_) => {
+                    statistics
+                        .responses_sent_connect
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+                Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => {
+                    statistics
+                        .responses_sent_announce
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+                Response::Scrape(_) => {
+                    statistics
+                        .responses_sent_scrape
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+                Response::Error(_) => {
+                    statistics
+                        .responses_sent_error
+                        .fetch_add(1, Ordering::Relaxed);
                 }
             }
         }

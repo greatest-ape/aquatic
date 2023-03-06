@@ -1,8 +1,4 @@
-use std::{
-    io::Cursor,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
-    ptr::null_mut,
-};
+use std::{io::Cursor, net::IpAddr, ptr::null_mut};
 
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::Response;
@@ -13,7 +9,7 @@ use crate::config::Config;
 use super::{BUF_LEN, SOCKET_IDENTIFIER};
 
 pub enum Error {
-    NoBuffers((Response, CanonicalSocketAddr)),
+    NoBuffers,
     SerializationFailed(std::io::Error),
 }
 
@@ -120,21 +116,12 @@ impl SendBuffers {
 
     pub fn prepare_entry(
         &mut self,
-        response: Response,
+        response: &Response,
         addr: CanonicalSocketAddr,
     ) -> Result<io_uring::squeue::Entry, Error> {
-        if let Some(index) = self.next_free_index(self.likely_next_free_index) {
-            match self.prepare_entry_at_index(index, &response, addr) {
-                Ok(entry) => {
-                    self.likely_next_free_index = index + 1;
+        let index = self.next_free_index(self.likely_next_free_index)?;
 
-                    Ok(entry)
-                }
-                Err(err) => Err(err),
-            }
-        } else {
-            Err(Error::NoBuffers((response, addr)))
-        }
+        self.prepare_entry_at_index(index, response, addr)
     }
 
     /// Call after going through completion queue
@@ -142,18 +129,18 @@ impl SendBuffers {
         self.likely_next_free_index = 0;
     }
 
-    fn next_free_index(&mut self, start_index: usize) -> Option<usize> {
+    fn next_free_index(&self, start_index: usize) -> Result<usize, Error> {
         if start_index >= self.free.len() {
-            return None;
+            return Err(Error::NoBuffers);
         }
 
         for (i, free) in self.free[start_index..].iter().copied().enumerate() {
             if free {
-                return Some(start_index + i);
+                return Ok(start_index + i);
             }
         }
 
-        None
+        Err(Error::NoBuffers)
     }
 
     fn prepare_entry_at_index(
@@ -202,6 +189,8 @@ impl SendBuffers {
                 iov.iov_len = cursor.position() as usize;
 
                 *self.free.get_mut(index).unwrap() = false;
+
+                self.likely_next_free_index = index + 1;
 
                 Ok(SendMsg::new(SOCKET_IDENTIFIER, msg_hdr)
                     .build()
