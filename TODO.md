@@ -3,9 +3,10 @@
 ## High priority
 
 * udp uring
+  * occasional buf ring crashes, always when running with statistics!
   * test ipv6
-  * thiserror
-  * statistics
+  * thiserror?
+  * check statistics
   * CI
   * uring load test?
 
