@@ -114,41 +114,18 @@ impl SendBuffers {
         self.free[index] = true;
     }
 
-    pub fn prepare_entry(
-        &mut self,
-        response: &Response,
-        addr: CanonicalSocketAddr,
-    ) -> Result<io_uring::squeue::Entry, Error> {
-        let index = self.next_free_index(self.likely_next_free_index)?;
-
-        self.prepare_entry_at_index(index, response, addr)
-    }
-
     /// Call after going through completion queue
     pub fn reset_index(&mut self) {
         self.likely_next_free_index = 0;
     }
 
-    fn next_free_index(&self, start_index: usize) -> Result<usize, Error> {
-        if start_index >= self.free.len() {
-            return Err(Error::NoBuffers);
-        }
-
-        for (i, free) in self.free[start_index..].iter().copied().enumerate() {
-            if free {
-                return Ok(start_index + i);
-            }
-        }
-
-        Err(Error::NoBuffers)
-    }
-
-    fn prepare_entry_at_index(
+    pub fn prepare_entry(
         &mut self,
-        index: usize,
         response: &Response,
         addr: CanonicalSocketAddr,
     ) -> Result<io_uring::squeue::Entry, Error> {
+        let index = self.next_free_index()?;
+
         // Set receiver socket addr
         if self.network_address.is_ipv4() {
             self.receiver_is_ipv4[index] = true;
@@ -198,5 +175,23 @@ impl SendBuffers {
             }
             Err(err) => Err(Error::SerializationFailed(err)),
         }
+    }
+
+    fn next_free_index(&self) -> Result<usize, Error> {
+        if self.likely_next_free_index >= self.free.len() {
+            return Err(Error::NoBuffers);
+        }
+
+        for (i, free) in self.free[self.likely_next_free_index..]
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            if free {
+                return Ok(self.likely_next_free_index + i);
+            }
+        }
+
+        Err(Error::NoBuffers)
     }
 }
