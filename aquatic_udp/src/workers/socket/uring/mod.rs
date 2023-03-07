@@ -28,7 +28,7 @@ use crate::config::Config;
 
 use self::buf_ring::BufRing;
 use self::recv_helper::RecvHelper;
-use self::send_buffers::SendBuffers;
+use self::send_buffers::{ResponseType, SendBuffers};
 
 use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
@@ -168,9 +168,6 @@ impl SocketWorker {
         ];
 
         loop {
-            let mut bytes_sent_ipv4 = 0;
-            let mut bytes_sent_ipv6 = 0;
-
             for sqe in squeue_buf.drain(..) {
                 unsafe { ring.submission().push(&sqe).unwrap() };
             }
@@ -189,8 +186,6 @@ impl SocketWorker {
                     match self.send_buffers.prepare_entry(&response, addr) {
                         Ok(entry) => {
                             unsafe { ring.submission().push(&entry).unwrap() };
-
-                            self.update_response_statistics(&response, addr);
 
                             num_send_added += 1;
                         }
@@ -240,8 +235,6 @@ impl SocketWorker {
                 match self.send_buffers.prepare_entry(&response, addr) {
                     Ok(entry) => {
                         unsafe { ring.submission().push(&entry).unwrap() };
-
-                        self.update_response_statistics(&response, addr);
 
                         num_send_added += 1;
                     }
@@ -301,16 +294,28 @@ impl SocketWorker {
                                 ::std::io::Error::from_raw_os_error(-result)
                             );
                         } else if self.config.statistics.active() {
-                            let bytes_sent = result as usize;
+                            let send_buffer_index = send_buffer_index as usize;
 
-                            if self
-                                .send_buffers
-                                .receiver_is_ipv4(send_buffer_index as usize)
-                            {
-                                bytes_sent_ipv4 += bytes_sent + EXTRA_PACKET_SIZE_IPV4;
-                            } else {
-                                bytes_sent_ipv6 += bytes_sent + EXTRA_PACKET_SIZE_IPV6;
-                            }
+                            let (statistics, extra_bytes) =
+                                if self.send_buffers.receiver_is_ipv4(send_buffer_index) {
+                                    (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
+                                } else {
+                                    (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+                                };
+
+                            statistics
+                                .bytes_sent
+                                .fetch_add(result as usize + extra_bytes, Ordering::Relaxed);
+
+                            let response_counter =
+                                match self.send_buffers.response_type(send_buffer_index) {
+                                    ResponseType::Connect => &statistics.responses_sent_connect,
+                                    ResponseType::Announce => &statistics.responses_sent_announce,
+                                    ResponseType::Scrape => &statistics.responses_sent_scrape,
+                                    ResponseType::Error => &statistics.responses_sent_error,
+                                };
+
+                            response_counter.fetch_add(1, Ordering::Relaxed);
                         }
 
                         self.send_buffers
@@ -320,17 +325,6 @@ impl SocketWorker {
             }
 
             self.send_buffers.reset_index();
-
-            if self.config.statistics.active() {
-                self.shared_state
-                    .statistics_ipv4
-                    .bytes_sent
-                    .fetch_add(bytes_sent_ipv4, Ordering::Relaxed);
-                self.shared_state
-                    .statistics_ipv6
-                    .bytes_sent
-                    .fetch_add(bytes_sent_ipv6, Ordering::Relaxed);
-            }
         }
     }
 
@@ -479,39 +473,6 @@ impl SocketWorker {
                             src,
                         );
                     }
-                }
-            }
-        }
-    }
-
-    fn update_response_statistics(&self, response: &Response, addr: CanonicalSocketAddr) {
-        if self.config.statistics.active() {
-            let statistics = if addr.is_ipv4() {
-                &self.shared_state.statistics_ipv4
-            } else {
-                &self.shared_state.statistics_ipv6
-            };
-
-            match response {
-                Response::Connect(_) => {
-                    statistics
-                        .responses_sent_connect
-                        .fetch_add(1, Ordering::Relaxed);
-                }
-                Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => {
-                    statistics
-                        .responses_sent_announce
-                        .fetch_add(1, Ordering::Relaxed);
-                }
-                Response::Scrape(_) => {
-                    statistics
-                        .responses_sent_scrape
-                        .fetch_add(1, Ordering::Relaxed);
-                }
-                Response::Error(_) => {
-                    statistics
-                        .responses_sent_error
-                        .fetch_add(1, Ordering::Relaxed);
                 }
             }
         }

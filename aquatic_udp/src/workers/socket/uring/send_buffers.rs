@@ -1,4 +1,4 @@
-use std::{io::Cursor, net::IpAddr, ptr::null_mut};
+use std::{io::Cursor, net::IpAddr, ops::IndexMut, ptr::null_mut};
 
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::Response;
@@ -13,6 +13,25 @@ pub enum Error {
     SerializationFailed(std::io::Error),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResponseType {
+    Connect,
+    Announce,
+    Scrape,
+    Error,
+}
+
+impl ResponseType {
+    fn from_response(response: &Response) -> Self {
+        match response {
+            Response::Connect(_) => Self::Connect,
+            Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => Self::Announce,
+            Response::Scrape(_) => Self::Scrape,
+            Response::Error(_) => Self::Error,
+        }
+    }
+}
+
 pub struct SendBuffers {
     likely_next_free_index: usize,
     network_address: IpAddr,
@@ -24,6 +43,8 @@ pub struct SendBuffers {
     free: Vec<bool>,
     // Only used for statistics
     receiver_is_ipv4: Vec<bool>,
+    // Only used for statistics
+    response_types: Vec<ResponseType>,
 }
 
 impl SendBuffers {
@@ -103,11 +124,18 @@ impl SendBuffers {
             msghdrs,
             free: ::std::iter::repeat(true).take(capacity).collect(),
             receiver_is_ipv4: ::std::iter::repeat(true).take(capacity).collect(),
+            response_types: ::std::iter::repeat(ResponseType::Connect)
+                .take(capacity)
+                .collect(),
         }
     }
 
     pub fn receiver_is_ipv4(&mut self, index: usize) -> bool {
         self.receiver_is_ipv4[index]
+    }
+
+    pub fn response_type(&mut self, index: usize) -> ResponseType {
+        self.response_types[index]
     }
 
     pub fn mark_index_as_free(&mut self, index: usize) {
@@ -128,10 +156,7 @@ impl SendBuffers {
 
         // Set receiver socket addr
         if self.network_address.is_ipv4() {
-            self.receiver_is_ipv4[index] = true;
-
-            let msg_name = self.names_v4.get_mut(index).unwrap();
-
+            let msg_name = self.names_v4.index_mut(index);
             let addr = addr.get_ipv4().unwrap();
 
             msg_name.sin_port = addr.port().to_be();
@@ -140,11 +165,10 @@ impl SendBuffers {
             } else {
                 panic!("ipv6 address in ipv4 mode");
             };
+
+            self.receiver_is_ipv4[index] = true;
         } else {
-            self.receiver_is_ipv4[index] = addr.is_ipv4();
-
-            let msg_name = self.names_v6.get_mut(index).unwrap();
-
+            let msg_name = self.names_v6.index_mut(index);
             let addr = addr.get_ipv6_mapped();
 
             msg_name.sin6_port = addr.port().to_be();
@@ -153,25 +177,25 @@ impl SendBuffers {
             } else {
                 panic!("ipv4 address when ipv6 or ipv6-mapped address expected");
             };
+
+            self.receiver_is_ipv4[index] = addr.is_ipv4();
         }
 
-        let buf = self.buffers.get_mut(index).unwrap();
-        let msg_hdr = self.msghdrs.get_mut(index).unwrap();
-        let iov = self.iovecs.get_mut(index).unwrap();
-
-        let mut cursor = Cursor::new(buf.as_mut_slice());
+        let mut cursor = Cursor::new(self.buffers.index_mut(index).as_mut_slice());
 
         match response.write(&mut cursor) {
             Ok(()) => {
-                iov.iov_len = cursor.position() as usize;
-
-                *self.free.get_mut(index).unwrap() = false;
+                self.iovecs[index].iov_len = cursor.position() as usize;
+                self.response_types[index] = ResponseType::from_response(response);
+                self.free[index] = false;
 
                 self.likely_next_free_index = index + 1;
 
-                Ok(SendMsg::new(SOCKET_IDENTIFIER, msg_hdr)
+                let sqe = SendMsg::new(SOCKET_IDENTIFIER, self.msghdrs.index_mut(index))
                     .build()
-                    .user_data(index as u64))
+                    .user_data(index as u64);
+
+                Ok(sqe)
             }
             Err(err) => Err(Error::SerializationFailed(err)),
         }
