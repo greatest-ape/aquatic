@@ -24,7 +24,7 @@ use aquatic_udp_protocol::*;
 use crate::common::*;
 use crate::config::Config;
 
-use self::buf_ring::FixedSizeBufRing;
+use self::buf_ring::BufRing;
 use self::recv_helper::RecvHelper;
 use self::send_buffers::SendBuffers;
 
@@ -111,10 +111,8 @@ impl SocketWorker {
         let buf_ring = buf_ring::Builder::new(0)
             .ring_entries(RING_ENTRIES.try_into().unwrap())
             .buf_len(BUF_LEN)
-            .build()
+            .build(&mut ring)
             .unwrap();
-
-        buf_ring.rc.register(&mut ring).unwrap();
 
         let mut pending_scrape_valid_until = ValidUntil::new(
             self.server_start_instant,
@@ -123,7 +121,7 @@ impl SocketWorker {
 
         let recv_entry = self
             .recv_helper
-            .create_entry(buf_ring.rc.bgid().try_into().unwrap());
+            .create_entry(buf_ring.bgid().try_into().unwrap());
         // This timeout makes it possible to avoid busy-polling and enables
         // regular updates of pending_scrape_valid_until
         let pulse_timeout_entry = Timeout::new(&self.pulse_timeout as *const _)
@@ -308,7 +306,7 @@ impl SocketWorker {
 
     fn handle_recv_cqe(
         &mut self,
-        buf_ring: &FixedSizeBufRing,
+        buf_ring: &BufRing,
         pending_scrape_valid_until: ValidUntil,
         cqe: &io_uring::cqueue::Entry,
     ) {
@@ -321,15 +319,19 @@ impl SocketWorker {
             return;
         }
 
-        let buffer = match buf_ring
-            .rc
-            .get_buf(buf_ring.clone(), result as u32, cqe.flags())
-        {
-            Ok(buffer) => buffer,
-            Err(err) => {
-                ::log::error!("Couldn't get buffer: {:#}", err);
+        let buffer = unsafe {
+            match buf_ring.get_buf(result as u32, cqe.flags()) {
+                Ok(Some(buffer)) => buffer,
+                Ok(None) => {
+                    ::log::error!("Couldn't get buffer");
 
-                return;
+                    return;
+                }
+                Err(err) => {
+                    ::log::error!("Couldn't get buffer: {:#}", err);
+
+                    return;
+                }
             }
         };
 

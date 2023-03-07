@@ -1,413 +1,448 @@
-// Copyright 2019 quininer kel
+// Copyright (c) 2021 Carl Lerche
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Permission is hereby granted, free of charge, to any
+// person obtaining a copy of this software and associated
+// documentation files (the "Software"), to deal in the
+// Software without restriction, including without
+// limitation the rights to use, copy, modify, merge,
+// publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software
+// is furnished to do so, subject to the following
+// conditions:
 //
-// 	http://www.apache.org/licenses/LICENSE-2.0
+// The above copyright notice and this permission notice
+// shall be included in all copies or substantial portions
+// of the Software.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+// ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+// TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+// PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+// SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+// IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS IN THE SOFTWARE.
 
-// Copied from https://github.com/tokio-rs/io-uring/blob/31afc513b173b92365b0dc31e886c07cfa235f5e/io-uring-test/src/tests/register_buf_ring.rs
-// with some changes:
-// - Remove code not pertaining to buffer rings
-// - Remove unused imports
-// - Change visibility of some symbols
-// - Add #[allow(dead_code)] at some places
+// Copied from
+// - https://github.com/FrankReh/tokio-uring/tree/9387c92c98138451f7d760432a04b0b95a406f22/src/buf/bufring
+// - https://github.com/FrankReh/tokio-uring/blob/9387c92c98138451f7d760432a04b0b95a406f22/src/buf/bufgroup/mod.rs
 
-// Create tests for registering buf_rings and for the buf_ring entries.
-// The entry point in this file can be found by searching for 'pub'.
+//! Module for the io_uring device's buf_ring feature.
 
-use io_uring::types;
-use io_uring::types::BufRingEntry;
-use io_uring::{cqueue, squeue, IoUring};
+// Developer's note about io_uring return codes when a buf_ring is used:
+//
+// While a buf_ring pool is exhaused, new calls to read that are, or are not, ready to read will
+// fail with the 105 error, "no buffers", while existing calls that were waiting to become ready to
+// read will not fail. Only when the data becomes ready to read will they fail, if the buffer ring
+// is still empty at that time. This makes sense when thinking about it from how the kernel
+// implements the start of a read command; it can be confusing when first working with these
+// commands from the userland perspective.
 
+// While the file! calls yield the clippy false positive.
+#![allow(clippy::print_literal)]
+
+use io_uring::{types, IoUring};
 use std::cell::Cell;
-use std::fmt;
 use std::io;
-use std::ptr;
 use std::rc::Rc;
 use std::sync::atomic::{self, AtomicU16};
 
-type Bgid = u16; // Buffer group id
-type Bid = u16; // Buffer id
+/// The buffer group ID.
+///
+/// The creater of a buffer group is responsible for picking a buffer group id
+/// that does not conflict with other buffer group ids also being registered with the uring
+/// interface.
+pub(crate) type Bgid = u16;
 
-/// An anonymous region of memory mapped using `mmap(2)`, not backed by a file
-/// but that is guaranteed to be page-aligned and zero-filled.
-pub struct AnonymousMmap {
-    addr: ptr::NonNull<libc::c_void>,
+// Future: Maybe create a bgid module with a trivial implementation of a type that tracks the next
+// bgid to use. The crate's driver could do that perhaps, but there could be a benefit to tracking
+// them across multiple thread's drivers. So there is flexibility in not building it into the
+// driver.
+
+/// The buffer ID. Buffer ids are assigned and used by the crate and probably are not visible
+/// to the crate user.
+pub(crate) type Bid = u16;
+
+/// This tracks a buffer that has been filled in by the kernel, having gotten the memory
+/// from a buffer ring, and returned to userland via a cqe entry.
+pub struct BufX {
+    bgroup: BufRing,
+    bid: Bid,
     len: usize,
 }
 
-impl AnonymousMmap {
-    /// Allocate `len` bytes that are page aligned and zero-filled.
-    pub fn new(len: usize) -> io::Result<AnonymousMmap> {
-        unsafe {
-            match libc::mmap(
-                ptr::null_mut(),
-                len,
-                libc::PROT_READ | libc::PROT_WRITE,
-                libc::MAP_ANONYMOUS | libc::MAP_SHARED | libc::MAP_POPULATE,
-                -1,
-                0,
-            ) {
-                libc::MAP_FAILED => Err(io::Error::last_os_error()),
-                addr => {
-                    // here, `mmap` will never return null
-                    let addr = ptr::NonNull::new_unchecked(addr);
-                    Ok(AnonymousMmap { addr, len })
-                }
-            }
-        }
-    }
-
-    /// Do not make the stored memory accessible by child processes after a `fork`.
-    pub fn dontfork(&self) -> io::Result<()> {
-        match unsafe { libc::madvise(self.addr.as_ptr(), self.len, libc::MADV_DONTFORK) } {
-            0 => Ok(()),
-            _ => Err(io::Error::last_os_error()),
-        }
-    }
-
-    /// Get a pointer to the memory.
-    #[inline]
-    pub fn as_ptr(&self) -> *const libc::c_void {
-        self.addr.as_ptr()
-    }
-
-    /// Get a mut pointer to the memory.
-    #[inline]
-    pub fn as_ptr_mut(&self) -> *mut libc::c_void {
-        self.addr.as_ptr()
-    }
-
-    /// Get a pointer to the data at the given offset.
-    #[inline]
-    #[allow(dead_code)]
-    pub unsafe fn offset(&self, offset: u32) -> *const libc::c_void {
-        self.as_ptr().add(offset as usize)
-    }
-
-    /// Get a mut pointer to the data at the given offset.
-    #[inline]
-    #[allow(dead_code)]
-    pub unsafe fn offset_mut(&self, offset: u32) -> *mut libc::c_void {
-        self.as_ptr_mut().add(offset as usize)
-    }
-}
-
-impl Drop for AnonymousMmap {
-    fn drop(&mut self) {
-        unsafe {
-            libc::munmap(self.addr.as_ptr(), self.len);
-        }
-    }
-}
-
-pub struct InnerBufRing {
-    // All these fields are constant once the struct is instantiated except the one of type Cell<u16>.
-    bgid: Bgid,
-
-    ring_entries_mask: u16, // Invariant one less than ring_entries which is > 0, power of 2, max 2^15 (32768).
-
-    buf_cnt: u16,   // Invariants: > 0, <= ring_entries.
-    buf_len: usize, // Invariant: > 0.
-
-    // `ring_start` holds the memory allocated for the buf_ring, the ring of entries describing
-    // the buffers being made available to the uring interface for this buf group id.
-    ring_start: AnonymousMmap,
-
-    buf_list: Vec<Vec<u8>>,
-
-    // `local_tail` is the copy of the tail index that we update when a buffer is dropped and
-    // therefore its buffer id is released and added back to the ring. It also serves for adding
-    // buffers to the ring during init but that's not as interesting.
-    local_tail: Cell<u16>,
-
-    // `shared_tail` points to the u16 memory inside the rings that the uring interface uses as the
-    // tail field. It is where the application writes new tail values and the kernel reads the tail
-    // value from time to time. The address could be computed from ring_start when needed. This
-    // might be here for no good reason any more.
-    shared_tail: *const AtomicU16,
-}
-
-impl InnerBufRing {
-    fn new(
-        bgid: Bgid,
-        ring_entries: u16,
-        buf_cnt: u16,
-        buf_len: usize,
-    ) -> io::Result<InnerBufRing> {
-        // Check that none of the important args are zero and the ring_entries is at least large
-        // enough to hold all the buffers and that ring_entries is a power of 2.
-        if (buf_cnt == 0)
-            || (buf_cnt > ring_entries)
-            || (buf_len == 0)
-            || ((ring_entries & (ring_entries - 1)) != 0)
-        {
-            return Err(io::Error::from(io::ErrorKind::InvalidInput));
-        }
-
-        // entry_size is 16 bytes.
-        let entry_size = std::mem::size_of::<BufRingEntry>() as usize;
-        assert_eq!(entry_size, 16);
-        let ring_size = entry_size * (ring_entries as usize);
-
-        // The memory is required to be page aligned and zero-filled by the uring buf_ring
-        // interface. Anonymous mmap promises both of those things.
-        // https://man7.org/linux/man-pages/man2/mmap.2.html
-        let ring_start = AnonymousMmap::new(ring_size).unwrap();
-        ring_start.dontfork()?;
-
-        // Probably some functional way to do this.
-        let buf_list: Vec<Vec<u8>> = {
-            let mut bp = Vec::with_capacity(buf_cnt as _);
-            for _ in 0..buf_cnt {
-                bp.push(vec![0; buf_len]);
-            }
-            bp
-        };
-
-        let shared_tail =
-            unsafe { types::BufRingEntry::tail(ring_start.as_ptr() as *const BufRingEntry) }
-                as *const AtomicU16;
-
-        let ring_entries_mask = ring_entries - 1;
-        assert!((ring_entries & ring_entries_mask) == 0);
-
-        let buf_ring = InnerBufRing {
-            bgid,
-            ring_entries_mask,
-            buf_cnt,
-            buf_len,
-            ring_start,
-            buf_list,
-            local_tail: Cell::new(0),
-            shared_tail,
-        };
-
-        Ok(buf_ring)
-    }
-
-    // Register the buffer ring with the uring interface.
-    // Normally this is done automatically when building a BufRing.
+impl BufX {
+    // # Safety
     //
-    // Warning: requires the CURRENT driver is already in place or will panic.
-    pub fn register<S, C>(&self, ring: &mut IoUring<S, C>) -> io::Result<()>
-    where
-        S: squeue::EntryMarker,
-        C: cqueue::EntryMarker,
-    {
-        let bgid = self.bgid;
+    // The bid must be the buffer id supplied by the kernel as having been chosen and written to.
+    // The length of the buffer must represent the length written to by the kernel.
+    pub(crate) unsafe fn new(bgroup: BufRing, bid: Bid, len: usize) -> Self {
+        // len will already have been checked against the buf_capacity
+        // so it is guaranteed that len <= bgroup.buf_capacity.
 
-        let res = ring.submitter().register_buf_ring(
-            self.ring_start.as_ptr() as _,
-            self.ring_entries(),
-            bgid,
-        );
+        Self { bgroup, bid, len }
+    }
 
-        if let Err(e) = res {
-            match e.raw_os_error() {
-                Some(libc::EINVAL) => {
-                    // using buf_ring requires kernel 5.19 or greater.
-                    return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            format!("buf_ring.register returned {}, most likely indicating this kernel is not 5.19+", e),
-                            ));
+    /// Return the number of bytes initialized.
+    ///
+    /// This value initially came from the kernel, as reported in the cqe. This value may have been
+    /// modified with a call to the IoBufMut::set_init method.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Return true if this represents an empty buffer. The length reported by the kernel was 0.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Return the capacity of this buffer.
+    #[inline]
+    pub fn cap(&self) -> usize {
+        self.bgroup.buf_capacity(self.bid)
+    }
+
+    /// Return a byte slice reference.
+    #[inline]
+    pub fn as_slice(&self) -> &[u8] {
+        let p = self.bgroup.stable_ptr(self.bid);
+        // Safety: the pointer returned by stable_ptr is valid for the lifetime of self,
+        // and self's len is set when the kernel reports the amount of data that was
+        // written into the buffer.
+        unsafe { std::slice::from_raw_parts(p, self.len) }
+    }
+
+    /// Return a mutable byte slice reference.
+    #[inline]
+    pub fn as_slice_mut(&mut self) -> &mut [u8] {
+        let p = self.bgroup.stable_mut_ptr(self.bid);
+        // Safety: the pointer returned by stable_mut_ptr is valid for the lifetime of self,
+        // and self's len is set when the kernel reports the amount of data that was
+        // written into the buffer. In addition, we hold a &mut reference to self.
+        unsafe { std::slice::from_raw_parts_mut(p, self.len) }
+    }
+
+    // Future: provide access to the uninit space between len and cap if the buffer is being
+    // repurposed before being dropped. The set_init below does that too.
+}
+
+impl Drop for BufX {
+    fn drop(&mut self) {
+        // Add the buffer back to the bgroup, for the kernel to reuse.
+        // Safety: this function may only be called by the buffer's drop function.
+        unsafe { self.bgroup.dropping_bid(self.bid) };
+    }
+}
+
+/*
+unsafe impl crate::buf::IoBuf for BufX {
+    fn stable_ptr(&self) -> *const u8 {
+        self.bgroup.stable_ptr(self.bid)
+    }
+
+    fn bytes_init(&self) -> usize {
+        self.len
+    }
+
+    fn bytes_total(&self) -> usize {
+        self.cap()
+    }
+}
+
+unsafe impl crate::buf::IoBufMut for BufX {
+    fn stable_mut_ptr(&mut self) -> *mut u8 {
+        self.bgroup.stable_mut_ptr(self.bid)
+    }
+
+    unsafe fn set_init(&mut self, init_len: usize) {
+        if self.len < init_len {
+            let cap = self.bgroup.buf_capacity(self.bid);
+            assert!(init_len <= cap);
+            self.len = init_len;
+        }
+    }
+}
+*/
+
+impl From<BufX> for Vec<u8> {
+    fn from(item: BufX) -> Self {
+        item.as_slice().to_vec()
+    }
+}
+
+/// A `BufRing` represents the ring and the buffers used with the kernel's io_uring buf_ring
+/// feature.
+///
+/// In this implementation, it is both the ring of buffer entries and the actual buffer
+/// allocations.
+///
+/// A BufRing is created through the [`Builder`] and can be registered automatically by the
+/// builder's `build` step or at a later time by the user. Registration involves informing the
+/// kernel of the ring's dimensions and its identifier (its buffer group id, which goes by the name
+/// `bgid`).
+///
+/// Multiple buf_rings, here multiple BufRings, can be created and registered. BufRings are
+/// reference counted to ensure their memory is live while their BufX buffers are live. When a BufX
+/// buffer is dropped, it releases itself back to the BufRing from which it came allowing it to be
+/// reused by the kernel.
+///
+/// It is perhaps worth pointing out that it is the ring itself that is registered with the kernel,
+/// not the buffers per se. While a given buf_ring cannot have it size changed dynamically, the
+/// buffers that are pushed to the ring by userland, and later potentially re-pushed in the ring,
+/// can change. The buffers can be of different sizes and they could come from different allocation
+/// blocks. This implementation does not provide that flexibility. Each BufRing comes with its own
+/// equal length buffer allocation. And when a BufRing buffer, a BufX, is dropped, its id is pushed
+/// back to the ring.
+///
+/// This is the one and only `Provided Buffers` implementation in `tokio_uring` at the moment and
+/// in this version, is a purely concrete type, with a concrete BufX type for buffers that are
+/// returned by operations like `recv_provbuf` to the userland application.
+///
+/// Aside from the register and unregister steps, there are no syscalls used to pass buffers to the
+/// kernel. The ring contains a tail memory address that this userland type updates as buffers are
+/// added to the ring and which the kernel reads when it needs to pull a buffer from the ring. The
+/// kernel does not have a head pointer address that it updates for the userland. The userland
+/// (this type), is expected to avoid overwriting the head of the circular ring by keeping track of
+/// how many buffers were added to the ring and how many have been returned through the CQE
+/// mechanism. This particular implementation does not track the count because all buffers are
+/// allocated at the beginning, by the builder, and only its own buffers that came back via a CQE
+/// are ever added back to the ring, so it should be impossible to overflow the ring.
+#[derive(Clone, Debug)]
+pub struct BufRing {
+    // RawBufRing uses cell for fields where necessary.
+    raw: Rc<RawBufRing>,
+}
+
+// Methods the BufX needs.
+
+impl BufRing {
+    pub(crate) fn buf_capacity(&self, _: Bid) -> usize {
+        self.raw.buf_capacity_i()
+    }
+
+    pub(crate) fn stable_ptr(&self, bid: Bid) -> *const u8 {
+        // Will panic if bid is out of range.
+        self.raw.stable_ptr_i(bid)
+    }
+
+    pub(crate) fn stable_mut_ptr(&mut self, bid: Bid) -> *mut u8 {
+        // Safety: self is &mut, we're good.
+        unsafe { self.raw.stable_mut_ptr_i(bid) }
+    }
+
+    // # Safety
+    //
+    // `dropping_bid` should only be called by the buffer's drop function because once called, the
+    // buffer may be given back to the kernel for reuse.
+    pub(crate) unsafe fn dropping_bid(&self, bid: Bid) {
+        self.raw.dropping_bid_i(bid);
+    }
+}
+
+// Methods the io operations need.
+
+impl BufRing {
+    pub(crate) fn bgid(&self) -> Bgid {
+        self.raw.bgid()
+    }
+
+    // # Safety
+    //
+    // The res and flags values are used to lookup a buffer and set its initialized length.
+    // The caller is responsible for these being correct. This is expected to be called
+    // when these two values are received from the kernel via a CQE and we rely on the kernel to
+    // give us correct information.
+    pub(crate) unsafe fn get_buf(&self, res: u32, flags: u32) -> io::Result<Option<BufX>> {
+        let bid = match io_uring::cqueue::buffer_select(flags) {
+            Some(bid) => bid,
+            None => {
+                // Have seen res == 0, flags == 4 with a TCP socket. res == 0 we take to mean the
+                // socket is empty so return None to show there is no buffer returned, which should
+                // be interpreted to mean there is no more data to read from this file or socket.
+                if res == 0 {
+                    return Ok(None);
                 }
-                Some(libc::EEXIST) => {
-                    // Registering a duplicate bgid is not allowed. There is an `unregister`
-                    // operations that can remove the first, but care must be taken that there
-                    // are no outstanding operations that will still return a buffer from that
-                    // one.
-                    return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            format!(
-                                "buf_ring.register returned `{}`, indicating the attempted buffer group id {} was already registered",
-                            e,
-                            bgid),
-                        ));
-                }
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("buf_ring.register returned `{}` for group id {}", e, bgid),
-                    ));
-                }
+
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!(
+                        "BufRing::get_buf failed as the buffer bit, IORING_CQE_F_BUFFER, was missing from flags, res = {}, flags = {}",
+                        res, flags)
+                ));
             }
         };
-
-        // Add the buffers after the registration. Really seems it could be done earlier too.
-
-        for bid in 0..self.buf_cnt {
-            self.buf_ring_push(bid);
-        }
-        self.buf_ring_sync();
-
-        res
-    }
-
-    // Unregister the buffer ring from the io_uring.
-    // Normally this is done automatically when the BufRing goes out of scope.
-    #[allow(dead_code)]
-    pub fn unregister<S, C>(&self, ring: &mut IoUring<S, C>) -> io::Result<()>
-    where
-        S: squeue::EntryMarker,
-        C: cqueue::EntryMarker,
-    {
-        let bgid = self.bgid;
-
-        ring.submitter().unregister_buf_ring(bgid)
-    }
-
-    // Returns the buffer group id.
-    pub fn bgid(&self) -> Bgid {
-        self.bgid
-    }
-
-    // Returns the buffer the uring interface picked from the buf_ring for the completion result
-    // represented by the res and flags.
-    pub fn get_buf(&self, buf_ring: FixedSizeBufRing, res: u32, flags: u32) -> io::Result<GBuf> {
-        // This fn does the odd thing of having self as the BufRing and taking an argument that is
-        // the same BufRing but wrapped in Rc<_> so the wrapped buf_ring can be passed to the
-        // outgoing GBuf.
-
-        let bid = io_uring::cqueue::buffer_select(flags).unwrap();
 
         let len = res as usize;
 
-        assert!(len <= self.buf_len);
+        /*
+        let flags = flags & !io_uring::sys::IORING_CQE_F_BUFFER; // for tracing flags
+        println!(
+            "{}:{}: get_buf res({res})=len({len}) flags({:#x})->bid({bid})\n\n",
+            file!(),
+            line!(),
+            flags
+        );
+        */
 
-        Ok(GBuf::new(buf_ring, bid, len))
-    }
+        assert!(len <= self.raw.buf_len);
 
-    // Safety: dropping a duplicate bid is likely to cause undefined behavior
-    // as the kernel could use the same buffer for different data concurrently.
-    unsafe fn dropping_bid(&self, bid: Bid) {
-        self.buf_ring_push(bid);
-        self.buf_ring_sync();
-    }
+        // TODO maybe later
+        // #[cfg(any(debug, feature = "cautious"))]
+        // {
+        //     let mut debug_bitmap = self.debug_bitmap.borrow_mut();
+        //     let m = 1 << (bid % 8);
+        //     assert!(debug_bitmap[(bid / 8) as usize] & m == m);
+        //     debug_bitmap[(bid / 8) as usize] &= !m;
+        // }
 
-    fn buf_capacity(&self) -> usize {
-        self.buf_len as _
-    }
+        self.raw.metric_getting_another();
+        /*
+        println!(
+            "{}:{}: get_buf cur {}, min {}",
+            file!(),
+            line!(),
+            self.possible_cur.get(),
+            self.possible_min.get(),
+        );
+        */
 
-    fn stable_ptr(&self, bid: Bid) -> *const u8 {
-        self.buf_list[bid as usize].as_ptr()
-    }
-
-    fn ring_entries(&self) -> u16 {
-        self.ring_entries_mask + 1
-    }
-
-    fn mask(&self) -> u16 {
-        self.ring_entries_mask
-    }
-
-    // Push the `bid` buffer to the buf_ring tail.
-    // This test version does not safeguard against a duplicate
-    // `bid` being pushed.
-    fn buf_ring_push(&self, bid: Bid) {
-        assert!(bid < self.buf_cnt);
-
-        // N.B. The uring buf_ring indexing mechanism calls for the tail values to exceed the
-        // actual number of ring entries. This allows the uring interface to distinguish between
-        // empty and full buf_rings. As a result, the ring mask is only applied to the index used
-        // for computing the ring entry, not to the tail value itself.
-
-        let old_tail = self.local_tail.get();
-        self.local_tail.set(old_tail + 1);
-        let ring_idx = old_tail & self.mask();
-
-        let entries = self.ring_start.as_ptr_mut() as *mut BufRingEntry;
-        let re = unsafe { &mut *entries.add(ring_idx as usize) };
-
-        re.set_addr(self.stable_ptr(bid) as _);
-        re.set_len(self.buf_len as _);
-        re.set_bid(bid);
-
-        // Also note, we have not updated the tail as far as the kernel is concerned.
-        // That is done with buf_ring_sync.
-    }
-
-    // Make 'local_tail' visible to the kernel. Called after buf_ring_push() has been
-    // called to fill in new buffers.
-    fn buf_ring_sync(&self) {
-        unsafe {
-            (*self.shared_tail).store(self.local_tail.get(), atomic::Ordering::Release);
-        }
+        // Safety: the len provided to BufX::new is given to us from the kernel.
+        Ok(Some(unsafe { BufX::new(self.clone(), bid, len) }))
     }
 }
 
-#[derive(Clone)]
-pub struct FixedSizeBufRing {
-    // The BufRing is reference counted because each buffer handed out has a reference back to its
-    // buffer group, or in this case, to its buffer ring.
-    pub rc: Rc<InnerBufRing>,
-}
-
-impl FixedSizeBufRing {
-    pub fn new(buf_ring: InnerBufRing) -> Self {
-        FixedSizeBufRing {
-            rc: Rc::new(buf_ring),
-        }
-    }
-}
-
-// The Builder API for a FixedSizeBufRing.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
+/// Build the arguments to call build() that returns a [`BufRing`].
+///
+/// Refer to the methods descriptions for details.
+#[allow(dead_code)]
 pub struct Builder {
+    page_size: usize,
     bgid: Bgid,
     ring_entries: u16,
     buf_cnt: u16,
     buf_len: usize,
+    buf_align: usize,
+    ring_pad: usize,
+    bufend_align: usize,
+
+    skip_register: bool,
 }
 
+#[allow(dead_code)]
 impl Builder {
-    // Create a new Builder with the given buffer group ID and defaults.
-    //
-    // The buffer group ID, `bgid`, is the id the kernel uses to identify the buffer group to use
-    // for a given read operation that has been placed into an sqe.
-    //
-    // The caller is responsible for picking a bgid that does not conflict with other buffer
-    // groups that have been registered with the same uring interface.
+    /// Create a new Builder with the given buffer group ID and defaults.
+    ///
+    /// The buffer group ID, `bgid`, is the id the kernel's io_uring device uses to identify the
+    /// provided buffer pool to use by operations that are posted to the device.
+    ///
+    /// The user is responsible for picking a bgid that does not conflict with other buffer groups
+    /// that have been registered with the same uring interface.
     pub fn new(bgid: Bgid) -> Builder {
         Builder {
+            page_size: 4096,
             bgid,
             ring_entries: 128,
-            buf_cnt: 0, // 0 indicates buf_cnt is taken from ring_entries
+            buf_cnt: 0,
             buf_len: 4096,
+            buf_align: 0,
+            ring_pad: 0,
+            bufend_align: 0,
+            skip_register: false,
         }
     }
 
-    // The number of ring entries to create for the buffer ring.
-    //
-    // The number will be made a power of 2, and will be the maximum of the ring_entries setting
-    // and the buf_cnt setting. The interface will enforce a maximum of 2^15 (32768).
+    /// The page size of the kernel. Defaults to 4096.
+    ///
+    /// The io_uring device requires the BufRing is allocated on the start of a page, i.e. with a
+    /// page size alignment.
+    ///
+    /// The caller should determine the page size, and may want to cache the info if multiple buf
+    /// rings are to be created. Crates are available to get this information or the user may want
+    /// to call the libc sysconf directly:
+    ///
+    ///     use libc::{_SC_PAGESIZE, sysconf};
+    ///     let page_size: usize = unsafe { sysconf(_SC_PAGESIZE) as usize };
+    pub fn page_size(mut self, page_size: usize) -> Builder {
+        self.page_size = page_size;
+        self
+    }
+
+    /// The number of ring entries to create for the buffer ring.
+    ///
+    /// This defaults to 128 or the `buf_cnt`, whichever is larger.
+    ///
+    /// The number will be made a power of 2, and will be the maximum of the ring_entries setting
+    /// and the buf_cnt setting. The interface will enforce a maximum of 2^15 (32768) so it can do
+    /// rollover calculation.
+    ///
+    /// Each ring entry is 16 bytes.
     pub fn ring_entries(mut self, ring_entries: u16) -> Builder {
         self.ring_entries = ring_entries;
         self
     }
 
-    // The number of buffers to allocate. If left zero, the ring_entries value will be used.
-    #[allow(dead_code)]
+    /// The number of buffers to allocate. If left zero, the ring_entries value will be used and
+    /// that value defaults to 128.
     pub fn buf_cnt(mut self, buf_cnt: u16) -> Builder {
         self.buf_cnt = buf_cnt;
         self
     }
 
-    // The length to be preallocated for each buffer.
+    /// The length of each allocated buffer. Defaults to 4096.
+    ///
+    /// Non-alignment values are possible and `buf_align` can be used to allocate each buffer on
+    /// an alignment buffer, even if the buffer length is not desired to equal the alignment.
     pub fn buf_len(mut self, buf_len: usize) -> Builder {
         self.buf_len = buf_len;
         self
     }
 
-    // Return a FixedSizeBufRing.
-    pub fn build(&self) -> io::Result<FixedSizeBufRing> {
+    /// The alignment of the first buffer allocated.
+    ///
+    /// Generally not needed.
+    ///
+    /// The buffers are allocated right after the ring unless `ring_pad` is used and generally the
+    /// buffers are allocated contiguous to one another unless the `buf_len` is set to something
+    /// different.
+    pub fn buf_align(mut self, buf_align: usize) -> Builder {
+        self.buf_align = buf_align;
+        self
+    }
+
+    /// Pad to place after ring to ensure separation between rings and first buffer.
+    ///
+    /// Generally not needed but may be useful if the ring's end and the buffers' start are to have
+    /// some separation, perhaps for cacheline reasons.
+    pub fn ring_pad(mut self, ring_pad: usize) -> Builder {
+        self.ring_pad = ring_pad;
+        self
+    }
+
+    /// The alignment of the end of the buffer allocated. To keep other things out of a cache line
+    /// or out of a page, if that's desired.
+    pub fn bufend_align(mut self, bufend_align: usize) -> Builder {
+        self.bufend_align = bufend_align;
+        self
+    }
+
+    /// Skip automatic registration. The caller can manually invoke the buf_ring.register()
+    /// function later. Regardless, the unregister() method will be called automatically when the
+    /// BufRing goes out of scope if the caller hadn't manually called buf_ring.unregister()
+    /// already.
+    pub fn skip_auto_register(mut self, skip: bool) -> Builder {
+        self.skip_register = skip;
+        self
+    }
+
+    /// Return a BufRing, having computed the layout for the single aligned allocation
+    /// of both the buffer ring elements and the buffers themselves.
+    ///
+    /// If auto_register was left enabled, register the BufRing with the driver.
+    pub fn build(&self, ring: &mut IoUring) -> io::Result<BufRing> {
         let mut b: Builder = *self;
 
         // Two cases where both buf_cnt and ring_entries are set to the max of the two.
@@ -418,7 +453,7 @@ impl Builder {
         }
 
         // Don't allow the next_power_of_two calculation to be done if already larger than 2^15
-        // because 2^16 reads back as 0 in a u16. The interface doesn't allow for ring_entries
+        // because 2^16 reads back as 0 in a u16. And the interface doesn't allow for ring_entries
         // larger than 2^15 anyway, so this is a good place to catch it. Here we return a unique
         // error that is more descriptive than the InvalidArg that would come from the interface.
         if b.ring_entries > (1 << 15) {
@@ -429,74 +464,485 @@ impl Builder {
         }
 
         // Requirement of the interface is the ring entries is a power of two, making its and our
-        // wrap calculation trivial.
+        // mask calculation trivial.
         b.ring_entries = b.ring_entries.next_power_of_two();
 
-        let inner = InnerBufRing::new(b.bgid, b.ring_entries, b.buf_cnt, b.buf_len)?;
-        Ok(FixedSizeBufRing::new(inner))
+        Ok(BufRing {
+            raw: Rc::new(RawBufRing::new(
+                ring,
+                NewArgs {
+                    page_size: b.page_size,
+                    bgid: b.bgid,
+                    ring_entries: b.ring_entries,
+                    buf_cnt: b.buf_cnt,
+                    buf_len: b.buf_len,
+                    buf_align: b.buf_align,
+                    ring_pad: b.ring_pad,
+                    bufend_align: b.bufend_align,
+                    auto_register: !b.skip_register,
+                },
+            )?),
+        })
     }
 }
 
-// This tracks a buffer that has been filled in by the kernel, having gotten the memory
-// from a buffer ring, and returned to userland via a cqe entry.
-pub struct GBuf {
-    bufgroup: FixedSizeBufRing,
-    len: usize,
-    bid: Bid,
+// Trivial helper struct for this module.
+struct NewArgs {
+    page_size: usize,
+    bgid: Bgid,
+    ring_entries: u16,
+    buf_cnt: u16,
+    buf_len: usize,
+    buf_align: usize,
+    ring_pad: usize,
+    bufend_align: usize,
+    auto_register: bool,
 }
 
-impl fmt::Debug for GBuf {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GBuf")
-            .field("bgid", &self.bufgroup.rc.bgid())
-            .field("bid", &self.bid)
-            .field("len", &self.len)
-            .field("cap", &self.bufgroup.rc.buf_capacity())
-            .finish()
-    }
-}
+#[derive(Debug)]
+struct RawBufRing {
+    bgid: Bgid,
 
-impl GBuf {
-    pub fn new(bufgroup: FixedSizeBufRing, bid: Bid, len: usize) -> Self {
-        assert!(len <= bufgroup.rc.buf_len);
+    // Keep mask rather than ring size because mask is used often, ring size not.
+    //ring_entries: u16, // Invariants: > 0, power of 2, max 2^15 (32768).
+    ring_entries_mask: u16, // Invariant one less than ring_entries which is > 0, power of 2, max 2^15 (32768).
 
-        Self { bufgroup, len, bid }
-    }
+    buf_cnt: u16,   // Invariants: > 0, <= ring_entries.
+    buf_len: usize, // Invariant: > 0.
+    layout: std::alloc::Layout,
+    ring_addr: *const types::BufRingEntry, // Invariant: constant.
+    buffers_addr: *mut u8,                 // Invariant: constant.
+    local_tail: Cell<u16>,
+    tail_addr: *const AtomicU16,
+    registered: Cell<bool>,
 
-    // A few methods are kept here despite not being used for unit tests yet. They show a little
-    // of the intent.
-
-    // Return the number of bytes initialized.
+    // The first `possible` field is a best effort at tracking the current buffer pool usage and
+    // from that, tracking the lowest level that has been reached. The two are an attempt at
+    // letting the user check the sizing needs of their buf_ring pool.
     //
-    // This value initially came from the kernel, as reported in the cqe. This value may have been
-    // modified with a call to the IoBufMut::set_init method.
-    #[allow(dead_code)]
-    fn len(&self) -> usize {
-        self.len as _
+    // We don't really know how deep the uring device has gone into the pool because we never see
+    // its head value and it can be taking buffers from the ring, in-flight, while we add buffers
+    // back to the ring. All we know is when a CQE arrives and a buffer lookup is performed, a
+    // buffer has already been taken from the pool, and when the buffer is dropped, we add it back
+    // to the the ring and it is about to be considered part of the pool again.
+    possible_cur: Cell<u16>,
+    possible_min: Cell<u16>,
+    //
+    // TODO maybe later
+    // #[cfg(any(debug, feature = "cautious"))]
+    // debug_bitmap: RefCell<std::vec::Vec<u8>>,
+}
+
+impl RawBufRing {
+    fn new(ring: &mut IoUring, new_args: NewArgs) -> io::Result<RawBufRing> {
+        #[allow(non_upper_case_globals)]
+        const trace: bool = false;
+
+        let NewArgs {
+            page_size,
+            bgid,
+            ring_entries,
+            buf_cnt,
+            buf_len,
+            buf_align,
+            ring_pad,
+            bufend_align,
+            auto_register,
+        } = new_args;
+
+        // Check that none of the important args are zero and the ring_entries is at least large
+        // enough to hold all the buffers and that ring_entries is a power of 2.
+
+        if (buf_cnt == 0)
+            || (buf_cnt > ring_entries)
+            || (buf_len == 0)
+            || ((ring_entries & (ring_entries - 1)) != 0)
+        {
+            return Err(io::Error::from(io::ErrorKind::InvalidInput));
+        }
+
+        // entry_size is 16 bytes.
+        let entry_size = std::mem::size_of::<types::BufRingEntry>();
+        let mut ring_size = entry_size * (ring_entries as usize);
+        if trace {
+            println!(
+                "{}:{}: entry_size {} * ring_entries {} = ring_size {} {:#x}",
+                file!(),
+                line!(),
+                entry_size,
+                ring_entries,
+                ring_size,
+                ring_size,
+            );
+        }
+
+        ring_size += ring_pad;
+
+        if trace {
+            println!(
+                "{}:{}: after +ring_pad {} ring_size {} {:#x}",
+                file!(),
+                line!(),
+                ring_pad,
+                ring_size,
+                ring_size,
+            );
+        }
+
+        if buf_align > 0 {
+            let buf_align = buf_align.next_power_of_two();
+            ring_size = (ring_size + (buf_align - 1)) & !(buf_align - 1);
+            if trace {
+                println!(
+                    "{}:{}: after buf_align  ring_size {} {:#x}",
+                    file!(),
+                    line!(),
+                    ring_size,
+                    ring_size,
+                );
+            }
+        }
+        let buf_size = buf_len * (buf_cnt as usize);
+        assert!(ring_size != 0);
+        assert!(buf_size != 0);
+        let mut tot_size: usize = ring_size + buf_size;
+        if trace {
+            println!(
+                "{}:{}: ring_size {} {:#x} + buf_size {} {:#x} = tot_size {} {:#x}",
+                file!(),
+                line!(),
+                ring_size,
+                ring_size,
+                buf_size,
+                buf_size,
+                tot_size,
+                tot_size
+            );
+        }
+        if bufend_align > 0 {
+            // for example, if bufend_align is 4096, would make total size a multiple of pages
+            let bufend_align = bufend_align.next_power_of_two();
+            tot_size = (tot_size + (bufend_align - 1)) & !(bufend_align - 1);
+            if trace {
+                println!(
+                    "{}:{}: after bufend_align tot_size {} {:#x}",
+                    file!(),
+                    line!(),
+                    tot_size,
+                    tot_size,
+                );
+            }
+        }
+
+        let align: usize = page_size; // alignment must be at least the page size
+        let align = align.next_power_of_two();
+        let layout = std::alloc::Layout::from_size_align(tot_size, align).unwrap();
+
+        assert!(layout.size() >= ring_size);
+        // Safety: we are assured layout has nonzero size, we passed the assert just above.
+        let ring_addr: *mut u8 = unsafe { std::alloc::alloc_zeroed(layout) };
+
+        // Buffers starts after the ring_size.
+        // Safety: are we assured the address and the offset are in bounds because the ring_addr is
+        // the value we got from the alloc call, and the layout.size was shown to be at least as
+        // large as the ring_size.
+        let buffers_addr: *mut u8 = unsafe { ring_addr.add(ring_size) };
+        if trace {
+            println!(
+                "{}:{}:     ring_addr {} {:#x}, layout: size {} align {}",
+                file!(),
+                line!(),
+                ring_addr as u64,
+                ring_addr as u64,
+                layout.size(),
+                layout.align()
+            );
+            println!(
+                "{}:{}: buffers_addr {} {:#x}",
+                file!(),
+                line!(),
+                buffers_addr as u64,
+                buffers_addr as u64,
+            );
+        }
+
+        let ring_addr: *const types::BufRingEntry = ring_addr as _;
+
+        // Safety: the ring_addr passed into tail is the start of the ring. It is both the start of
+        // the ring and the first entry in the ring.
+        let tail_addr = unsafe { types::BufRingEntry::tail(ring_addr) } as *const AtomicU16;
+
+        let ring_entries_mask = ring_entries - 1;
+        assert!((ring_entries & ring_entries_mask) == 0);
+
+        let buf_ring = RawBufRing {
+            bgid,
+            ring_entries_mask,
+            buf_cnt,
+            buf_len,
+            layout,
+            ring_addr,
+            buffers_addr,
+            local_tail: Cell::new(0),
+            tail_addr,
+            registered: Cell::new(false),
+            possible_cur: Cell::new(0),
+            possible_min: Cell::new(buf_cnt),
+            //
+            // TODO maybe later
+            // #[cfg(any(debug, feature = "cautious"))]
+            // debug_bitmap: RefCell::new(std::vec![0; ((buf_cnt+7)/8) as usize]),
+        };
+
+        // Question had come up: where should the initial buffers be added to the ring?
+        // Here when the ring is created, even before it is registered potentially?
+        // Or after registration?
+        //
+        // For this type, BufRing, we are adding the buffers to the ring as the last part of creating the BufRing,
+        // even before registration is optionally performed.
+        //
+        // We've seen the registration to be successful, even when the ring starts off empty.
+
+        // Add the buffers here where the ring is created.
+
+        for bid in 0..buf_cnt {
+            buf_ring.buf_ring_add(bid);
+        }
+        buf_ring.buf_ring_sync();
+
+        // The default is to register the buffer ring right here. There is usually no reason the
+        // caller should want to register it some time later.
+        //
+        // Perhaps the caller wants to allocate the buffer ring before the CONTEXT driver is in
+        // place - that would be a reason to delay the register call until later.
+
+        if auto_register {
+            buf_ring.register(ring)?;
+        }
+        Ok(buf_ring)
     }
 
-    // Return true if this represents an empty buffer. The length reported by the kernel was 0.
-    #[allow(dead_code)]
-    fn is_empty(&self) -> bool {
-        self.len() == 0
+    /// Register the buffer ring with the kernel.
+    /// Normally this is done automatically when building a BufRing.
+    ///
+    /// This method must be called in the context of a `tokio-uring` runtime.
+    /// The registration persists for the lifetime of the runtime, unless
+    /// revoked by the [`unregister`] method. Dropping the
+    /// instance this method has been called on does revoke
+    /// the registration and deallocate the buffer space.
+    ///
+    /// [`unregister`]: Self::unregister
+    ///
+    /// # Errors
+    ///
+    /// If a `Provided Buffers` group with the same `bgid` is already registered, the function
+    /// returns an error.
+    fn register(&self, ring: &mut IoUring) -> io::Result<()> {
+        let bgid = self.bgid;
+        //println!("{}:{}: register bgid {bgid}", file!(), line!());
+
+        // Future: move to separate public function so other buf_ring implementations
+        // can register, and unregister, the same way.
+
+        let res =
+            ring.submitter()
+                .register_buf_ring(self.ring_addr as _, self.ring_entries(), bgid);
+        // println!("{}:{}: res {:?}", file!(), line!(), res);
+
+        if let Err(e) = res {
+            match e.raw_os_error() {
+                Some(22) => {
+                    // using buf_ring requires kernel 5.19 or greater.
+                    // TODO turn these eprintln into new, more expressive error being returned.
+                    // TODO what convention should we follow in this crate for adding information
+                    // onto an error?
+                    eprintln!(
+                        "buf_ring.register returned {e}, most likely indicating this kernel is not 5.19+",
+                        );
+                }
+                Some(17) => {
+                    // Registering a duplicate bgid is not allowed. There is an `unregister`
+                    // operations that can remove the first.
+                    eprintln!(
+                        "buf_ring.register returned `{e}`, indicating the attempted buffer group id {bgid} was already registered",
+                        );
+                }
+                _ => {
+                    eprintln!("buf_ring.register returned `{e}` for group id {bgid}");
+                }
+            }
+            return Err(e);
+        };
+
+        self.registered.set(true);
+
+        res
     }
 
-    // Return the capacity of this buffer.
-    #[allow(dead_code)]
-    fn cap(&self) -> usize {
-        self.bufgroup.rc.buf_capacity()
+    /// Unregister the buffer ring from the io_uring.
+    /// Normally this is done automatically when the BufRing goes out of scope.
+    ///
+    /// Warning: requires the CONTEXT driver is already in place or will panic.
+    fn unregister(&self, ring: &mut IoUring) -> io::Result<()> {
+        // If not registered, make this a no-op.
+        if !self.registered.get() {
+            return Ok(());
+        }
+
+        self.registered.set(false);
+
+        let bgid = self.bgid;
+
+        ring.submitter().unregister_buf_ring(bgid)
     }
 
-    // Return a byte slice reference.
-    pub fn as_slice(&self) -> &[u8] {
-        let p = self.bufgroup.rc.stable_ptr(self.bid);
-        unsafe { std::slice::from_raw_parts(p, self.len) }
+    /// Returns the buffer group id.
+    #[inline]
+    fn bgid(&self) -> Bgid {
+        self.bgid
+    }
+
+    fn metric_getting_another(&self) {
+        self.possible_cur.set(self.possible_cur.get() - 1);
+        self.possible_min.set(std::cmp::min(
+            self.possible_min.get(),
+            self.possible_cur.get(),
+        ));
+    }
+
+    // # Safety
+    //
+    // Dropping a duplicate bid is likely to cause undefined behavior
+    // as the kernel uses the same buffer for different data concurrently.
+    unsafe fn dropping_bid_i(&self, bid: Bid) {
+        self.buf_ring_add(bid);
+        self.buf_ring_sync();
+    }
+
+    #[inline]
+    fn buf_capacity_i(&self) -> usize {
+        self.buf_len as _
+    }
+
+    #[inline]
+    // # Panic
+    //
+    // This function will panic if given a bid that is not within the valid range 0..self.buf_cnt.
+    fn stable_ptr_i(&self, bid: Bid) -> *const u8 {
+        assert!(bid < self.buf_cnt);
+        let offset: usize = self.buf_len * (bid as usize);
+        // Safety: buffers_addr is an u8 pointer and was part of an allocation large enough to hold
+        // buf_cnt number of buf_len buffers. buffers_addr, buf_cnt and buf_len are treated as
+        // constants and bid was just asserted to be less than buf_cnt.
+        unsafe { self.buffers_addr.add(offset) }
+    }
+
+    // # Safety
+    //
+    // This may only be called by an owned or &mut object.
+    //
+    // # Panic
+    // This will panic if bid is out of range.
+    #[inline]
+    unsafe fn stable_mut_ptr_i(&self, bid: Bid) -> *mut u8 {
+        assert!(bid < self.buf_cnt);
+        let offset: usize = self.buf_len * (bid as usize);
+        // Safety: buffers_addr is an u8 pointer and was part of an allocation large enough to hold
+        // buf_cnt number of buf_len buffers. buffers_addr, buf_cnt and buf_len are treated as
+        // constants and bid was just asserted to be less than buf_cnt.
+        self.buffers_addr.add(offset)
+    }
+
+    #[inline]
+    fn ring_entries(&self) -> u16 {
+        self.ring_entries_mask + 1
+    }
+
+    #[inline]
+    fn mask(&self) -> u16 {
+        self.ring_entries_mask
+    }
+
+    // Writes to a ring entry and updates our local copy of the tail.
+    //
+    // Adds the buffer known by its buffer id to the buffer ring. The buffer's address and length
+    // are known given its bid.
+    //
+    // This does not sync the new tail value. The caller should use `buf_ring_sync` for that.
+    //
+    // Panics if the bid is out of range.
+    fn buf_ring_add(&self, bid: Bid) {
+        // Compute address of current tail position, increment the local copy of the tail. Then
+        // write the buffer's address, length and bid into the current tail entry.
+
+        let cur_tail = self.local_tail.get();
+        self.local_tail.set(cur_tail.wrapping_add(1));
+        let ring_idx = cur_tail & self.mask();
+
+        let ring_addr = self.ring_addr as *mut types::BufRingEntry;
+
+        // Safety:
+        //    1. the pointer address (ring_addr), is set and const at self creation time,
+        //       and points to a block of memory at least as large as the number of ring_entries,
+        //    2. the mask used to create ring_idx is one less than
+        //       the number of ring_entries, and ring_entries was tested to be a power of two,
+        //    So the address gotten by adding ring_idx entries to ring_addr is guaranteed to
+        //       be a valid address of a ring entry.
+        let entry = unsafe { &mut *ring_addr.add(ring_idx as usize) };
+
+        entry.set_addr(self.stable_ptr_i(bid) as _);
+        entry.set_len(self.buf_len as _);
+        entry.set_bid(bid);
+
+        // Update accounting.
+        self.possible_cur.set(self.possible_cur.get() + 1);
+
+        // TODO maybe later
+        // #[cfg(any(debug, feature = "cautious"))]
+        // {
+        //     let mut debug_bitmap = self.debug_bitmap.borrow_mut();
+        //     let m = 1 << (bid % 8);
+        //     assert!(debug_bitmap[(bid / 8) as usize] & m == 0);
+        //     debug_bitmap[(bid / 8) as usize] |= m;
+        // }
+    }
+
+    // Make 'count' new buffers visible to the kernel. Called after
+    // io_uring_buf_ring_add() has been called 'count' times to fill in new
+    // buffers.
+    #[inline]
+    fn buf_ring_sync(&self) {
+        // Safety: dereferencing this raw pointer is safe. The tail_addr was computed once at init
+        // to refer to the tail address in the ring and is held const for self's lifetime.
+        unsafe {
+            (*self.tail_addr).store(self.local_tail.get(), atomic::Ordering::Release);
+        }
+        // The liburing code did io_uring_smp_store_release(&br.tail, local_tail);
+    }
+
+    // Return the possible_min buffer pool size.
+    fn possible_min(&self) -> u16 {
+        self.possible_min.get()
+    }
+
+    // Return the possible_min buffer pool size and reset to allow fresh counting going forward.
+    fn possible_min_and_reset(&self) -> u16 {
+        let res = self.possible_min.get();
+        self.possible_min.set(self.buf_cnt);
+        res
     }
 }
 
-impl Drop for GBuf {
+// FIXME
+/*
+impl Drop for RawBufRing {
     fn drop(&mut self) {
-        // Add the buffer back to the bufgroup, for the kernel to reuse.
-        unsafe { self.bufgroup.rc.dropping_bid(self.bid) };
+        if self.registered.get() {
+            _ = self.unregister();
+        }
+        // Safety: the ptr and layout are treated as constant, and ptr (ring_addr) was assigned by
+        // a call to std::alloc::alloc_zeroed using the same layout.
+        unsafe { std::alloc::dealloc(self.ring_addr as *mut u8, self.layout) };
     }
 }
+*/
