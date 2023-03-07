@@ -196,12 +196,15 @@ This is the most mature of the implementations. I consider it ready for producti
 
 More details are available [here](./documents/aquatic-udp-load-test-2023-01-11.pdf).
 
-#### Optimisation attempts that didn't work out
+#### io_uring
 
-* Using glommio
-* Using io-uring
-* Using zerocopy + vectored sends for responses
-* Using sendmmsg
+An experimental io_uring backend can be compiled in by passing the `io-uring`
+feature. Currently, Linux 6.0 or later is required. The application will
+attempt to fall back to the mio backend if your kernel is not supported.
+
+```sh
+cargo build --release -p aquatic_udp --features "io-uring"
+```
 
 ### aquatic_http: HTTP BitTorrent tracker
 
