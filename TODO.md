@@ -3,9 +3,7 @@
 ## High priority
 
 * udp uring
-  * test ipv6
   * thiserror?
-  * check statistics
   * CI
   * uring load test?
 

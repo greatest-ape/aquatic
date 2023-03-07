@@ -42,7 +42,7 @@ impl SendBuffers {
 
         let (names_v4, names_v6, msghdrs) = if config.network.address.is_ipv4() {
             let mut names_v4 = ::std::iter::repeat(libc::sockaddr_in {
-                sin_family: 0,
+                sin_family: libc::AF_INET as u16,
                 sin_port: 0,
                 sin_addr: libc::in_addr { s_addr: 0 },
                 sin_zero: [0; 8],
@@ -67,7 +67,7 @@ impl SendBuffers {
             (names_v4, Vec::new(), msghdrs)
         } else {
             let mut names_v6 = ::std::iter::repeat(libc::sockaddr_in6 {
-                sin6_family: 0,
+                sin6_family: libc::AF_INET6 as u16,
                 sin6_port: 0,
                 sin6_flowinfo: 0,
                 sin6_addr: libc::in6_addr { s6_addr: [0; 16] },
@@ -141,7 +141,7 @@ impl SendBuffers {
                 panic!("ipv6 address in ipv4 mode");
             };
         } else {
-            self.receiver_is_ipv4[index] = false;
+            self.receiver_is_ipv4[index] = addr.is_ipv4();
 
             let msg_name = self.names_v6.get_mut(index).unwrap();
 
