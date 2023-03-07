@@ -42,11 +42,13 @@
 // While the file! calls yield the clippy false positive.
 #![allow(clippy::print_literal)]
 
-use io_uring::{types, IoUring};
+use io_uring::types;
 use std::cell::Cell;
 use std::io;
 use std::rc::Rc;
 use std::sync::atomic::{self, AtomicU16};
+
+use super::CurrentRing;
 
 /// The buffer group ID.
 ///
@@ -442,7 +444,7 @@ impl Builder {
     /// of both the buffer ring elements and the buffers themselves.
     ///
     /// If auto_register was left enabled, register the BufRing with the driver.
-    pub fn build(&self, ring: &mut IoUring) -> io::Result<BufRing> {
+    pub fn build(&self) -> io::Result<BufRing> {
         let mut b: Builder = *self;
 
         // Two cases where both buf_cnt and ring_entries are set to the max of the two.
@@ -468,20 +470,17 @@ impl Builder {
         b.ring_entries = b.ring_entries.next_power_of_two();
 
         Ok(BufRing {
-            raw: Rc::new(RawBufRing::new(
-                ring,
-                NewArgs {
-                    page_size: b.page_size,
-                    bgid: b.bgid,
-                    ring_entries: b.ring_entries,
-                    buf_cnt: b.buf_cnt,
-                    buf_len: b.buf_len,
-                    buf_align: b.buf_align,
-                    ring_pad: b.ring_pad,
-                    bufend_align: b.bufend_align,
-                    auto_register: !b.skip_register,
-                },
-            )?),
+            raw: Rc::new(RawBufRing::new(NewArgs {
+                page_size: b.page_size,
+                bgid: b.bgid,
+                ring_entries: b.ring_entries,
+                buf_cnt: b.buf_cnt,
+                buf_len: b.buf_len,
+                buf_align: b.buf_align,
+                ring_pad: b.ring_pad,
+                bufend_align: b.bufend_align,
+                auto_register: !b.skip_register,
+            })?),
         })
     }
 }
@@ -534,7 +533,7 @@ struct RawBufRing {
 }
 
 impl RawBufRing {
-    fn new(ring: &mut IoUring, new_args: NewArgs) -> io::Result<RawBufRing> {
+    fn new(new_args: NewArgs) -> io::Result<RawBufRing> {
         #[allow(non_upper_case_globals)]
         const trace: bool = false;
 
@@ -717,7 +716,7 @@ impl RawBufRing {
         // place - that would be a reason to delay the register call until later.
 
         if auto_register {
-            buf_ring.register(ring)?;
+            buf_ring.register()?;
         }
         Ok(buf_ring)
     }
@@ -737,16 +736,17 @@ impl RawBufRing {
     ///
     /// If a `Provided Buffers` group with the same `bgid` is already registered, the function
     /// returns an error.
-    fn register(&self, ring: &mut IoUring) -> io::Result<()> {
+    fn register(&self) -> io::Result<()> {
         let bgid = self.bgid;
         //println!("{}:{}: register bgid {bgid}", file!(), line!());
 
         // Future: move to separate public function so other buf_ring implementations
         // can register, and unregister, the same way.
 
-        let res =
+        let res = CurrentRing::with(|ring| {
             ring.submitter()
-                .register_buf_ring(self.ring_addr as _, self.ring_entries(), bgid);
+                .register_buf_ring(self.ring_addr as _, self.ring_entries(), bgid)
+        });
         // println!("{}:{}: res {:?}", file!(), line!(), res);
 
         if let Err(e) = res {
@@ -783,7 +783,7 @@ impl RawBufRing {
     /// Normally this is done automatically when the BufRing goes out of scope.
     ///
     /// Warning: requires the CONTEXT driver is already in place or will panic.
-    fn unregister(&self, ring: &mut IoUring) -> io::Result<()> {
+    fn unregister(&self) -> io::Result<()> {
         // If not registered, make this a no-op.
         if !self.registered.get() {
             return Ok(());
@@ -793,7 +793,7 @@ impl RawBufRing {
 
         let bgid = self.bgid;
 
-        ring.submitter().unregister_buf_ring(bgid)
+        CurrentRing::with(|ring| ring.submitter().unregister_buf_ring(bgid))
     }
 
     /// Returns the buffer group id.
@@ -933,8 +933,6 @@ impl RawBufRing {
     }
 }
 
-// FIXME
-/*
 impl Drop for RawBufRing {
     fn drop(&mut self) {
         if self.registered.get() {
@@ -945,4 +943,3 @@ impl Drop for RawBufRing {
         unsafe { std::alloc::dealloc(self.ring_addr as *mut u8, self.layout) };
     }
 }
-*/

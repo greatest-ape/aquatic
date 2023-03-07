@@ -2,8 +2,10 @@ mod buf_ring;
 mod recv_helper;
 mod send_buffers;
 
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::net::UdpSocket;
+use std::ops::DerefMut;
 use std::os::fd::AsRawFd;
 use std::sync::atomic::Ordering;
 
@@ -42,6 +44,32 @@ const USER_DATA_CLEANING_TIMEOUT: u64 = u64::MAX - 2;
 
 const SOCKET_IDENTIFIER: Fixed = Fixed(0);
 
+thread_local! {
+    pub static CURRENT_RING: CurrentRing = Default::default();
+}
+
+#[derive(Default)]
+pub struct CurrentRing {
+    ring: RefCell<Option<IoUring>>,
+}
+
+impl CurrentRing {
+    fn init(&self, ring: IoUring) {
+        *self.ring.borrow_mut() = Some(ring);
+    }
+
+    fn with<F, T>(mut f: F) -> T
+    where
+        F: FnMut(&mut IoUring) -> T,
+    {
+        CURRENT_RING.with(|rt| {
+            let mut opt_ring = rt.ring.borrow_mut();
+
+            f(Option::as_mut(opt_ring.deref_mut()).expect("IoUring not set"))
+        })
+    }
+}
+
 pub struct SocketWorker {
     config: Config,
     shared_state: State,
@@ -56,6 +84,7 @@ pub struct SocketWorker {
     local_responses: VecDeque<(Response, CanonicalSocketAddr)>,
     pulse_timeout: Timespec,
     cleaning_timeout: Timespec,
+    #[allow(dead_code)]
     socket: UdpSocket,
 }
 
@@ -76,6 +105,20 @@ impl SocketWorker {
         let recv_helper = RecvHelper::new(&config);
         let cleaning_timeout =
             Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval);
+
+        CURRENT_RING.with(|r| {
+            let ring = IoUring::builder()
+                .setup_coop_taskrun()
+                .setup_single_issuer()
+                .build(RING_ENTRIES)
+                .unwrap();
+
+            ring.submitter()
+                .register_files(&[socket.as_raw_fd()])
+                .unwrap();
+
+            r.init(ring);
+        });
 
         let mut worker = Self {
             config,
@@ -98,20 +141,10 @@ impl SocketWorker {
     }
 
     pub fn run_inner(&mut self) {
-        let mut ring = IoUring::builder()
-            .setup_coop_taskrun()
-            .setup_single_issuer()
-            .build(RING_ENTRIES)
-            .unwrap();
-
-        ring.submitter()
-            .register_files(&[self.socket.as_raw_fd()])
-            .unwrap();
-
         let buf_ring = buf_ring::Builder::new(0)
             .ring_entries(RING_ENTRIES.try_into().unwrap())
             .buf_len(BUF_LEN)
-            .build(&mut ring)
+            .build()
             .unwrap();
 
         let mut pending_scrape_valid_until = ValidUntil::new(
@@ -142,27 +175,25 @@ impl SocketWorker {
             let mut bytes_sent_ipv6 = 0;
 
             for sqe in squeue_buf.drain(..) {
-                unsafe {
-                    ring.submission().push(&sqe).unwrap();
-                }
+                CurrentRing::with(|ring| unsafe { ring.submission().push(&sqe).unwrap() });
             }
 
             let mut num_send_added = 0;
 
-            let sq_space = {
+            let sq_space = CurrentRing::with(|ring| {
                 let sq = ring.submission();
 
                 sq.capacity() - sq.len()
-            };
+            });
 
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = self.local_responses.pop_front() {
                     match self.send_buffers.prepare_entry(&response, addr) {
                         Ok(entry) => {
-                            unsafe {
-                                ring.submission().push(&entry).unwrap();
-                            }
+                            CurrentRing::with(|ring| unsafe {
+                                ring.submission().push(&entry).unwrap()
+                            });
 
                             self.update_response_statistics(&response, addr);
 
@@ -182,11 +213,11 @@ impl SocketWorker {
                 }
             }
 
-            let sq_space = {
+            let sq_space = CurrentRing::with(|ring| {
                 let sq = ring.submission();
 
                 sq.capacity() - sq.len()
-            };
+            });
 
             // Enqueue swarm worker responses
             'outer: for _ in 0..sq_space {
@@ -213,9 +244,9 @@ impl SocketWorker {
 
                 match self.send_buffers.prepare_entry(&response, addr) {
                     Ok(entry) => {
-                        unsafe {
-                            ring.submission().push(&entry).unwrap();
-                        }
+                        CurrentRing::with(|ring| unsafe {
+                            ring.submission().push(&entry).unwrap()
+                        });
 
                         self.update_response_statistics(&response, addr);
 
@@ -235,59 +266,63 @@ impl SocketWorker {
             // Wait for all sendmsg entries to complete, as well as at least
             // one recvmsg or timeout, in order to avoid busy-polling if there
             // is no incoming data.
-            ring.submitter()
-                .submit_and_wait(num_send_added + 1)
-                .unwrap();
+            CurrentRing::with(|ring| {
+                ring.submitter()
+                    .submit_and_wait(num_send_added + 1)
+                    .unwrap();
+            });
 
-            for cqe in ring.completion() {
-                match cqe.user_data() {
-                    USER_DATA_RECV => {
-                        self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe);
+            CurrentRing::with(|ring| {
+                for cqe in ring.completion() {
+                    match cqe.user_data() {
+                        USER_DATA_RECV => {
+                            self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe);
 
-                        if !io_uring::cqueue::more(cqe.flags()) {
-                            squeue_buf.push(recv_entry.clone());
-                        }
-                    }
-                    USER_DATA_PULSE_TIMEOUT => {
-                        pending_scrape_valid_until = ValidUntil::new(
-                            self.server_start_instant,
-                            self.config.cleaning.max_pending_scrape_age,
-                        );
-
-                        squeue_buf.push(pulse_timeout_entry.clone());
-                    }
-                    USER_DATA_CLEANING_TIMEOUT => {
-                        self.pending_scrape_responses
-                            .clean(self.server_start_instant.seconds_elapsed());
-
-                        squeue_buf.push(cleaning_timeout_entry.clone());
-                    }
-                    send_buffer_index => {
-                        let result = cqe.result();
-
-                        if result < 0 {
-                            ::log::error!(
-                                "send: {:#}",
-                                ::std::io::Error::from_raw_os_error(-result)
-                            );
-                        } else if self.config.statistics.active() {
-                            let bytes_sent = result as usize;
-
-                            if self
-                                .send_buffers
-                                .receiver_is_ipv4(send_buffer_index as usize)
-                            {
-                                bytes_sent_ipv4 += bytes_sent + EXTRA_PACKET_SIZE_IPV4;
-                            } else {
-                                bytes_sent_ipv6 += bytes_sent + EXTRA_PACKET_SIZE_IPV6;
+                            if !io_uring::cqueue::more(cqe.flags()) {
+                                squeue_buf.push(recv_entry.clone());
                             }
                         }
+                        USER_DATA_PULSE_TIMEOUT => {
+                            pending_scrape_valid_until = ValidUntil::new(
+                                self.server_start_instant,
+                                self.config.cleaning.max_pending_scrape_age,
+                            );
 
-                        self.send_buffers
-                            .mark_index_as_free(send_buffer_index as usize);
+                            squeue_buf.push(pulse_timeout_entry.clone());
+                        }
+                        USER_DATA_CLEANING_TIMEOUT => {
+                            self.pending_scrape_responses
+                                .clean(self.server_start_instant.seconds_elapsed());
+
+                            squeue_buf.push(cleaning_timeout_entry.clone());
+                        }
+                        send_buffer_index => {
+                            let result = cqe.result();
+
+                            if result < 0 {
+                                ::log::error!(
+                                    "send: {:#}",
+                                    ::std::io::Error::from_raw_os_error(-result)
+                                );
+                            } else if self.config.statistics.active() {
+                                let bytes_sent = result as usize;
+
+                                if self
+                                    .send_buffers
+                                    .receiver_is_ipv4(send_buffer_index as usize)
+                                {
+                                    bytes_sent_ipv4 += bytes_sent + EXTRA_PACKET_SIZE_IPV4;
+                                } else {
+                                    bytes_sent_ipv6 += bytes_sent + EXTRA_PACKET_SIZE_IPV6;
+                                }
+                            }
+
+                            self.send_buffers
+                                .mark_index_as_free(send_buffer_index as usize);
+                        }
                     }
                 }
-            }
+            });
 
             self.send_buffers.reset_index();
 
