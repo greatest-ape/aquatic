@@ -84,6 +84,7 @@ pub struct SocketWorker {
     local_responses: VecDeque<(Response, CanonicalSocketAddr)>,
     pulse_timeout: Timespec,
     cleaning_timeout: Timespec,
+    buf_ring: BufRing,
     #[allow(dead_code)]
     socket: UdpSocket,
 }
@@ -120,6 +121,12 @@ impl SocketWorker {
             r.init(ring);
         });
 
+        let buf_ring = buf_ring::Builder::new(0)
+            .ring_entries(RING_ENTRIES.try_into().unwrap())
+            .buf_len(BUF_LEN)
+            .build()
+            .unwrap();
+
         let mut worker = Self {
             config,
             shared_state,
@@ -134,6 +141,7 @@ impl SocketWorker {
             local_responses: Default::default(),
             pulse_timeout: Timespec::new().sec(1),
             cleaning_timeout,
+            buf_ring,
             socket,
         };
 
@@ -141,12 +149,6 @@ impl SocketWorker {
     }
 
     pub fn run_inner(&mut self) {
-        let buf_ring = buf_ring::Builder::new(0)
-            .ring_entries(RING_ENTRIES.try_into().unwrap())
-            .buf_len(BUF_LEN)
-            .build()
-            .unwrap();
-
         let mut pending_scrape_valid_until = ValidUntil::new(
             self.server_start_instant,
             self.config.cleaning.max_pending_scrape_age,
@@ -154,7 +156,7 @@ impl SocketWorker {
 
         let recv_entry = self
             .recv_helper
-            .create_entry(buf_ring.bgid().try_into().unwrap());
+            .create_entry(self.buf_ring.bgid().try_into().unwrap());
         // This timeout makes it possible to avoid busy-polling and enables
         // regular updates of pending_scrape_valid_until
         let pulse_timeout_entry = Timeout::new(&self.pulse_timeout as *const _)
@@ -276,7 +278,7 @@ impl SocketWorker {
                 for cqe in ring.completion() {
                     match cqe.user_data() {
                         USER_DATA_RECV => {
-                            self.handle_recv_cqe(&buf_ring, pending_scrape_valid_until, &cqe);
+                            self.handle_recv_cqe(pending_scrape_valid_until, &cqe);
 
                             if !io_uring::cqueue::more(cqe.flags()) {
                                 squeue_buf.push(recv_entry.clone());
@@ -341,7 +343,6 @@ impl SocketWorker {
 
     fn handle_recv_cqe(
         &mut self,
-        buf_ring: &BufRing,
         pending_scrape_valid_until: ValidUntil,
         cqe: &io_uring::cqueue::Entry,
     ) {
@@ -355,7 +356,7 @@ impl SocketWorker {
         }
 
         let buffer = unsafe {
-            match buf_ring.get_buf(result as u32, cqe.flags()) {
+            match self.buf_ring.get_buf(result as u32, cqe.flags()) {
                 Ok(Some(buffer)) => buffer,
                 Ok(None) => {
                     ::log::error!("Couldn't get buffer");
