@@ -93,7 +93,7 @@ impl SocketWorker {
         priv_dropper: PrivilegeDropper,
     ) {
         let ring_entries = config.network.ring_entries.next_power_of_two();
-        // Bias ring towards sending
+        // Bias ring towards sending to prevent build-up of unsent responses
         let send_buffer_entries = ring_entries - (ring_entries / 4);
 
         let socket = create_socket(&config, priv_dropper).expect("create socket");
