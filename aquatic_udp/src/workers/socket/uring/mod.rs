@@ -34,8 +34,6 @@ use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
-const RING_ENTRIES: u32 = 1024;
-const SEND_ENTRIES: usize = 512;
 const BUF_LEN: usize = 8192;
 
 const USER_DATA_RECV: u64 = u64::MAX;
@@ -94,9 +92,13 @@ impl SocketWorker {
         response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
         priv_dropper: PrivilegeDropper,
     ) {
+        let ring_entries = config.network.ring_entries.next_power_of_two();
+        // Bias ring towards sending
+        let send_buffer_entries = ring_entries - (ring_entries / 4);
+
         let socket = create_socket(&config, priv_dropper).expect("create socket");
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
-        let send_buffers = SendBuffers::new(&config, SEND_ENTRIES);
+        let send_buffers = SendBuffers::new(&config, send_buffer_entries as usize);
         let recv_helper = RecvHelper::new(&config);
         let cleaning_timeout =
             Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval);
@@ -104,7 +106,7 @@ impl SocketWorker {
         let ring = IoUring::builder()
             .setup_coop_taskrun()
             .setup_single_issuer()
-            .build(RING_ENTRIES)
+            .build(ring_entries.into())
             .unwrap();
 
         ring.submitter()
@@ -115,7 +117,7 @@ impl SocketWorker {
         CURRENT_RING.with(|r| *r.0.borrow_mut() = Some(ring));
 
         let buf_ring = buf_ring::Builder::new(0)
-            .ring_entries(RING_ENTRIES.try_into().unwrap())
+            .ring_entries(ring_entries)
             .buf_len(BUF_LEN)
             .build()
             .unwrap();
