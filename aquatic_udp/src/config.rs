@@ -85,11 +85,13 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_max=104857600
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
+    /// Poll event capacity (mio backend)
     pub poll_event_capacity: usize,
+    /// Poll timeout in milliseconds (mio backend)
     pub poll_timeout_ms: u64,
-    /// Number of io_uring ring entries
+    /// Number of ring entries (io_uring backend)
     ///
-    /// If not a power of two, will be rounded to next one
+    /// Will be rounded to next power of two if not already one
     #[cfg(feature = "io-uring")]
     pub ring_entries: u16,
     /// Store this many responses at most for retrying (once) on send failure
