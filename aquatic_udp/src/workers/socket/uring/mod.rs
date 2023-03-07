@@ -106,6 +106,7 @@ impl SocketWorker {
         let ring = IoUring::builder()
             .setup_coop_taskrun()
             .setup_single_issuer()
+            .setup_submit_all()
             .build(ring_entries.into())
             .unwrap();
 
