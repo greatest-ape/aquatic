@@ -24,7 +24,7 @@
 // IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// Copied from
+// Copied (with slight modifications) from
 // - https://github.com/FrankReh/tokio-uring/tree/9387c92c98138451f7d760432a04b0b95a406f22/src/buf/bufring
 // - https://github.com/FrankReh/tokio-uring/blob/9387c92c98138451f7d760432a04b0b95a406f22/src/buf/bufgroup/mod.rs
 
@@ -921,11 +921,13 @@ impl RawBufRing {
     }
 
     // Return the possible_min buffer pool size.
+    #[allow(dead_code)]
     fn possible_min(&self) -> u16 {
         self.possible_min.get()
     }
 
     // Return the possible_min buffer pool size and reset to allow fresh counting going forward.
+    #[allow(dead_code)]
     fn possible_min_and_reset(&self) -> u16 {
         let res = self.possible_min.get();
         self.possible_min.set(self.buf_cnt);
