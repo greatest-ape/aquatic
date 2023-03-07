@@ -45,25 +45,23 @@ const USER_DATA_CLEANING_TIMEOUT: u64 = u64::MAX - 2;
 const SOCKET_IDENTIFIER: Fixed = Fixed(0);
 
 thread_local! {
-    pub static CURRENT_RING: CurrentRing = Default::default();
+    /// Store IoUring instance here so that it can be accessed in BufRing::drop
+    pub static CURRENT_RING: CurrentRing = CurrentRing(RefCell::new(None));
 }
 
-#[derive(Default)]
-pub struct CurrentRing {
-    ring: RefCell<Option<IoUring>>,
-}
+pub struct CurrentRing(RefCell<Option<IoUring>>);
 
 impl CurrentRing {
     fn init(&self, ring: IoUring) {
-        *self.ring.borrow_mut() = Some(ring);
+        *self.0.borrow_mut() = Some(ring);
     }
 
     fn with<F, T>(mut f: F) -> T
     where
         F: FnMut(&mut IoUring) -> T,
     {
-        CURRENT_RING.with(|rt| {
-            let mut opt_ring = rt.ring.borrow_mut();
+        CURRENT_RING.with(|r| {
+            let mut opt_ring = r.0.borrow_mut();
 
             f(Option::as_mut(opt_ring.deref_mut()).expect("IoUring not set"))
         })
@@ -145,10 +143,10 @@ impl SocketWorker {
             socket,
         };
 
-        worker.run_inner();
+        CurrentRing::with(|ring| worker.run_inner(ring));
     }
 
-    pub fn run_inner(&mut self) {
+    pub fn run_inner(&mut self, ring: &mut IoUring) {
         let mut pending_scrape_valid_until = ValidUntil::new(
             self.server_start_instant,
             self.config.cleaning.max_pending_scrape_age,
@@ -177,25 +175,23 @@ impl SocketWorker {
             let mut bytes_sent_ipv6 = 0;
 
             for sqe in squeue_buf.drain(..) {
-                CurrentRing::with(|ring| unsafe { ring.submission().push(&sqe).unwrap() });
+                unsafe { ring.submission().push(&sqe).unwrap() };
             }
 
             let mut num_send_added = 0;
 
-            let sq_space = CurrentRing::with(|ring| {
+            let sq_space = {
                 let sq = ring.submission();
 
                 sq.capacity() - sq.len()
-            });
+            };
 
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = self.local_responses.pop_front() {
                     match self.send_buffers.prepare_entry(&response, addr) {
                         Ok(entry) => {
-                            CurrentRing::with(|ring| unsafe {
-                                ring.submission().push(&entry).unwrap()
-                            });
+                            unsafe { ring.submission().push(&entry).unwrap() };
 
                             self.update_response_statistics(&response, addr);
 
@@ -215,11 +211,11 @@ impl SocketWorker {
                 }
             }
 
-            let sq_space = CurrentRing::with(|ring| {
+            let sq_space = {
                 let sq = ring.submission();
 
                 sq.capacity() - sq.len()
-            });
+            };
 
             // Enqueue swarm worker responses
             'outer: for _ in 0..sq_space {
@@ -246,9 +242,7 @@ impl SocketWorker {
 
                 match self.send_buffers.prepare_entry(&response, addr) {
                     Ok(entry) => {
-                        CurrentRing::with(|ring| unsafe {
-                            ring.submission().push(&entry).unwrap()
-                        });
+                        unsafe { ring.submission().push(&entry).unwrap() };
 
                         self.update_response_statistics(&response, addr);
 
@@ -268,63 +262,59 @@ impl SocketWorker {
             // Wait for all sendmsg entries to complete, as well as at least
             // one recvmsg or timeout, in order to avoid busy-polling if there
             // is no incoming data.
-            CurrentRing::with(|ring| {
-                ring.submitter()
-                    .submit_and_wait(num_send_added + 1)
-                    .unwrap();
-            });
+            ring.submitter()
+                .submit_and_wait(num_send_added + 1)
+                .unwrap();
 
-            CurrentRing::with(|ring| {
-                for cqe in ring.completion() {
-                    match cqe.user_data() {
-                        USER_DATA_RECV => {
-                            self.handle_recv_cqe(pending_scrape_valid_until, &cqe);
+            for cqe in ring.completion() {
+                match cqe.user_data() {
+                    USER_DATA_RECV => {
+                        self.handle_recv_cqe(pending_scrape_valid_until, &cqe);
 
-                            if !io_uring::cqueue::more(cqe.flags()) {
-                                squeue_buf.push(recv_entry.clone());
-                            }
-                        }
-                        USER_DATA_PULSE_TIMEOUT => {
-                            pending_scrape_valid_until = ValidUntil::new(
-                                self.server_start_instant,
-                                self.config.cleaning.max_pending_scrape_age,
-                            );
-
-                            squeue_buf.push(pulse_timeout_entry.clone());
-                        }
-                        USER_DATA_CLEANING_TIMEOUT => {
-                            self.pending_scrape_responses
-                                .clean(self.server_start_instant.seconds_elapsed());
-
-                            squeue_buf.push(cleaning_timeout_entry.clone());
-                        }
-                        send_buffer_index => {
-                            let result = cqe.result();
-
-                            if result < 0 {
-                                ::log::error!(
-                                    "send: {:#}",
-                                    ::std::io::Error::from_raw_os_error(-result)
-                                );
-                            } else if self.config.statistics.active() {
-                                let bytes_sent = result as usize;
-
-                                if self
-                                    .send_buffers
-                                    .receiver_is_ipv4(send_buffer_index as usize)
-                                {
-                                    bytes_sent_ipv4 += bytes_sent + EXTRA_PACKET_SIZE_IPV4;
-                                } else {
-                                    bytes_sent_ipv6 += bytes_sent + EXTRA_PACKET_SIZE_IPV6;
-                                }
-                            }
-
-                            self.send_buffers
-                                .mark_index_as_free(send_buffer_index as usize);
+                        if !io_uring::cqueue::more(cqe.flags()) {
+                            squeue_buf.push(recv_entry.clone());
                         }
                     }
+                    USER_DATA_PULSE_TIMEOUT => {
+                        pending_scrape_valid_until = ValidUntil::new(
+                            self.server_start_instant,
+                            self.config.cleaning.max_pending_scrape_age,
+                        );
+
+                        squeue_buf.push(pulse_timeout_entry.clone());
+                    }
+                    USER_DATA_CLEANING_TIMEOUT => {
+                        self.pending_scrape_responses
+                            .clean(self.server_start_instant.seconds_elapsed());
+
+                        squeue_buf.push(cleaning_timeout_entry.clone());
+                    }
+                    send_buffer_index => {
+                        let result = cqe.result();
+
+                        if result < 0 {
+                            ::log::error!(
+                                "send: {:#}",
+                                ::std::io::Error::from_raw_os_error(-result)
+                            );
+                        } else if self.config.statistics.active() {
+                            let bytes_sent = result as usize;
+
+                            if self
+                                .send_buffers
+                                .receiver_is_ipv4(send_buffer_index as usize)
+                            {
+                                bytes_sent_ipv4 += bytes_sent + EXTRA_PACKET_SIZE_IPV4;
+                            } else {
+                                bytes_sent_ipv6 += bytes_sent + EXTRA_PACKET_SIZE_IPV6;
+                            }
+                        }
+
+                        self.send_buffers
+                            .mark_index_as_free(send_buffer_index as usize);
+                    }
                 }
-            });
+            }
 
             self.send_buffers.reset_index();
 
