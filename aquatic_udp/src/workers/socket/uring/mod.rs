@@ -278,6 +278,12 @@ impl SocketWorker {
                             self.config.cleaning.max_pending_scrape_age,
                         );
 
+                        ::log::info!(
+                            "pending responses: {} local, {} swarm",
+                            self.local_responses.len(),
+                            self.response_receiver.len()
+                        );
+
                         squeue_buf.push(pulse_timeout_entry.clone());
                     }
                     USER_DATA_CLEANING_TIMEOUT => {
