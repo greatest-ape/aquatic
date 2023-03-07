@@ -52,10 +52,6 @@ thread_local! {
 pub struct CurrentRing(RefCell<Option<IoUring>>);
 
 impl CurrentRing {
-    fn init(&self, ring: IoUring) {
-        *self.0.borrow_mut() = Some(ring);
-    }
-
     fn with<F, T>(mut f: F) -> T
     where
         F: FnMut(&mut IoUring) -> T,
@@ -105,19 +101,18 @@ impl SocketWorker {
         let cleaning_timeout =
             Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval);
 
-        CURRENT_RING.with(|r| {
-            let ring = IoUring::builder()
-                .setup_coop_taskrun()
-                .setup_single_issuer()
-                .build(RING_ENTRIES)
-                .unwrap();
+        let ring = IoUring::builder()
+            .setup_coop_taskrun()
+            .setup_single_issuer()
+            .build(RING_ENTRIES)
+            .unwrap();
 
-            ring.submitter()
-                .register_files(&[socket.as_raw_fd()])
-                .unwrap();
+        ring.submitter()
+            .register_files(&[socket.as_raw_fd()])
+            .unwrap();
 
-            r.init(ring);
-        });
+        // Store ring in thread local storage before creating BufRing
+        CURRENT_RING.with(|r| *r.0.borrow_mut() = Some(ring));
 
         let buf_ring = buf_ring::Builder::new(0)
             .ring_entries(RING_ENTRIES.try_into().unwrap())
