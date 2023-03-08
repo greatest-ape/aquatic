@@ -191,12 +191,10 @@ impl SendBuffers {
         }
     }
 
-    pub fn receiver_is_ipv4(&mut self, index: usize) -> bool {
-        self.buffers[index].receiver_is_ipv4
-    }
+    pub fn response_type_and_ipv4(&self, index: usize) -> (ResponseType, bool) {
+        let buffer = self.buffers.get(index).unwrap();
 
-    pub fn response_type(&mut self, index: usize) -> ResponseType {
-        self.buffers[index].response_type
+        (buffer.response_type, buffer.receiver_is_ipv4)
     }
 
     pub fn mark_index_as_free(&mut self, index: usize) {

@@ -297,24 +297,25 @@ impl SocketWorker {
                         } else if self.config.statistics.active() {
                             let send_buffer_index = send_buffer_index as usize;
 
-                            let (statistics, extra_bytes) =
-                                if self.send_buffers.receiver_is_ipv4(send_buffer_index) {
-                                    (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
-                                } else {
-                                    (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
-                                };
+                            let (response_type, receiver_is_ipv4) =
+                                self.send_buffers.response_type_and_ipv4(send_buffer_index);
+
+                            let (statistics, extra_bytes) = if receiver_is_ipv4 {
+                                (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
+                            } else {
+                                (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+                            };
 
                             statistics
                                 .bytes_sent
                                 .fetch_add(result as usize + extra_bytes, Ordering::Relaxed);
 
-                            let response_counter =
-                                match self.send_buffers.response_type(send_buffer_index) {
-                                    ResponseType::Connect => &statistics.responses_sent_connect,
-                                    ResponseType::Announce => &statistics.responses_sent_announce,
-                                    ResponseType::Scrape => &statistics.responses_sent_scrape,
-                                    ResponseType::Error => &statistics.responses_sent_error,
-                                };
+                            let response_counter = match response_type {
+                                ResponseType::Connect => &statistics.responses_sent_connect,
+                                ResponseType::Announce => &statistics.responses_sent_announce,
+                                ResponseType::Scrape => &statistics.responses_sent_scrape,
+                                ResponseType::Error => &statistics.responses_sent_error,
+                            };
 
                             response_counter.fetch_add(1, Ordering::Relaxed);
                         }
