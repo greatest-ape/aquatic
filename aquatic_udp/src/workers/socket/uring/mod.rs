@@ -196,7 +196,7 @@ impl SocketWorker {
                             break;
                         }
                         Err(send_buffers::Error::SerializationFailed(err)) => {
-                            ::log::error!("write response to buffer: {:#}", err);
+                            ::log::error!("Failed serializing response: {:#}", err);
                         }
                     }
                 } else {
@@ -245,7 +245,7 @@ impl SocketWorker {
                         break;
                     }
                     Err(send_buffers::Error::SerializationFailed(err)) => {
-                        ::log::error!("write response to buffer: {:#}", err);
+                        ::log::error!("Failed serializing response: {:#}", err);
                     }
                 }
             }
@@ -291,7 +291,7 @@ impl SocketWorker {
 
                         if result < 0 {
                             ::log::error!(
-                                "send: {:#}",
+                                "Couldn't send response: {:#}",
                                 ::std::io::Error::from_raw_os_error(-result)
                             );
                         } else if self.config.statistics.active() {
@@ -337,8 +337,14 @@ impl SocketWorker {
         let result = cqe.result();
 
         if result < 0 {
-            // Will produce ENOBUFS if there were no free buffers
-            ::log::warn!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
+            if -result == libc::ENOBUFS {
+                ::log::warn!("recv failed due to lack of buffers, try increasing ring size");
+            } else {
+                ::log::warn!(
+                    "recv failed: {:#}",
+                    ::std::io::Error::from_raw_os_error(-result)
+                );
+            }
 
             return;
         }
@@ -347,12 +353,12 @@ impl SocketWorker {
             match self.buf_ring.get_buf(result as u32, cqe.flags()) {
                 Ok(Some(buffer)) => buffer,
                 Ok(None) => {
-                    ::log::error!("Couldn't get buffer");
+                    ::log::error!("Couldn't get recv buffer");
 
                     return;
                 }
                 Err(err) => {
-                    ::log::error!("Couldn't get buffer: {:#}", err);
+                    ::log::error!("Couldn't get recv buffer: {:#}", err);
 
                     return;
                 }
