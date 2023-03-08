@@ -196,7 +196,7 @@ impl SocketWorker {
                             break;
                         }
                         Err(send_buffers::Error::SerializationFailed(err)) => {
-                            ::log::error!("write response to buffer: {:#}", err);
+                            ::log::error!("Failed serializing response: {:#}", err);
                         }
                     }
                 } else {
@@ -245,7 +245,7 @@ impl SocketWorker {
                         break;
                     }
                     Err(send_buffers::Error::SerializationFailed(err)) => {
-                        ::log::error!("write response to buffer: {:#}", err);
+                        ::log::error!("Failed serializing response: {:#}", err);
                     }
                 }
             }
@@ -291,30 +291,31 @@ impl SocketWorker {
 
                         if result < 0 {
                             ::log::error!(
-                                "send: {:#}",
+                                "Couldn't send response: {:#}",
                                 ::std::io::Error::from_raw_os_error(-result)
                             );
                         } else if self.config.statistics.active() {
                             let send_buffer_index = send_buffer_index as usize;
 
-                            let (statistics, extra_bytes) =
-                                if self.send_buffers.receiver_is_ipv4(send_buffer_index) {
-                                    (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
-                                } else {
-                                    (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
-                                };
+                            let (response_type, receiver_is_ipv4) =
+                                self.send_buffers.response_type_and_ipv4(send_buffer_index);
+
+                            let (statistics, extra_bytes) = if receiver_is_ipv4 {
+                                (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
+                            } else {
+                                (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+                            };
 
                             statistics
                                 .bytes_sent
                                 .fetch_add(result as usize + extra_bytes, Ordering::Relaxed);
 
-                            let response_counter =
-                                match self.send_buffers.response_type(send_buffer_index) {
-                                    ResponseType::Connect => &statistics.responses_sent_connect,
-                                    ResponseType::Announce => &statistics.responses_sent_announce,
-                                    ResponseType::Scrape => &statistics.responses_sent_scrape,
-                                    ResponseType::Error => &statistics.responses_sent_error,
-                                };
+                            let response_counter = match response_type {
+                                ResponseType::Connect => &statistics.responses_sent_connect,
+                                ResponseType::Announce => &statistics.responses_sent_announce,
+                                ResponseType::Scrape => &statistics.responses_sent_scrape,
+                                ResponseType::Error => &statistics.responses_sent_error,
+                            };
 
                             response_counter.fetch_add(1, Ordering::Relaxed);
                         }
@@ -337,8 +338,14 @@ impl SocketWorker {
         let result = cqe.result();
 
         if result < 0 {
-            // Will produce ENOBUFS if there were no free buffers
-            ::log::warn!("recv: {:#}", ::std::io::Error::from_raw_os_error(-result));
+            if -result == libc::ENOBUFS {
+                ::log::warn!("recv failed due to lack of buffers, try increasing ring size");
+            } else {
+                ::log::warn!(
+                    "recv failed: {:#}",
+                    ::std::io::Error::from_raw_os_error(-result)
+                );
+            }
 
             return;
         }
@@ -347,12 +354,12 @@ impl SocketWorker {
             match self.buf_ring.get_buf(result as u32, cqe.flags()) {
                 Ok(Some(buffer)) => buffer,
                 Ok(None) => {
-                    ::log::error!("Couldn't get buffer");
+                    ::log::error!("Couldn't get recv buffer");
 
                     return;
                 }
                 Err(err) => {
-                    ::log::error!("Couldn't get buffer: {:#}", err);
+                    ::log::error!("Couldn't get recv buffer: {:#}", err);
 
                     return;
                 }
@@ -361,51 +368,60 @@ impl SocketWorker {
 
         let buffer = buffer.as_slice();
 
-        let (res_request, addr) = self.recv_helper.parse(buffer);
+        let addr = match self.recv_helper.parse(buffer) {
+            Ok((request, addr)) => {
+                self.handle_request(pending_scrape_valid_until, request, addr);
 
-        match res_request {
-            Ok(request) => self.handle_request(pending_scrape_valid_until, request, addr),
-            Err(RequestParseError::Sendable {
-                connection_id,
-                transaction_id,
-                err,
-            }) => {
-                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
-
-                if self.validator.connection_id_valid(addr, connection_id) {
-                    let response = ErrorResponse {
+                addr
+            }
+            Err(self::recv_helper::Error::RequestParseError(err, addr)) => {
+                match err {
+                    RequestParseError::Sendable {
+                        connection_id,
                         transaction_id,
-                        message: err.right_or("Parse error").into(),
-                    };
+                        err,
+                    } => {
+                        ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
 
-                    self.local_responses.push_back((response.into(), addr));
+                        if self.validator.connection_id_valid(addr, connection_id) {
+                            let response = ErrorResponse {
+                                transaction_id,
+                                message: err.right_or("Parse error").into(),
+                            };
+
+                            self.local_responses.push_back((response.into(), addr));
+                        }
+                    }
+                    RequestParseError::Unsendable { err } => {
+                        ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
+                    }
                 }
+
+                addr
             }
-            Err(RequestParseError::Unsendable { err }) => {
-                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
+            Err(self::recv_helper::Error::InvalidSocketAddress) => {
+                ::log::debug!("Ignored request claiming to be from port 0");
+
+                return;
             }
-        }
+            Err(self::recv_helper::Error::RecvMsgParseError) => {
+                ::log::error!("RecvMsgOut::parse failed");
+
+                return;
+            }
+        };
 
         if self.config.statistics.active() {
-            if addr.is_ipv4() {
-                self.shared_state
-                    .statistics_ipv4
-                    .bytes_received
-                    .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV4, Ordering::Relaxed);
-                self.shared_state
-                    .statistics_ipv4
-                    .requests_received
-                    .fetch_add(1, Ordering::Relaxed);
+            let (statistics, extra_bytes) = if addr.is_ipv4() {
+                (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
             } else {
-                self.shared_state
-                    .statistics_ipv6
-                    .bytes_received
-                    .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV6, Ordering::Relaxed);
-                self.shared_state
-                    .statistics_ipv6
-                    .requests_received
-                    .fetch_add(1, Ordering::Relaxed);
-            }
+                (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+            };
+
+            statistics
+                .bytes_received
+                .fetch_add(buffer.len() + extra_bytes, Ordering::Relaxed);
+            statistics.requests_received.fetch_add(1, Ordering::Relaxed);
         }
     }
 
