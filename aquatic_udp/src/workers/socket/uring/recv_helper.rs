@@ -1,4 +1,5 @@
 use std::{
+    cell::UnsafeCell,
     net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
     ptr::null_mut,
 };
@@ -15,49 +16,49 @@ pub struct RecvHelper {
     network_address: IpAddr,
     max_scrape_torrents: u8,
     #[allow(dead_code)]
-    name_v4: Box<libc::sockaddr_in>,
-    msghdr_v4: Box<libc::msghdr>,
+    name_v4: Box<UnsafeCell<libc::sockaddr_in>>,
+    msghdr_v4: Box<UnsafeCell<libc::msghdr>>,
     #[allow(dead_code)]
-    name_v6: Box<libc::sockaddr_in6>,
-    msghdr_v6: Box<libc::msghdr>,
+    name_v6: Box<UnsafeCell<libc::sockaddr_in6>>,
+    msghdr_v6: Box<UnsafeCell<libc::msghdr>>,
 }
 
 impl RecvHelper {
     pub fn new(config: &Config) -> Self {
-        let mut name_v4 = Box::new(libc::sockaddr_in {
+        let name_v4 = Box::new(UnsafeCell::new(libc::sockaddr_in {
             sin_family: 0,
             sin_port: 0,
             sin_addr: libc::in_addr { s_addr: 0 },
             sin_zero: [0; 8],
-        });
+        }));
 
-        let msghdr_v4 = Box::new(libc::msghdr {
-            msg_name: &mut name_v4 as *mut _ as *mut libc::c_void,
+        let msghdr_v4 = Box::new(UnsafeCell::new(libc::msghdr {
+            msg_name: name_v4.get() as *mut libc::c_void,
             msg_namelen: core::mem::size_of::<libc::sockaddr_in>() as u32,
             msg_iov: null_mut(),
             msg_iovlen: 0,
             msg_control: null_mut(),
             msg_controllen: 0,
             msg_flags: 0,
-        });
+        }));
 
-        let mut name_v6 = Box::new(libc::sockaddr_in6 {
+        let name_v6 = Box::new(UnsafeCell::new(libc::sockaddr_in6 {
             sin6_family: 0,
             sin6_port: 0,
             sin6_flowinfo: 0,
             sin6_addr: libc::in6_addr { s6_addr: [0; 16] },
             sin6_scope_id: 0,
-        });
+        }));
 
-        let msghdr_v6 = Box::new(libc::msghdr {
-            msg_name: &mut name_v6 as *mut _ as *mut libc::c_void,
+        let msghdr_v6 = Box::new(UnsafeCell::new(libc::msghdr {
+            msg_name: name_v6.get() as *mut libc::c_void,
             msg_namelen: core::mem::size_of::<libc::sockaddr_in6>() as u32,
             msg_iov: null_mut(),
             msg_iovlen: 0,
             msg_control: null_mut(),
             msg_controllen: 0,
             msg_flags: 0,
-        });
+        }));
 
         Self {
             network_address: config.network.address.ip(),
@@ -71,9 +72,9 @@ impl RecvHelper {
 
     pub fn create_entry(&self, buf_group: u16) -> io_uring::squeue::Entry {
         let msghdr: *const libc::msghdr = if self.network_address.is_ipv4() {
-            &*self.msghdr_v4
+            self.msghdr_v4.get()
         } else {
-            &*self.msghdr_v6
+            self.msghdr_v6.get()
         };
 
         RecvMsgMulti::new(SOCKET_IDENTIFIER, msghdr, buf_group)
@@ -85,10 +86,12 @@ impl RecvHelper {
         &self,
         buffer: &[u8],
     ) -> (Result<Request, RequestParseError>, CanonicalSocketAddr) {
-        let msghdr = if self.network_address.is_ipv4() {
-            &self.msghdr_v4
-        } else {
-            &self.msghdr_v6
+        let msghdr = unsafe {
+            if self.network_address.is_ipv4() {
+                &*(self.msghdr_v4.get() as *const _)
+            } else {
+                &*(self.msghdr_v6.get() as *const _)
+            }
         };
 
         let msg = RecvMsgOut::parse(buffer, msghdr).unwrap();
