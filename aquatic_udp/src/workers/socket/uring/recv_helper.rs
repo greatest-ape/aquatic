@@ -12,6 +12,12 @@ use crate::config::Config;
 
 use super::{SOCKET_IDENTIFIER, USER_DATA_RECV};
 
+pub enum Error {
+    RecvMsgParseError,
+    RequestParseError(RequestParseError, CanonicalSocketAddr),
+    InvalidSocketAddress,
+}
+
 pub struct RecvHelper {
     socket_is_ipv4: bool,
     max_scrape_torrents: u8,
@@ -82,15 +88,12 @@ impl RecvHelper {
             .user_data(USER_DATA_RECV)
     }
 
-    pub fn parse(
-        &self,
-        buffer: &[u8],
-    ) -> (Result<Request, RequestParseError>, CanonicalSocketAddr) {
+    pub fn parse(&self, buffer: &[u8]) -> Result<(Request, CanonicalSocketAddr), Error> {
         let (msg, addr) = if self.socket_is_ipv4 {
             let msg = unsafe {
                 let msghdr = &*(self.msghdr_v4.get() as *const _);
 
-                RecvMsgOut::parse(buffer, msghdr).unwrap()
+                RecvMsgOut::parse(buffer, msghdr).map_err(|_| Error::RecvMsgParseError)?
             };
 
             let addr = unsafe {
@@ -102,12 +105,16 @@ impl RecvHelper {
                 ))
             };
 
+            if addr.port() == 0 {
+                return Err(Error::InvalidSocketAddress);
+            }
+
             (msg, addr)
         } else {
             let msg = unsafe {
                 let msghdr = &*(self.msghdr_v6.get() as *const _);
 
-                RecvMsgOut::parse(buffer, msghdr).unwrap()
+                RecvMsgOut::parse(buffer, msghdr).map_err(|_| Error::RecvMsgParseError)?
             };
 
             let addr = unsafe {
@@ -121,12 +128,18 @@ impl RecvHelper {
                 ))
             };
 
+            if addr.port() == 0 {
+                return Err(Error::InvalidSocketAddress);
+            }
+
             (msg, addr)
         };
 
-        (
-            Request::from_bytes(msg.payload_data(), self.max_scrape_torrents),
-            CanonicalSocketAddr::new(addr),
-        )
+        let addr = CanonicalSocketAddr::new(addr);
+
+        let request = Request::from_bytes(msg.payload_data(), self.max_scrape_torrents)
+            .map_err(|err| Error::RequestParseError(err, addr))?;
+
+        Ok((request, addr))
     }
 }

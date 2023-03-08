@@ -361,51 +361,60 @@ impl SocketWorker {
 
         let buffer = buffer.as_slice();
 
-        let (res_request, addr) = self.recv_helper.parse(buffer);
+        let addr = match self.recv_helper.parse(buffer) {
+            Ok((request, addr)) => {
+                self.handle_request(pending_scrape_valid_until, request, addr);
 
-        match res_request {
-            Ok(request) => self.handle_request(pending_scrape_valid_until, request, addr),
-            Err(RequestParseError::Sendable {
-                connection_id,
-                transaction_id,
-                err,
-            }) => {
-                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
-
-                if self.validator.connection_id_valid(addr, connection_id) {
-                    let response = ErrorResponse {
+                addr
+            }
+            Err(self::recv_helper::Error::RequestParseError(err, addr)) => {
+                match err {
+                    RequestParseError::Sendable {
+                        connection_id,
                         transaction_id,
-                        message: err.right_or("Parse error").into(),
-                    };
+                        err,
+                    } => {
+                        ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
 
-                    self.local_responses.push_back((response.into(), addr));
+                        if self.validator.connection_id_valid(addr, connection_id) {
+                            let response = ErrorResponse {
+                                transaction_id,
+                                message: err.right_or("Parse error").into(),
+                            };
+
+                            self.local_responses.push_back((response.into(), addr));
+                        }
+                    }
+                    RequestParseError::Unsendable { err } => {
+                        ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
+                    }
                 }
+
+                addr
             }
-            Err(RequestParseError::Unsendable { err }) => {
-                ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
+            Err(self::recv_helper::Error::InvalidSocketAddress) => {
+                ::log::debug!("Ignored request claiming to be from port 0");
+
+                return;
             }
-        }
+            Err(self::recv_helper::Error::RecvMsgParseError) => {
+                ::log::error!("RecvMsgOut::parse failed");
+
+                return;
+            }
+        };
 
         if self.config.statistics.active() {
-            if addr.is_ipv4() {
-                self.shared_state
-                    .statistics_ipv4
-                    .bytes_received
-                    .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV4, Ordering::Relaxed);
-                self.shared_state
-                    .statistics_ipv4
-                    .requests_received
-                    .fetch_add(1, Ordering::Relaxed);
+            let (statistics, extra_bytes) = if addr.is_ipv4() {
+                (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
             } else {
-                self.shared_state
-                    .statistics_ipv6
-                    .bytes_received
-                    .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV6, Ordering::Relaxed);
-                self.shared_state
-                    .statistics_ipv6
-                    .requests_received
-                    .fetch_add(1, Ordering::Relaxed);
-            }
+                (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+            };
+
+            statistics
+                .bytes_received
+                .fetch_add(buffer.len() + extra_bytes, Ordering::Relaxed);
+            statistics.requests_received.fetch_add(1, Ordering::Relaxed);
         }
     }
 
