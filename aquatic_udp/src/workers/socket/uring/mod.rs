@@ -94,8 +94,8 @@ impl SocketWorker {
         priv_dropper: PrivilegeDropper,
     ) {
         let ring_entries = config.network.ring_entries.next_power_of_two();
-        // Bias ring towards sending to prevent build-up of unsent responses
-        let send_buffer_entries = ring_entries - (ring_entries / 4);
+        // Try to fill up the ring with send requests
+        let send_buffer_entries = ring_entries;
 
         let socket = create_socket(&config, priv_dropper).expect("create socket");
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
@@ -346,7 +346,7 @@ impl SocketWorker {
 
         if result < 0 {
             if -result == libc::ENOBUFS {
-                ::log::warn!("recv failed due to lack of buffers, try increasing ring size");
+                ::log::info!("recv failed due to lack of buffers. If increasing ring size doesn't help, get faster hardware");
             } else {
                 ::log::warn!(
                     "recv failed: {:#}",
