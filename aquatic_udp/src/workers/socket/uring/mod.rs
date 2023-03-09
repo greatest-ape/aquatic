@@ -71,15 +71,17 @@ pub struct SocketWorker {
     access_list_cache: AccessListCache,
     validator: ConnectionValidator,
     server_start_instant: ServerStartInstant,
+    #[allow(dead_code)]
+    socket: UdpSocket,
     pending_scrape_responses: PendingScrapeResponseSlab,
+    buf_ring: BufRing,
     send_buffers: SendBuffers,
     recv_helper: RecvHelper,
     local_responses: VecDeque<(Response, CanonicalSocketAddr)>,
-    pulse_timeout: Timespec,
-    cleaning_timeout: Timespec,
-    buf_ring: BufRing,
-    #[allow(dead_code)]
-    socket: UdpSocket,
+    resubmittable_squeue_buf: Vec<io_uring::squeue::Entry>,
+    recv_entry: io_uring::squeue::Entry,
+    pulse_timeout_entry: io_uring::squeue::Entry,
+    cleaning_timeout_entry: io_uring::squeue::Entry,
 }
 
 impl SocketWorker {
@@ -101,8 +103,6 @@ impl SocketWorker {
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
         let send_buffers = SendBuffers::new(&config, send_buffer_entries as usize);
         let recv_helper = RecvHelper::new(&config);
-        let cleaning_timeout =
-            Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval);
 
         let ring = IoUring::builder()
             .setup_coop_taskrun()
@@ -124,6 +124,35 @@ impl SocketWorker {
             .build()
             .unwrap();
 
+        let recv_entry = recv_helper.create_entry(buf_ring.bgid().try_into().unwrap());
+
+        // This timeout enables regular updates of pending_scrape_valid_until
+        // and wakes the main loop to send any pending responses in the case
+        // of no incoming requests
+        let pulse_timeout_entry = {
+            let timespec_ptr = Box::into_raw(Box::new(Timespec::new().sec(1))) as *const _;
+
+            Timeout::new(timespec_ptr)
+                .build()
+                .user_data(USER_DATA_PULSE_TIMEOUT)
+        };
+
+        let cleaning_timeout_entry = {
+            let timespec_ptr = Box::into_raw(Box::new(
+                Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval),
+            )) as *const _;
+
+            Timeout::new(timespec_ptr)
+                .build()
+                .user_data(USER_DATA_CLEANING_TIMEOUT)
+        };
+
+        let resubmittable_squeue_buf = vec![
+            recv_entry.clone(),
+            pulse_timeout_entry.clone(),
+            cleaning_timeout_entry.clone(),
+        ];
+
         let mut worker = Self {
             config,
             shared_state,
@@ -136,42 +165,25 @@ impl SocketWorker {
             send_buffers,
             recv_helper,
             local_responses: Default::default(),
-            pulse_timeout: Timespec::new().sec(1),
-            cleaning_timeout,
             buf_ring,
+            recv_entry,
+            pulse_timeout_entry,
+            cleaning_timeout_entry,
+            resubmittable_squeue_buf,
             socket,
         };
 
         CurrentRing::with(|ring| worker.run_inner(ring));
     }
 
-    pub fn run_inner(&mut self, ring: &mut IoUring) {
+    fn run_inner(&mut self, ring: &mut IoUring) {
         let mut pending_scrape_valid_until = ValidUntil::new(
             self.server_start_instant,
             self.config.cleaning.max_pending_scrape_age,
         );
 
-        let recv_entry = self
-            .recv_helper
-            .create_entry(self.buf_ring.bgid().try_into().unwrap());
-        // This timeout enables regular updates of pending_scrape_valid_until
-        // and wakes the main loop to send any pending responses in the case
-        // of no incoming requests
-        let pulse_timeout_entry = Timeout::new(&self.pulse_timeout as *const _)
-            .build()
-            .user_data(USER_DATA_PULSE_TIMEOUT);
-        let cleaning_timeout_entry = Timeout::new(&self.cleaning_timeout as *const _)
-            .build()
-            .user_data(USER_DATA_CLEANING_TIMEOUT);
-
-        let mut squeue_buf = vec![
-            recv_entry.clone(),
-            pulse_timeout_entry.clone(),
-            cleaning_timeout_entry.clone(),
-        ];
-
         loop {
-            for sqe in squeue_buf.drain(..) {
+            for sqe in self.resubmittable_squeue_buf.drain(..) {
                 unsafe { ring.submission().push(&sqe).unwrap() };
             }
 
@@ -213,42 +225,25 @@ impl SocketWorker {
             };
 
             // Enqueue swarm worker responses
-            'outer: for _ in 0..sq_space {
-                let (response, addr) = loop {
-                    match self.response_receiver.try_recv() {
-                        Ok((ConnectedResponse::AnnounceIpv4(response), addr)) => {
-                            break (Response::AnnounceIpv4(response), addr);
-                        }
-                        Ok((ConnectedResponse::AnnounceIpv6(response), addr)) => {
-                            break (Response::AnnounceIpv6(response), addr);
-                        }
-                        Ok((ConnectedResponse::Scrape(response), addr)) => {
-                            if let Some(response) =
-                                self.pending_scrape_responses.add_and_get_finished(response)
-                            {
-                                break (Response::Scrape(response), addr);
-                            }
-                        }
-                        Err(_) => {
-                            break 'outer;
-                        }
-                    }
-                };
+            for _ in 0..sq_space {
+                if let Some((response, addr)) = self.get_next_swarm_response() {
+                    match self.send_buffers.prepare_entry(&response, addr) {
+                        Ok(entry) => {
+                            unsafe { ring.submission().push(&entry).unwrap() };
 
-                match self.send_buffers.prepare_entry(&response, addr) {
-                    Ok(entry) => {
-                        unsafe { ring.submission().push(&entry).unwrap() };
+                            num_send_added += 1;
+                        }
+                        Err(send_buffers::Error::NoBuffers) => {
+                            self.local_responses.push_back((response, addr));
 
-                        num_send_added += 1;
+                            break;
+                        }
+                        Err(send_buffers::Error::SerializationFailed(err)) => {
+                            ::log::error!("Failed serializing response: {:#}", err);
+                        }
                     }
-                    Err(send_buffers::Error::NoBuffers) => {
-                        self.local_responses.push_back((response, addr));
-
-                        break;
-                    }
-                    Err(send_buffers::Error::SerializationFailed(err)) => {
-                        ::log::error!("Failed serializing response: {:#}", err);
-                    }
+                } else {
+                    break;
                 }
             }
 
@@ -260,80 +255,112 @@ impl SocketWorker {
                 .unwrap();
 
             for cqe in ring.completion() {
-                match cqe.user_data() {
-                    USER_DATA_RECV => {
-                        self.handle_recv_cqe(pending_scrape_valid_until, &cqe);
-
-                        if !io_uring::cqueue::more(cqe.flags()) {
-                            squeue_buf.push(recv_entry.clone());
-                        }
-                    }
-                    USER_DATA_PULSE_TIMEOUT => {
-                        pending_scrape_valid_until = ValidUntil::new(
-                            self.server_start_instant,
-                            self.config.cleaning.max_pending_scrape_age,
-                        );
-
-                        ::log::info!(
-                            "pending responses: {} local, {} swarm",
-                            self.local_responses.len(),
-                            self.response_receiver.len()
-                        );
-
-                        squeue_buf.push(pulse_timeout_entry.clone());
-                    }
-                    USER_DATA_CLEANING_TIMEOUT => {
-                        self.pending_scrape_responses
-                            .clean(self.server_start_instant.seconds_elapsed());
-
-                        squeue_buf.push(cleaning_timeout_entry.clone());
-                    }
-                    send_buffer_index => {
-                        let result = cqe.result();
-
-                        if result < 0 {
-                            ::log::error!(
-                                "Couldn't send response: {:#}",
-                                ::std::io::Error::from_raw_os_error(-result)
-                            );
-                        } else if self.config.statistics.active() {
-                            let send_buffer_index = send_buffer_index as usize;
-
-                            let (response_type, receiver_is_ipv4) =
-                                self.send_buffers.response_type_and_ipv4(send_buffer_index);
-
-                            let (statistics, extra_bytes) = if receiver_is_ipv4 {
-                                (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
-                            } else {
-                                (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
-                            };
-
-                            statistics
-                                .bytes_sent
-                                .fetch_add(result as usize + extra_bytes, Ordering::Relaxed);
-
-                            let response_counter = match response_type {
-                                ResponseType::Connect => &statistics.responses_sent_connect,
-                                ResponseType::Announce => &statistics.responses_sent_announce,
-                                ResponseType::Scrape => &statistics.responses_sent_scrape,
-                                ResponseType::Error => &statistics.responses_sent_error,
-                            };
-
-                            response_counter.fetch_add(1, Ordering::Relaxed);
-                        }
-
-                        // Safety: OK because cqe using buffer has been
-                        // returned and contents will no longer be accessed
-                        // by kernel
-                        unsafe {
-                            self.send_buffers
-                                .mark_buffer_as_free(send_buffer_index as usize);
-                        }
-                    }
-                }
+                self.handle_cqe(&mut pending_scrape_valid_until, cqe);
             }
 
             self.send_buffers.reset_index();
+        }
+    }
+
+    fn get_next_swarm_response(&mut self) -> Option<(Response, CanonicalSocketAddr)> {
+        loop {
+            match self.response_receiver.try_recv() {
+                Ok((ConnectedResponse::AnnounceIpv4(response), addr)) => {
+                    return Some((Response::AnnounceIpv4(response), addr));
+                }
+                Ok((ConnectedResponse::AnnounceIpv6(response), addr)) => {
+                    return Some((Response::AnnounceIpv6(response), addr));
+                }
+                Ok((ConnectedResponse::Scrape(response), addr)) => {
+                    if let Some(response) =
+                        self.pending_scrape_responses.add_and_get_finished(response)
+                    {
+                        return Some((Response::Scrape(response), addr));
+                    }
+                }
+                Err(_) => {
+                    return None;
+                }
+            }
+        }
+    }
+
+    fn handle_cqe(
+        &mut self,
+        pending_scrape_valid_until: &mut ValidUntil,
+        cqe: io_uring::cqueue::Entry,
+    ) {
+        match cqe.user_data() {
+            USER_DATA_RECV => {
+                self.handle_recv_cqe(*pending_scrape_valid_until, &cqe);
+
+                if !io_uring::cqueue::more(cqe.flags()) {
+                    self.resubmittable_squeue_buf.push(self.recv_entry.clone());
+                }
+            }
+            USER_DATA_PULSE_TIMEOUT => {
+                *pending_scrape_valid_until = ValidUntil::new(
+                    self.server_start_instant,
+                    self.config.cleaning.max_pending_scrape_age,
+                );
+
+                ::log::info!(
+                    "pending responses: {} local, {} swarm",
+                    self.local_responses.len(),
+                    self.response_receiver.len()
+                );
+
+                self.resubmittable_squeue_buf
+                    .push(self.pulse_timeout_entry.clone());
+            }
+            USER_DATA_CLEANING_TIMEOUT => {
+                self.pending_scrape_responses
+                    .clean(self.server_start_instant.seconds_elapsed());
+
+                self.resubmittable_squeue_buf
+                    .push(self.cleaning_timeout_entry.clone());
+            }
+            send_buffer_index => {
+                let result = cqe.result();
+
+                if result < 0 {
+                    ::log::error!(
+                        "Couldn't send response: {:#}",
+                        ::std::io::Error::from_raw_os_error(-result)
+                    );
+                } else if self.config.statistics.active() {
+                    let send_buffer_index = send_buffer_index as usize;
+
+                    let (response_type, receiver_is_ipv4) =
+                        self.send_buffers.response_type_and_ipv4(send_buffer_index);
+
+                    let (statistics, extra_bytes) = if receiver_is_ipv4 {
+                        (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
+                    } else {
+                        (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+                    };
+
+                    statistics
+                        .bytes_sent
+                        .fetch_add(result as usize + extra_bytes, Ordering::Relaxed);
+
+                    let response_counter = match response_type {
+                        ResponseType::Connect => &statistics.responses_sent_connect,
+                        ResponseType::Announce => &statistics.responses_sent_announce,
+                        ResponseType::Scrape => &statistics.responses_sent_scrape,
+                        ResponseType::Error => &statistics.responses_sent_error,
+                    };
+
+                    response_counter.fetch_add(1, Ordering::Relaxed);
+                }
+
+                // Safety: OK because cqe using buffer has been returned and
+                // contents will no longer be accessed by kernel
+                unsafe {
+                    self.send_buffers
+                        .mark_buffer_as_free(send_buffer_index as usize);
+                }
+            }
         }
     }
 
