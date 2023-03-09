@@ -6,7 +6,7 @@ use io_uring::opcode::SendMsg;
 
 use crate::config::Config;
 
-use super::{BUF_LEN, SOCKET_IDENTIFIER};
+use super::{RESPONSE_BUF_LEN, SOCKET_IDENTIFIER};
 
 pub enum Error {
     NoBuffers,
@@ -35,13 +35,13 @@ impl ResponseType {
 struct SendBuffer {
     name_v4: UnsafeCell<libc::sockaddr_in>,
     name_v6: UnsafeCell<libc::sockaddr_in6>,
-    bytes: UnsafeCell<[u8; BUF_LEN]>,
+    bytes: UnsafeCell<[u8; RESPONSE_BUF_LEN]>,
     iovec: UnsafeCell<libc::iovec>,
     msghdr: UnsafeCell<libc::msghdr>,
     free: bool,
-    // Only used for statistics
+    /// Only used for statistics
     receiver_is_ipv4: bool,
-    // Only used for statistics
+    /// Only used for statistics
     response_type: ResponseType,
 }
 
@@ -61,7 +61,7 @@ impl SendBuffer {
                 sin6_addr: libc::in6_addr { s6_addr: [0; 16] },
                 sin6_scope_id: 0,
             }),
-            bytes: UnsafeCell::new([0; BUF_LEN]),
+            bytes: UnsafeCell::new([0; RESPONSE_BUF_LEN]),
             iovec: UnsafeCell::new(libc::iovec {
                 iov_base: null_mut(),
                 iov_len: 0,
@@ -81,32 +81,34 @@ impl SendBuffer {
         }
     }
 
-    /// # Safety
-    ///
-    /// - SendBuffer must be stored at a fixed location in memory
-    unsafe fn setup_pointers(&mut self, socket_is_ipv4: bool) {
-        let iovec = &mut *self.iovec.get();
+    fn setup_pointers(&mut self, socket_is_ipv4: bool) {
+        unsafe {
+            let iovec = &mut *self.iovec.get();
 
-        iovec.iov_base = self.bytes.get() as *mut libc::c_void;
-        iovec.iov_len = (&*self.bytes.get()).len();
+            iovec.iov_base = self.bytes.get() as *mut libc::c_void;
+            iovec.iov_len = (&*self.bytes.get()).len();
 
-        let msghdr = &mut *self.msghdr.get();
+            let msghdr = &mut *self.msghdr.get();
 
-        msghdr.msg_iov = self.iovec.get();
+            msghdr.msg_iov = self.iovec.get();
 
-        if socket_is_ipv4 {
-            msghdr.msg_name = self.name_v4.get() as *mut libc::c_void;
-            msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in>() as u32;
-        } else {
-            msghdr.msg_name = self.name_v6.get() as *mut libc::c_void;
-            msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in6>() as u32;
+            if socket_is_ipv4 {
+                msghdr.msg_name = self.name_v4.get() as *mut libc::c_void;
+                msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in>() as u32;
+            } else {
+                msghdr.msg_name = self.name_v6.get() as *mut libc::c_void;
+                msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in6>() as u32;
+            }
         }
     }
 
     /// # Safety
     ///
     /// - SendBuffer must be stored at a fixed location in memory
-    /// - SendBuffer.setup_pointers must have been called previously
+    /// - SendBuffer.setup_pointers must have been called while stored at that
+    ///   fixed location
+    /// - Contents of struct fields wrapped in UnsafeCell can NOT be accessed
+    ///   simultaneously to this function call
     unsafe fn prepare_entry(
         &mut self,
         response: &Response,
@@ -128,6 +130,7 @@ impl SendBuffer {
             name.sin_port = addr.port().to_be();
             name.sin_addr.s_addr = u32::from(*addr.ip()).to_be();
         } else {
+            // Set receiver protocol type before calling addr.get_ipv6_mapped()
             self.receiver_is_ipv4 = addr.is_ipv4();
 
             let addr = if let SocketAddr::V6(addr) = addr.get_ipv6_mapped() {
@@ -153,9 +156,7 @@ impl SendBuffer {
                 self.response_type = ResponseType::from_response(response);
                 self.free = false;
 
-                let sqe = SendMsg::new(SOCKET_IDENTIFIER, self.msghdr.get()).build();
-
-                Ok(sqe)
+                Ok(SendMsg::new(SOCKET_IDENTIFIER, self.msghdr.get()).build())
             }
             Err(err) => Err(Error::SerializationFailed(err)),
         }
@@ -178,10 +179,7 @@ impl SendBuffers {
             .into_boxed_slice();
 
         for buffer in buffers.iter_mut() {
-            // Safety: OK because buffers are stored in fixed memory location
-            unsafe {
-                buffer.setup_pointers(socket_is_ipv4);
-            }
+            buffer.setup_pointers(socket_is_ipv4);
         }
 
         Self {
@@ -197,7 +195,11 @@ impl SendBuffers {
         (buffer.response_type, buffer.receiver_is_ipv4)
     }
 
-    pub fn mark_index_as_free(&mut self, index: usize) {
+    /// # Safety
+    ///
+    /// Only safe to call once buffer is no longer referenced by in-flight
+    /// io_uring queue entries
+    pub unsafe fn mark_buffer_as_free(&mut self, index: usize) {
         self.buffers[index].free = true;
     }
 
@@ -215,8 +217,9 @@ impl SendBuffers {
 
         let buffer = self.buffers.index_mut(index);
 
-        // Safety: OK because buffers are stored in fixed memory location
-        // and buffer pointers were set up in SendBuffers::new()
+        // Safety: OK because buffers are stored in fixed memory location,
+        // buffer pointers were set up in SendBuffers::new() and pointers to
+        // SendBuffer UnsafeCell contents are not accessed elsewhere
         unsafe {
             match buffer.prepare_entry(response, addr, self.socket_is_ipv4) {
                 Ok(entry) => {

@@ -34,7 +34,8 @@ use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
-const BUF_LEN: usize = 8192;
+const RESPONSE_BUF_LEN: usize = 8192;
+const REQUEST_BUF_LEN: usize = 4096;
 
 const USER_DATA_RECV: u64 = u64::MAX;
 const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 1;
@@ -92,9 +93,9 @@ impl SocketWorker {
         response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
         priv_dropper: PrivilegeDropper,
     ) {
-        let ring_entries = config.network.ring_entries.next_power_of_two();
-        // Bias ring towards sending to prevent build-up of unsent responses
-        let send_buffer_entries = ring_entries - (ring_entries / 4);
+        let ring_entries = config.network.ring_size.next_power_of_two();
+        // Try to fill up the ring with send requests
+        let send_buffer_entries = ring_entries;
 
         let socket = create_socket(&config, priv_dropper).expect("create socket");
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
@@ -119,7 +120,7 @@ impl SocketWorker {
 
         let buf_ring = buf_ring::Builder::new(0)
             .ring_entries(ring_entries)
-            .buf_len(BUF_LEN)
+            .buf_len(REQUEST_BUF_LEN)
             .build()
             .unwrap();
 
@@ -153,8 +154,9 @@ impl SocketWorker {
         let recv_entry = self
             .recv_helper
             .create_entry(self.buf_ring.bgid().try_into().unwrap());
-        // This timeout makes it possible to avoid busy-polling and enables
-        // regular updates of pending_scrape_valid_until
+        // This timeout enables regular updates of pending_scrape_valid_until
+        // and wakes the main loop to send any pending responses in the case
+        // of no incoming requests
         let pulse_timeout_entry = Timeout::new(&self.pulse_timeout as *const _)
             .build()
             .user_data(USER_DATA_PULSE_TIMEOUT);
@@ -250,11 +252,11 @@ impl SocketWorker {
                 }
             }
 
-            // Wait for all sendmsg entries to complete, as well as at least
-            // one recvmsg or timeout, in order to avoid busy-polling if there
-            // is no incoming data.
+            // Wait for all sendmsg entries to complete. If none were added,
+            // wait for at least one recvmsg or timeout in order to avoid
+            // busy-polling if there is no incoming data.
             ring.submitter()
-                .submit_and_wait(num_send_added + 1)
+                .submit_and_wait(num_send_added.max(1))
                 .unwrap();
 
             for cqe in ring.completion() {
@@ -320,8 +322,13 @@ impl SocketWorker {
                             response_counter.fetch_add(1, Ordering::Relaxed);
                         }
 
-                        self.send_buffers
-                            .mark_index_as_free(send_buffer_index as usize);
+                        // Safety: OK because cqe using buffer has been
+                        // returned and contents will no longer be accessed
+                        // by kernel
+                        unsafe {
+                            self.send_buffers
+                                .mark_buffer_as_free(send_buffer_index as usize);
+                        }
                     }
                 }
             }
@@ -339,7 +346,7 @@ impl SocketWorker {
 
         if result < 0 {
             if -result == libc::ENOBUFS {
-                ::log::warn!("recv failed due to lack of buffers, try increasing ring size");
+                ::log::info!("recv failed due to lack of buffers. If increasing ring size doesn't help, get faster hardware");
             } else {
                 ::log::warn!(
                     "recv failed: {:#}",

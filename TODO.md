@@ -3,9 +3,7 @@
 ## High priority
 
 * udp uring
-  * should queues be synced?
   * miri
-  * uneven performance?
   * thiserror?
   * CI
   * uring load test?
