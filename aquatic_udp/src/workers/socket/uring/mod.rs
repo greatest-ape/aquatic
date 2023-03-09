@@ -153,8 +153,9 @@ impl SocketWorker {
         let recv_entry = self
             .recv_helper
             .create_entry(self.buf_ring.bgid().try_into().unwrap());
-        // This timeout makes it possible to avoid busy-polling and enables
-        // regular updates of pending_scrape_valid_until
+        // This timeout enables regular updates of pending_scrape_valid_until
+        // and wakes the main loop to send any pending responses in the case
+        // of no incoming requests
         let pulse_timeout_entry = Timeout::new(&self.pulse_timeout as *const _)
             .build()
             .user_data(USER_DATA_PULSE_TIMEOUT);
@@ -250,11 +251,11 @@ impl SocketWorker {
                 }
             }
 
-            // Wait for all sendmsg entries to complete, as well as at least
-            // one recvmsg or timeout, in order to avoid busy-polling if there
-            // is no incoming data.
+            // Wait for all sendmsg entries to complete. If none were added,
+            // wait for at least one recvmsg or timeout in order to avoid
+            // busy-polling if there is no incoming data.
             ring.submitter()
-                .submit_and_wait(num_send_added + 1)
+                .submit_and_wait(num_send_added.max(1))
                 .unwrap();
 
             for cqe in ring.completion() {
