@@ -93,7 +93,7 @@ pub struct NetworkConfig {
     ///
     /// Will be rounded to next power of two if not already one
     #[cfg(feature = "io-uring")]
-    pub ring_entries: u16,
+    pub ring_size: u16,
     /// Store this many responses at most for retrying (once) on send failure
     ///
     /// Useful on operating systems that do not provide an udp send buffer,
@@ -120,7 +120,7 @@ impl Default for NetworkConfig {
             poll_event_capacity: 4096,
             poll_timeout_ms: 50,
             #[cfg(feature = "io-uring")]
-            ring_entries: 1024,
+            ring_size: 1024,
             resend_buffer_max_len: 0,
         }
     }

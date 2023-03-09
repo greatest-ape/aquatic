@@ -93,7 +93,7 @@ impl SocketWorker {
         response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
         priv_dropper: PrivilegeDropper,
     ) {
-        let ring_entries = config.network.ring_entries.next_power_of_two();
+        let ring_entries = config.network.ring_size.next_power_of_two();
         // Try to fill up the ring with send requests
         let send_buffer_entries = ring_entries;
 
