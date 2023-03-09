@@ -11,23 +11,30 @@ use aquatic_toml_config::TomlConfig;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// Socket workers receive requests from the socket, parse them and send
-    /// them on to the swarm workers. They then receive responses from the
-    /// swarm workers, encode them and send them back over the socket.
+    /// Number of socket workers. Increase with core count
+    ///
+    /// Socket workers receive requests from clients and parse them.
+    /// Responses to connect requests are sent back immediately. Announce and
+    /// scrape requests are passed on to swarm workers, which generate
+    /// responses and send them back to the socket worker, which sends them
+    /// to the client.
     pub socket_workers: usize,
-    /// Swarm workers receive a number of requests from socket workers,
-    /// generate responses and send them back to the socket workers.
+    /// Number of swarm workers. One is enough in almost all cases
+    ///
+    /// Swarm workers receive parsed announce and scrape requests from socket
+    /// workers, generate responses and send them back to the socket workers.
     pub swarm_workers: usize,
     pub log_level: LogLevel,
     /// Maximum number of items in each channel passing requests/responses
-    /// between workers. A value of zero means that the channel will be of
+    /// between workers. A value of zero means that the channels will be of
     /// unbounded size.
     pub worker_channel_size: usize,
-    /// How long to block waiting for requests in swarm workers. Higher
-    /// values means that with zero traffic, the worker will not unnecessarily
-    /// cause the CPU to wake up as often. However, high values (something like
-    /// larger than 1000) combined with very low traffic can cause delays
-    /// in torrent cleaning.
+    /// How long to block waiting for requests in swarm workers.
+    ///
+    /// Higher values means that with zero traffic, the worker will not
+    /// unnecessarily cause the CPU to wake up as often. However, high values
+    /// (something like larger than 1000) combined with very low traffic can
+    /// cause delays in torrent cleaning.
     pub request_channel_recv_timeout_ms: u64,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
@@ -85,22 +92,22 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_max=104857600
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
-    /// Poll event capacity (mio backend)
+    /// Poll event capacity (mio backend only)
     pub poll_event_capacity: usize,
-    /// Poll timeout in milliseconds (mio backend)
+    /// Poll timeout in milliseconds (mio backend only)
     pub poll_timeout_ms: u64,
-    /// Number of ring entries (io_uring backend)
+    /// Number of ring entries (io_uring backend only)
     ///
-    /// Will be rounded to next power of two if not already one
+    /// Will be rounded to next power of two if not already one. Increasing
+    /// this value can help throughput up to a certain point.
     #[cfg(feature = "io-uring")]
     pub ring_size: u16,
     /// Store this many responses at most for retrying (once) on send failure
+    /// (mio backend only)
     ///
     /// Useful on operating systems that do not provide an udp send buffer,
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
-    /// 
-    /// Only active with mio backend.
     pub resend_buffer_max_len: usize,
 }
 
@@ -131,7 +138,7 @@ impl Default for NetworkConfig {
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ProtocolConfig {
-    /// Maximum number of torrents to accept in scrape request
+    /// Maximum number of torrents to allow in scrape request
     pub max_scrape_torrents: u8,
     /// Maximum number of peers to return in announce response
     pub max_response_peers: usize,
@@ -212,8 +219,7 @@ pub struct CleaningConfig {
     /// Clean pending scrape responses this often (seconds)
     ///
     /// In regular operation, there should be no pending scrape responses
-    /// lingering for a long time. However, the cleaning also returns unused
-    /// allocated memory to the OS, so the interval can be configured here.
+    /// lingering for long enough to have to be cleaned up this way.
     pub pending_scrape_cleaning_interval: u64,
     /// Allow clients to use a connection token for this long (seconds)
     pub max_connection_age: u32,
