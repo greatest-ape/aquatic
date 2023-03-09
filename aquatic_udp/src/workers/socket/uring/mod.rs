@@ -327,7 +327,7 @@ impl SocketWorker {
                         // by kernel
                         unsafe {
                             self.send_buffers
-                                .mark_index_as_free(send_buffer_index as usize);
+                                .mark_buffer_as_free(send_buffer_index as usize);
                         }
                     }
                 }

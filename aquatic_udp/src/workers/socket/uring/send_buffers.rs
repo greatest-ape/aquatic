@@ -199,7 +199,7 @@ impl SendBuffers {
     ///
     /// Only safe to call once buffer is no longer referenced by in-flight
     /// io_uring queue entries
-    pub unsafe fn mark_index_as_free(&mut self, index: usize) {
+    pub unsafe fn mark_buffer_as_free(&mut self, index: usize) {
         self.buffers[index].free = true;
     }
 
