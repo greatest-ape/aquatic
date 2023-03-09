@@ -320,8 +320,13 @@ impl SocketWorker {
                             response_counter.fetch_add(1, Ordering::Relaxed);
                         }
 
-                        self.send_buffers
-                            .mark_index_as_free(send_buffer_index as usize);
+                        // Safety: OK because cqe using buffer has been
+                        // returned and contents will no longer be accessed
+                        // by kernel
+                        unsafe {
+                            self.send_buffers
+                                .mark_index_as_free(send_buffer_index as usize);
+                        }
                     }
                 }
             }
