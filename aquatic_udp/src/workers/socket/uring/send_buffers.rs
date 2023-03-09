@@ -6,7 +6,7 @@ use io_uring::opcode::SendMsg;
 
 use crate::config::Config;
 
-use super::{BUF_LEN, SOCKET_IDENTIFIER};
+use super::{RESPONSE_BUF_LEN, SOCKET_IDENTIFIER};
 
 pub enum Error {
     NoBuffers,
@@ -35,7 +35,7 @@ impl ResponseType {
 struct SendBuffer {
     name_v4: UnsafeCell<libc::sockaddr_in>,
     name_v6: UnsafeCell<libc::sockaddr_in6>,
-    bytes: UnsafeCell<[u8; BUF_LEN]>,
+    bytes: UnsafeCell<[u8; RESPONSE_BUF_LEN]>,
     iovec: UnsafeCell<libc::iovec>,
     msghdr: UnsafeCell<libc::msghdr>,
     free: bool,
@@ -61,7 +61,7 @@ impl SendBuffer {
                 sin6_addr: libc::in6_addr { s6_addr: [0; 16] },
                 sin6_scope_id: 0,
             }),
-            bytes: UnsafeCell::new([0; BUF_LEN]),
+            bytes: UnsafeCell::new([0; RESPONSE_BUF_LEN]),
             iovec: UnsafeCell::new(libc::iovec {
                 iov_base: null_mut(),
                 iov_len: 0,

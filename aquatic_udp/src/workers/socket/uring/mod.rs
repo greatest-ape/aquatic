@@ -34,7 +34,8 @@ use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
-const BUF_LEN: usize = 8192;
+const RESPONSE_BUF_LEN: usize = 8192;
+const REQUEST_BUF_LEN: usize = 4096;
 
 const USER_DATA_RECV: u64 = u64::MAX;
 const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 1;
@@ -119,7 +120,7 @@ impl SocketWorker {
 
         let buf_ring = buf_ring::Builder::new(0)
             .ring_entries(ring_entries)
-            .buf_len(BUF_LEN)
+            .buf_len(REQUEST_BUF_LEN)
             .build()
             .unwrap();
 
