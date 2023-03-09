@@ -13,11 +13,11 @@ of sub-implementations for different protocols:
 [mio]: https://github.com/tokio-rs/mio
 [glommio]: https://github.com/DataDog/glommio
 
-| Name         | Protocol                                     | OS requirements              |
-|--------------|----------------------------------------------|------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]                        | Unix-like (using [mio])      |
-| aquatic_http | [BitTorrent over HTTP] over TLS ([rustls])   | Linux 5.8+ (using [glommio]) |
-| aquatic_ws   | [WebTorrent], optionally over TLS ([rustls]) | Linux 5.8+ (using [glommio]) |
+| Name         | Protocol                          | OS requirements                      |
+|--------------|-----------------------------------|--------------------------------------|
+| aquatic_udp  | [BitTorrent over UDP]             | Unix-like / Linux 6.0+ with io_uring |
+| aquatic_http | [BitTorrent over HTTP] over TLS   | Linux 5.8+                           |
+| aquatic_ws   | [WebTorrent], optionally over TLS | Linux 5.8+                           |
 
 Features at a glance:
 
@@ -190,21 +190,22 @@ Implements:
 
 This is the most mature of the implementations. I consider it ready for production use.
 
-#### Performance
-
-![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2023-01-11.png)
-
-More details are available [here](./documents/aquatic-udp-load-test-2023-01-11.pdf).
-
 #### io_uring
 
-An experimental io_uring backend can be compiled in by passing the `io-uring`
-feature. Currently, Linux 6.0 or later is required. The application will
-attempt to fall back to the mio backend if your kernel is not supported.
+An experimental io_uring backend can be enabled by passing the `io-uring`
+feature when compilinig. Currently, Linux 6.0 or later is required. The
+application will attempt to fall back to the [mio] backend if your kernel is
+not supported.
 
 ```sh
 cargo build --release -p aquatic_udp --features "io-uring"
 ```
+
+#### Performance
+
+![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2023-01-11.png)
+
+More details are available [here](./documents/aquatic-udp-load-test-2023-01-11.pdf). The mio backend was used.
 
 ### aquatic_http: HTTP BitTorrent tracker
 
