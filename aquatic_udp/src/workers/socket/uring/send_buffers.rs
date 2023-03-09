@@ -204,7 +204,7 @@ impl SendBuffers {
     }
 
     /// Call after going through completion queue
-    pub fn reset_index(&mut self) {
+    pub fn reset_likely_next_free_index(&mut self) {
         self.likely_next_free_index = 0;
     }
 
