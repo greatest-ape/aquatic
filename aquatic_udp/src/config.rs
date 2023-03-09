@@ -99,6 +99,8 @@ pub struct NetworkConfig {
     /// Useful on operating systems that do not provide an udp send buffer,
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
+    /// 
+    /// Only active with mio backend.
     pub resend_buffer_max_len: usize,
 }
 
