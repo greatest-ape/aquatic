@@ -34,8 +34,17 @@ use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
-const RESPONSE_BUF_LEN: usize = 8192;
-const REQUEST_BUF_LEN: usize = 4096;
+/// Size of each request buffer
+///
+/// Enough for scrape request with 20 info hashes
+const REQUEST_BUF_LEN: usize = 256;
+
+/// Size of each response buffer
+///
+/// Enough for:
+/// - IPv6 announce response with 112 peers
+/// - scrape response for 170 info hashes
+const RESPONSE_BUF_LEN: usize = 2048;
 
 const USER_DATA_RECV: u64 = u64::MAX;
 const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 1;
