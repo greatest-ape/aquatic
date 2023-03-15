@@ -37,9 +37,6 @@ aquatic_udp = { version = "0.2.0", path = "./aquatic_udp" }
 aquatic_ws_protocol = { version = "0.2.0", path = "./aquatic_ws_protocol" }
 aquatic_ws = { version = "0.2.0", path = "./aquatic_ws" }
 
-[patch.crates-io]
-membarrier = { git = "https://github.com/glommer/membarrier-rs.git", branch = "issue-22" }
-
 [profile.release]
 debug = false
 lto = "thin"
