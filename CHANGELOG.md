@@ -33,6 +33,7 @@
 
 #### Added
 
+* Add experimental io_uring backend with higher throughput
 * Add optional response resend buffer for use on on operating systems that
   don't buffer outgoing UDP traffic
 * Add optional extended statistics (peers per torrent histogram)

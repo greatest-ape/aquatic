@@ -22,7 +22,7 @@ anyhow = "1"
 async-tungstenite = "0.19"
 futures = "0.3"
 futures-rustls = "0.22"
-glommio = "0.7"
+glommio = "0.8"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }
 rand = { version = "0.8", features = ["small_rng"] }
