@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.8.0"
 authors = ["Joakim Frostegård <joakim.frostegard@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -27,15 +27,15 @@ readme = "./README.md"
 rust-version = "1.64"
 
 [workspace.dependencies]
-aquatic_common = { version = "0.2.0", path = "./aquatic_common" }
-aquatic_http_protocol = { version = "0.2.0", path = "./aquatic_http_protocol" }
-aquatic_http = { version = "0.2.0", path = "./aquatic_http" }
-aquatic_toml_config = { version = "0.2.0", path = "./aquatic_toml_config" }
-aquatic_toml_config_derive = { version = "0.2.0", path = "./aquatic_toml_config_derive" }
-aquatic_udp_protocol = { version = "0.2.0", path = "./aquatic_udp_protocol" }
-aquatic_udp = { version = "0.2.0", path = "./aquatic_udp" }
-aquatic_ws_protocol = { version = "0.2.0", path = "./aquatic_ws_protocol" }
-aquatic_ws = { version = "0.2.0", path = "./aquatic_ws" }
+aquatic_common = { version = "0.8.0", path = "./aquatic_common" }
+aquatic_http_protocol = { version = "0.8.0", path = "./aquatic_http_protocol" }
+aquatic_http = { version = "0.8.0", path = "./aquatic_http" }
+aquatic_toml_config = { version = "0.8.0", path = "./aquatic_toml_config" }
+aquatic_toml_config_derive = { version = "0.8.0", path = "./aquatic_toml_config_derive" }
+aquatic_udp_protocol = { version = "0.8.0", path = "./aquatic_udp_protocol" }
+aquatic_udp = { version = "0.8.0", path = "./aquatic_udp" }
+aquatic_ws_protocol = { version = "0.8.0", path = "./aquatic_ws_protocol" }
+aquatic_ws = { version = "0.8.0", path = "./aquatic_ws" }
 
 [profile.release]
 debug = false
