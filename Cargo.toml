@@ -4,7 +4,6 @@ members = [
     "aquatic_common",
     "aquatic_http",
     "aquatic_http_load_test",
-    "aquatic_http_private",
     "aquatic_http_protocol",
     "aquatic_toml_config",
     "aquatic_toml_config_derive",
