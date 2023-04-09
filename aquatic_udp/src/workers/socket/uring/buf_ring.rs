@@ -744,8 +744,10 @@ impl RawBufRing {
         // can register, and unregister, the same way.
 
         let res = CurrentRing::with(|ring| {
-            ring.submitter()
-                .register_buf_ring(self.ring_addr as _, self.ring_entries(), bgid)
+            unsafe {
+                ring.submitter()
+                    .register_buf_ring(self.ring_addr as _, self.ring_entries(), bgid)
+            }
         });
         // println!("{}:{}: res {:?}", file!(), line!(), res);
 
