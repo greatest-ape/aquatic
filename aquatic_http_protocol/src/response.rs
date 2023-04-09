@@ -117,17 +117,6 @@ impl AnnounceResponse {
     }
 }
 
-#[cfg(feature = "axum")]
-impl axum::response::IntoResponse for AnnounceResponse {
-    fn into_response(self) -> axum::response::Response {
-        let mut response_bytes = Vec::with_capacity(128);
-
-        self.write(&mut response_bytes).unwrap();
-
-        ([("Content-type", "text/plain")], response_bytes).into_response()
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeResponse {
     /// BTreeMap instead of HashMap since keys need to be serialized in order
@@ -155,17 +144,6 @@ impl ScrapeResponse {
         bytes_written += output.write(b"ee")?;
 
         Ok(bytes_written)
-    }
-}
-
-#[cfg(feature = "axum")]
-impl axum::response::IntoResponse for ScrapeResponse {
-    fn into_response(self) -> axum::response::Response {
-        let mut response_bytes = Vec::with_capacity(128);
-
-        self.write(&mut response_bytes).unwrap();
-
-        ([("Content-type", "text/plain")], response_bytes).into_response()
     }
 }
 
@@ -197,17 +175,6 @@ impl FailureResponse {
     }
 }
 
-#[cfg(feature = "axum")]
-impl axum::response::IntoResponse for FailureResponse {
-    fn into_response(self) -> axum::response::Response {
-        let mut response_bytes = Vec::with_capacity(64);
-
-        self.write(&mut response_bytes).unwrap();
-
-        ([("Content-type", "text/plain")], response_bytes).into_response()
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Response {
@@ -226,17 +193,6 @@ impl Response {
     }
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ::serde_bencode::Error> {
         ::serde_bencode::from_bytes(bytes)
-    }
-}
-
-#[cfg(feature = "axum")]
-impl axum::response::IntoResponse for Response {
-    fn into_response(self) -> axum::response::Response {
-        match self {
-            Self::Announce(r) => r.into_response(),
-            Self::Scrape(r) => r.into_response(),
-            Self::Failure(r) => r.into_response(),
-        }
     }
 }
 
