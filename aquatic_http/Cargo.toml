@@ -47,7 +47,7 @@ rustls-pemfile = "1"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
-socket2 = { version = "0.4", features = ["all"] }
+socket2 = { version = "0.5", features = ["all"] }
 
 [dev-dependencies]
 quickcheck = "1"
