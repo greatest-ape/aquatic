@@ -21,7 +21,7 @@ aquatic_toml_config.workspace = true
 ahash = "0.8"
 anyhow = "1"
 arc-swap = "1"
-duplicate = "0.4"
+duplicate = "1"
 git-testament = "0.2"
 hashbrown = "0.13"
 hex = "0.4"
@@ -37,5 +37,5 @@ toml = "0.5"
 # Optional
 glommio = { version = "0.8", optional = true }
 hwloc = { version = "0.5", optional = true }
-rustls = { version = "0.20", optional = true }
+rustls = { version = "0.21", optional = true }
 rustls-pemfile = { version = "1", optional = true }

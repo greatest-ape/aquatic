@@ -7,11 +7,11 @@
   * thiserror?
   * CI
   * uring load test?
-
-* ws: wait for crates release of glommio with membarrier fix (PR #558)
-* Release new version
 * More non-CI integration tests?
-* Remove aquatic_http_private?
+* Non-trivial dependency updates
+  * toml v0.7
+  * syn v2.0
+  * simd-json v0.7
 
 ## Medium priority
 

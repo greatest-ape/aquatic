@@ -743,7 +743,7 @@ impl RawBufRing {
         // Future: move to separate public function so other buf_ring implementations
         // can register, and unregister, the same way.
 
-        let res = CurrentRing::with(|ring| {
+        let res = CurrentRing::with(|ring| unsafe {
             ring.submitter()
                 .register_buf_ring(self.ring_addr as _, self.ring_entries(), bgid)
         });
