@@ -31,7 +31,7 @@ async-tungstenite = "0.19"
 cfg-if = "1"
 futures = "0.3"
 futures-lite = "1"
-futures-rustls = "0.22"
+futures-rustls = "0.24"
 glommio = "0.8"
 hashbrown = { version = "0.13", features = ["serde"] }
 httparse = "1"
@@ -41,7 +41,7 @@ metrics-exporter-prometheus = { version = "0.11", optional = true, default-featu
 mimalloc = { version = "0.1", default-features = false }
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
-rustls = "0.20"
+rustls = "0.21"
 rustls-pemfile = "1"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
