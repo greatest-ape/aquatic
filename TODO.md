@@ -8,9 +8,10 @@
   * CI
   * uring load test?
 * More non-CI integration tests?
-* Crate updates
+* Non-trivial dependency updates
   * toml v0.7
   * syn v2.0
+  * simd-json v0.7
 
 ## Medium priority
 
