@@ -25,7 +25,6 @@ Features at a glance:
 - All data is stored in-memory (no database needed)
 - IPv4 and IPv6 support
 - Supports forbidding/allowing info hashes
-- Built-in tracker TLS support (no reverse proxy needed)
 - Prometheus metrics
 - Automated CI testing of full file transfers
 
