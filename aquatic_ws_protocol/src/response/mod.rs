@@ -33,12 +33,12 @@ impl OutMessage {
     pub fn from_ws_message(message: ::tungstenite::Message) -> ::anyhow::Result<Self> {
         use tungstenite::Message::{Binary, Text};
 
-        let mut text = match message {
-            Text(text) => text,
-            Binary(bytes) => String::from_utf8(bytes)?,
+        let mut text: Vec<u8> = match message {
+            Text(text) => text.into(),
+            Binary(bytes) => String::from_utf8(bytes)?.into(),
             _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
         };
 
-        Ok(::simd_json::serde::from_str(&mut text)?)
+        Ok(::simd_json::serde::from_slice(&mut text)?)
     }
 }

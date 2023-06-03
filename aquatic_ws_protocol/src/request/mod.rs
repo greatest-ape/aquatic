@@ -26,8 +26,10 @@ impl InMessage {
         use tungstenite::Message;
 
         match ws_message {
-            Message::Text(mut text) => {
-                ::simd_json::serde::from_str(&mut text).context("deserialize with serde")
+            Message::Text(text) => {
+                let mut text: Vec<u8> = text.into();
+
+                ::simd_json::serde::from_slice(&mut text).context("deserialize with serde")
             }
             Message::Binary(mut bytes) => {
                 ::simd_json::serde::from_slice(&mut bytes[..]).context("deserialize with serde")

@@ -202,39 +202,50 @@ mod tests {
 
     #[test]
     fn test_deserialize_20_bytes() {
-        let mut input = r#""aaaabbbbccccddddeeee""#.to_string();
+        unsafe {
+            let mut input = r#""aaaabbbbccccddddeeee""#.to_string();
 
-        let expected = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
-        let observed: InfoHash = ::simd_json::serde::from_str(&mut input).unwrap();
+            let expected = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
+            let observed: InfoHash = ::simd_json::serde::from_str(&mut input).unwrap();
 
-        assert_eq!(observed, expected);
+            assert_eq!(observed, expected);
+        }
 
-        let mut input = r#""aaaabbbbccccddddeee""#.to_string();
-        let res_info_hash: Result<InfoHash, _> = ::simd_json::serde::from_str(&mut input);
+        unsafe {
+            let mut input = r#""aaaabbbbccccddddeee""#.to_string();
+            let res_info_hash: Result<InfoHash, _> = ::simd_json::serde::from_str(&mut input);
 
-        assert!(res_info_hash.is_err());
+            assert!(res_info_hash.is_err());
+        }
 
-        let mut input = r#""aaaabbbbccccddddeee𝕊""#.to_string();
-        let res_info_hash: Result<InfoHash, _> = ::simd_json::serde::from_str(&mut input);
+        unsafe {
+            let mut input = r#""aaaabbbbccccddddeee𝕊""#.to_string();
+            let res_info_hash: Result<InfoHash, _> = ::simd_json::serde::from_str(&mut input);
 
-        assert!(res_info_hash.is_err());
+            assert!(res_info_hash.is_err());
+        }
     }
 
     #[test]
     fn test_serde_20_bytes() {
         let info_hash = info_hash_from_bytes(b"aaaabbbbccccddddeeee");
 
-        let mut out = ::simd_json::serde::to_string(&info_hash).unwrap();
-        let info_hash_2 = ::simd_json::serde::from_str(&mut out).unwrap();
+        let info_hash_2 = unsafe {
+            let mut out = ::simd_json::serde::to_string(&info_hash).unwrap();
+
+            ::simd_json::serde::from_str(&mut out).unwrap()
+        };
 
         assert_eq!(info_hash, info_hash_2);
     }
 
     #[quickcheck]
     fn quickcheck_serde_20_bytes(info_hash: InfoHash) -> bool {
-        let mut out = ::simd_json::serde::to_string(&info_hash).unwrap();
-        let info_hash_2 = ::simd_json::serde::from_str(&mut out).unwrap();
+        unsafe {
+            let mut out = ::simd_json::serde::to_string(&info_hash).unwrap();
+            let info_hash_2 = ::simd_json::serde::from_str(&mut out).unwrap();
 
-        info_hash == info_hash_2
+            info_hash == info_hash_2
+        }
     }
 }
