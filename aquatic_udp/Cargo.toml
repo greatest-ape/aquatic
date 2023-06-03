@@ -39,8 +39,8 @@ hex = "0.4"
 io-uring = { version = "0.6", optional = true }
 libc = "0.2"
 log = "0.4"
-metrics = { version = "0.20", optional = true }
-metrics-exporter-prometheus = { version = "0.11", optional = true, default-features = false, features = ["http-listener"] }
+metrics = { version = "0.21", optional = true }
+metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }
 num-format = "0.4"

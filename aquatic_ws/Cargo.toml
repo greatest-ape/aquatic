@@ -27,7 +27,7 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.20"
+async-tungstenite = "0.22"
 cfg-if = "1"
 futures = "0.3"
 futures-lite = "1"
@@ -36,8 +36,8 @@ glommio = "0.8"
 hashbrown = { version = "0.13", features = ["serde"] }
 httparse = "1"
 log = "0.4"
-metrics = { version = "0.20", optional = true }
-metrics-exporter-prometheus = { version = "0.11", optional = true, default-features = false, features = ["http-listener"] }
+metrics = { version = "0.21", optional = true }
+metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
@@ -47,7 +47,7 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 socket2 = { version = "0.5", features = ["all"] }
-tungstenite = "0.18"
+tungstenite = "0.19"
 
 [dev-dependencies]
 quickcheck = "1"
