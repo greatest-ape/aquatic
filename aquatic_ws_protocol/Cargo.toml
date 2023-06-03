@@ -24,8 +24,6 @@ anyhow = "1"
 hashbrown = { version = "0.13", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# simd-json version 0.7 seems to have bugs in string parsing
-# with custom visitor, where it includes quotes in strings 
 simd-json = { version = "0.10", features = ["allow-non-simd"] }
 tungstenite = "0.19"
 
