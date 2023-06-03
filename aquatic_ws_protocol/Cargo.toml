@@ -28,6 +28,6 @@ simd-json = { version = "0.10", features = ["allow-non-simd"] }
 tungstenite = "0.19"
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 quickcheck = "1"
 quickcheck_macros = "1"
