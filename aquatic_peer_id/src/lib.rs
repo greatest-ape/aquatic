@@ -1,6 +1,6 @@
 use std::{fmt::Display, sync::OnceLock};
 
-use compact_str::CompactString;
+use compact_str::{format_compact, CompactString};
 use regex::bytes::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -33,28 +33,82 @@ pub enum PeerClient {
 }
 
 impl PeerClient {
-    pub fn from_prefix_and_version(prefix: &[u8], version: &[u8]) -> Option<Self> {
-        let version = CompactString::from_utf8(version).ok()?;
+    pub fn from_prefix_and_version(prefix: &[u8], version: &[u8]) -> Self {
+        fn three_digits_plus_prerelease(v1: char, v2: char, v3: char, v4: char) -> CompactString {
+            let prerelease = match v4 {
+                'A' => " [Alpha]",
+                'B' => " [Beta]",
+                _ => "",
+            };
 
-        match prefix {
-            b"AZ" => Some(Self::Vuze(version)),
-            b"BT" => Some(Self::BitTorrent(version)),
-            b"DE" => Some(Self::Deluge(version)),
-            b"lt" => Some(Self::LibTorrentRakshasa(version)),
-            b"LT" => Some(Self::LibTorrentRasterbar(version)),
-            b"qB" => Some(Self::QBitTorrent(version)),
-            b"TR" => Some(Self::Transmission(version)),
-            b"UE" => Some(Self::UTorrentEmbedded(version)),
-            b"UM" => Some(Self::UTorrentMac(version)),
-            b"UT" => Some(Self::UTorrent(version)),
-            b"UW" => Some(Self::UTorrentWeb(version)),
-            b"WD" => Some(Self::WebTorrentDesktop(version)),
-            b"WW" => Some(Self::WebTorrent(version)),
-            b"M" => Some(Self::Mainline(version)),
-            name => Some(Self::OtherWithPrefixAndVersion {
-                prefix: CompactString::from_utf8(name).ok()?,
-                version,
-            }),
+            format_compact!("{}.{}.{}{}", v1, v2, v3, prerelease)
+        }
+
+        fn webtorrent(v1: char, v2: char, v3: char, v4: char) -> CompactString {
+            let major = if v1 == '0' {
+                format_compact!("{}", v2)
+            } else {
+                format_compact!("{}{}", v1, v2)
+            };
+
+            let minor = if v3 == '0' {
+                format_compact!("{}", v4)
+            } else {
+                format_compact!("{}{}", v3, v4)
+            };
+
+            format_compact!("{}.{}", major, minor)
+        }
+
+        if let [v1, v2, v3, v4] = version {
+            let (v1, v2, v3, v4) = (*v1 as char, *v2 as char, *v3 as char, *v4 as char);
+
+            match prefix {
+                b"AZ" => Self::Vuze(format_compact!("{}.{}.{}.{}", v1, v2, v3, v4)),
+                b"BT" => Self::BitTorrent(three_digits_plus_prerelease(v1, v2, v3, v4)),
+                b"DE" => Self::Deluge(format_compact!("{}.{}.{}", v1, v2, v3)),
+                b"lt" => Self::LibTorrentRakshasa(format_compact!("{}.{}{}.{}", v1, v2, v3, v4)),
+                b"LT" => Self::LibTorrentRasterbar(format_compact!("{}.{}{}.{}", v1, v2, v3, v4)),
+                b"qB" => Self::QBitTorrent(format_compact!("{}.{}.{}", v1, v2, v3)),
+                b"TR" => {
+                    let v = match (v1, v2, v3, v4) {
+                        ('0', '0', '0', v4) => format_compact!("0.{}", v4),
+                        ('0', '0', v3, v4) => format_compact!("0.{}{}", v3, v4),
+                        _ => format_compact!("{}.{}{}", v1, v2, v3),
+                    };
+
+                    Self::Transmission(v)
+                }
+                b"UE" => Self::UTorrentEmbedded(three_digits_plus_prerelease(v1, v2, v3, v4)),
+                b"UM" => Self::UTorrentMac(three_digits_plus_prerelease(v1, v2, v3, v4)),
+                b"UT" => Self::UTorrent(three_digits_plus_prerelease(v1, v2, v3, v4)),
+                b"UW" => Self::UTorrentWeb(three_digits_plus_prerelease(v1, v2, v3, v4)),
+                b"WD" => Self::WebTorrentDesktop(webtorrent(v1, v2, v3, v4)),
+                b"WW" => Self::WebTorrent(webtorrent(v1, v2, v3, v4)),
+                _ => Self::OtherWithPrefixAndVersion {
+                    prefix: CompactString::from_utf8_lossy(prefix),
+                    version: CompactString::from_utf8_lossy(version),
+                },
+            }
+        } else {
+            match (prefix, version) {
+                (b"M", &[major, b'-', minor, b'-', patch, b'-']) => Self::Mainline(
+                    format_compact!("{}.{}.{}", major as char, minor as char, patch as char),
+                ),
+                (b"M", &[major, b'-', minor1, minor2, b'-', patch]) => {
+                    Self::Mainline(format_compact!(
+                        "{}.{}{}.{}",
+                        major as char,
+                        minor1 as char,
+                        minor2 as char,
+                        patch as char
+                    ))
+                }
+                _ => Self::OtherWithPrefixAndVersion {
+                    prefix: CompactString::from_utf8_lossy(prefix),
+                    version: CompactString::from_utf8_lossy(version),
+                },
+            }
         }
     }
 
@@ -68,9 +122,7 @@ impl PeerClient {
             })
             .captures(&peer_id.0)
         {
-            if let Some(client) = Self::from_prefix_and_version(&caps["name"], &caps["version"]) {
-                return client;
-            }
+            return Self::from_prefix_and_version(&caps["name"], &caps["version"]);
         }
 
         static MAINLINE_RE: OnceLock<Regex> = OnceLock::new();
@@ -82,9 +134,7 @@ impl PeerClient {
             })
             .captures(&peer_id.0)
         {
-            if let Some(client) = Self::from_prefix_and_version(&caps["name"], &caps["version"]) {
-                return client;
-            }
+            return Self::from_prefix_and_version(&caps["name"], &caps["version"]);
         }
 
         static PREFIX_RE: OnceLock<Regex> = OnceLock::new();
@@ -95,9 +145,7 @@ impl PeerClient {
             })
             .captures(&peer_id.0)
         {
-            if let Ok(prefix) = CompactString::from_utf8(&caps["prefix"]) {
-                return Self::OtherWithPrefix(prefix);
-            }
+            return Self::OtherWithPrefix(CompactString::from_utf8_lossy(&caps["prefix"]));
         }
 
         Self::Other
@@ -148,15 +196,15 @@ mod tests {
     fn test_client_from_peer_id() {
         assert_eq!(
             PeerClient::from_peer_id(create_peer_id(b"-lt1234-k/asdh3")),
-            PeerClient::LibTorrentRakshasa("1234".into())
+            PeerClient::LibTorrentRakshasa("1.23.4".into())
         );
         assert_eq!(
             PeerClient::from_peer_id(create_peer_id(b"M1-2-3--k/asdh3")),
-            PeerClient::Mainline("1-2-3-".into())
+            PeerClient::Mainline("1.2.3".into())
         );
         assert_eq!(
             PeerClient::from_peer_id(create_peer_id(b"M1-23-4-k/asdh3")),
-            PeerClient::Mainline("1-23-4".into())
+            PeerClient::Mainline("1.23.4".into())
         );
         assert_eq!(
             PeerClient::from_peer_id(create_peer_id(b"S3-k/asdh3")),
