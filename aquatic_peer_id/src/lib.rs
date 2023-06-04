@@ -199,6 +199,30 @@ mod tests {
             PeerClient::LibTorrentRakshasa("1.23.4".into())
         );
         assert_eq!(
+            PeerClient::from_peer_id(create_peer_id(b"-UT123A-k/asdh3")),
+            PeerClient::UTorrent("1.2.3 [Alpha]".into())
+        );
+        assert_eq!(
+            PeerClient::from_peer_id(create_peer_id(b"-TR0012-k/asdh3")),
+            PeerClient::Transmission("0.12".into())
+        );
+        assert_eq!(
+            PeerClient::from_peer_id(create_peer_id(b"-TR1212-k/asdh3")),
+            PeerClient::Transmission("1.21".into())
+        );
+        assert_eq!(
+            PeerClient::from_peer_id(create_peer_id(b"-WW0102-k/asdh3")),
+            PeerClient::WebTorrent("1.2".into())
+        );
+        assert_eq!(
+            PeerClient::from_peer_id(create_peer_id(b"-WW1302-k/asdh3")),
+            PeerClient::WebTorrent("13.2".into())
+        );
+        assert_eq!(
+            PeerClient::from_peer_id(create_peer_id(b"-WW1324-k/asdh3")),
+            PeerClient::WebTorrent("13.24".into())
+        );
+        assert_eq!(
             PeerClient::from_peer_id(create_peer_id(b"M1-2-3--k/asdh3")),
             PeerClient::Mainline("1.2.3".into())
         );
