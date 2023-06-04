@@ -5,6 +5,7 @@ members = [
     "aquatic_http",
     "aquatic_http_load_test",
     "aquatic_http_protocol",
+    "aquatic_peer_id",
     "aquatic_toml_config",
     "aquatic_toml_config_derive",
     "aquatic_udp",
@@ -29,6 +30,7 @@ rust-version = "1.64"
 aquatic_common = { version = "0.8.0", path = "./aquatic_common" }
 aquatic_http_protocol = { version = "0.8.0", path = "./aquatic_http_protocol" }
 aquatic_http = { version = "0.8.0", path = "./aquatic_http" }
+aquatic_peer_id = { version = "0.8.0", path = "./aquatic_peer_id" }
 aquatic_toml_config = { version = "0.8.0", path = "./aquatic_toml_config" }
 aquatic_toml_config_derive = { version = "0.8.0", path = "./aquatic_toml_config_derive" }
 aquatic_udp_protocol = { version = "0.8.0", path = "./aquatic_udp_protocol" }
