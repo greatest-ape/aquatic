@@ -50,6 +50,7 @@ pub fn run_swarm_worker(
                     let response = handle_announce_request(
                         &config,
                         &mut rng,
+                        &statistics_sender,
                         &mut torrents.ipv4,
                         request,
                         ip,
@@ -62,6 +63,7 @@ pub fn run_swarm_worker(
                     let response = handle_announce_request(
                         &config,
                         &mut rng,
+                        &statistics_sender,
                         &mut torrents.ipv6,
                         request,
                         ip,
@@ -88,27 +90,14 @@ pub fn run_swarm_worker(
             peer_valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age);
 
             if now > last_cleaning + cleaning_interval {
-                let (ipv4, ipv6) = torrents.clean_and_get_statistics(
+                torrents.clean_and_update_statistics(
                     &config,
+                    &state,
+                    &statistics_sender,
                     &state.access_list,
                     server_start_instant,
+                    worker_index,
                 );
-
-                if config.statistics.active() {
-                    state.statistics_ipv4.peers[worker_index.0].store(ipv4.0, Ordering::Release);
-                    state.statistics_ipv6.peers[worker_index.0].store(ipv6.0, Ordering::Release);
-
-                    if let Some(message) = ipv4.1.map(StatisticsMessage::Ipv4PeerHistogram) {
-                        if let Err(err) = statistics_sender.try_send(message) {
-                            ::log::error!("couldn't send statistics message: {:#}", err)
-                        }
-                    }
-                    if let Some(message) = ipv6.1.map(StatisticsMessage::Ipv6PeerHistogram) {
-                        if let Err(err) = statistics_sender.try_send(message) {
-                            ::log::error!("couldn't send statistics message: {:#}", err)
-                        }
-                    }
-                }
 
                 last_cleaning = now;
             }
@@ -131,6 +120,7 @@ pub fn run_swarm_worker(
 fn handle_announce_request<I: Ip>(
     config: &Config,
     rng: &mut SmallRng,
+    statistics_sender: &Sender<StatisticsMessage>,
     torrents: &mut TorrentMap<I>,
     request: AnnounceRequest,
     peer_ip: I,
@@ -150,6 +140,8 @@ fn handle_announce_request<I: Ip>(
     let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
 
     torrent_data.update_peer(
+        config,
+        statistics_sender,
         request.peer_id,
         peer_ip,
         request.port,

@@ -2,10 +2,12 @@ mod collector;
 
 use std::fs::File;
 use std::io::Write;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use aquatic_common::PanicSentinel;
+use aquatic_common::{IndexMap, PanicSentinel};
+use aquatic_udp_protocol::PeerClient;
+use compact_str::{CompactString, ToCompactString};
 use crossbeam_channel::Receiver;
 use serde::Serialize;
 use time::format_description::well_known::Rfc2822;
@@ -35,6 +37,7 @@ struct TemplateData {
     ipv6: CollectedStatistics,
     last_updated: String,
     peer_update_interval: String,
+    peer_clients: Vec<(CompactString, CompactString, usize)>,
 }
 
 pub fn run_statistics_worker(
@@ -68,13 +71,46 @@ pub fn run_statistics_worker(
         "6".into(),
     );
 
+    let mut peer_clients: IndexMap<PeerClient, (usize, CompactString)> = IndexMap::default();
+
     loop {
-        ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
+        let start_time = Instant::now();
 
         for message in statistics_receiver.try_iter() {
             match message {
                 StatisticsMessage::Ipv4PeerHistogram(h) => ipv4_collector.add_histogram(&config, h),
                 StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(&config, h),
+                StatisticsMessage::PeerAdded(peer_id) => {
+                    peer_clients
+                        .entry(peer_id.client())
+                        .or_insert((0, peer_id.first_8_bytes_hex()))
+                        .0 += 1;
+                }
+                StatisticsMessage::PeerRemoved(peer_id) => {
+                    let client = peer_id.client();
+
+                    if let Some((count, _)) = peer_clients.get_mut(&client) {
+                        if *count == 1 {
+                            drop(count);
+
+                            peer_clients.remove(&client);
+                        } else {
+                            *count -= 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(feature = "prometheus")]
+        if config.statistics.run_prometheus_endpoint && config.statistics.extended {
+            for (peer_client, (count, first_8_bytes)) in peer_clients.iter() {
+                ::metrics::gauge!(
+                    "aquatic_peer_clients",
+                    *count as f64,
+                    "client" => peer_client.to_string(),
+                    "peer_id_prefix_hex" => first_8_bytes.to_string(),
+                );
             }
         }
 
@@ -107,6 +143,23 @@ pub fn run_statistics_worker(
         }
 
         if let Some(tt) = opt_tt.as_ref() {
+            let mut peer_clients = if config.statistics.extended {
+                peer_clients
+                    .iter()
+                    .map(|(peer_client, (count, first_8_bytes))| {
+                        (
+                            peer_client.to_compact_string(),
+                            first_8_bytes.to_owned(),
+                            *count,
+                        )
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            peer_clients.sort_unstable_by(|a, b| b.2.cmp(&a.2));
+
             let template_data = TemplateData {
                 stylesheet: STYLESHEET_CONTENTS.to_string(),
                 ipv4_active: config.network.ipv4_active(),
@@ -118,11 +171,18 @@ pub fn run_statistics_worker(
                     .format(&Rfc2822)
                     .unwrap_or("(formatting error)".into()),
                 peer_update_interval: format!("{}", config.cleaning.torrent_cleaning_interval),
+                peer_clients,
             };
 
             if let Err(err) = save_html_to_file(&config, tt, &template_data) {
                 ::log::error!("Couldn't save statistics to file: {:#}", err)
             }
+        }
+
+        if let Some(time_remaining) =
+            Duration::from_secs(config.statistics.interval).checked_sub(start_time.elapsed())
+        {
+            ::std::thread::sleep(time_remaining);
         }
     }
 }

@@ -136,6 +136,8 @@ impl PeerStatus {
 pub enum StatisticsMessage {
     Ipv4PeerHistogram(Histogram<u64>),
     Ipv6PeerHistogram(Histogram<u64>),
+    PeerAdded(PeerId),
+    PeerRemoved(PeerId),
 }
 
 pub struct Statistics {

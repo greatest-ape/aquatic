@@ -7,6 +7,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct PeerId(pub [u8; 20]);
 
+impl PeerId {
+    pub fn client(&self) -> PeerClient {
+        PeerClient::from_peer_id(self)
+    }
+    pub fn first_8_bytes_hex(&self) -> CompactString {
+        let mut buf = [0u8; 16];
+
+        hex::encode_to_slice(&self.0[..8], &mut buf)
+            .expect("PeerId.first_8_bytes_hex buffer too small");
+
+        CompactString::from_utf8_lossy(&buf)
+    }
+}
+
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PeerClient {
@@ -112,7 +126,7 @@ impl PeerClient {
         }
     }
 
-    pub fn from_peer_id(peer_id: PeerId) -> Self {
+    pub fn from_peer_id(peer_id: &PeerId) -> Self {
         static AZ_RE: OnceLock<Regex> = OnceLock::new();
 
         if let Some(caps) = AZ_RE
@@ -178,6 +192,18 @@ impl Display for PeerClient {
     }
 }
 
+impl quickcheck::Arbitrary for PeerId {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut bytes = [0u8; 20];
+
+        for byte in bytes.iter_mut() {
+            *byte = u8::arbitrary(g);
+        }
+
+        Self(bytes)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,43 +221,43 @@ mod tests {
     #[test]
     fn test_client_from_peer_id() {
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"-lt1234-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"-lt1234-k/asdh3")),
             PeerClient::LibTorrentRakshasa("1.23.4".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"-UT123A-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"-UT123A-k/asdh3")),
             PeerClient::UTorrent("1.2.3 [Alpha]".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"-TR0012-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"-TR0012-k/asdh3")),
             PeerClient::Transmission("0.12".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"-TR1212-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"-TR1212-k/asdh3")),
             PeerClient::Transmission("1.21".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"-WW0102-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"-WW0102-k/asdh3")),
             PeerClient::WebTorrent("1.2".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"-WW1302-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"-WW1302-k/asdh3")),
             PeerClient::WebTorrent("13.2".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"-WW1324-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"-WW1324-k/asdh3")),
             PeerClient::WebTorrent("13.24".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"M1-2-3--k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"M1-2-3--k/asdh3")),
             PeerClient::Mainline("1.2.3".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"M1-23-4-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"M1-23-4-k/asdh3")),
             PeerClient::Mainline("1.23.4".into())
         );
         assert_eq!(
-            PeerClient::from_peer_id(create_peer_id(b"S3-k/asdh3")),
+            PeerClient::from_peer_id(&create_peer_id(b"S3-k/asdh3")),
             PeerClient::OtherWithPrefix("S3".into())
         );
     }

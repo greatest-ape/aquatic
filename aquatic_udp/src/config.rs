@@ -161,10 +161,9 @@ impl Default for ProtocolConfig {
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
-    /// Enable extended statistics (on peers per torrent)
+    /// Enable extended statistics (on peers per torrent and on peer clients)
     ///
-    /// Will increase time taken for torrent cleaning, since that's when
-    /// these statistics are collected.
+    /// Will increase time taken for request handling and torrent cleaning
     pub extended: bool,
     /// Print statistics to standard output
     pub print_to_stdout: bool,

@@ -30,6 +30,7 @@ aquatic_udp_protocol.workspace = true
 anyhow = "1"
 blake3 = "1"
 cfg-if = "1"
+compact_str = { version = "0.7", features = ["serde"] }
 constant_time_eq = "0.2"
 crossbeam-channel = "0.5"
 getrandom = "0.2"

@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
+pub use aquatic_peer_id::{PeerClient, PeerId};
+
 pub trait Ip: Clone + Copy + Debug + PartialEq + Eq {}
 
 impl Ip for Ipv4Addr {}
@@ -30,9 +32,6 @@ pub struct NumberOfDownloads(pub i32);
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct Port(pub u16);
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, PartialOrd, Ord)]
-pub struct PeerId(pub [u8; 20]);
-
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct PeerKey(pub u32);
 
@@ -44,19 +43,6 @@ pub struct ResponsePeer<I: Ip> {
 
 #[cfg(test)]
 impl quickcheck::Arbitrary for InfoHash {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let mut bytes = [0u8; 20];
-
-        for byte in bytes.iter_mut() {
-            *byte = u8::arbitrary(g);
-        }
-
-        Self(bytes)
-    }
-}
-
-#[cfg(test)]
-impl quickcheck::Arbitrary for PeerId {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let mut bytes = [0u8; 20];
 

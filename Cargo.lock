@@ -184,6 +184,8 @@ name = "aquatic_peer_id"
 version = "0.8.0"
 dependencies = [
  "compact_str",
+ "hex",
+ "quickcheck",
  "regex",
  "serde",
 ]
@@ -218,6 +220,7 @@ dependencies = [
  "aquatic_udp_protocol",
  "blake3",
  "cfg-if",
+ "compact_str",
  "constant_time_eq",
  "crossbeam-channel",
  "getrandom",
@@ -284,6 +287,7 @@ dependencies = [
 name = "aquatic_udp_protocol"
 version = "0.8.0"
 dependencies = [
+ "aquatic_peer_id",
  "byteorder",
  "either",
  "quickcheck",

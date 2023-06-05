@@ -14,5 +14,7 @@ name = "aquatic_peer_id"
 
 [dependencies]
 compact_str = "0.7"
+hex = "0.4"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
+quickcheck = "1"
