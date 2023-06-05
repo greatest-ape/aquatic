@@ -155,7 +155,7 @@ impl PeerClient {
 
         if let Some(caps) = PREFIX_RE
             .get_or_init(|| {
-                Regex::new(r"^(?P<prefix>[a-zA-Z0-9\-]*)\-").expect("compile PREFIX_RE regex")
+                Regex::new(r"^(?P<prefix>[a-zA-Z0-9\-]+)\-").expect("compile PREFIX_RE regex")
             })
             .captures(&peer_id.0)
         {
