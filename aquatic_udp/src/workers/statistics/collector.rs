@@ -2,7 +2,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crossbeam_channel::Receiver;
 use hdrhistogram::Histogram;
 use num_format::{Locale, ToFormattedString};
 use serde::Serialize;

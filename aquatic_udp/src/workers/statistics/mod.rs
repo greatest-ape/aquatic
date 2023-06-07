@@ -37,7 +37,7 @@ struct TemplateData {
     ipv6: CollectedStatistics,
     last_updated: String,
     peer_update_interval: String,
-    peer_clients: Vec<(CompactString, CompactString, usize)>,
+    peer_clients: Vec<(CompactString, usize)>,
 }
 
 pub fn run_statistics_worker(
@@ -71,7 +71,7 @@ pub fn run_statistics_worker(
         "6".into(),
     );
 
-    let mut peer_clients: IndexMap<PeerClient, (usize, CompactString)> = IndexMap::default();
+    let mut peer_clients: IndexMap<PeerClient, usize> = IndexMap::default();
 
     loop {
         let start_time = Instant::now();
@@ -81,15 +81,35 @@ pub fn run_statistics_worker(
                 StatisticsMessage::Ipv4PeerHistogram(h) => ipv4_collector.add_histogram(&config, h),
                 StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(&config, h),
                 StatisticsMessage::PeerAdded(peer_id) => {
-                    peer_clients
-                        .entry(peer_id.client())
-                        .or_insert((0, peer_id.first_8_bytes_hex()))
-                        .0 += 1;
+                    let client = peer_id.client();
+                    let first_8_bytes_hex = peer_id.first_8_bytes_hex();
+
+                    #[cfg(feature = "prometheus")]
+                    if config.statistics.run_prometheus_endpoint {
+                        ::metrics::increment_gauge!(
+                            "aquatic_peer_clients",
+                            1.0,
+                            "client" => client.to_string(),
+                            "peer_id_prefix_hex" => first_8_bytes_hex.to_string(),
+                        );
+                    }
+
+                    *peer_clients.entry(client).or_insert(0) += 1;
                 }
                 StatisticsMessage::PeerRemoved(peer_id) => {
                     let client = peer_id.client();
 
-                    if let Some((count, _)) = peer_clients.get_mut(&client) {
+                    #[cfg(feature = "prometheus")]
+                    if config.statistics.run_prometheus_endpoint {
+                        ::metrics::decrement_gauge!(
+                            "aquatic_peer_clients",
+                            1.0,
+                            "client" => client.to_string(),
+                            "peer_id_prefix_hex" => peer_id.first_8_bytes_hex().to_string(),
+                        );
+                    }
+
+                    if let Some(count) = peer_clients.get_mut(&client) {
                         if *count == 1 {
                             drop(count);
 
@@ -99,18 +119,6 @@ pub fn run_statistics_worker(
                         }
                     }
                 }
-            }
-        }
-
-        #[cfg(feature = "prometheus")]
-        if config.statistics.run_prometheus_endpoint && config.statistics.extended {
-            for (peer_client, (count, first_8_bytes)) in peer_clients.iter() {
-                ::metrics::gauge!(
-                    "aquatic_peer_clients",
-                    *count as f64,
-                    "client" => peer_client.to_string(),
-                    "peer_id_prefix_hex" => first_8_bytes.to_string(),
-                );
             }
         }
 
@@ -146,19 +154,13 @@ pub fn run_statistics_worker(
             let mut peer_clients = if config.statistics.extended {
                 peer_clients
                     .iter()
-                    .map(|(peer_client, (count, first_8_bytes))| {
-                        (
-                            peer_client.to_compact_string(),
-                            first_8_bytes.to_owned(),
-                            *count,
-                        )
-                    })
+                    .map(|(peer_client, count)| (peer_client.to_compact_string(), *count))
                     .collect()
             } else {
                 Vec::new()
             };
 
-            peer_clients.sort_unstable_by(|a, b| b.2.cmp(&a.2));
+            peer_clients.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
             let template_data = TemplateData {
                 stylesheet: STYLESHEET_CONTENTS.to_string(),
@@ -183,6 +185,10 @@ pub fn run_statistics_worker(
             Duration::from_secs(config.statistics.interval).checked_sub(start_time.elapsed())
         {
             ::std::thread::sleep(time_remaining);
+        } else {
+            ::log::warn!(
+                "statistics interval not long enough to process all data, output may be misleading"
+            );
         }
     }
 }

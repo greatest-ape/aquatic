@@ -260,7 +260,6 @@
         <thead>
             <tr>
                 <th>Client</th>
-                <th>Peer ID prefix (hex)</th>
                 <th>Count</th>
             </tr>
         </thead>
@@ -268,7 +267,6 @@
             {{ for value in peer_clients }}
             <tr>
                 <td>{ value.0 }</td>
-                <td>{ value.1 }</td>
                 <td>{ value.2 }</td>
             </tr>
             {{ endfor }}
