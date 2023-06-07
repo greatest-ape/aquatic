@@ -169,7 +169,8 @@ pub struct StatisticsConfig {
     ///
     /// Also, see `prometheus_peer_id_prefixes`.
     ///
-    /// Quite costly when it comes to CPU and RAM.
+    /// Expect a certain CPU hit (maybe 5% higher consumption) and a bit higher
+    /// memory use
     pub peer_clients: bool,
     /// Print statistics to standard output
     pub print_to_stdout: bool,
@@ -184,6 +185,7 @@ pub struct StatisticsConfig {
     #[cfg(feature = "prometheus")]
     pub prometheus_endpoint_address: SocketAddr,
     /// Serve information on all peer id prefixes on the prometheus endpoint.
+    ///
     /// Requires `peer_clients` to be activated.
     ///
     /// May consume quite a bit of CPU and RAM, since data on every single peer
