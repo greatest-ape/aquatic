@@ -4,6 +4,7 @@ pub mod workers;
 
 use std::collections::BTreeMap;
 use std::thread::Builder;
+use std::time::Duration;
 
 use anyhow::Context;
 use crossbeam_channel::{bounded, unbounded};
@@ -143,8 +144,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         #[cfg(feature = "prometheus")]
         if config.statistics.run_prometheus_endpoint {
             use metrics_exporter_prometheus::PrometheusBuilder;
+            use metrics_util::MetricKindMask;
 
             PrometheusBuilder::new()
+                .idle_timeout(
+                    MetricKindMask::ALL,
+                    Some(Duration::from_secs(config.statistics.interval * 2)),
+                )
                 .with_http_listener(config.statistics.prometheus_endpoint_address)
                 .install()
                 .with_context(|| {

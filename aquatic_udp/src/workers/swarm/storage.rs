@@ -82,7 +82,7 @@ impl<I: Ip> TorrentData<I> {
             PeerStatus::Stopped => self.peers.remove(&peer_id),
         };
 
-        if config.statistics.extended {
+        if config.statistics.peer_clients {
             match (status, opt_removed_peer.is_some()) {
                 // We added a new peer
                 (PeerStatus::Leeching | PeerStatus::Seeding, false) => {
@@ -158,7 +158,7 @@ impl<I: Ip> TorrentData<I> {
                 if peer.is_seeder {
                     self.num_seeders -= 1;
                 }
-                if config.statistics.extended {
+                if config.statistics.peer_clients {
                     if let Err(_) =
                         statistics_sender.try_send(StatisticsMessage::PeerRemoved(*peer_id))
                     {
@@ -201,7 +201,8 @@ impl<I: Ip> TorrentMap<I> {
     ) -> (usize, Option<Histogram<u64>>) {
         let mut num_peers = 0;
 
-        let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.extended {
+        let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.torrent_peer_histograms
+        {
             match Histogram::new(3) {
                 Ok(histogram) => Some(histogram),
                 Err(err) => {

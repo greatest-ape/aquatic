@@ -161,11 +161,16 @@ impl Default for ProtocolConfig {
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
-    /// Enable extended statistics (on peers per torrent and on peer clients).
-    /// Also, see `prometheus_peer_clients`.
+    /// Collect statistics on number of peers per torrent
     ///
-    /// Will increase time taken for request handling and torrent cleaning.
-    pub extended: bool,
+    /// Will increase time taken for torrent cleaning.
+    pub torrent_peer_histograms: bool,
+    /// Collect statistics on peer clients.
+    ///
+    /// Also, see `prometheus_peer_id_prefixes`.
+    ///
+    /// Quite costly when it comes to CPU and RAM.
+    pub peer_clients: bool,
     /// Print statistics to standard output
     pub print_to_stdout: bool,
     /// Save statistics as HTML to a file
@@ -178,14 +183,13 @@ pub struct StatisticsConfig {
     /// Address to run prometheus endpoint on
     #[cfg(feature = "prometheus")]
     pub prometheus_endpoint_address: SocketAddr,
-    /// Serve information on all peer clients on the prometheus endpoint.
-    /// Requires extended statistics to be activated.
+    /// Serve information on all peer id prefixes on the prometheus endpoint.
+    /// Requires `peer_clients` to be activated.
     ///
-    /// NOT RECOMMENDED. May consume lots of CPU and RAM since data on every
-    /// single peer client will be kept around by the endpoint, even those
-    /// which are no longer in the swarm.
+    /// May consume quite a bit of CPU and RAM, since data on every single peer
+    /// client will be reported continuously on the endpoint
     #[cfg(feature = "prometheus")]
-    pub prometheus_peer_clients: bool,
+    pub prometheus_peer_id_prefixes: bool,
 }
 
 impl StatisticsConfig {
@@ -207,7 +211,8 @@ impl Default for StatisticsConfig {
     fn default() -> Self {
         Self {
             interval: 5,
-            extended: false,
+            torrent_peer_histograms: false,
+            peer_clients: false,
             print_to_stdout: false,
             write_html_to_file: false,
             html_file_path: "tmp/statistics.html".into(),
@@ -216,7 +221,7 @@ impl Default for StatisticsConfig {
             #[cfg(feature = "prometheus")]
             prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
             #[cfg(feature = "prometheus")]
-            prometheus_peer_clients: false,
+            prometheus_peer_id_prefixes: false,
         }
     }
 }

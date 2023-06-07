@@ -134,7 +134,7 @@ impl StatisticsCollector {
                 );
             }
 
-            if config.statistics.extended {
+            if config.statistics.torrent_peer_histograms {
                 self.last_complete_histogram
                     .update_metrics(self.ip_version.clone());
             }
