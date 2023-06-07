@@ -86,11 +86,21 @@ impl<I: Ip> TorrentData<I> {
             match (status, opt_removed_peer.is_some()) {
                 // We added a new peer
                 (PeerStatus::Leeching | PeerStatus::Seeding, false) => {
-                    statistics_sender.try_send(StatisticsMessage::PeerAdded(peer_id));
+                    if let Err(_) =
+                        statistics_sender.try_send(StatisticsMessage::PeerAdded(peer_id))
+                    {
+                        // Should never happen in practice
+                        ::log::error!("Couldn't send StatisticsMessage::PeerAdded");
+                    }
                 }
                 // We removed an existing peer
                 (PeerStatus::Stopped, true) => {
-                    statistics_sender.try_send(StatisticsMessage::PeerRemoved(peer_id));
+                    if let Err(_) =
+                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(peer_id))
+                    {
+                        // Should never happen in practice
+                        ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
+                    }
                 }
                 _ => (),
             }
@@ -149,7 +159,12 @@ impl<I: Ip> TorrentData<I> {
                     self.num_seeders -= 1;
                 }
                 if config.statistics.extended {
-                    statistics_sender.try_send(StatisticsMessage::PeerRemoved(*peer_id));
+                    if let Err(_) =
+                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(*peer_id))
+                    {
+                        // Should never happen in practice
+                        ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
+                    }
                 }
             }
 
