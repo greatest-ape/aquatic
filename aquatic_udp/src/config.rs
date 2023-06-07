@@ -161,9 +161,10 @@ impl Default for ProtocolConfig {
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
-    /// Enable extended statistics (on peers per torrent and on peer clients)
+    /// Enable extended statistics (on peers per torrent and on peer clients).
+    /// Also, see `prometheus_peer_clients`.
     ///
-    /// Will increase time taken for request handling and torrent cleaning
+    /// Will increase time taken for request handling and torrent cleaning.
     pub extended: bool,
     /// Print statistics to standard output
     pub print_to_stdout: bool,
@@ -177,6 +178,14 @@ pub struct StatisticsConfig {
     /// Address to run prometheus endpoint on
     #[cfg(feature = "prometheus")]
     pub prometheus_endpoint_address: SocketAddr,
+    /// Serve information on all peer clients on the prometheus endpoint.
+    /// Requires extended statistics to be activated.
+    ///
+    /// NOT RECOMMENDED. May consume lots of CPU and RAM since data on every
+    /// single peer client will be kept around by the endpoint, even those
+    /// which are no longer in the swarm.
+    #[cfg(feature = "prometheus")]
+    pub prometheus_peer_clients: bool,
 }
 
 impl StatisticsConfig {
@@ -206,6 +215,8 @@ impl Default for StatisticsConfig {
             run_prometheus_endpoint: false,
             #[cfg(feature = "prometheus")]
             prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
+            #[cfg(feature = "prometheus")]
+            prometheus_peer_clients: false,
         }
     }
 }

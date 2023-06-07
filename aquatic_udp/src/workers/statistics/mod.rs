@@ -81,39 +81,42 @@ pub fn run_statistics_worker(
                 StatisticsMessage::Ipv4PeerHistogram(h) => ipv4_collector.add_histogram(&config, h),
                 StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(&config, h),
                 StatisticsMessage::PeerAdded(peer_id) => {
-                    let client = peer_id.client();
-                    let first_8_bytes_hex = peer_id.first_8_bytes_hex();
+                    let peer_client = peer_id.client();
 
                     #[cfg(feature = "prometheus")]
-                    if config.statistics.run_prometheus_endpoint {
+                    if config.statistics.run_prometheus_endpoint
+                        && config.statistics.prometheus_peer_clients
+                    {
                         ::metrics::increment_gauge!(
                             "aquatic_peer_clients",
                             1.0,
-                            "client" => client.to_string(),
-                            "peer_id_prefix_hex" => first_8_bytes_hex.to_string(),
-                        );
-                    }
-
-                    *peer_clients.entry(client).or_insert(0) += 1;
-                }
-                StatisticsMessage::PeerRemoved(peer_id) => {
-                    let client = peer_id.client();
-
-                    #[cfg(feature = "prometheus")]
-                    if config.statistics.run_prometheus_endpoint {
-                        ::metrics::decrement_gauge!(
-                            "aquatic_peer_clients",
-                            1.0,
-                            "client" => client.to_string(),
+                            "client" => peer_client.to_string(),
                             "peer_id_prefix_hex" => peer_id.first_8_bytes_hex().to_string(),
                         );
                     }
 
-                    if let Some(count) = peer_clients.get_mut(&client) {
+                    *peer_clients.entry(peer_client).or_insert(0) += 1;
+                }
+                StatisticsMessage::PeerRemoved(peer_id) => {
+                    let peer_client = peer_id.client();
+
+                    #[cfg(feature = "prometheus")]
+                    if config.statistics.run_prometheus_endpoint
+                        && config.statistics.prometheus_peer_clients
+                    {
+                        ::metrics::decrement_gauge!(
+                            "aquatic_peer_clients",
+                            1.0,
+                            "client" => peer_client.to_string(),
+                            "peer_id_prefix_hex" => peer_id.first_8_bytes_hex().to_string(),
+                        );
+                    }
+
+                    if let Some(count) = peer_clients.get_mut(&peer_client) {
                         if *count == 1 {
                             drop(count);
 
-                            peer_clients.remove(&client);
+                            peer_clients.remove(&peer_client);
                         } else {
                             *count -= 1;
                         }
