@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### General
+
+#### Added
+
+* Add `aquatic_peer_id` crate with peer client information logic
+
+### aquatic_udp
+
+#### Added
+
+* Add support for reporting peer client information
+
 ## 0.8.0 - 2023-03-17
 
 ### General
