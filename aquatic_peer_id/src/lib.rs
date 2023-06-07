@@ -131,7 +131,7 @@ impl PeerClient {
 
         if let Some(caps) = AZ_RE
             .get_or_init(|| {
-                Regex::new(r"^\-(?P<name>[a-zA-Z]{2})(?P<version>[0-9A-Z]{4})")
+                Regex::new(r"^\-(?P<name>[a-zA-Z]{2})(?P<version>[0-9]{3}[0-9AB])")
                     .expect("compile AZ_RE regex")
             })
             .captures(&peer_id.0)
@@ -226,7 +226,7 @@ mod tests {
         );
         assert_eq!(
             PeerClient::from_peer_id(&create_peer_id(b"-UT123A-k/asdh3")),
-            PeerClient::UTorrent("1.2.3 [Alpha]".into())
+            PeerClient::UTorrent("1.2.3 alpha".into())
         );
         assert_eq!(
             PeerClient::from_peer_id(&create_peer_id(b"-TR0012-k/asdh3")),
