@@ -50,8 +50,8 @@ impl PeerClient {
     pub fn from_prefix_and_version(prefix: &[u8], version: &[u8]) -> Self {
         fn three_digits_plus_prerelease(v1: char, v2: char, v3: char, v4: char) -> CompactString {
             let prerelease = match v4 {
-                'A' => " [Alpha]",
-                'B' => " [Beta]",
+                'A' => " alpha",
+                'B' => " beta",
                 _ => "",
             };
 
@@ -171,14 +171,14 @@ impl Display for PeerClient {
         match self {
             Self::BitTorrent(v) => write!(f, "BitTorrent ({})", v.as_str()),
             Self::Deluge(v) => write!(f, "Deluge ({})", v.as_str()),
-            Self::LibTorrentRakshasa(v) => write!(f, "libTorrent (rakshasa) ({})", v.as_str()),
-            Self::LibTorrentRasterbar(v) => write!(f, "libtorrent (rasterbar) ({})", v.as_str()),
+            Self::LibTorrentRakshasa(v) => write!(f, "lt (rakshasa) ({})", v.as_str()),
+            Self::LibTorrentRasterbar(v) => write!(f, "lt (rasterbar) ({})", v.as_str()),
             Self::QBitTorrent(v) => write!(f, "QBitTorrent ({})", v.as_str()),
             Self::Transmission(v) => write!(f, "Transmission ({})", v.as_str()),
-            Self::UTorrent(v) => write!(f, "uTorrent ({})", v.as_str()),
-            Self::UTorrentEmbedded(v) => write!(f, "uTorrent Embedded ({})", v.as_str()),
-            Self::UTorrentMac(v) => write!(f, "uTorrent Mac ({})", v.as_str()),
-            Self::UTorrentWeb(v) => write!(f, "uTorrent Web ({})", v.as_str()),
+            Self::UTorrent(v) => write!(f, "µTorrent ({})", v.as_str()),
+            Self::UTorrentEmbedded(v) => write!(f, "µTorrent Emb. ({})", v.as_str()),
+            Self::UTorrentMac(v) => write!(f, "µTorrent Mac ({})", v.as_str()),
+            Self::UTorrentWeb(v) => write!(f, "µTorrent Web ({})", v.as_str()),
             Self::Vuze(v) => write!(f, "Vuze ({})", v.as_str()),
             Self::WebTorrent(v) => write!(f, "WebTorrent ({})", v.as_str()),
             Self::WebTorrentDesktop(v) => write!(f, "WebTorrent Desktop ({})", v.as_str()),
