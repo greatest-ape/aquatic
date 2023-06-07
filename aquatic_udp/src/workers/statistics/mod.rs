@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use aquatic_common::{IndexMap, PanicSentinel};
 use aquatic_udp_protocol::PeerClient;
-use compact_str::{CompactString, ToCompactString};
 use crossbeam_channel::Receiver;
+use num_format::{Locale, ToFormattedString};
 use serde::Serialize;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
@@ -37,7 +37,7 @@ struct TemplateData {
     ipv6: CollectedStatistics,
     last_updated: String,
     peer_update_interval: String,
-    peer_clients: Vec<(CompactString, usize)>,
+    peer_clients: Vec<(String, String)>,
 }
 
 pub fn run_statistics_worker(
@@ -155,15 +155,22 @@ pub fn run_statistics_worker(
 
         if let Some(tt) = opt_tt.as_ref() {
             let mut peer_clients = if config.statistics.extended {
-                peer_clients
-                    .iter()
-                    .map(|(peer_client, count)| (peer_client.to_compact_string(), *count))
-                    .collect()
+                peer_clients.iter().collect()
             } else {
                 Vec::new()
             };
 
-            peer_clients.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+            peer_clients.sort_unstable_by(|a, b| b.1.cmp(a.1));
+
+            let peer_clients = peer_clients
+                .into_iter()
+                .map(|(peer_client, count)| {
+                    (
+                        peer_client.to_string(),
+                        count.to_formatted_string(&Locale::en),
+                    )
+                })
+                .collect();
 
             let template_data = TemplateData {
                 stylesheet: STYLESHEET_CONTENTS.to_string(),

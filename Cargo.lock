@@ -220,7 +220,6 @@ dependencies = [
  "aquatic_udp_protocol",
  "blake3",
  "cfg-if",
- "compact_str",
  "constant_time_eq",
  "crossbeam-channel",
  "getrandom",
