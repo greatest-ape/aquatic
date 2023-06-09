@@ -83,7 +83,9 @@ pub fn run_statistics_worker(
         "6".into(),
     );
 
-    let mut peers: IndexMap<PeerId, (PeerClient, CompactString)> = IndexMap::default();
+    // Store a count to enable not removing peers from the count completely
+    // just because they were removed from one torrent
+    let mut peers: IndexMap<PeerId, (usize, PeerClient, CompactString)> = IndexMap::default();
 
     loop {
         let start_time = Instant::now();
@@ -94,15 +96,21 @@ pub fn run_statistics_worker(
                 StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(&config, h),
                 StatisticsMessage::PeerAdded(peer_id) => {
                     if process_peer_client_data {
-                        let peer_client = peer_id.client();
-                        let prefix = peer_id.first_8_bytes_hex();
-
-                        peers.insert(peer_id, (peer_client, prefix));
+                        peers
+                            .entry(peer_id)
+                            .or_insert_with(|| (0, peer_id.client(), peer_id.first_8_bytes_hex()))
+                            .0 += 1;
                     }
                 }
                 StatisticsMessage::PeerRemoved(peer_id) => {
                     if process_peer_client_data {
-                        peers.remove(&peer_id);
+                        if let Some((count, _, _)) = peers.get_mut(&peer_id) {
+                            *count -= 1;
+
+                            if *count == 0 {
+                                peers.remove(&peer_id);
+                            }
+                        }
                     }
                 }
             }
@@ -123,7 +131,8 @@ pub fn run_statistics_worker(
             #[cfg(feature = "prometheus")]
             let mut prefixes: IndexMap<CompactString, usize> = IndexMap::default();
 
-            for (peer_client, prefix) in peers.values() {
+            // Only count peer_ids once, even if they are in multiple torrents
+            for (_, peer_client, prefix) in peers.values() {
                 *clients.entry(peer_client.to_owned()).or_insert(0) += 1;
 
                 #[cfg(feature = "prometheus")]
