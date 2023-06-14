@@ -52,7 +52,7 @@ struct ConnectionReference {
     valid_until: ValidUntil,
     announced_info_hashes: HashMap<InfoHash, PeerId>,
     ip_version: IpVersion,
-    opt_peer_client: Option<PeerClient>,
+    opt_peer_client: Option<(PeerClient, String)>,
 }
 
 pub async fn run_socket_worker(
@@ -226,12 +226,20 @@ pub async fn run_socket_worker(
                         }
 
                         #[cfg(feature = "prometheus")]
-                        if let Some(peer_client) = reference.opt_peer_client {
+                        if let Some((peer_client, prefix)) = reference.opt_peer_client {
                             ::metrics::decrement_gauge!(
                                 "aquatic_peer_clients",
                                 1.0,
                                 "client" => peer_client.to_string(),
                             );
+
+                            if config.metrics.peer_id_prefixes {
+                                ::metrics::decrement_gauge!(
+                                    "aquatic_peer_id_prefixes",
+                                    1.0,
+                                    "prefix_hex" => prefix.to_string(),
+                                );
+                            }
                         }
                     }
                 }), tq_regular)
@@ -259,15 +267,24 @@ async fn clean_connections(
     connection_slab.borrow_mut().retain(|_, reference| {
         if reference.valid_until.valid(now) {
             #[cfg(feature = "prometheus")]
-            if let Some(peer_client) = &reference.opt_peer_client {
+            if let Some((peer_client, prefix)) = &reference.opt_peer_client {
                 // As long as connection is still alive, increment peer client
-                // gauge by zero to prevent it from being removed due to
+                // gauges by zero to prevent them from being removed due to
                 // idleness
+
                 ::metrics::increment_gauge!(
                     "aquatic_peer_clients",
                     0.0,
                     "client" => peer_client.to_string(),
                 );
+
+                if config.metrics.peer_id_prefixes {
+                    ::metrics::increment_gauge!(
+                        "aquatic_peer_id_prefixes",
+                        0.0,
+                        "prefix_hex" => prefix.to_string(),
+                    );
+                }
             }
 
             true
@@ -629,9 +646,10 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                                     && self.config.metrics.peer_clients
                                     && connection_reference.opt_peer_client.is_none()
                                 {
-                                    let client =
-                                        aquatic_peer_id::PeerId(announce_request.peer_id.0)
-                                            .client();
+                                    let peer_id =
+                                        aquatic_peer_id::PeerId(announce_request.peer_id.0);
+                                    let client = peer_id.client();
+                                    let prefix = peer_id.first_8_bytes_hex().to_string();
 
                                     ::metrics::increment_gauge!(
                                         "aquatic_peer_clients",
@@ -639,7 +657,15 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                                         "client" => client.to_string(),
                                     );
 
-                                    connection_reference.opt_peer_client = Some(client);
+                                    if self.config.metrics.peer_id_prefixes {
+                                        ::metrics::increment_gauge!(
+                                            "aquatic_peer_id_prefixes",
+                                            1.0,
+                                            "prefix_hex" => prefix.to_string(),
+                                        );
+                                    }
+
+                                    connection_reference.opt_peer_client = Some((client, prefix));
                                 };
 
                                 entry.insert(announce_request.peer_id);
