@@ -156,6 +156,10 @@ pub struct MetricsConfig {
     pub prometheus_endpoint_address: SocketAddr,
     /// Update metrics for torrent count this often (seconds)
     pub torrent_count_update_interval: u64,
+    /// Collect data on peer clients.
+    ///
+    /// Expect a certain CPU hit
+    pub peer_clients: bool,
 }
 
 #[cfg(feature = "metrics")]
@@ -165,6 +169,7 @@ impl Default for MetricsConfig {
             run_prometheus_endpoint: false,
             prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
             torrent_count_update_interval: 10,
+            peer_clients: false,
         }
     }
 }

@@ -14,6 +14,12 @@
 
 * Add support for reporting peer client information
 
+### aquatic_ws
+
+#### Added
+
+* Add support for reporting peer client information
+
 ## 0.8.0 - 2023-03-17
 
 ### General

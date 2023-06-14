@@ -11,6 +11,7 @@ use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, A
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
 use aquatic_common::{PanicSentinel, ServerStartInstant};
+use aquatic_peer_id::PeerClient;
 use aquatic_ws_protocol::*;
 use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
@@ -51,6 +52,7 @@ struct ConnectionReference {
     valid_until: ValidUntil,
     announced_info_hashes: HashMap<InfoHash, PeerId>,
     ip_version: IpVersion,
+    opt_peer_client: Option<PeerClient>,
 }
 
 pub async fn run_socket_worker(
@@ -154,6 +156,7 @@ pub async fn run_socket_worker(
                     ),
                     announced_info_hashes: Default::default(),
                     ip_version,
+                    opt_peer_client: None,
                 });
 
                 ::log::trace!("accepting stream, assigning id {}", key);
@@ -221,6 +224,15 @@ pub async fn run_socket_worker(
                                 .await
                                 .unwrap();
                         }
+
+                        #[cfg(feature = "prometheus")]
+                        if let Some(peer_client) = reference.opt_peer_client {
+                            ::metrics::decrement_gauge!(
+                                "aquatic_peer_clients",
+                                1.0,
+                                "client" => peer_client.to_string(),
+                            );
+                        }
                     }
                 }), tq_regular)
                 .unwrap()
@@ -246,6 +258,18 @@ async fn clean_connections(
 
     connection_slab.borrow_mut().retain(|_, reference| {
         if reference.valid_until.valid(now) {
+            #[cfg(feature = "prometheus")]
+            if let Some(peer_client) = &reference.opt_peer_client {
+                // As long as connection is still alive, increment peer client
+                // gauge by zero to prevent it from being removed due to
+                // idleness
+                ::metrics::increment_gauge!(
+                    "aquatic_peer_clients",
+                    0.0,
+                    "client" => peer_client.to_string(),
+                );
+            }
+
             true
         } else {
             if let Some(ref handle) = reference.task_handle {
@@ -257,6 +281,31 @@ async fn clean_connections(
     });
 
     connection_slab.borrow_mut().shrink_to_fit();
+
+    #[cfg(feature = "metrics")]
+    {
+        // Increment gauges by zero to prevent them from being removed due to
+        // idleness
+
+        let worker_index = WORKER_INDEX.with(|index| index.get()).to_string();
+
+        if config.network.address.is_ipv4() || !config.network.only_ipv6 {
+            ::metrics::increment_gauge!(
+                "aquatic_active_connections",
+                0.0,
+                "ip_version" => "4",
+                "worker_index" => worker_index.clone(),
+            );
+        }
+        if config.network.address.is_ipv6() {
+            ::metrics::increment_gauge!(
+                "aquatic_active_connections",
+                0.0,
+                "ip_version" => "6",
+                "worker_index" => worker_index,
+            );
+        }
+    }
 
     Some(Duration::from_secs(
         config.cleaning.connection_cleaning_interval,
@@ -575,6 +624,24 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                                 }
                             }
                             Entry::Vacant(entry) => {
+                                #[cfg(feature = "prometheus")]
+                                if self.config.metrics.run_prometheus_endpoint
+                                    && self.config.metrics.peer_clients
+                                    && connection_reference.opt_peer_client.is_none()
+                                {
+                                    let client =
+                                        aquatic_peer_id::PeerId(announce_request.peer_id.0)
+                                            .client();
+
+                                    ::metrics::increment_gauge!(
+                                        "aquatic_peer_clients",
+                                        1.0,
+                                        "client" => client.to_string(),
+                                    );
+
+                                    connection_reference.opt_peer_client = Some(client);
+                                };
+
                                 entry.insert(announce_request.peer_id);
                             }
                         }

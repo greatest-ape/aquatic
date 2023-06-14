@@ -310,6 +310,7 @@ version = "0.8.0"
 dependencies = [
  "anyhow",
  "aquatic_common",
+ "aquatic_peer_id",
  "aquatic_toml_config",
  "aquatic_ws_protocol",
  "async-tungstenite",
@@ -323,6 +324,7 @@ dependencies = [
  "log",
  "metrics",
  "metrics-exporter-prometheus",
+ "metrics-util",
  "mimalloc",
  "privdrop",
  "quickcheck",
