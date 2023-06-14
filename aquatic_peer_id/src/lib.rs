@@ -195,6 +195,7 @@ impl Display for PeerClient {
     }
 }
 
+#[cfg(feature = "quickcheck")]
 impl quickcheck::Arbitrary for PeerId {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let mut bytes = [0u8; 20];
@@ -207,6 +208,7 @@ impl quickcheck::Arbitrary for PeerId {
     }
 }
 
+#[cfg(feature = "quickcheck")]
 #[cfg(test)]
 mod tests {
     use super::*;

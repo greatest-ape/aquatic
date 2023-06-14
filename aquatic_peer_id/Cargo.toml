@@ -12,9 +12,12 @@ rust-version.workspace = true
 [lib]
 name = "aquatic_peer_id"
 
+[features]
+default = ["quickcheck"]
+
 [dependencies]
 compact_str = "0.7"
 hex = "0.4"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
-quickcheck = "1"
+quickcheck = { version = "1", optional = true }
