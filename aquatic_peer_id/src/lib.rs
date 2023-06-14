@@ -172,20 +172,20 @@ impl PeerClient {
 impl Display for PeerClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BitTorrent(v) => write!(f, "BitTorrent ({})", v.as_str()),
-            Self::Deluge(v) => write!(f, "Deluge ({})", v.as_str()),
-            Self::LibTorrentRakshasa(v) => write!(f, "lt (rakshasa) ({})", v.as_str()),
-            Self::LibTorrentRasterbar(v) => write!(f, "lt (rasterbar) ({})", v.as_str()),
-            Self::QBitTorrent(v) => write!(f, "QBitTorrent ({})", v.as_str()),
-            Self::Transmission(v) => write!(f, "Transmission ({})", v.as_str()),
-            Self::UTorrent(v) => write!(f, "µTorrent ({})", v.as_str()),
-            Self::UTorrentEmbedded(v) => write!(f, "µTorrent Emb. ({})", v.as_str()),
-            Self::UTorrentMac(v) => write!(f, "µTorrent Mac ({})", v.as_str()),
-            Self::UTorrentWeb(v) => write!(f, "µTorrent Web ({})", v.as_str()),
-            Self::Vuze(v) => write!(f, "Vuze ({})", v.as_str()),
-            Self::WebTorrent(v) => write!(f, "WebTorrent ({})", v.as_str()),
-            Self::WebTorrentDesktop(v) => write!(f, "WebTorrent Desktop ({})", v.as_str()),
-            Self::Mainline(v) => write!(f, "Mainline ({})", v.as_str()),
+            Self::BitTorrent(v) => write!(f, "BitTorrent {}", v.as_str()),
+            Self::Deluge(v) => write!(f, "Deluge {}", v.as_str()),
+            Self::LibTorrentRakshasa(v) => write!(f, "lt (rakshasa) {}", v.as_str()),
+            Self::LibTorrentRasterbar(v) => write!(f, "lt (rasterbar) {}", v.as_str()),
+            Self::QBitTorrent(v) => write!(f, "QBitTorrent {}", v.as_str()),
+            Self::Transmission(v) => write!(f, "Transmission {}", v.as_str()),
+            Self::UTorrent(v) => write!(f, "µTorrent {}", v.as_str()),
+            Self::UTorrentEmbedded(v) => write!(f, "µTorrent Emb. {}", v.as_str()),
+            Self::UTorrentMac(v) => write!(f, "µTorrent Mac {}", v.as_str()),
+            Self::UTorrentWeb(v) => write!(f, "µTorrent Web {}", v.as_str()),
+            Self::Vuze(v) => write!(f, "Vuze {}", v.as_str()),
+            Self::WebTorrent(v) => write!(f, "WebTorrent {}", v.as_str()),
+            Self::WebTorrentDesktop(v) => write!(f, "WebTorrent Desktop {}", v.as_str()),
+            Self::Mainline(v) => write!(f, "Mainline {}", v.as_str()),
             Self::OtherWithPrefixAndVersion { prefix, version } => {
                 write!(f, "Other ({}) ({})", prefix.as_str(), version.as_str())
             }
