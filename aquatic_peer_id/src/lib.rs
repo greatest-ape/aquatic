@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::OnceLock};
+use std::{borrow::Cow, fmt::Display, sync::OnceLock};
 
 use compact_str::{format_compact, CompactString};
 use regex::bytes::Regex;
@@ -49,10 +49,13 @@ pub enum PeerClient {
 impl PeerClient {
     pub fn from_prefix_and_version(prefix: &[u8], version: &[u8]) -> Self {
         fn three_digits_plus_prerelease(v1: char, v2: char, v3: char, v4: char) -> CompactString {
-            let prerelease = match v4 {
-                'A' => " alpha",
-                'B' => " beta",
-                _ => "",
+            let prerelease: Cow<str> = match v4 {
+                'd' | 'D' => " dev".into(),
+                'a' | 'A' => " alpha".into(),
+                'b' | 'B' => " beta".into(),
+                'r' | 'R' => " rc".into(),
+                's' | 'S' => " stable".into(),
+                other => format_compact!("{}", other).into(),
             };
 
             format_compact!("{}.{}.{}{}", v1, v2, v3, prerelease)
@@ -80,7 +83,7 @@ impl PeerClient {
             match prefix {
                 b"AZ" => Self::Vuze(format_compact!("{}.{}.{}.{}", v1, v2, v3, v4)),
                 b"BT" => Self::BitTorrent(three_digits_plus_prerelease(v1, v2, v3, v4)),
-                b"DE" => Self::Deluge(format_compact!("{}.{}.{}", v1, v2, v3)),
+                b"DE" => Self::Deluge(three_digits_plus_prerelease(v1, v2, v3, v4)),
                 b"lt" => Self::LibTorrentRakshasa(format_compact!("{}.{}{}.{}", v1, v2, v3, v4)),
                 b"LT" => Self::LibTorrentRasterbar(format_compact!("{}.{}{}.{}", v1, v2, v3, v4)),
                 b"qB" => Self::QBitTorrent(format_compact!("{}.{}.{}", v1, v2, v3)),
@@ -131,7 +134,7 @@ impl PeerClient {
 
         if let Some(caps) = AZ_RE
             .get_or_init(|| {
-                Regex::new(r"^\-(?P<name>[a-zA-Z]{2})(?P<version>[0-9]{3}[0-9AB])")
+                Regex::new(r"^\-(?P<name>[a-zA-Z]{2})(?P<version>[0-9]{3}[0-9a-zA-Z])")
                     .expect("compile AZ_RE regex")
             })
             .captures(&peer_id.0)
@@ -223,6 +226,14 @@ mod tests {
         assert_eq!(
             PeerClient::from_peer_id(&create_peer_id(b"-lt1234-k/asdh3")),
             PeerClient::LibTorrentRakshasa("1.23.4".into())
+        );
+        assert_eq!(
+            PeerClient::from_peer_id(&create_peer_id(b"-DE123s-k/asdh3")),
+            PeerClient::Deluge("1.2.3 stable".into())
+        );
+        assert_eq!(
+            PeerClient::from_peer_id(&create_peer_id(b"-DE123r-k/asdh3")),
+            PeerClient::Deluge("1.2.3 rc".into())
         );
         assert_eq!(
             PeerClient::from_peer_id(&create_peer_id(b"-UT123A-k/asdh3")),
