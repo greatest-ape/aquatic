@@ -3,6 +3,7 @@ pub mod config;
 pub mod workers;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context;
 use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
@@ -39,7 +40,18 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     if config.metrics.run_prometheus_endpoint {
         use metrics_exporter_prometheus::PrometheusBuilder;
 
+        let idle_timeout = config
+            .cleaning
+            .connection_cleaning_interval
+            .max(config.cleaning.torrent_cleaning_interval)
+            .max(config.metrics.torrent_count_update_interval)
+            * 2;
+
         PrometheusBuilder::new()
+            .idle_timeout(
+                metrics_util::MetricKindMask::GAUGE,
+                Some(Duration::from_secs(idle_timeout)),
+            )
             .with_http_listener(config.metrics.prometheus_endpoint_address)
             .install()
             .with_context(|| {

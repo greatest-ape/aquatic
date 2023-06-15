@@ -251,5 +251,28 @@
     {{ endif }}
 
     {{ endif }}
+
+    {{ if extended_active }}
+
+    <h2>Peer clients</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Client</th>
+                <th>Count</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ for value in peer_clients }}
+            <tr>
+                <td>{ value.0 }</td>
+                <td>{ value.1 }</td>
+            </tr>
+            {{ endfor }}
+        </tbody>
+    </table>
+
+    {{ endif }}
 </body>
 </html>

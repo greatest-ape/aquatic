@@ -19,10 +19,11 @@ name = "aquatic_ws"
 [features]
 default = ["prometheus"]
 prometheus = ["metrics", "metrics-exporter-prometheus"]
-metrics = ["dep:metrics"]
+metrics = ["dep:metrics", "metrics-util"]
 
 [dependencies]
 aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
+aquatic_peer_id.workspace = true
 aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
@@ -37,6 +38,7 @@ hashbrown = { version = "0.13", features = ["serde"] }
 httparse = "1"
 log = "0.4"
 metrics = { version = "0.21", optional = true }
+metrics-util = { version = "0.15", optional = true }
 metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 privdrop = "0.5"

@@ -19,7 +19,7 @@ name = "aquatic_udp"
 [features]
 default = ["prometheus"]
 cpu-pinning = ["aquatic_common/hwloc"]
-prometheus = ["metrics", "metrics-exporter-prometheus"]
+prometheus = ["metrics", "metrics-util", "metrics-exporter-prometheus"]
 io-uring = ["dep:io-uring"]
 
 [dependencies]
@@ -30,6 +30,7 @@ aquatic_udp_protocol.workspace = true
 anyhow = "1"
 blake3 = "1"
 cfg-if = "1"
+compact_str = "0.7"
 constant_time_eq = "0.2"
 crossbeam-channel = "0.5"
 getrandom = "0.2"
@@ -40,6 +41,7 @@ io-uring = { version = "0.6", optional = true }
 libc = "0.2"
 log = "0.4"
 metrics = { version = "0.21", optional = true }
+metrics-util = { version = "0.15", optional = true }
 metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }

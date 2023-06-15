@@ -161,11 +161,17 @@ impl Default for ProtocolConfig {
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
     pub interval: u64,
-    /// Enable extended statistics (on peers per torrent)
+    /// Collect statistics on number of peers per torrent
     ///
-    /// Will increase time taken for torrent cleaning, since that's when
-    /// these statistics are collected.
-    pub extended: bool,
+    /// Will increase time taken for torrent cleaning.
+    pub torrent_peer_histograms: bool,
+    /// Collect statistics on peer clients.
+    ///
+    /// Also, see `prometheus_peer_id_prefixes`.
+    ///
+    /// Expect a certain CPU hit (maybe 5% higher consumption) and a bit higher
+    /// memory use
+    pub peer_clients: bool,
     /// Print statistics to standard output
     pub print_to_stdout: bool,
     /// Save statistics as HTML to a file
@@ -178,6 +184,14 @@ pub struct StatisticsConfig {
     /// Address to run prometheus endpoint on
     #[cfg(feature = "prometheus")]
     pub prometheus_endpoint_address: SocketAddr,
+    /// Serve information on all peer id prefixes on the prometheus endpoint.
+    ///
+    /// Requires `peer_clients` to be activated.
+    ///
+    /// May consume quite a bit of CPU and RAM, since data on every single peer
+    /// client will be reported continuously on the endpoint
+    #[cfg(feature = "prometheus")]
+    pub prometheus_peer_id_prefixes: bool,
 }
 
 impl StatisticsConfig {
@@ -199,7 +213,8 @@ impl Default for StatisticsConfig {
     fn default() -> Self {
         Self {
             interval: 5,
-            extended: false,
+            torrent_peer_histograms: false,
+            peer_clients: false,
             print_to_stdout: false,
             write_html_to_file: false,
             html_file_path: "tmp/statistics.html".into(),
@@ -207,6 +222,8 @@ impl Default for StatisticsConfig {
             run_prometheus_endpoint: false,
             #[cfg(feature = "prometheus")]
             prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
+            #[cfg(feature = "prometheus")]
+            prometheus_peer_id_prefixes: false,
         }
     }
 }

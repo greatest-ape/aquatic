@@ -5,6 +5,8 @@ use std::net::Ipv4Addr;
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 use either::Either;
 
+use aquatic_peer_id::PeerId;
+
 use super::common::*;
 
 const PROTOCOL_IDENTIFIER: i64 = 4_497_486_125_440;

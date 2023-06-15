@@ -11,6 +11,8 @@ readme.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aquatic_peer_id.workspace = true
+
 byteorder = "1"
 either = "1"
 

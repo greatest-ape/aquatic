@@ -2,11 +2,14 @@ mod collector;
 
 use std::fs::File;
 use std::io::Write;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use aquatic_common::PanicSentinel;
+use aquatic_common::{IndexMap, PanicSentinel};
+use aquatic_udp_protocol::{PeerClient, PeerId};
+use compact_str::CompactString;
 use crossbeam_channel::Receiver;
+use num_format::{Locale, ToFormattedString};
 use serde::Serialize;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
@@ -35,6 +38,7 @@ struct TemplateData {
     ipv6: CollectedStatistics,
     last_updated: String,
     peer_update_interval: String,
+    peer_clients: Vec<(String, String)>,
 }
 
 pub fn run_statistics_worker(
@@ -43,6 +47,17 @@ pub fn run_statistics_worker(
     shared_state: State,
     statistics_receiver: Receiver<StatisticsMessage>,
 ) {
+    let process_peer_client_data = {
+        let mut collect = config.statistics.write_html_to_file;
+
+        #[cfg(feature = "prometheus")]
+        {
+            collect |= config.statistics.run_prometheus_endpoint;
+        }
+
+        collect & config.statistics.peer_clients
+    };
+
     let opt_tt = if config.statistics.write_html_to_file {
         let mut tt = TinyTemplate::new();
 
@@ -68,13 +83,36 @@ pub fn run_statistics_worker(
         "6".into(),
     );
 
+    // Store a count to enable not removing peers from the count completely
+    // just because they were removed from one torrent
+    let mut peers: IndexMap<PeerId, (usize, PeerClient, CompactString)> = IndexMap::default();
+
     loop {
-        ::std::thread::sleep(Duration::from_secs(config.statistics.interval));
+        let start_time = Instant::now();
 
         for message in statistics_receiver.try_iter() {
             match message {
                 StatisticsMessage::Ipv4PeerHistogram(h) => ipv4_collector.add_histogram(&config, h),
                 StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(&config, h),
+                StatisticsMessage::PeerAdded(peer_id) => {
+                    if process_peer_client_data {
+                        peers
+                            .entry(peer_id)
+                            .or_insert_with(|| (0, peer_id.client(), peer_id.first_8_bytes_hex()))
+                            .0 += 1;
+                    }
+                }
+                StatisticsMessage::PeerRemoved(peer_id) => {
+                    if process_peer_client_data {
+                        if let Some((count, _, _)) = peers.get_mut(&peer_id) {
+                            *count -= 1;
+
+                            if *count == 0 {
+                                peers.remove(&peer_id);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -86,6 +124,61 @@ pub fn run_statistics_worker(
             #[cfg(feature = "prometheus")]
             &config,
         );
+
+        let peer_clients = if process_peer_client_data {
+            let mut clients: IndexMap<PeerClient, usize> = IndexMap::default();
+
+            #[cfg(feature = "prometheus")]
+            let mut prefixes: IndexMap<CompactString, usize> = IndexMap::default();
+
+            // Only count peer_ids once, even if they are in multiple torrents
+            for (_, peer_client, prefix) in peers.values() {
+                *clients.entry(peer_client.to_owned()).or_insert(0) += 1;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint
+                    && config.statistics.prometheus_peer_id_prefixes
+                {
+                    *prefixes.entry(prefix.to_owned()).or_insert(0) += 1;
+                }
+            }
+
+            clients.sort_unstable_by(|_, a, _, b| b.cmp(a));
+
+            #[cfg(feature = "prometheus")]
+            if config.statistics.run_prometheus_endpoint
+                && config.statistics.prometheus_peer_id_prefixes
+            {
+                for (prefix, count) in prefixes {
+                    ::metrics::gauge!(
+                        "aquatic_peer_id_prefixes",
+                        count as f64,
+                        "prefix_hex" => prefix.to_string(),
+                    );
+                }
+            }
+
+            let mut client_vec = Vec::with_capacity(clients.len());
+
+            for (client, count) in clients {
+                if config.statistics.write_html_to_file {
+                    client_vec.push((client.to_string(), count.to_formatted_string(&Locale::en)));
+                }
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::gauge!(
+                        "aquatic_peer_clients",
+                        count as f64,
+                        "client" => client.to_string(),
+                    );
+                }
+            }
+
+            client_vec
+        } else {
+            Vec::new()
+        };
 
         if config.statistics.print_to_stdout {
             println!("General:");
@@ -111,18 +204,31 @@ pub fn run_statistics_worker(
                 stylesheet: STYLESHEET_CONTENTS.to_string(),
                 ipv4_active: config.network.ipv4_active(),
                 ipv6_active: config.network.ipv6_active(),
-                extended_active: config.statistics.extended,
+                extended_active: config.statistics.torrent_peer_histograms,
                 ipv4: statistics_ipv4,
                 ipv6: statistics_ipv6,
                 last_updated: OffsetDateTime::now_utc()
                     .format(&Rfc2822)
                     .unwrap_or("(formatting error)".into()),
                 peer_update_interval: format!("{}", config.cleaning.torrent_cleaning_interval),
+                peer_clients,
             };
 
             if let Err(err) = save_html_to_file(&config, tt, &template_data) {
                 ::log::error!("Couldn't save statistics to file: {:#}", err)
             }
+        }
+
+        peers.shrink_to_fit();
+
+        if let Some(time_remaining) =
+            Duration::from_secs(config.statistics.interval).checked_sub(start_time.elapsed())
+        {
+            ::std::thread::sleep(time_remaining);
+        } else {
+            ::log::warn!(
+                "statistics interval not long enough to process all data, output may be misleading"
+            );
         }
     }
 }
@@ -160,7 +266,7 @@ fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
         statistics.num_peers, config.cleaning.torrent_cleaning_interval
     );
 
-    if config.statistics.extended {
+    if config.statistics.torrent_peer_histograms {
         println!(
             "  peers per torrent (updated every {}s)",
             config.cleaning.torrent_cleaning_interval

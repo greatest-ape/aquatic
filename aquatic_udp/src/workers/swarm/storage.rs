@@ -1,5 +1,6 @@
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use aquatic_common::IndexMap;
@@ -11,6 +12,7 @@ use aquatic_common::{
 };
 
 use aquatic_udp_protocol::*;
+use crossbeam_channel::Sender;
 use hdrhistogram::Histogram;
 use rand::prelude::SmallRng;
 
@@ -46,6 +48,8 @@ pub struct TorrentData<I: Ip> {
 impl<I: Ip> TorrentData<I> {
     pub fn update_peer(
         &mut self,
+        config: &Config,
+        statistics_sender: &Sender<StatisticsMessage>,
         peer_id: PeerId,
         ip_address: I,
         port: Port,
@@ -77,6 +81,30 @@ impl<I: Ip> TorrentData<I> {
             }
             PeerStatus::Stopped => self.peers.remove(&peer_id),
         };
+
+        if config.statistics.peer_clients {
+            match (status, opt_removed_peer.is_some()) {
+                // We added a new peer
+                (PeerStatus::Leeching | PeerStatus::Seeding, false) => {
+                    if let Err(_) =
+                        statistics_sender.try_send(StatisticsMessage::PeerAdded(peer_id))
+                    {
+                        // Should never happen in practice
+                        ::log::error!("Couldn't send StatisticsMessage::PeerAdded");
+                    }
+                }
+                // We removed an existing peer
+                (PeerStatus::Stopped, true) => {
+                    if let Err(_) =
+                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(peer_id))
+                    {
+                        // Should never happen in practice
+                        ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
+                    }
+                }
+                _ => (),
+            }
+        }
 
         if let Some(Peer {
             is_seeder: true, ..
@@ -117,12 +145,27 @@ impl<I: Ip> TorrentData<I> {
     }
 
     /// Remove inactive peers and reclaim space
-    fn clean(&mut self, now: SecondsSinceServerStart) {
-        self.peers.retain(|_, peer| {
+    fn clean(
+        &mut self,
+        config: &Config,
+        statistics_sender: &Sender<StatisticsMessage>,
+        now: SecondsSinceServerStart,
+    ) {
+        self.peers.retain(|peer_id, peer| {
             let keep = peer.valid_until.valid(now);
 
-            if (!keep) & peer.is_seeder {
-                self.num_seeders -= 1;
+            if !keep {
+                if peer.is_seeder {
+                    self.num_seeders -= 1;
+                }
+                if config.statistics.peer_clients {
+                    if let Err(_) =
+                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(*peer_id))
+                    {
+                        // Should never happen in practice
+                        ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
+                    }
+                }
             }
 
             keep
@@ -151,13 +194,15 @@ impl<I: Ip> TorrentMap<I> {
     fn clean_and_get_statistics(
         &mut self,
         config: &Config,
+        statistics_sender: &Sender<StatisticsMessage>,
         access_list_cache: &mut AccessListCache,
         access_list_mode: AccessListMode,
         now: SecondsSinceServerStart,
     ) -> (usize, Option<Histogram<u64>>) {
         let mut num_peers = 0;
 
-        let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.extended {
+        let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.torrent_peer_histograms
+        {
             match Histogram::new(3) {
                 Ok(histogram) => Some(histogram),
                 Err(err) => {
@@ -178,7 +223,7 @@ impl<I: Ip> TorrentMap<I> {
                 return false;
             }
 
-            torrent.clean(now);
+            torrent.clean(config, statistics_sender, now);
 
             num_peers += torrent.peers.len();
 
@@ -225,28 +270,42 @@ impl Default for TorrentMaps {
 }
 
 impl TorrentMaps {
-    /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
-    pub fn clean_and_get_statistics(
+    /// Remove forbidden or inactive torrents, reclaim space and update statistics
+    pub fn clean_and_update_statistics(
         &mut self,
         config: &Config,
+        state: &State,
+        statistics_sender: &Sender<StatisticsMessage>,
         access_list: &Arc<AccessListArcSwap>,
         server_start_instant: ServerStartInstant,
-    ) -> (
-        (usize, Option<Histogram<u64>>),
-        (usize, Option<Histogram<u64>>),
+        worker_index: SwarmWorkerIndex,
     ) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
         let now = server_start_instant.seconds_elapsed();
 
-        let ipv4 = self
-            .ipv4
-            .clean_and_get_statistics(config, &mut cache, mode, now);
-        let ipv6 = self
-            .ipv6
-            .clean_and_get_statistics(config, &mut cache, mode, now);
+        let ipv4 =
+            self.ipv4
+                .clean_and_get_statistics(config, statistics_sender, &mut cache, mode, now);
+        let ipv6 =
+            self.ipv6
+                .clean_and_get_statistics(config, statistics_sender, &mut cache, mode, now);
 
-        (ipv4, ipv6)
+        if config.statistics.active() {
+            state.statistics_ipv4.peers[worker_index.0].store(ipv4.0, Ordering::Release);
+            state.statistics_ipv6.peers[worker_index.0].store(ipv6.0, Ordering::Release);
+
+            if let Some(message) = ipv4.1.map(StatisticsMessage::Ipv4PeerHistogram) {
+                if let Err(err) = statistics_sender.try_send(message) {
+                    ::log::error!("couldn't send statistics message: {:#}", err);
+                }
+            }
+            if let Some(message) = ipv6.1.map(StatisticsMessage::Ipv6PeerHistogram) {
+                if let Err(err) = statistics_sender.try_send(message) {
+                    ::log::error!("couldn't send statistics message: {:#}", err);
+                }
+            }
+        }
     }
 }
 
