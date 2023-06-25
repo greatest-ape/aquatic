@@ -267,8 +267,17 @@ impl Default for CleaningConfig {
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ApiConfig {
-    /// Run HTTP server with API providing full scrapes
+    /// Run HTTP API server
+    ///
+    /// Provides:
+    /// - Full scrapes (list of all info hashes with respective number of
+    ///   seeders and leechers)
+    ///
+    /// Exposing this server publicly is not recommended, since the full
+    /// scrape API call is very expensive and interrupts regular request
+    /// processing
     pub run_api: bool,
+    /// Address to bind API server to
     pub address: SocketAddr,
 }
 
