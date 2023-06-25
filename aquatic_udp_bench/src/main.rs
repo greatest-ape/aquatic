@@ -67,6 +67,7 @@ pub fn run(bench_config: BenchConfig) -> ::anyhow::Result<()> {
                 request_receiver,
                 response_sender,
                 statistics_sender,
+                None,
                 SwarmWorkerIndex(0),
             )
         });

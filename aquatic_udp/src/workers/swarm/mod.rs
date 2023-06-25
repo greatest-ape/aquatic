@@ -5,6 +5,9 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
+use aquatic_common::full_scrape::FullScrapeRequestReceiver;
+use aquatic_common::full_scrape::FullScrapeResponse;
+use aquatic_common::full_scrape::FullScrapeStatistics;
 use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
@@ -27,6 +30,7 @@ pub fn run_swarm_worker(
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
     response_sender: ConnectedResponseSender,
     statistics_sender: Sender<StatisticsMessage>,
+    #[cfg(feature = "full-scrape")] full_scrape_receiver: Option<FullScrapeRequestReceiver>,
     worker_index: SwarmWorkerIndex,
 ) {
     let mut torrents = TorrentMaps::default();
@@ -81,6 +85,26 @@ pub fn run_swarm_worker(
             };
 
             response_sender.try_send_to(sender_index, response, src);
+        }
+
+        #[cfg(feature = "full-scrape")]
+        if let Some(full_scrape_receiver) = full_scrape_receiver.as_ref() {
+            if let Ok(request) = full_scrape_receiver.try_recv() {
+                let statistics = torrents
+                    .ipv4
+                    .0
+                    .iter()
+                    .map(|(info_hash, torrent)| FullScrapeStatistics {
+                        info_hash: info_hash.0,
+                        seeders: torrent.num_seeders(),
+                        leechers: torrent.num_leechers(),
+                    })
+                    .collect();
+
+                if let Err(err) = request.response_sender.send(FullScrapeResponse(statistics)) {
+                    ::log::error!("couldn't send full scrape response: {:#}", err);
+                }
+            }
         }
 
         // Run periodic tasks

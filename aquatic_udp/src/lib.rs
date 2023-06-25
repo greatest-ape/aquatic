@@ -36,6 +36,18 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     update_access_list(&config.access_list, &state.access_list)?;
 
+    #[cfg(feature = "full-scrape")]
+    let (full_scrape_worker, mut full_scrape_receivers) = if config.network.run_api {
+        let (w, r) = aquatic_common::full_scrape::FullScrapeWorker::new(
+            config.network.api_address,
+            config.swarm_workers,
+        );
+
+        (Some(w), Some(r))
+    } else {
+        (None, None)
+    };
+
     let mut request_senders = Vec::new();
     let mut request_receivers = BTreeMap::new();
 
@@ -76,6 +88,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let response_sender = ConnectedResponseSender::new(response_senders.clone());
         let statistics_sender = statistics_sender.clone();
 
+        #[cfg(feature = "full-scrape")]
+        let full_scrape_receiver = if let Some(r) = full_scrape_receivers.as_mut() {
+            Some(r.pop().expect("too few full scrape receivers"))
+        } else {
+            None
+        };
+
         Builder::new()
             .name(format!("swarm-{:02}", i + 1))
             .spawn(move || {
@@ -95,6 +114,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     request_receiver,
                     response_sender,
                     statistics_sender,
+                    #[cfg(feature = "full-scrape")]
+                    full_scrape_receiver,
                     SwarmWorkerIndex(i),
                 )
             })
@@ -180,6 +201,16 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
             })
             .with_context(|| "spawn statistics worker")?;
+    }
+
+    #[cfg(feature = "full-scrape")]
+    if let Some(worker) = full_scrape_worker {
+        let sentinel = sentinel.clone();
+
+        Builder::new()
+            .name("full-scrape".into())
+            .spawn(move || worker.run(sentinel))
+            .with_context(|| "spawn full scrape worker")?;
     }
 
     #[cfg(feature = "cpu-pinning")]

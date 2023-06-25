@@ -109,6 +109,10 @@ pub struct NetworkConfig {
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
     pub resend_buffer_max_len: usize,
+    #[cfg(feature = "full-scrape")]
+    pub run_api: bool,
+    #[cfg(feature = "full-scrape")]
+    pub api_address: SocketAddr,
 }
 
 impl NetworkConfig {
@@ -131,6 +135,10 @@ impl Default for NetworkConfig {
             #[cfg(feature = "io-uring")]
             ring_size: 1024,
             resend_buffer_max_len: 0,
+            #[cfg(feature = "full-scrape")]
+            run_api: false,
+            #[cfg(feature = "full-scrape")]
+            api_address: SocketAddr::from(([127, 0, 0, 1], 8080)),
         }
     }
 }

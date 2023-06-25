@@ -1,22 +1,26 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{extract::State, http::StatusCode, routing::get, Json, Router, Server};
+use axum::{extract::State, http::StatusCode, response::Html, routing::get, Json, Router, Server};
 use flume::{Receiver, Sender};
 use serde::Serialize;
 use tokio::runtime::Builder;
 
+use crate::PanicSentinel;
+
 const INDEX_PAGE: &str =
-    r#"<h1>aquatic api</h1><ul><li><a href="/full-scrape">/full-scrape</a></li></ul>"#;
+    r#"<h1>aquatic api</h1><ul><li><a href="/full-scrape">/full-scrape</a> (JSON)</li></ul>"#;
+
+pub type FullScrapeRequestReceiver = Receiver<FullScrapeRequest>;
 
 #[derive(Clone)]
 pub struct FullScrapeRequest {
     pub response_sender: Sender<FullScrapeResponse>,
 }
 
-pub struct FullScrapeResponse(Vec<TorrentScrapeStatistics>);
+pub struct FullScrapeResponse(pub Vec<FullScrapeStatistics>);
 
 #[derive(Clone, Copy, Serialize)]
-pub struct TorrentScrapeStatistics {
+pub struct FullScrapeStatistics {
     #[serde(with = "hex::serde")]
     pub info_hash: [u8; 20],
     pub seeders: usize,
@@ -51,7 +55,7 @@ impl FullScrapeWorker {
         (worker, receivers)
     }
 
-    pub fn run(self) -> anyhow::Result<()> {
+    pub fn run(self, _sentinel: PanicSentinel) -> anyhow::Result<()> {
         let runtime = Builder::new_current_thread().enable_all().build()?;
 
         runtime.block_on(async { self.run_inner().await })?;
@@ -61,7 +65,7 @@ impl FullScrapeWorker {
 
     async fn run_inner(self) -> anyhow::Result<()> {
         let app = Router::new()
-            .route("/", get(|| async { INDEX_PAGE }))
+            .route("/", get(|| async { Html(INDEX_PAGE) }))
             .route("/full-scrape", get(full_scrape_route))
             .with_state(self.swarm_message_senders);
 
@@ -75,7 +79,7 @@ impl FullScrapeWorker {
 
 async fn full_scrape_route(
     State(request_senders): State<Arc<[Sender<FullScrapeRequest>]>>,
-) -> Result<Json<Vec<TorrentScrapeStatistics>>, StatusCode> {
+) -> Result<Json<Vec<FullScrapeStatistics>>, StatusCode> {
     let num_swarm_workers = request_senders.len();
 
     let (response_sender, response_receiver) = flume::bounded(num_swarm_workers);
