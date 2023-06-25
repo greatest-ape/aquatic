@@ -4,6 +4,7 @@ use axum::{extract::State, http::StatusCode, response::Html, routing::get, Json,
 use flume::{Receiver, Sender};
 use serde::Serialize;
 use tokio::runtime::Builder;
+use tower_http::compression::CompressionLayer;
 
 use crate::PanicSentinel;
 
@@ -71,6 +72,7 @@ impl FullScrapeWorker {
         let app = Router::new()
             .route("/", get(|| async { Html(INDEX_PAGE) }))
             .route("/full-scrape", get(full_scrape_route))
+            .layer(CompressionLayer::new())
             .with_state(self.swarm_message_senders);
 
         Server::bind(&self.addr)
