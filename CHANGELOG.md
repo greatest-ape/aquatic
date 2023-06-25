@@ -13,6 +13,7 @@
 #### Added
 
 * Add support for reporting peer client information
+* Add support for running HTTP API server providing full scrapes
 
 ### aquatic_ws
 
