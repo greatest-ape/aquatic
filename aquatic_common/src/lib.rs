@@ -9,6 +9,8 @@ use rand::Rng;
 pub mod access_list;
 pub mod cli;
 pub mod cpu_pinning;
+#[cfg(feature = "full-scrape")]
+pub mod full_scrape;
 pub mod privileges;
 #[cfg(feature = "rustls")]
 pub mod rustls_config;
