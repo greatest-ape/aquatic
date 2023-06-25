@@ -253,6 +253,20 @@ impl<I: Ip> TorrentMap<I> {
     pub fn num_torrents(&self) -> usize {
         self.0.len()
     }
+
+    #[cfg(feature = "full-scrape")]
+    pub fn full_scrape(&self) -> Vec<aquatic_common::full_scrape::FullScrapeStatistics> {
+        self.0
+            .iter()
+            .map(
+                |(info_hash, torrent)| aquatic_common::full_scrape::FullScrapeStatistics {
+                    info_hash: info_hash.0,
+                    seeders: torrent.num_seeders(),
+                    leechers: torrent.num_leechers(),
+                },
+            )
+            .collect()
+    }
 }
 
 pub struct TorrentMaps {

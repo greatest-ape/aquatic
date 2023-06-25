@@ -17,7 +17,11 @@ pub struct FullScrapeRequest {
     pub response_sender: Sender<FullScrapeResponse>,
 }
 
-pub struct FullScrapeResponse(pub Vec<FullScrapeStatistics>);
+#[derive(Clone, Serialize)]
+pub struct FullScrapeResponse {
+    pub ipv4: Vec<FullScrapeStatistics>,
+    pub ipv6: Vec<FullScrapeStatistics>,
+}
 
 #[derive(Clone, Copy, Serialize)]
 pub struct FullScrapeStatistics {
@@ -79,7 +83,7 @@ impl FullScrapeWorker {
 
 async fn full_scrape_route(
     State(request_senders): State<Arc<[Sender<FullScrapeRequest>]>>,
-) -> Result<Json<Vec<FullScrapeStatistics>>, StatusCode> {
+) -> Result<Json<FullScrapeResponse>, StatusCode> {
     let num_swarm_workers = request_senders.len();
 
     let (response_sender, response_receiver) = flume::bounded(num_swarm_workers);
@@ -96,12 +100,16 @@ async fn full_scrape_route(
         }
     }
 
-    let mut full_scrape = Vec::new();
+    let mut full = FullScrapeResponse {
+        ipv4: Vec::new(),
+        ipv6: Vec::new(),
+    };
 
     for _ in 0..num_swarm_workers {
         match response_receiver.recv_async().await {
             Ok(mut response) => {
-                full_scrape.append(&mut response.0);
+                full.ipv4.append(&mut response.ipv4);
+                full.ipv6.append(&mut response.ipv6);
             }
             Err(_) => {
                 ::log::error!("full scrape: response sender dropped too early");
@@ -111,5 +119,5 @@ async fn full_scrape_route(
         }
     }
 
-    Ok(Json(full_scrape))
+    Ok(Json(full))
 }

@@ -90,7 +90,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         #[cfg(feature = "full-scrape")]
         let full_scrape_receiver = if let Some(r) = full_scrape_receivers.as_mut() {
-            Some(r.pop().expect("too few full scrape receivers"))
+            Some(r.pop().expect("too few full_scrape_receivers"))
         } else {
             None
         };
