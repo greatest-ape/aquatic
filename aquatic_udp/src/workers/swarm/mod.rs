@@ -27,7 +27,7 @@ pub fn run_swarm_worker(
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
     response_sender: ConnectedResponseSender,
     statistics_sender: Sender<StatisticsMessage>,
-    #[cfg(feature = "full-scrape")] full_scrape_receiver: Option<
+    #[cfg(feature = "full-scrapes")] full_scrape_receiver: Option<
         aquatic_common::full_scrape::FullScrapeRequestReceiver,
     >,
     worker_index: SwarmWorkerIndex,
@@ -86,7 +86,7 @@ pub fn run_swarm_worker(
             response_sender.try_send_to(sender_index, response, src);
         }
 
-        #[cfg(feature = "full-scrape")]
+        #[cfg(feature = "full-scrapes")]
         if let Some(full_scrape_receiver) = full_scrape_receiver.as_ref() {
             if let Ok(request) = full_scrape_receiver.try_recv() {
                 let response = aquatic_common::full_scrape::FullScrapeResponse {

@@ -17,11 +17,11 @@ name = "aquatic_udp"
 name = "aquatic_udp"
 
 [features]
-default = ["prometheus", "full-scrape"]
+default = ["prometheus", "full-scrapes"]
 cpu-pinning = ["aquatic_common/hwloc"]
 prometheus = ["metrics", "metrics-util", "metrics-exporter-prometheus"]
 io-uring = ["dep:io-uring"]
-full-scrape = ["aquatic_common/full-scrape"]
+full-scrapes = ["aquatic_common/full-scrapes"]
 
 [dependencies]
 aquatic_common.workspace = true

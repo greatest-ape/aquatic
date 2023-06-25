@@ -42,6 +42,8 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     pub access_list: AccessListConfig,
+    #[cfg(feature = "full-scrapes")]
+    pub api: ApiConfig,
     #[cfg(feature = "cpu-pinning")]
     pub cpu_pinning: aquatic_common::cpu_pinning::asc::CpuPinningConfigAsc,
 }
@@ -60,6 +62,8 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
+            #[cfg(feature = "full-scrapes")]
+            api: ApiConfig::default(),
             #[cfg(feature = "cpu-pinning")]
             cpu_pinning: Default::default(),
         }
@@ -109,10 +113,6 @@ pub struct NetworkConfig {
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
     pub resend_buffer_max_len: usize,
-    #[cfg(feature = "full-scrape")]
-    pub run_api: bool,
-    #[cfg(feature = "full-scrape")]
-    pub api_address: SocketAddr,
 }
 
 impl NetworkConfig {
@@ -135,10 +135,6 @@ impl Default for NetworkConfig {
             #[cfg(feature = "io-uring")]
             ring_size: 1024,
             resend_buffer_max_len: 0,
-            #[cfg(feature = "full-scrape")]
-            run_api: false,
-            #[cfg(feature = "full-scrape")]
-            api_address: SocketAddr::from(([127, 0, 0, 1], 8080)),
         }
     }
 }
@@ -263,6 +259,25 @@ impl Default for CleaningConfig {
             max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
             max_pending_scrape_age: 60,
+        }
+    }
+}
+
+#[cfg(feature = "full-scrapes")]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ApiConfig {
+    /// Run HTTP server with API providing full scrapes
+    pub run_api: bool,
+    pub address: SocketAddr,
+}
+
+#[cfg(feature = "full-scrapes")]
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            run_api: false,
+            address: SocketAddr::from(([127, 0, 0, 1], 8080)),
         }
     }
 }

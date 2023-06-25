@@ -14,7 +14,7 @@ name = "aquatic_common"
 
 [features]
 rustls = ["dep:rustls", "rustls-pemfile"]
-full-scrape = ["tokio", "axum", "flume"]
+full-scrapes = ["tokio", "axum", "flume"]
 
 [dependencies]
 aquatic_toml_config.workspace = true

@@ -254,7 +254,7 @@ impl<I: Ip> TorrentMap<I> {
         self.0.len()
     }
 
-    #[cfg(feature = "full-scrape")]
+    #[cfg(feature = "full-scrapes")]
     pub fn full_scrape(&self) -> Vec<aquatic_common::full_scrape::FullScrapeStatistics> {
         self.0
             .iter()

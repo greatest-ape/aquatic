@@ -9,7 +9,7 @@ use rand::Rng;
 pub mod access_list;
 pub mod cli;
 pub mod cpu_pinning;
-#[cfg(feature = "full-scrape")]
+#[cfg(feature = "full-scrapes")]
 pub mod full_scrape;
 pub mod privileges;
 #[cfg(feature = "rustls")]
