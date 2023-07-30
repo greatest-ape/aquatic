@@ -34,7 +34,7 @@ futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.24"
 glommio = "0.8"
-hashbrown = { version = "0.13", features = ["serde"] }
+hashbrown = { version = "0.14", features = ["serde"] }
 httparse = "1"
 log = "0.4"
 metrics = { version = "0.21", optional = true }

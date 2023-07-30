@@ -22,7 +22,7 @@ aquatic_toml_config.workspace = true
 aquatic_udp_protocol.workspace = true
 
 anyhow = "1"
-hashbrown = "0.13"
+hashbrown = "0.14"
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }
 rand_distr = "0.4"
