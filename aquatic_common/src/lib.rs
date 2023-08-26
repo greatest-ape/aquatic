@@ -260,9 +260,9 @@ mod tests {
     fn test_extract_response_peers() {
         let mut rng = SmallRng::from_entropy();
 
-        for num_peers_in_map in 0..1000 {
-            for max_num_peers_to_take in [0, 1, 2, 5, 10, 50] {
-                for sender_peer_map_key in [0, 1, 4, 5, 10, 44, 500] {
+        for num_peers_in_map in 0..50 {
+            for max_num_peers_to_take in 0..50 {
+                for sender_peer_map_key in 0..50 {
                     test_extract_response_peers_helper(
                         &mut rng,
                         num_peers_in_map,
