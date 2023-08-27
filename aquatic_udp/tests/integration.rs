@@ -8,17 +8,16 @@ use std::{
 use anyhow::Context;
 use aquatic_udp::{common::BUFFER_SIZE, config::Config};
 use aquatic_udp_protocol::{
-    common::PeerId, AnnounceEvent, AnnounceRequest, AnnounceResponse, ConnectRequest, ConnectionId,
-    InfoHash, NumberOfBytes, NumberOfPeers, PeerKey, Port, Request, Response, ScrapeRequest,
-    ScrapeResponse, TransactionId,
+    common::PeerId, AnnounceEvent, AnnounceRequest, ConnectRequest, ConnectionId, InfoHash,
+    NumberOfBytes, NumberOfPeers, PeerKey, Port, Request, Response, ScrapeRequest, ScrapeResponse,
+    TransactionId,
 };
-
-const PEERS_WANTED: usize = 10;
 
 #[test]
 fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
     const TRACKER_PORT: u16 = 40_111;
     const PEER_PORT_START: u16 = 30_000;
+    const PEERS_WANTED: usize = 10;
 
     let mut config = Config::default();
 
@@ -48,15 +47,24 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
 
         let connection_id = connect(&socket, tracker_addr).with_context(|| "connect")?;
 
-        let announce_response = announce(
-            &socket,
-            tracker_addr,
-            connection_id,
-            PEER_PORT_START + i as u16,
-            info_hash,
-            is_seeder,
-        )
-        .with_context(|| "announce")?;
+        let announce_response = {
+            let response = announce(
+                &socket,
+                tracker_addr,
+                connection_id,
+                PEER_PORT_START + i as u16,
+                info_hash,
+                PEERS_WANTED,
+                is_seeder,
+            )
+            .with_context(|| "announce")?;
+
+            if let Response::AnnounceIpv4(response) = response {
+                response
+            } else {
+                return Err(anyhow::anyhow!("not announce response: {:?}", response));
+            }
+        };
 
         assert_eq!(announce_response.peers.len(), i.min(PEERS_WANTED));
 
@@ -91,6 +99,39 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_announce_with_invalid_connection_id() -> anyhow::Result<()> {
+    const TRACKER_PORT: u16 = 40_112;
+
+    let mut config = Config::default();
+
+    config.network.address.set_port(TRACKER_PORT);
+
+    let tracker_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, TRACKER_PORT));
+    let peer_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
+
+    run_tracker(config);
+
+    let socket = UdpSocket::bind(peer_addr)?;
+    socket.set_read_timeout(Some(Duration::from_secs(1)))?;
+
+    let res_response = announce(
+        &socket,
+        tracker_addr,
+        ConnectionId(0),
+        1,
+        InfoHash([0; 20]),
+        100,
+        false,
+    );
+
+    // No response should be sent by tracker. Ideally, we would like to test
+    // that the error is in fact a would-block one on the socket.
+    assert!(matches!(res_response, Err(_)));
+
+    Ok(())
+}
+
 // FIXME: should ideally try different ports and use sync primitives to find
 // out if tracker was successfully started
 fn run_tracker(config: Config) {
@@ -121,8 +162,9 @@ fn announce(
     connection_id: ConnectionId,
     peer_port: u16,
     info_hash: InfoHash,
+    peers_wanted: usize,
     seeder: bool,
-) -> anyhow::Result<AnnounceResponse<Ipv4Addr>> {
+) -> anyhow::Result<Response> {
     let mut peer_id = PeerId([0; 20]);
 
     for chunk in peer_id.0.chunks_exact_mut(2) {
@@ -140,17 +182,11 @@ fn announce(
         event: AnnounceEvent::Started,
         ip_address: None,
         key: PeerKey(0),
-        peers_wanted: NumberOfPeers(PEERS_WANTED as i32),
+        peers_wanted: NumberOfPeers(peers_wanted as i32),
         port: Port(peer_port),
     });
 
-    let response = request_and_response(&socket, tracker_addr, request)?;
-
-    if let Response::AnnounceIpv4(response) = response {
-        Ok(response)
-    } else {
-        return Err(anyhow::anyhow!("not announce response: {:?}", response));
-    }
+    Ok(request_and_response(&socket, tracker_addr, request)?)
 }
 
 fn scrape(
