@@ -227,7 +227,7 @@ dependencies = [
  "blake3",
  "cfg-if",
  "compact_str",
- "constant_time_eq 0.2.6",
+ "constant_time_eq",
  "crossbeam-channel",
  "getrandom",
  "hashbrown 0.14.0",
@@ -497,7 +497,7 @@ dependencies = [
  "arrayvec",
  "cc",
  "cfg-if",
- "constant_time_eq 0.3.0",
+ "constant_time_eq",
  "digest",
 ]
 
@@ -689,12 +689,6 @@ dependencies = [
  "unicode-width",
  "windows-sys 0.45.0",
 ]
-
-[[package]]
-name = "constant_time_eq"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a53c0a4d288377e7415b53dcfc3c04da5cdc2cc95c8d5ac178b58f0b861ad6"
 
 [[package]]
 name = "constant_time_eq"
