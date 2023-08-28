@@ -13,11 +13,11 @@ of sub-implementations for different protocols:
 [mio]: https://github.com/tokio-rs/mio
 [glommio]: https://github.com/DataDog/glommio
 
-| Name         | Protocol                          | OS requirements                      |
-|--------------|-----------------------------------|--------------------------------------|
-| aquatic_udp  | [BitTorrent over UDP]             | Unix-like / Linux 6.0+ with io_uring |
-| aquatic_http | [BitTorrent over HTTP] over TLS   | Linux 5.8+                           |
-| aquatic_ws   | [WebTorrent], optionally over TLS | Linux 5.8+                           |
+| Name         | Protocol                          | OS requirements |
+|--------------|-----------------------------------|-----------------|
+| aquatic_udp  | [BitTorrent over UDP]             | Unix-like       |
+| aquatic_http | [BitTorrent over HTTP] over TLS   | Linux 5.8+      |
+| aquatic_ws   | [WebTorrent], optionally over TLS | Linux 5.8+      |
 
 Features at a glance:
 
@@ -192,9 +192,10 @@ This is the most mature of the implementations. I consider it ready for producti
 
 #### io_uring
 
-An experimental io_uring backend is available. It currently requires Linux
-6.0 or later and will attempt to fall back to the [mio] backend if run with
-older kernels. To enable it, pass the `io-uring` feature when compiling:
+An experimental (and possibly unsound) io_uring backend is available. It
+currently requires Linux 6.0 or later and will attempt to fall back to the
+[mio] backend if run with older kernels. To enable it, pass the `io-uring`
+feature when compiling:
 
 ```sh
 cargo build --release -p aquatic_udp --features "io-uring"
@@ -204,7 +205,7 @@ cargo build --release -p aquatic_udp --features "io-uring"
 
 ![UDP BitTorrent tracker throughput comparison](./documents/aquatic-udp-load-test-illustration-2023-01-11.png)
 
-The mio backend was used. More details are available [here](./documents/aquatic-udp-load-test-2023-01-11.pdf).
+The default backend was used. More details are available [here](./documents/aquatic-udp-load-test-2023-01-11.pdf).
 
 ---
 

@@ -12,11 +12,11 @@ use anyhow::Context;
 use aquatic_udp::{common::BUFFER_SIZE, config::Config};
 use aquatic_udp_protocol::{
     common::PeerId, AnnounceEvent, AnnounceRequest, ConnectionId, InfoHash, NumberOfBytes,
-    NumberOfPeers, PeerKey, Port, Request, TransactionId,
+    NumberOfPeers, PeerKey, Port, Request, ScrapeRequest, TransactionId,
 };
 
 #[test]
-fn test_announce_with_invalid_connection_id() -> anyhow::Result<()> {
+fn test_invalid_connection_id() -> anyhow::Result<()> {
     const TRACKER_PORT: u16 = 40_112;
 
     let mut config = Config::default();
@@ -32,28 +32,48 @@ fn test_announce_with_invalid_connection_id() -> anyhow::Result<()> {
 
     socket.set_read_timeout(Some(Duration::from_secs(1)))?;
 
-    // Make sure that the tracker in fact responds to requests
+    // Send connect request to make sure that the tracker in fact responds to
+    // valid requests
     let connection_id = connect(&socket, tracker_addr).with_context(|| "connect")?;
 
+    let invalid_connection_id = ConnectionId(!connection_id.0);
+
+    let announce_request = Request::Announce(AnnounceRequest {
+        connection_id: invalid_connection_id,
+        transaction_id: TransactionId(0),
+        info_hash: InfoHash([0; 20]),
+        peer_id: PeerId([0; 20]),
+        bytes_downloaded: NumberOfBytes(0),
+        bytes_uploaded: NumberOfBytes(0),
+        bytes_left: NumberOfBytes(0),
+        event: AnnounceEvent::Started,
+        ip_address: None,
+        key: PeerKey(0),
+        peers_wanted: NumberOfPeers(10),
+        port: Port(1),
+    });
+
+    let scrape_request = Request::Scrape(ScrapeRequest {
+        connection_id: invalid_connection_id,
+        transaction_id: TransactionId(0),
+        info_hashes: vec![InfoHash([0; 20])],
+    });
+
+    no_response(&socket, tracker_addr, announce_request).with_context(|| "announce")?;
+    no_response(&socket, tracker_addr, scrape_request).with_context(|| "scrape")?;
+
+    Ok(())
+}
+
+fn no_response(
+    socket: &UdpSocket,
+    tracker_addr: SocketAddr,
+    request: Request,
+) -> anyhow::Result<()> {
     let mut buffer = [0u8; BUFFER_SIZE];
 
     {
         let mut buffer = Cursor::new(&mut buffer[..]);
-
-        let request = Request::Announce(AnnounceRequest {
-            connection_id: ConnectionId(!connection_id.0),
-            transaction_id: TransactionId(0),
-            info_hash: InfoHash([0; 20]),
-            peer_id: PeerId([0; 20]),
-            bytes_downloaded: NumberOfBytes(0),
-            bytes_uploaded: NumberOfBytes(0),
-            bytes_left: NumberOfBytes(0),
-            event: AnnounceEvent::Started,
-            ip_address: None,
-            key: PeerKey(0),
-            peers_wanted: NumberOfPeers(-1),
-            port: Port(1),
-        });
 
         request
             .write(&mut buffer)

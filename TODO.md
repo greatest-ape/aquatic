@@ -11,20 +11,13 @@
 * Non-trivial dependency updates
   * toml v0.7
   * syn v2.0
-  * simd-json v0.7
 
 ## Medium priority
 
+* stagger cleaning tasks?
 * Run cargo-fuzz on protocol crates
-* udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
 
-* Consider storing torrents in separate IndexMaps. The amount should be a power
-  of 2 and should be configurable. They could be stored in a Vec and the index
-  could be calculated by taking the first N bits of the info hash. Each such map
-  would also store when it was last cleaned. There would then be a small
-  configurable random chance that when an announce request is being processed,
-  the map will be cleaned. When doing the normal cleaning round, recently
-  cleaned maps would be skipped.
+* udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
 
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
@@ -36,24 +29,12 @@
 
 * Run cargo-deny in CI
 
-* udp: add IP blocklist, which would be more flexible than just adding option
-  for disallowing requests (claiming to be) from localhost
-
-* stagger cleaning tasks?
-
 * aquatic_ws
   * Add cleaning task for ConnectionHandle.announced_info_hashes?
   * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
     * replacing indexmap_amortized / simd_json with equivalents doesn't help
   * SinkExt::send maybe doesn't wake up properly?
     * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
-
-* aquatic_http_private
-  * Consider not setting Content-type: text/plain for responses and send vec as default octet stream instead
-  * stored procedure
-    * test ip format
-    * check user token length
-  * site will likely want num_seeders and num_leechers for all torrents..
 
 * Performance hyperoptimization (receive interrupts on correct core)
   * If there is no network card RSS support, do eBPF XDP CpuMap redirect based on packet info, to
@@ -73,9 +54,6 @@
 
 * aquatic_ws
   * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
-
-* extract response peers: extract "one extra" to compensate for removal,
-  of sender if present in selection?
 
 # Not important
 
