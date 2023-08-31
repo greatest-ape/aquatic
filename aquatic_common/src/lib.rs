@@ -159,89 +159,62 @@ where
     F: Fn(&V) -> R,
 {
     if peer_map.len() <= max_num_peers_to_take + 1 {
-        // First case: number of peers in map (minus sender peer) is less than
+        // This branch: number of peers in map (minus sender peer) is less than
         // or equal to number of peers to take, so return all except sender
         // peer.
         let mut peers = Vec::with_capacity(peer_map.len());
 
-        let mut opt_sender_peer_index = None;
-
-        for (i, (k, v)) in peer_map.iter().enumerate() {
-            opt_sender_peer_index =
-                opt_sender_peer_index.or((*k == sender_peer_map_key).then_some(i));
-
-            peers.push(peer_conversion_function(v));
-        }
-
-        if let Some(index) = opt_sender_peer_index {
-            peers.swap_remove(index);
-        }
+        peers.extend(peer_map.iter().filter_map(|(k, v)| {
+            (*k != sender_peer_map_key).then_some(peer_conversion_function(v))
+        }));
 
         // Handle the case when sender peer is not in peer list. Typically,
         // this function will not be called when this is the case.
         if peers.len() > max_num_peers_to_take {
-            peers.swap_remove(0);
+            peers.pop();
         }
 
         peers
     } else {
-        // If this branch is taken, the peer map contains at least two more
-        // peers than max_num_peers_to_take
+        // Note: if this branch is taken, the peer map contains at least two
+        // more peers than max_num_peers_to_take
 
         let middle_index = peer_map.len() / 2;
         // Add one to take two extra peers in case sender peer is among
         // selected peers and will need to be filtered out
-        let half_num_to_take = (max_num_peers_to_take / 2) + 1;
+        let num_to_take_per_half = (max_num_peers_to_take / 2) + 1;
 
-        let offset_half_one = rng.gen_range(0..(middle_index - half_num_to_take).max(1));
-        let offset_half_two =
-            rng.gen_range(middle_index..(peer_map.len() - half_num_to_take).max(middle_index + 1));
+        let offset_half_one = {
+            let from = 0;
+            let to = usize::max(1, middle_index - num_to_take_per_half);
 
-        let end_half_one = offset_half_one + half_num_to_take;
-        let end_half_two = offset_half_two + half_num_to_take;
+            rng.gen_range(from..to)
+        };
+        let offset_half_two = {
+            let from = middle_index;
+            let to = usize::max(middle_index + 1, peer_map.len() - num_to_take_per_half);
+
+            rng.gen_range(from..to)
+        };
+
+        let end_half_one = offset_half_one + num_to_take_per_half;
+        let end_half_two = offset_half_two + num_to_take_per_half;
 
         let mut peers = Vec::with_capacity(max_num_peers_to_take + 2);
 
-        // Extract first range
-        {
-            let mut opt_sender_peer_index = None;
-
-            if let Some(slice) = peer_map.get_range(offset_half_one..end_half_one) {
-                for (i, (k, v)) in slice.into_iter().enumerate() {
-                    opt_sender_peer_index =
-                        opt_sender_peer_index.or((*k == sender_peer_map_key).then_some(i));
-
-                    peers.push(peer_conversion_function(v));
-                }
-            }
-
-            if let Some(index) = opt_sender_peer_index {
-                peers.swap_remove(index);
-            }
+        if let Some(slice) = peer_map.get_range(offset_half_one..end_half_one) {
+            peers.extend(slice.iter().filter_map(|(k, v)| {
+                (*k != sender_peer_map_key).then_some(peer_conversion_function(v))
+            }));
         }
-
-        // Extract second range
-        {
-            let initial_peers_len = peers.len();
-
-            let mut opt_sender_peer_index = None;
-
-            if let Some(slice) = peer_map.get_range(offset_half_two..end_half_two) {
-                for (i, (k, v)) in slice.into_iter().enumerate() {
-                    opt_sender_peer_index =
-                        opt_sender_peer_index.or((*k == sender_peer_map_key).then_some(i));
-
-                    peers.push(peer_conversion_function(v));
-                }
-            }
-
-            if let Some(index) = opt_sender_peer_index {
-                peers.swap_remove(initial_peers_len + index);
-            }
+        if let Some(slice) = peer_map.get_range(offset_half_two..end_half_two) {
+            peers.extend(slice.iter().filter_map(|(k, v)| {
+                (*k != sender_peer_map_key).then_some(peer_conversion_function(v))
+            }));
         }
 
         while peers.len() > max_num_peers_to_take {
-            peers.swap_remove(0);
+            peers.pop();
         }
 
         peers
