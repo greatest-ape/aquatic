@@ -76,6 +76,7 @@ pub struct NetworkConfig {
 
     pub websocket_max_message_size: usize,
     pub websocket_max_frame_size: usize,
+    pub websocket_write_buffer_size: usize,
 
     /// Return a HTTP 200 Ok response when receiving GET /health. Can not be
     /// combined with enable_tls.
@@ -95,6 +96,7 @@ impl Default for NetworkConfig {
 
             websocket_max_message_size: 64 * 1024,
             websocket_max_frame_size: 16 * 1024,
+            websocket_write_buffer_size: 8 * 1024,
 
             enable_http_health_checks: false,
         }
