@@ -8,7 +8,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 readme.workspace = true
-rust-version.workspace = true
+rust-version = "1.70"
 
 [lib]
 name = "aquatic_ws"

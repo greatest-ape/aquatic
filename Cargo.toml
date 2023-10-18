@@ -1,21 +1,22 @@
 [workspace]
 members = [ 
-    "aquatic",
-    "aquatic_common",
-    "aquatic_http",
-    "aquatic_http_load_test",
-    "aquatic_http_protocol",
-    "aquatic_peer_id",
-    "aquatic_toml_config",
-    "aquatic_toml_config_derive",
-    "aquatic_udp",
-    "aquatic_udp_bench",
-    "aquatic_udp_load_test",
-    "aquatic_udp_protocol",
-    "aquatic_ws",
-    "aquatic_ws_load_test",
-    "aquatic_ws_protocol",
+    "crates/combined_binary",
+    "crates/common",
+    "crates/http",
+    "crates/http_load_test",
+    "crates/http_protocol",
+    "crates/peer_id",
+    "crates/toml_config",
+    "crates/toml_config_derive",
+    "crates/udp",
+    "crates/udp_bench",
+    "crates/udp_load_test",
+    "crates/udp_protocol",
+    "crates/ws",
+    "crates/ws_load_test",
+    "crates/ws_protocol",
 ]
+resolver = "2"
 
 [workspace.package]
 version = "0.8.0"
@@ -27,16 +28,16 @@ readme = "./README.md"
 rust-version = "1.64"
 
 [workspace.dependencies]
-aquatic_common = { version = "0.8.0", path = "./aquatic_common" }
-aquatic_http_protocol = { version = "0.8.0", path = "./aquatic_http_protocol" }
-aquatic_http = { version = "0.8.0", path = "./aquatic_http" }
-aquatic_peer_id = { version = "0.8.0", path = "./aquatic_peer_id" }
-aquatic_toml_config = { version = "0.8.0", path = "./aquatic_toml_config" }
-aquatic_toml_config_derive = { version = "0.8.0", path = "./aquatic_toml_config_derive" }
-aquatic_udp_protocol = { version = "0.8.0", path = "./aquatic_udp_protocol" }
-aquatic_udp = { version = "0.8.0", path = "./aquatic_udp" }
-aquatic_ws_protocol = { version = "0.8.0", path = "./aquatic_ws_protocol" }
-aquatic_ws = { version = "0.8.0", path = "./aquatic_ws" }
+aquatic_common = { version = "0.8.0", path = "./crates/common" }
+aquatic_http_protocol = { version = "0.8.0", path = "./crates/http_protocol" }
+aquatic_http = { version = "0.8.0", path = "./crates/http" }
+aquatic_peer_id = { version = "0.8.0", path = "./crates/peer_id" }
+aquatic_toml_config = { version = "0.8.0", path = "./crates/toml_config" }
+aquatic_toml_config_derive = { version = "0.8.0", path = "./crates/toml_config_derive" }
+aquatic_udp_protocol = { version = "0.8.0", path = "./crates/udp_protocol" }
+aquatic_udp = { version = "0.8.0", path = "./crates/udp" }
+aquatic_ws_protocol = { version = "0.8.0", path = "./crates/ws_protocol" }
+aquatic_ws = { version = "0.8.0", path = "./crates/ws" }
 
 [profile.release]
 debug = false
