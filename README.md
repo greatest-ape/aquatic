@@ -42,11 +42,10 @@ Known users:
 - Build the implementations that you are interested in:
 
 ```sh
-# Tell Rust to enable support for all SIMD extensions present on current CPU
-# except for those relating to AVX-512. SIMD is required for aquatic_ws and
-# recommended for the other implementations. If you run a processor that
-# doesn't clock down when using AVX-512, you can enable those instructions
-# too.
+# Recommended: tell Rust to enable support for all SIMD extensions present on
+# current CPU except for those relating to AVX-512. (If you run a processor
+# that doesn't clock down when using AVX-512, you can enable those instructions
+# too.)
 . ./scripts/env-native-cpu-without-avx-512
 
 cargo build --release -p aquatic_udp

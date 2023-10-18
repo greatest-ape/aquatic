@@ -20,6 +20,11 @@
 
 * Add support for reporting peer client information
 
+#### Changed
+
+* Compiling with SIMD extensions enabled is no longer required, due to the
+  addition of runtime detection to simd-json
+
 ## 0.8.0 - 2023-03-17
 
 ### General
