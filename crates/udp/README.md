@@ -1,4 +1,4 @@
-# aquatic_udp: high-performance open BitTorrent tracker
+# aquatic_udp: high-performance open UDP BitTorrent tracker
 
 [![CI](https://github.com/greatest-ape/aquatic/actions/workflows/ci.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/ci.yml)
 
@@ -15,7 +15,7 @@ Features at a glance:
 
 Known users:
 
-- [explodie.org public tracker](https://explodie.org/opentracker.html) (`udp://explodie.org:6969`), typically [serving ~80,000 requests per second](https://explodie.org/tracker-stats.html)
+- [explodie.org public tracker](https://explodie.org/opentracker.html) (`udp://explodie.org:6969`), typically [serving ~100,000 requests per second](https://explodie.org/tracker-stats.html)
 
 This is the most mature implementation in the aquatic family. I consider it fully ready for production use.
 
