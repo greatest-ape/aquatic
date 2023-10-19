@@ -464,7 +464,8 @@ async fn run_stream_agnostic_connection<
     let ws_config = tungstenite::protocol::WebSocketConfig {
         max_frame_size: Some(config.network.websocket_max_frame_size),
         max_message_size: Some(config.network.websocket_max_message_size),
-        max_send_queue: Some(2),
+        write_buffer_size: config.network.websocket_write_buffer_size,
+        max_write_buffer_size: config.network.websocket_write_buffer_size * 3,
         ..Default::default()
     };
     let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;

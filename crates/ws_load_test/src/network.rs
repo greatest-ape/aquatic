@@ -148,7 +148,6 @@ impl Connection {
                 };
 
                 self.stream.send(request.to_ws_message()).await?;
-                self.stream.flush().await?;
 
                 self.load_test_state
                     .statistics
