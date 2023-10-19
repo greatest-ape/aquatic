@@ -11,7 +11,7 @@ use aquatic_toml_config::TomlConfig;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// Number of socket workers. Increase with core count
+    /// Number of socket worker. One per physical core is recommended.
     ///
     /// Socket workers receive requests from clients and parse them.
     /// Responses to connect requests are sent back immediately. Announce and
@@ -41,6 +41,13 @@ pub struct Config {
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
+
+    /// Access list configuration
+    /// 
+    /// The file is read on start and when the program receives `SIGUSR1`. If
+    /// initial parsing fails, the program exits. Later failures result in in
+    /// emitting of an error-level log message, while successful updates of the
+    /// access list result in emitting of an info-level log message.
     pub access_list: AccessListConfig,
     #[cfg(feature = "cpu-pinning")]
     pub cpu_pinning: aquatic_common::cpu_pinning::asc::CpuPinningConfigAsc,

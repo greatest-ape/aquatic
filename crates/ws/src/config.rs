@@ -15,10 +15,21 @@ use aquatic_toml_config::TomlConfig;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
+    /// Number of socket workers.
+    /// 
+    /// On servers with 1-7 physical cores, using a worker per core is
+    /// recommended. With more cores, using two workers less than the
+    /// number of cores is recommended.
+    ///
     /// Socket workers receive requests from the socket, parse them and send
     /// them on to the swarm workers. They then receive responses from the
     /// swarm workers, encode them and send them back over the socket.
     pub socket_workers: usize,
+    /// Number of swarm workers.
+    /// 
+    /// A single worker is recommended for servers with 1-7 physical cores.
+    /// With more cores, using two workers is recommended.
+    ///
     /// Swarm workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
     pub swarm_workers: usize,
@@ -27,6 +38,12 @@ pub struct Config {
     pub protocol: ProtocolConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
+    /// Access list configuration
+    /// 
+    /// The file is read on start and when the program receives `SIGUSR1`. If
+    /// initial parsing fails, the program exits. Later failures result in in
+    /// emitting of an error-level log message, while successful updates of the
+    /// access list result in emitting of an info-level log message.
     pub access_list: AccessListConfig,
     #[cfg(feature = "metrics")]
     pub metrics: MetricsConfig,
