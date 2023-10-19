@@ -1,8 +1,8 @@
-# aquatic_udp: high-performance open BitTorrent tracker
+# aquatic_ws: high-performance open WebTorrent tracker
 
 [![CI](https://github.com/greatest-ape/aquatic/actions/workflows/ci.yml/badge.svg)](https://github.com/greatest-ape/aquatic/actions/workflows/ci.yml)
 
-High-performance open UDP BitTorrent tracker for Unix-like operating systems.
+High-performance WebTorrent tracker for Linux 5.8 or later.
 
 Features at a glance:
 
@@ -13,17 +13,11 @@ Features at a glance:
 - Prometheus metrics
 - Automated CI testing of full file transfers
 
-Known users:
-
-- [explodie.org public tracker](https://explodie.org/opentracker.html) (`udp://explodie.org:6969`), typically [serving ~80,000 requests per second](https://explodie.org/tracker-stats.html)
-
-This is the most mature implementation in the aquatic family. I consider it fully ready for production use.
-
 ## Performance
 
-![UDP BitTorrent tracker throughput comparison](../../documents/aquatic-udp-load-test-illustration-2023-01-11.png)
+![WebTorrent tracker throughput comparison](../../documents/aquatic-ws-load-test-illustration-2023-01-25.png)
 
-More benchmark details are available [here](../../documents/aquatic-udp-load-test-2023-01-11.pdf).
+More details are available [here](../../documents/aquatic-ws-load-test-2023-01-25.pdf).
 
 ## Usage
 
@@ -41,29 +35,44 @@ More benchmark details are available [here](../../documents/aquatic-udp-load-tes
 # too.)
 . ./scripts/env-native-cpu-without-avx-512
 
-cargo build --release -p aquatic_udp
+cargo build --release -p aquatic_ws
 ```
 
-### Configuring and running
+### Configuring
 
 Generate the configuration file:
 
 ```sh
-./target/release/aquatic_udp -p > "aquatic-udp-config.toml"
+./target/release/aquatic_ws -p > "aquatic-ws-config.toml"
 ```
 
 Make necessary adjustments to the file. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
+Running behind a reverse proxy is supported, as long as IPv4 requests are
+proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
+
+### Running
+
+Make sure locked memory limits are sufficient:
+- If you're using a systemd service file, add `LimitMEMLOCK=65536000` to it
+- Otherwise, add the following lines to
+`/etc/security/limits.conf`, and then log out and back in:
+
+```
+*    hard    memlock    65536
+*    soft    memlock    65536
+```
+
 Once done, start the application:
 
 ```sh
-./target/release/aquatic_udp -c "aquatic-udp-config.toml"
+./target/release/aquatic_ws -c "aquatic-ws-config.toml"
 ```
 
 If your server is pointed to by domain `example.com` and you configured the
 tracker to run on port 3000, people can now use it by adding the URL
-`udp://example.com:3000` to their torrent files or magnet links.
+`wss://example.com:3000` to their torrent files or magnet links.
 
 ### Load testing
 
@@ -73,15 +82,19 @@ configuration files in a similar manner to the tracker application.
 After starting the tracker, run the load tester:
 
 ```sh
-./scripts/run-load-test-udp.sh
+./scripts/run-load-test-ws.sh
 ```
 
 ## Details
 
-Implements [BEP 015](https://www.bittorrent.org/beps/bep_0015.html) ([more details](https://libtorrent.org/udp_tracker_protocol.html)) with the following exceptions:
+Aims for compatibility with [WebTorrent](https://github.com/webtorrent)
+clients. Notes:
 
-- Ignores IP addresses sent in announce requests. The packet source IP is always used.
-- Doesn't track the number of torrent downloads (0 is always sent). 
+  * Doesn't track the number of torrent downloads (0 is always sent). 
+  * Doesn't allow full scrapes, i.e. of all registered info hashes
+
+`aquatic_ws` has not been tested as much as `aquatic_udp`, but likely works
+fine in production.
 
 ## Copyright and license
 
@@ -89,3 +102,4 @@ Copyright (c) 2020-2023 Joakim Frostegård
 
 Distributed under the terms of the Apache 2.0 license. Please refer to the
 `LICENSE` file in the repository root directory for details.
+

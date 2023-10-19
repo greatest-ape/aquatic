@@ -15,10 +15,14 @@ use aquatic_common::cli::LogLevel;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
+    /// Number of socket worker. One per physical core is recommended.
+    ///
     /// Socket workers receive requests from the socket, parse them and send
     /// them on to the swarm workers. They then receive responses from the
     /// swarm workers, encode them and send them back over the socket.
     pub socket_workers: usize,
+    /// Number of swarm workers. One is enough in almost all cases
+    ///
     /// Swarm workers receive a number of requests from socket workers,
     /// generate responses and send them back to the socket workers.
     pub swarm_workers: usize,
@@ -27,6 +31,12 @@ pub struct Config {
     pub protocol: ProtocolConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
+    /// Access list configuration
+    /// 
+    /// The file is read on start and when the program receives `SIGUSR1`. If
+    /// initial parsing fails, the program exits. Later failures result in in
+    /// emitting of an error-level log message, while successful updates of the
+    /// access list result in emitting of an info-level log message.
     pub access_list: AccessListConfig,
     pub cpu_pinning: CpuPinningConfigAsc,
     #[cfg(feature = "metrics")]
