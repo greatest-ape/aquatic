@@ -13,6 +13,7 @@ use aquatic_common::rustls_config::RustlsConfig;
 use aquatic_common::{PanicSentinel, ServerStartInstant};
 use aquatic_peer_id::PeerClient;
 use aquatic_ws_protocol::*;
+use arc_swap::ArcSwap;
 use async_tungstenite::WebSocketStream;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{AsyncWriteExt, StreamExt};
@@ -59,7 +60,7 @@ pub async fn run_socket_worker(
     _sentinel: PanicSentinel,
     config: Config,
     state: State,
-    opt_tls_config: Option<Arc<RustlsConfig>>,
+    opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
     in_message_mesh_builder: MeshBuilder<(InMessageMeta, InMessage), Partial>,
     out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
@@ -370,12 +371,12 @@ async fn run_connection(
     server_start_instant: ServerStartInstant,
     out_message_consumer_id: ConsumerId,
     connection_id: ConnectionId,
-    opt_tls_config: Option<Arc<RustlsConfig>>,
+    opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
     ip_version: IpVersion,
     mut stream: TcpStream,
 ) -> anyhow::Result<()> {
     if let Some(tls_config) = opt_tls_config {
-        let tls_acceptor: TlsAcceptor = tls_config.into();
+        let tls_acceptor: TlsAcceptor = tls_config.load_full().into();
 
         let stream = tls_acceptor.accept(stream).await?;
 

@@ -10,6 +10,7 @@ use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_fo
 use aquatic_common::cpu_pinning::WorkerIndex;
 use aquatic_common::rustls_config::create_rustls_config;
 use aquatic_common::{PanicSentinelWatcher, ServerStartInstant};
+use arc_swap::ArcSwap;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 use signal_hook::{
     consts::{SIGTERM, SIGUSR1},
@@ -76,13 +77,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
     let opt_tls_config = if config.network.enable_tls {
-        Some(Arc::new(
+        Some(Arc::new(ArcSwap::from_pointee(
             create_rustls_config(
                 &config.network.tls_certificate_path,
                 &config.network.tls_private_key_path,
             )
             .with_context(|| "create rustls config")?,
-        ))
+        )))
     } else {
         None
     };
@@ -181,6 +182,20 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         match signal {
             SIGUSR1 => {
                 let _ = update_access_list(&config.access_list, &state.access_list);
+
+                if let Some(tls_config) = opt_tls_config.as_ref() {
+                    match create_rustls_config(
+                        &config.network.tls_certificate_path,
+                        &config.network.tls_private_key_path,
+                    ) {
+                        Ok(config) => {
+                            tls_config.store(Arc::new(config));
+
+                            ::log::info!("successfully updated tls config");
+                        }
+                        Err(err) => ::log::error!("could not update tls config: {:#}", err),
+                    }
+                }
             }
             SIGTERM => {
                 if sentinel_watcher.panic_was_triggered() {

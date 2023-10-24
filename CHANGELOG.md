@@ -19,6 +19,7 @@
 #### Added
 
 * Add support for reporting peer client information
+* Reload TLS certificate and key on SIGUSR1
 
 #### Changed
 

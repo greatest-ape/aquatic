@@ -311,6 +311,7 @@ dependencies = [
  "aquatic_peer_id",
  "aquatic_toml_config",
  "aquatic_ws_protocol",
+ "arc-swap",
  "async-tungstenite",
  "cfg-if",
  "futures",

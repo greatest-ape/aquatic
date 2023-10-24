@@ -43,7 +43,7 @@ pub struct Config {
     pub privileges: PrivilegeConfig,
 
     /// Access list configuration
-    /// 
+    ///
     /// The file is read on start and when the program receives `SIGUSR1`. If
     /// initial parsing fails, the program exits. Later failures result in in
     /// emitting of an error-level log message, while successful updates of the
