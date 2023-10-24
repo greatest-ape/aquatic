@@ -32,7 +32,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     /// Access list configuration
-    /// 
+    ///
     /// The file is read on start and when the program receives `SIGUSR1`. If
     /// initial parsing fails, the program exits. Later failures result in in
     /// emitting of an error-level log message, while successful updates of the
@@ -77,6 +77,12 @@ pub struct NetworkConfig {
     /// Maximum number of pending TCP connections
     pub tcp_backlog: i32,
     /// Path to TLS certificate (DER-encoded X.509)
+    ///
+    /// The TLS files are read on start and when the program receives `SIGUSR1`.
+    /// If initial parsing fails, the program exits. Later failures result in
+    /// in emitting of an error-level log message, while successful updates
+    /// result in emitting of an info-level log message. Updates only affect
+    /// new connections.
     pub tls_certificate_path: PathBuf,
     /// Path to TLS private key (DER-encoded ASN.1 in PKCS#8 or PKCS#1 format)
     pub tls_private_key_path: PathBuf,

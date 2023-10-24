@@ -9,6 +9,7 @@ use aquatic_common::{
     rustls_config::create_rustls_config,
     PanicSentinelWatcher, ServerStartInstant,
 };
+use arc_swap::ArcSwap;
 use common::State;
 use glommio::{channels::channel_mesh::MeshBuilder, prelude::*};
 use signal_hook::{
@@ -57,10 +58,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
-    let tls_config = Arc::new(create_rustls_config(
+    let tls_config = Arc::new(ArcSwap::from_pointee(create_rustls_config(
         &config.network.tls_certificate_path,
         &config.network.tls_private_key_path,
-    )?);
+    )?));
 
     let server_start_instant = ServerStartInstant::new();
 
@@ -144,6 +145,18 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         match signal {
             SIGUSR1 => {
                 let _ = update_access_list(&config.access_list, &state.access_list);
+
+                match create_rustls_config(
+                    &config.network.tls_certificate_path,
+                    &config.network.tls_private_key_path,
+                ) {
+                    Ok(config) => {
+                        tls_config.store(Arc::new(config));
+
+                        ::log::info!("successfully updated tls config");
+                    }
+                    Err(err) => ::log::error!("could not update tls config: {:#}", err),
+                }
             }
             SIGTERM => {
                 if sentinel_watcher.panic_was_triggered() {

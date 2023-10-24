@@ -16,7 +16,7 @@ use aquatic_toml_config::TomlConfig;
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Number of socket workers.
-    /// 
+    ///
     /// On servers with 1-7 physical cores, using a worker per core is
     /// recommended. With more cores, using two workers less than the
     /// number of cores is recommended.
@@ -26,7 +26,7 @@ pub struct Config {
     /// swarm workers, encode them and send them back over the socket.
     pub socket_workers: usize,
     /// Number of swarm workers.
-    /// 
+    ///
     /// A single worker is recommended for servers with 1-7 physical cores.
     /// With more cores, using two workers is recommended.
     ///
@@ -39,7 +39,7 @@ pub struct Config {
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
     /// Access list configuration
-    /// 
+    ///
     /// The file is read on start and when the program receives `SIGUSR1`. If
     /// initial parsing fails, the program exits. Later failures result in in
     /// emitting of an error-level log message, while successful updates of the
@@ -85,6 +85,12 @@ pub struct NetworkConfig {
     pub tcp_backlog: i32,
 
     /// Enable TLS
+    ///
+    /// The TLS files are read on start and when the program receives `SIGUSR1`.
+    /// If initial parsing fails, the program exits. Later failures result in
+    /// in emitting of an error-level log message, while successful updates
+    /// result in emitting of an info-level log message. Updates only affect
+    /// new connections.
     pub enable_tls: bool,
     /// Path to TLS certificate (DER-encoded X.509)
     pub tls_certificate_path: PathBuf,
@@ -152,6 +158,11 @@ pub struct CleaningConfig {
     pub connection_cleaning_interval: u64,
     /// Close connections if no responses have been sent to them for this long (seconds)
     pub max_connection_idle: u32,
+    /// After updating TLS certificates, close connections running with
+    /// previous certificates after this long (seconds)
+    ///
+    /// Countdown starts at next connection cleaning.
+    pub close_after_tls_update_grace_period: u32,
 }
 
 impl Default for CleaningConfig {
@@ -161,6 +172,7 @@ impl Default for CleaningConfig {
             max_peer_age: 1800,
             max_connection_idle: 60 * 5,
             connection_cleaning_interval: 30,
+            close_after_tls_update_grace_period: 60 * 60 * 60,
         }
     }
 }
