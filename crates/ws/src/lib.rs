@@ -87,6 +87,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     } else {
         None
     };
+    let mut opt_tls_cert_data = if config.network.enable_tls {
+        Some(
+            ::std::fs::read(&config.network.tls_certificate_path)
+                .with_context(|| "open tls certificate file")?,
+        )
+    } else {
+        None
+    };
 
     let server_start_instant = ServerStartInstant::new();
 
@@ -184,16 +192,25 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 let _ = update_access_list(&config.access_list, &state.access_list);
 
                 if let Some(tls_config) = opt_tls_config.as_ref() {
-                    match create_rustls_config(
-                        &config.network.tls_certificate_path,
-                        &config.network.tls_private_key_path,
-                    ) {
-                        Ok(config) => {
-                            tls_config.store(Arc::new(config));
-
-                            ::log::info!("successfully updated tls config");
+                    match ::std::fs::read(&config.network.tls_certificate_path) {
+                        Ok(data) if &data == opt_tls_cert_data.as_ref().unwrap() => {
+                            ::log::info!("skipping tls config update: certificate identical to currently loaded");
                         }
-                        Err(err) => ::log::error!("could not update tls config: {:#}", err),
+                        Ok(data) => {
+                            match create_rustls_config(
+                                &config.network.tls_certificate_path,
+                                &config.network.tls_private_key_path,
+                            ) {
+                                Ok(config) => {
+                                    tls_config.store(Arc::new(config));
+                                    opt_tls_cert_data = Some(data);
+
+                                    ::log::info!("successfully updated tls config");
+                                }
+                                Err(err) => ::log::error!("could not update tls config: {:#}", err),
+                            }
+                        }
+                        Err(err) => ::log::error!("couldn't read tls certificate file: {:#}", err),
                     }
                 }
             }
