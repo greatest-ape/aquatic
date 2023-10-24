@@ -15,6 +15,7 @@ use aquatic_http_protocol::request::{Request, RequestParseError, ScrapeRequest};
 use aquatic_http_protocol::response::{
     FailureResponse, Response, ScrapeResponse, ScrapeStatistics,
 };
+use arc_swap::ArcSwap;
 use either::Either;
 use futures::stream::FuturesUnordered;
 use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt};
@@ -59,7 +60,7 @@ pub async fn run_socket_worker(
     _sentinel: PanicSentinel,
     config: Config,
     state: State,
-    tls_config: Arc<RustlsConfig>,
+    tls_config: Arc<ArcSwap<RustlsConfig>>,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     priv_dropper: PrivilegeDropper,
     server_start_instant: ServerStartInstant,
@@ -208,12 +209,12 @@ impl Connection {
         request_senders: Rc<Senders<ChannelRequest>>,
         server_start_instant: ServerStartInstant,
         connection_id: ConnectionId,
-        tls_config: Arc<RustlsConfig>,
+        tls_config: Arc<ArcSwap<RustlsConfig>>,
         connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
         stream: TcpStream,
         peer_addr: CanonicalSocketAddr,
     ) -> anyhow::Result<()> {
-        let tls_acceptor: TlsAcceptor = tls_config.into();
+        let tls_acceptor: TlsAcceptor = tls_config.load_full().into();
         let stream = tls_acceptor.accept(stream).await?;
 
         let mut response_buffer = [0; RESPONSE_BUFFER_SIZE];

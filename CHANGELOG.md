@@ -14,12 +14,18 @@
 
 * Add support for reporting peer client information
 
+### aquatic_http
+
+#### Added
+
+* Reload TLS certificate (and key) on SIGUSR1
+
 ### aquatic_ws
 
 #### Added
 
 * Add support for reporting peer client information
-* Reload TLS certificate and key on SIGUSR1
+* Reload TLS certificate (and key) on SIGUSR1
 
 #### Changed
 

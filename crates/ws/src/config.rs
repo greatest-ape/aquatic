@@ -88,8 +88,9 @@ pub struct NetworkConfig {
     ///
     /// The TLS files are read on start and when the program receives `SIGUSR1`.
     /// If initial parsing fails, the program exits. Later failures result in
-    /// in emitting of an error-level log message, while a successful update
-    /// results in emitting of an info-level log message.
+    /// in emitting of an error-level log message, while successful updates
+    /// result in emitting of an info-level log message. Updates only affect
+    /// new connections.
     pub enable_tls: bool,
     /// Path to TLS certificate (DER-encoded X.509)
     pub tls_certificate_path: PathBuf,
