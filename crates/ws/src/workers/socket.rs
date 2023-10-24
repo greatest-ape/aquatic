@@ -54,6 +54,8 @@ struct ConnectionReference {
     announced_info_hashes: HashMap<InfoHash, PeerId>,
     ip_version: IpVersion,
     opt_peer_client: Option<(PeerClient, String)>,
+    opt_tls_config: Option<Arc<RustlsConfig>>,
+    valid_until_after_tls_update: Option<ValidUntil>,
 }
 
 pub async fn run_socket_worker(
@@ -111,11 +113,12 @@ pub async fn run_socket_worker(
 
     // Periodically clean connections
     TimerActionRepeat::repeat_into(
-        enclose!((config, connection_slab) move || {
+        enclose!((config, connection_slab, opt_tls_config) move || {
             clean_connections(
                 config.clone(),
                 connection_slab.clone(),
                 server_start_instant,
+                opt_tls_config.clone(),
             )
         }),
         tq_prioritized,
@@ -158,6 +161,8 @@ pub async fn run_socket_worker(
                     announced_info_hashes: Default::default(),
                     ip_version,
                     opt_peer_client: None,
+                    opt_tls_config: opt_tls_config.as_ref().map(|c| c.load_full()),
+                    valid_until_after_tls_update: None,
                 });
 
                 ::log::trace!("accepting stream, assigning id {}", key);
@@ -262,10 +267,31 @@ async fn clean_connections(
     config: Rc<Config>,
     connection_slab: Rc<RefCell<Slab<ConnectionReference>>>,
     server_start_instant: ServerStartInstant,
+    opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
 ) -> Option<Duration> {
     let now = server_start_instant.seconds_elapsed();
+    let opt_current_tls_config = opt_tls_config.map(|c| c.load_full());
 
     connection_slab.borrow_mut().retain(|_, reference| {
+        if let Some(valid_until) = reference.valid_until_after_tls_update {
+            if !valid_until.valid(now) {
+                if let Some(handle) = reference.task_handle.as_ref() {
+                    handle.cancel();
+                }
+
+                return false;
+            }
+        } else if let Some(false) = opt_current_tls_config
+            .as_ref()
+            .zip(reference.opt_tls_config.as_ref())
+            .map(|(a, b)| Arc::ptr_eq(a, b))
+        {
+            reference.valid_until_after_tls_update = Some(ValidUntil::new(
+                server_start_instant,
+                config.cleaning.close_after_tls_update_grace_period,
+            ));
+        }
+
         if reference.valid_until.valid(now) {
             #[cfg(feature = "prometheus")]
             if let Some((peer_client, prefix)) = &reference.opt_peer_client {

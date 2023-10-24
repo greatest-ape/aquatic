@@ -158,6 +158,11 @@ pub struct CleaningConfig {
     pub connection_cleaning_interval: u64,
     /// Close connections if no responses have been sent to them for this long (seconds)
     pub max_connection_idle: u32,
+    /// After updating TLS certificates, close connections running with
+    /// previous certificates after this long (seconds)
+    ///
+    /// Countdown starts at next connection cleaning.
+    pub close_after_tls_update_grace_period: u32,
 }
 
 impl Default for CleaningConfig {
@@ -167,6 +172,7 @@ impl Default for CleaningConfig {
             max_peer_age: 1800,
             max_connection_idle: 60 * 5,
             connection_cleaning_interval: 30,
+            close_after_tls_update_grace_period: 60 * 60 * 60,
         }
     }
 }
