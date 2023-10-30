@@ -50,7 +50,7 @@ pub struct RtcOffer {
     /// Always "offer"
     #[serde(rename = "type")]
     pub t: RtcOfferType,
-    pub sdp: ::serde_json::Value,
+    pub sdp: String,
 }
 
 /// Nested structure with SDP answer from https://www.npmjs.com/package/simple-peer
@@ -61,7 +61,7 @@ pub struct RtcAnswer {
     /// Always "answer"
     #[serde(rename = "type")]
     pub t: RtcAnswerType,
-    pub sdp: ::serde_json::Value,
+    pub sdp: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

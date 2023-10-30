@@ -135,9 +135,7 @@ impl Connection {
                         r.answer_offer_id = Some(offer_id);
                         r.answer = Some(RtcAnswer {
                             t: RtcAnswerType::Answer,
-                            sdp: ::serde_json::json!(
-                                {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
-                            ),
+                            sdp: "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-".into()
                         });
                         r.event = None;
                         r.offers = None;

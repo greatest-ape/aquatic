@@ -38,13 +38,13 @@ mod tests {
     fn rtc_offer() -> RtcOffer {
         RtcOffer {
             t: RtcOfferType::Offer,
-            sdp: ::serde_json::json!({ "sdp": "test" }),
+            sdp: "test".into(),
         }
     }
     fn rtc_answer() -> RtcAnswer {
         RtcAnswer {
             t: RtcAnswerType::Answer,
-            sdp: ::serde_json::json!({ "sdp": "test" }),
+            sdp: "test".into(),
         }
     }
 

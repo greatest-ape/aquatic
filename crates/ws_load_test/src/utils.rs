@@ -52,9 +52,7 @@ fn create_announce_request(
             offer_id: OfferId(rng.gen()),
             offer: RtcOffer {
                 t: RtcOfferType::Offer,
-                sdp: ::serde_json::json!(
-                    {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
-                )
+                sdp: "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-".into()
             },
         })
     }

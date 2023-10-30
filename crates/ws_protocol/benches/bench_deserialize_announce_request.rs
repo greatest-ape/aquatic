@@ -17,7 +17,7 @@ pub fn bench(c: &mut Criterion) {
             AnnounceRequestOffer {
                 offer: RtcOffer {
                     t: RtcOfferType::Offer,
-                    sdp: ::serde_json::json!({ "sdp": "abcdef" }),
+                    sdp: "abcdef".into(),
                 },
                 offer_id,
             }
@@ -35,7 +35,7 @@ pub fn bench(c: &mut Criterion) {
         numwant: Some(offers_len),
         answer: Some(RtcAnswer {
             t: RtcAnswerType::Answer,
-            sdp: ::serde_json::json!({ "sdp": "abcdef" }),
+            sdp: "abcdef".into(),
         }),
         answer_to_peer_id: Some(peer_id),
         answer_offer_id: Some(OfferId(info_hash.0)),
