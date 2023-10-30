@@ -2,22 +2,22 @@
 
 ## High priority
 
-* udp uring
-  * miri
-  * thiserror?
-  * CI
-  * uring load test?
-* More non-CI integration tests?
-* Non-trivial dependency updates
-  * toml v0.7
-  * syn v2.0
+* aquatic_ws
+  * Store OfferId that a peer has sent out and only allow answers matching
+    them to be sent? HashMap<(OfferId, PeerId), ValidUntil> could work, but
+    not if peers reuse offer ids
+  * Validate SDP data
 
 ## Medium priority
 
 * stagger cleaning tasks?
 * Run cargo-fuzz on protocol crates
 
-* udp: support link to arbitrary homepage as well as embedded tracker URL in statistics page
+* udp 
+  * support link to arbitrary homepage as well as embedded tracker URL in statistics page
+  * Non-trivial dependency updates
+    * toml v0.7
+    * syn v2.0
 
 * quit whole program if any thread panics
   * But it would be nice not to panic in workers, but to return errors instead.
@@ -47,6 +47,11 @@
 ## Low priority
 
 * aquatic_udp
+  * udp uring
+    * miri
+    * thiserror?
+    * CI
+    * uring load test?
   * what poll event capacity is actually needed?
   * load test
       * move additional request sending to for each received response, maybe
@@ -54,6 +59,8 @@
 
 * aquatic_ws
   * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
+    * 20 byte parsing: consider using something like ArrayString<80> to avoid
+      heap allocations
 
 # Not important
 
@@ -64,10 +71,6 @@
     * scrape: does it work (serialization etc), and with multiple hashes?
     * 'left' optional in magnet requests? Probably not. Transmission sends huge
       positive number.
-
-* aquatic_ws
-  * write new version of extract_response_peers which checks for equality with
-    peer sending request???
 
 # Don't do
 
