@@ -16,8 +16,8 @@ pub use scrape::*;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OutMessage {
-    Offer(MiddlemanOfferToPeer),
-    Answer(MiddlemanAnswerToPeer),
+    OfferOutMessage(OfferOutMessage),
+    AnswerOutMessage(AnswerOutMessage),
     AnnounceResponse(AnnounceResponse),
     ScrapeResponse(ScrapeResponse),
     ErrorResponse(ErrorResponse),

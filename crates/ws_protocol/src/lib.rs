@@ -11,12 +11,12 @@
 //! - Peer sends scrape request and receives scrape response
 
 pub mod common;
-pub mod request;
-pub mod response;
+pub mod incoming;
+pub mod outgoing;
 
 pub use common::*;
-pub use request::*;
-pub use response::*;
+pub use incoming::*;
+pub use outgoing::*;
 
 #[cfg(test)]
 mod tests {
@@ -35,8 +35,17 @@ mod tests {
         bytes
     }
 
-    fn sdp_json_value() -> JsonValue {
-        JsonValue(::serde_json::json!({ "sdp": "test" }))
+    fn rtc_offer() -> RtcOffer {
+        RtcOffer {
+            t: RtcOfferType::Offer,
+            sdp: "test".into(),
+        }
+    }
+    fn rtc_answer() -> RtcAnswer {
+        RtcAnswer {
+            t: RtcAnswerType::Answer,
+            sdp: "test".into(),
+        }
     }
 
     impl Arbitrary for InfoHash {
@@ -68,26 +77,26 @@ mod tests {
         }
     }
 
-    impl Arbitrary for MiddlemanOfferToPeer {
+    impl Arbitrary for OfferOutMessage {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
-                offer: sdp_json_value(),
+                offer: rtc_offer(),
             }
         }
     }
 
-    impl Arbitrary for MiddlemanAnswerToPeer {
+    impl Arbitrary for AnswerOutMessage {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
-                answer: sdp_json_value(),
+                answer: rtc_answer(),
             }
         }
     }
@@ -96,7 +105,7 @@ mod tests {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 offer_id: Arbitrary::arbitrary(g),
-                offer: sdp_json_value(),
+                offer: rtc_offer(),
             }
         }
     }
@@ -106,7 +115,7 @@ mod tests {
             let has_offers_or_answer_or_neither: Option<bool> = Arbitrary::arbitrary(g);
 
             let mut offers: Option<Vec<AnnounceRequestOffer>> = None;
-            let mut answer: Option<JsonValue> = None;
+            let mut answer: Option<RtcAnswer> = None;
             let mut to_peer_id: Option<PeerId> = None;
             let mut offer_id: Option<OfferId> = None;
 
@@ -115,7 +124,7 @@ mod tests {
                     offers = Some(Arbitrary::arbitrary(g));
                 }
                 Some(false) => {
-                    answer = Some(sdp_json_value());
+                    answer = Some(rtc_answer());
                     to_peer_id = Some(Arbitrary::arbitrary(g));
                     offer_id = Some(Arbitrary::arbitrary(g));
                 }
@@ -125,7 +134,7 @@ mod tests {
             let numwant = offers.as_ref().map(|offers| offers.len());
 
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 info_hash: Arbitrary::arbitrary(g),
                 peer_id: Arbitrary::arbitrary(g),
                 bytes_left: Arbitrary::arbitrary(g),
@@ -133,8 +142,8 @@ mod tests {
                 offers,
                 numwant,
                 answer,
-                to_peer_id,
-                offer_id,
+                answer_to_peer_id: to_peer_id,
+                answer_offer_id: offer_id,
             }
         }
     }
@@ -142,7 +151,7 @@ mod tests {
     impl Arbitrary for AnnounceResponse {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 info_hash: Arbitrary::arbitrary(g),
                 complete: Arbitrary::arbitrary(g),
                 incomplete: Arbitrary::arbitrary(g),
@@ -154,7 +163,7 @@ mod tests {
     impl Arbitrary for ScrapeRequest {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: ScrapeAction,
+                action: ScrapeAction::Scrape,
                 info_hashes: Arbitrary::arbitrary(g),
             }
         }
@@ -185,7 +194,7 @@ mod tests {
             let files: Vec<(InfoHash, ScrapeStatistics)> = Arbitrary::arbitrary(g);
 
             Self {
-                action: ScrapeAction,
+                action: ScrapeAction::Scrape,
                 files: files.into_iter().collect(),
             }
         }
@@ -206,8 +215,8 @@ mod tests {
             match (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) {
                 (false, false) => Self::AnnounceResponse(Arbitrary::arbitrary(g)),
                 (true, false) => Self::ScrapeResponse(Arbitrary::arbitrary(g)),
-                (false, true) => Self::Offer(Arbitrary::arbitrary(g)),
-                (true, true) => Self::Answer(Arbitrary::arbitrary(g)),
+                (false, true) => Self::OfferOutMessage(Arbitrary::arbitrary(g)),
+                (true, true) => Self::AnswerOutMessage(Arbitrary::arbitrary(g)),
             }
         }
     }
@@ -268,7 +277,7 @@ mod tests {
         ]);
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: Some(info_hashes),
         };
 
@@ -291,7 +300,7 @@ mod tests {
             ScrapeRequestInfoHashes::Single(info_hash_from_bytes(b"aaaabbbbccccddddeeee"));
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: Some(info_hashes),
         };
 
@@ -321,7 +330,7 @@ mod tests {
         };
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: None,
         };
 
@@ -340,7 +349,7 @@ mod tests {
         };
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: None,
         };
 

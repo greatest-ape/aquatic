@@ -50,14 +50,15 @@ fn create_announce_request(
     for _ in 0..config.torrents.offers_per_request {
         offers.push(AnnounceRequestOffer {
             offer_id: OfferId(rng.gen()),
-            offer: JsonValue(::serde_json::json!(
-                {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
-            )),
+            offer: RtcOffer {
+                t: RtcOfferType::Offer,
+                sdp: "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-".into()
+            },
         })
     }
 
     InMessage::AnnounceRequest(AnnounceRequest {
-        action: AnnounceAction,
+        action: AnnounceAction::Announce,
         info_hash: state.info_hashes[info_hash_index],
         peer_id,
         bytes_left: Some(bytes_left),
@@ -65,8 +66,8 @@ fn create_announce_request(
         numwant: Some(offers.len()),
         offers: Some(offers),
         answer: None,
-        to_peer_id: None,
-        offer_id: None,
+        answer_to_peer_id: None,
+        answer_offer_id: None,
     })
 }
 
@@ -81,7 +82,7 @@ fn create_scrape_request(config: &Config, state: &LoadTestState, rng: &mut impl 
     }
 
     InMessage::ScrapeRequest(ScrapeRequest {
-        action: ScrapeAction,
+        action: ScrapeAction::Scrape,
         info_hashes: Some(ScrapeRequestInfoHashes::Multiple(scrape_hashes)),
     })
 }

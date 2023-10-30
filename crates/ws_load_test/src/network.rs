@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use aquatic_ws_protocol::{InMessage, JsonValue, OfferId, OutMessage, PeerId};
+use aquatic_ws_protocol::{InMessage, OfferId, OutMessage, PeerId, RtcAnswer, RtcAnswerType};
 use async_tungstenite::{client_async, WebSocketStream};
 use futures::{SinkExt, StreamExt};
 use futures_rustls::{client::TlsStream, TlsConnector};
@@ -131,11 +131,12 @@ impl Connection {
                 // the request an offer answer
                 let request = if let InMessage::AnnounceRequest(mut r) = request {
                     if let Some((peer_id, offer_id)) = self.send_answer {
-                        r.to_peer_id = Some(peer_id);
-                        r.offer_id = Some(offer_id);
-                        r.answer = Some(JsonValue(::serde_json::json!(
-                            {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
-                        )));
+                        r.answer_to_peer_id = Some(peer_id);
+                        r.answer_offer_id = Some(offer_id);
+                        r.answer = Some(RtcAnswer {
+                            t: RtcAnswerType::Answer,
+                            sdp: "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-".into()
+                        });
                         r.event = None;
                         r.offers = None;
                     }
@@ -182,7 +183,7 @@ impl Connection {
         };
 
         match OutMessage::from_ws_message(message) {
-            Ok(OutMessage::Offer(offer)) => {
+            Ok(OutMessage::OfferOutMessage(offer)) => {
                 self.load_test_state
                     .statistics
                     .responses_offer
@@ -192,7 +193,7 @@ impl Connection {
 
                 self.can_send = true;
             }
-            Ok(OutMessage::Answer(_)) => {
+            Ok(OutMessage::AnswerOutMessage(_)) => {
                 self.load_test_state
                     .statistics
                     .responses_answer

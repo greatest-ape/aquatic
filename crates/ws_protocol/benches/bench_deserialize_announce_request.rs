@@ -15,7 +15,10 @@ pub fn bench(c: &mut Criterion) {
             offer_id.0[i] = i as u8;
 
             AnnounceRequestOffer {
-                offer: JsonValue(::serde_json::json!({ "sdp": "abcdef" })),
+                offer: RtcOffer {
+                    t: RtcOfferType::Offer,
+                    sdp: "abcdef".into(),
+                },
                 offer_id,
             }
         })
@@ -23,16 +26,19 @@ pub fn bench(c: &mut Criterion) {
     let offers_len = offers.len();
 
     let request = InMessage::AnnounceRequest(AnnounceRequest {
-        action: AnnounceAction,
+        action: AnnounceAction::Announce,
         info_hash,
         peer_id,
         bytes_left: Some(2),
         event: Some(AnnounceEvent::Started),
         offers: Some(offers),
         numwant: Some(offers_len),
-        answer: Some(JsonValue(::serde_json::json!({ "sdp": "abcdef" }))),
-        to_peer_id: Some(peer_id),
-        offer_id: Some(OfferId(info_hash.0)),
+        answer: Some(RtcAnswer {
+            t: RtcAnswerType::Answer,
+            sdp: "abcdef".into(),
+        }),
+        answer_to_peer_id: Some(peer_id),
+        answer_offer_id: Some(OfferId(info_hash.0)),
     });
 
     let ws_message = request.to_ws_message();

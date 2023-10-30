@@ -443,8 +443,8 @@ fn handle_announce_request(
         );
 
         for (offer, offer_receiver) in offers.into_iter().zip(offer_receivers) {
-            let middleman_offer = MiddlemanOfferToPeer {
-                action: AnnounceAction,
+            let offer_out_message = OfferOutMessage {
+                action: AnnounceAction::Announce,
                 info_hash: request.info_hash,
                 peer_id: request.peer_id,
                 offer: offer.offer,
@@ -457,18 +457,20 @@ fn handle_announce_request(
                 pending_scrape_id: None,
             };
 
-            out_messages.push((meta, OutMessage::Offer(middleman_offer)));
+            out_messages.push((meta, OutMessage::OfferOutMessage(offer_out_message)));
             ::log::trace!("sending middleman offer to {:?}", meta);
         }
     }
 
     // If peer sent answer, send it on to relevant peer
-    if let (Some(answer), Some(answer_receiver_id), Some(offer_id)) =
-        (request.answer, request.to_peer_id, request.offer_id)
-    {
+    if let (Some(answer), Some(answer_receiver_id), Some(offer_id)) = (
+        request.answer,
+        request.answer_to_peer_id,
+        request.answer_offer_id,
+    ) {
         if let Some(answer_receiver) = torrent_data.peers.get(&answer_receiver_id) {
-            let middleman_answer = MiddlemanAnswerToPeer {
-                action: AnnounceAction,
+            let answer_out_message = AnswerOutMessage {
+                action: AnnounceAction::Announce,
                 peer_id: request.peer_id,
                 info_hash: request.info_hash,
                 answer,
@@ -481,13 +483,13 @@ fn handle_announce_request(
                 pending_scrape_id: None,
             };
 
-            out_messages.push((meta, OutMessage::Answer(middleman_answer)));
+            out_messages.push((meta, OutMessage::AnswerOutMessage(answer_out_message)));
             ::log::trace!("sending middleman answer to {:?}", meta);
         }
     }
 
     let out_message = OutMessage::AnnounceResponse(AnnounceResponse {
-        action: AnnounceAction,
+        action: AnnounceAction::Announce,
         info_hash: request.info_hash,
         complete: torrent_data.num_seeders,
         incomplete: torrent_data.num_leechers(),
@@ -513,7 +515,7 @@ fn handle_scrape_request(
     let num_to_take = info_hashes.len().min(config.protocol.max_scrape_torrents);
 
     let mut out_message = ScrapeResponse {
-        action: ScrapeAction,
+        action: ScrapeAction::Scrape,
         files: HashMap::with_capacity(num_to_take),
     };
 

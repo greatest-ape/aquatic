@@ -30,93 +30,54 @@ pub struct OfferId(
     pub [u8; 20],
 );
 
-/// Some kind of nested structure from https://www.npmjs.com/package/simple-peer
+/// Serializes to and deserializes from "announce"
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct JsonValue(pub ::serde_json::Value);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AnnounceAction;
-
-impl Serialize for AnnounceAction {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str("announce")
-    }
+#[serde(rename_all = "lowercase")]
+pub enum AnnounceAction {
+    Announce,
 }
 
-impl<'de> Deserialize<'de> for AnnounceAction {
-    fn deserialize<D>(deserializer: D) -> Result<AnnounceAction, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(AnnounceActionVisitor)
-    }
+/// Serializes to and deserializes from "scrape"
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScrapeAction {
+    Scrape,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ScrapeAction;
-
-impl Serialize for ScrapeAction {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str("scrape")
-    }
+/// Serializes to and deserializes from "offer"
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RtcOfferType {
+    Offer,
 }
 
-impl<'de> Deserialize<'de> for ScrapeAction {
-    fn deserialize<D>(deserializer: D) -> Result<ScrapeAction, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(ScrapeActionVisitor)
-    }
+/// Serializes to and deserializes from "answer"
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RtcAnswerType {
+    Answer,
 }
 
-pub struct AnnounceActionVisitor;
-
-impl<'de> Visitor<'de> for AnnounceActionVisitor {
-    type Value = AnnounceAction;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("string with value 'announce'")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: ::serde::de::Error,
-    {
-        if v == "announce" {
-            Ok(AnnounceAction)
-        } else {
-            Err(E::custom("value is not 'announce'"))
-        }
-    }
+/// Nested structure with SDP offer from https://www.npmjs.com/package/simple-peer
+///
+/// Created using https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RtcOffer {
+    /// Always "offer"
+    #[serde(rename = "type")]
+    pub t: RtcOfferType,
+    pub sdp: String,
 }
 
-pub struct ScrapeActionVisitor;
-
-impl<'de> Visitor<'de> for ScrapeActionVisitor {
-    type Value = ScrapeAction;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("string with value 'scrape'")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: ::serde::de::Error,
-    {
-        if v == "scrape" {
-            Ok(ScrapeAction)
-        } else {
-            Err(E::custom("value is not 'scrape'"))
-        }
-    }
+/// Nested structure with SDP answer from https://www.npmjs.com/package/simple-peer
+///
+/// Created using https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createAnswer
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RtcAnswer {
+    /// Always "answer"
+    #[serde(rename = "type")]
+    pub t: RtcAnswerType,
+    pub sdp: String,
 }
 
 fn serialize_20_bytes<S>(data: &[u8; 20], serializer: S) -> Result<S::Ok, S::Error>
