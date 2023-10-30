@@ -51,6 +51,7 @@ fn create_announce_request(
         offers.push(AnnounceRequestOffer {
             offer_id: OfferId(rng.gen()),
             offer: RtcOffer {
+                t: RtcOfferType::Offer,
                 sdp: ::serde_json::json!(
                     {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
                 )

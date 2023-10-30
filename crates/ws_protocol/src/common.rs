@@ -30,11 +30,26 @@ pub struct OfferId(
     pub [u8; 20],
 );
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RtcOfferType {
+    Offer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RtcAnswerType {
+    Answer,
+}
+
 /// Nested structure with SDP offer from https://www.npmjs.com/package/simple-peer
 ///
 /// Created using https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RtcOffer {
+    /// Always "offer"
+    #[serde(rename = "type")]
+    pub t: RtcOfferType,
     pub sdp: ::serde_json::Value,
 }
 
@@ -43,6 +58,9 @@ pub struct RtcOffer {
 /// Created using https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createAnswer
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RtcAnswer {
+    /// Always "answer"
+    #[serde(rename = "type")]
+    pub t: RtcAnswerType,
     pub sdp: ::serde_json::Value,
 }
 

@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use aquatic_ws_protocol::{InMessage, OfferId, OutMessage, PeerId, RtcAnswer};
+use aquatic_ws_protocol::{InMessage, OfferId, OutMessage, PeerId, RtcAnswer, RtcAnswerType};
 use async_tungstenite::{client_async, WebSocketStream};
 use futures::{SinkExt, StreamExt};
 use futures_rustls::{client::TlsStream, TlsConnector};
@@ -134,6 +134,7 @@ impl Connection {
                         r.answer_to_peer_id = Some(peer_id);
                         r.answer_offer_id = Some(offer_id);
                         r.answer = Some(RtcAnswer {
+                            t: RtcAnswerType::Answer,
                             sdp: ::serde_json::json!(
                                 {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
                             ),
