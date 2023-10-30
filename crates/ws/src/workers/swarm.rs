@@ -444,7 +444,7 @@ fn handle_announce_request(
 
         for (offer, offer_receiver) in offers.into_iter().zip(offer_receivers) {
             let offer_out_message = OfferOutMessage {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 info_hash: request.info_hash,
                 peer_id: request.peer_id,
                 offer: offer.offer,
@@ -470,7 +470,7 @@ fn handle_announce_request(
     ) {
         if let Some(answer_receiver) = torrent_data.peers.get(&answer_receiver_id) {
             let answer_out_message = AnswerOutMessage {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 peer_id: request.peer_id,
                 info_hash: request.info_hash,
                 answer,
@@ -489,7 +489,7 @@ fn handle_announce_request(
     }
 
     let out_message = OutMessage::AnnounceResponse(AnnounceResponse {
-        action: AnnounceAction,
+        action: AnnounceAction::Announce,
         info_hash: request.info_hash,
         complete: torrent_data.num_seeders,
         incomplete: torrent_data.num_leechers(),
@@ -515,7 +515,7 @@ fn handle_scrape_request(
     let num_to_take = info_hashes.len().min(config.protocol.max_scrape_torrents);
 
     let mut out_message = ScrapeResponse {
-        action: ScrapeAction,
+        action: ScrapeAction::Scrape,
         files: HashMap::with_capacity(num_to_take),
     };
 

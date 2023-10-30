@@ -775,7 +775,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
                 for (consumer_index, info_hashes) in info_hashes_by_worker {
                     let in_message = InMessage::ScrapeRequest(ScrapeRequest {
-                        action: ScrapeAction,
+                        action: ScrapeAction::Scrape,
                         info_hashes: Some(ScrapeRequestInfoHashes::Multiple(info_hashes)),
                     });
 
@@ -877,7 +877,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                             slab.shrink_to_fit();
 
                             OutMessage::ScrapeResponse(ScrapeResponse {
-                                action: ScrapeAction,
+                                action: ScrapeAction::Scrape,
                                 files: pending.stats,
                             })
                         };

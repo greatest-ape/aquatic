@@ -30,12 +30,28 @@ pub struct OfferId(
     pub [u8; 20],
 );
 
+/// Serializes to and deserializes from "announce"
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnnounceAction {
+    Announce,
+}
+
+/// Serializes to and deserializes from "scrape"
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScrapeAction {
+    Scrape,
+}
+
+/// Serializes to and deserializes from "offer"
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RtcOfferType {
     Offer,
 }
 
+/// Serializes to and deserializes from "answer"
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RtcAnswerType {
@@ -62,90 +78,6 @@ pub struct RtcAnswer {
     #[serde(rename = "type")]
     pub t: RtcAnswerType,
     pub sdp: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AnnounceAction;
-
-impl Serialize for AnnounceAction {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str("announce")
-    }
-}
-
-impl<'de> Deserialize<'de> for AnnounceAction {
-    fn deserialize<D>(deserializer: D) -> Result<AnnounceAction, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(AnnounceActionVisitor)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ScrapeAction;
-
-impl Serialize for ScrapeAction {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str("scrape")
-    }
-}
-
-impl<'de> Deserialize<'de> for ScrapeAction {
-    fn deserialize<D>(deserializer: D) -> Result<ScrapeAction, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(ScrapeActionVisitor)
-    }
-}
-
-pub struct AnnounceActionVisitor;
-
-impl<'de> Visitor<'de> for AnnounceActionVisitor {
-    type Value = AnnounceAction;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("string with value 'announce'")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: ::serde::de::Error,
-    {
-        if v == "announce" {
-            Ok(AnnounceAction)
-        } else {
-            Err(E::custom("value is not 'announce'"))
-        }
-    }
-}
-
-pub struct ScrapeActionVisitor;
-
-impl<'de> Visitor<'de> for ScrapeActionVisitor {
-    type Value = ScrapeAction;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("string with value 'scrape'")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: ::serde::de::Error,
-    {
-        if v == "scrape" {
-            Ok(ScrapeAction)
-        } else {
-            Err(E::custom("value is not 'scrape'"))
-        }
-    }
 }
 
 fn serialize_20_bytes<S>(data: &[u8; 20], serializer: S) -> Result<S::Ok, S::Error>

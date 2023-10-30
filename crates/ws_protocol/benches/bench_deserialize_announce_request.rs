@@ -26,7 +26,7 @@ pub fn bench(c: &mut Criterion) {
     let offers_len = offers.len();
 
     let request = InMessage::AnnounceRequest(AnnounceRequest {
-        action: AnnounceAction,
+        action: AnnounceAction::Announce,
         info_hash,
         peer_id,
         bytes_left: Some(2),

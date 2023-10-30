@@ -80,7 +80,7 @@ mod tests {
     impl Arbitrary for OfferOutMessage {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
@@ -92,7 +92,7 @@ mod tests {
     impl Arbitrary for AnswerOutMessage {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
@@ -134,7 +134,7 @@ mod tests {
             let numwant = offers.as_ref().map(|offers| offers.len());
 
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 info_hash: Arbitrary::arbitrary(g),
                 peer_id: Arbitrary::arbitrary(g),
                 bytes_left: Arbitrary::arbitrary(g),
@@ -151,7 +151,7 @@ mod tests {
     impl Arbitrary for AnnounceResponse {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: AnnounceAction,
+                action: AnnounceAction::Announce,
                 info_hash: Arbitrary::arbitrary(g),
                 complete: Arbitrary::arbitrary(g),
                 incomplete: Arbitrary::arbitrary(g),
@@ -163,7 +163,7 @@ mod tests {
     impl Arbitrary for ScrapeRequest {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                action: ScrapeAction,
+                action: ScrapeAction::Scrape,
                 info_hashes: Arbitrary::arbitrary(g),
             }
         }
@@ -194,7 +194,7 @@ mod tests {
             let files: Vec<(InfoHash, ScrapeStatistics)> = Arbitrary::arbitrary(g);
 
             Self {
-                action: ScrapeAction,
+                action: ScrapeAction::Scrape,
                 files: files.into_iter().collect(),
             }
         }
@@ -277,7 +277,7 @@ mod tests {
         ]);
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: Some(info_hashes),
         };
 
@@ -300,7 +300,7 @@ mod tests {
             ScrapeRequestInfoHashes::Single(info_hash_from_bytes(b"aaaabbbbccccddddeeee"));
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: Some(info_hashes),
         };
 
@@ -330,7 +330,7 @@ mod tests {
         };
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: None,
         };
 
@@ -349,7 +349,7 @@ mod tests {
         };
 
         let expected = ScrapeRequest {
-            action: ScrapeAction,
+            action: ScrapeAction::Scrape,
             info_hashes: None,
         };
 

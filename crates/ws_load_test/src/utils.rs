@@ -58,7 +58,7 @@ fn create_announce_request(
     }
 
     InMessage::AnnounceRequest(AnnounceRequest {
-        action: AnnounceAction,
+        action: AnnounceAction::Announce,
         info_hash: state.info_hashes[info_hash_index],
         peer_id,
         bytes_left: Some(bytes_left),
@@ -82,7 +82,7 @@ fn create_scrape_request(config: &Config, state: &LoadTestState, rng: &mut impl 
     }
 
     InMessage::ScrapeRequest(ScrapeRequest {
-        action: ScrapeAction,
+        action: ScrapeAction::Scrape,
         info_hashes: Some(ScrapeRequestInfoHashes::Multiple(scrape_hashes)),
     })
 }
