@@ -30,10 +30,21 @@ pub struct OfferId(
     pub [u8; 20],
 );
 
-/// Some kind of nested structure from https://www.npmjs.com/package/simple-peer
+/// Nested structure with SDP offer from https://www.npmjs.com/package/simple-peer
+///
+/// Created using https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct JsonValue(pub ::serde_json::Value);
+pub struct RtcOffer {
+    pub sdp: ::serde_json::Value,
+}
+
+/// Nested structure with SDP answer from https://www.npmjs.com/package/simple-peer
+///
+/// Created using https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createAnswer
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RtcAnswer {
+    pub sdp: ::serde_json::Value,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnnounceAction;

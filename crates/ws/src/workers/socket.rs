@@ -906,8 +906,8 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                 #[cfg(feature = "metrics")]
                 {
                     let out_message_type = match &out_message {
-                        OutMessage::Offer(_) => "offer",
-                        OutMessage::Answer(_) => "offer_answer",
+                        OutMessage::OfferOutMessage(_) => "offer",
+                        OutMessage::AnswerOutMessage(_) => "offer_answer",
                         OutMessage::AnnounceResponse(_) => "announce",
                         OutMessage::ScrapeResponse(_) => "scrape",
                         OutMessage::ErrorResponse(_) => "error",

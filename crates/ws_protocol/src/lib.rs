@@ -11,12 +11,12 @@
 //! - Peer sends scrape request and receives scrape response
 
 pub mod common;
-pub mod request;
-pub mod response;
+pub mod incoming;
+pub mod outgoing;
 
 pub use common::*;
-pub use request::*;
-pub use response::*;
+pub use incoming::*;
+pub use outgoing::*;
 
 #[cfg(test)]
 mod tests {
@@ -35,8 +35,15 @@ mod tests {
         bytes
     }
 
-    fn sdp_json_value() -> JsonValue {
-        JsonValue(::serde_json::json!({ "sdp": "test" }))
+    fn rtc_offer() -> RtcOffer {
+        RtcOffer {
+            sdp: ::serde_json::json!({ "sdp": "test" }),
+        }
+    }
+    fn rtc_answer() -> RtcAnswer {
+        RtcAnswer {
+            sdp: ::serde_json::json!({ "sdp": "test" }),
+        }
     }
 
     impl Arbitrary for InfoHash {
@@ -68,26 +75,26 @@ mod tests {
         }
     }
 
-    impl Arbitrary for MiddlemanOfferToPeer {
+    impl Arbitrary for OfferOutMessage {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 action: AnnounceAction,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
-                offer: sdp_json_value(),
+                offer: rtc_offer(),
             }
         }
     }
 
-    impl Arbitrary for MiddlemanAnswerToPeer {
+    impl Arbitrary for AnswerOutMessage {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 action: AnnounceAction,
                 peer_id: Arbitrary::arbitrary(g),
                 info_hash: Arbitrary::arbitrary(g),
                 offer_id: Arbitrary::arbitrary(g),
-                answer: sdp_json_value(),
+                answer: rtc_answer(),
             }
         }
     }
@@ -96,7 +103,7 @@ mod tests {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
                 offer_id: Arbitrary::arbitrary(g),
-                offer: sdp_json_value(),
+                offer: rtc_offer(),
             }
         }
     }
@@ -106,7 +113,7 @@ mod tests {
             let has_offers_or_answer_or_neither: Option<bool> = Arbitrary::arbitrary(g);
 
             let mut offers: Option<Vec<AnnounceRequestOffer>> = None;
-            let mut answer: Option<JsonValue> = None;
+            let mut answer: Option<RtcAnswer> = None;
             let mut to_peer_id: Option<PeerId> = None;
             let mut offer_id: Option<OfferId> = None;
 
@@ -115,7 +122,7 @@ mod tests {
                     offers = Some(Arbitrary::arbitrary(g));
                 }
                 Some(false) => {
-                    answer = Some(sdp_json_value());
+                    answer = Some(rtc_answer());
                     to_peer_id = Some(Arbitrary::arbitrary(g));
                     offer_id = Some(Arbitrary::arbitrary(g));
                 }
@@ -133,8 +140,8 @@ mod tests {
                 offers,
                 numwant,
                 answer,
-                to_peer_id,
-                offer_id,
+                answer_to_peer_id: to_peer_id,
+                answer_offer_id: offer_id,
             }
         }
     }
@@ -206,8 +213,8 @@ mod tests {
             match (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) {
                 (false, false) => Self::AnnounceResponse(Arbitrary::arbitrary(g)),
                 (true, false) => Self::ScrapeResponse(Arbitrary::arbitrary(g)),
-                (false, true) => Self::Offer(Arbitrary::arbitrary(g)),
-                (true, true) => Self::Answer(Arbitrary::arbitrary(g)),
+                (false, true) => Self::OfferOutMessage(Arbitrary::arbitrary(g)),
+                (true, true) => Self::AnswerOutMessage(Arbitrary::arbitrary(g)),
             }
         }
     }

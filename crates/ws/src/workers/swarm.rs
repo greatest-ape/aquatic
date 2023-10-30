@@ -443,7 +443,7 @@ fn handle_announce_request(
         );
 
         for (offer, offer_receiver) in offers.into_iter().zip(offer_receivers) {
-            let middleman_offer = MiddlemanOfferToPeer {
+            let offer_out_message = OfferOutMessage {
                 action: AnnounceAction,
                 info_hash: request.info_hash,
                 peer_id: request.peer_id,
@@ -457,17 +457,19 @@ fn handle_announce_request(
                 pending_scrape_id: None,
             };
 
-            out_messages.push((meta, OutMessage::Offer(middleman_offer)));
+            out_messages.push((meta, OutMessage::OfferOutMessage(offer_out_message)));
             ::log::trace!("sending middleman offer to {:?}", meta);
         }
     }
 
     // If peer sent answer, send it on to relevant peer
-    if let (Some(answer), Some(answer_receiver_id), Some(offer_id)) =
-        (request.answer, request.to_peer_id, request.offer_id)
-    {
+    if let (Some(answer), Some(answer_receiver_id), Some(offer_id)) = (
+        request.answer,
+        request.answer_to_peer_id,
+        request.answer_offer_id,
+    ) {
         if let Some(answer_receiver) = torrent_data.peers.get(&answer_receiver_id) {
-            let middleman_answer = MiddlemanAnswerToPeer {
+            let answer_out_message = AnswerOutMessage {
                 action: AnnounceAction,
                 peer_id: request.peer_id,
                 info_hash: request.info_hash,
@@ -481,7 +483,7 @@ fn handle_announce_request(
                 pending_scrape_id: None,
             };
 
-            out_messages.push((meta, OutMessage::Answer(middleman_answer)));
+            out_messages.push((meta, OutMessage::AnswerOutMessage(answer_out_message)));
             ::log::trace!("sending middleman answer to {:?}", meta);
         }
     }

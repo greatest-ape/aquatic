@@ -50,9 +50,11 @@ fn create_announce_request(
     for _ in 0..config.torrents.offers_per_request {
         offers.push(AnnounceRequestOffer {
             offer_id: OfferId(rng.gen()),
-            offer: JsonValue(::serde_json::json!(
-                {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
-            )),
+            offer: RtcOffer {
+                sdp: ::serde_json::json!(
+                    {"sdp": "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-"}
+                )
+            },
         })
     }
 
@@ -65,8 +67,8 @@ fn create_announce_request(
         numwant: Some(offers.len()),
         offers: Some(offers),
         answer: None,
-        to_peer_id: None,
-        offer_id: None,
+        answer_to_peer_id: None,
+        answer_offer_id: None,
     })
 }
 

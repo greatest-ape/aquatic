@@ -7,7 +7,7 @@ use crate::common::*;
 pub struct ScrapeResponse {
     pub action: ScrapeAction,
     pub files: HashMap<InfoHash, ScrapeStatistics>,
-    // Looks like `flags` field is ignored in reference client
+    // It looks like `flags` field is ignored in reference client
     // pub flags: HashMap<String, usize>,
 }
 
