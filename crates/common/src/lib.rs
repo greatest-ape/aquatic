@@ -156,7 +156,7 @@ pub fn extract_response_peers<K, V, R, F>(
 ) -> Vec<R>
 where
     K: Eq + ::std::hash::Hash,
-    F: Fn(&V) -> R,
+    F: Fn(&K, &V) -> R,
 {
     if peer_map.len() <= max_num_peers_to_take + 1 {
         // This branch: number of peers in map (minus sender peer) is less than
@@ -165,7 +165,7 @@ where
         let mut peers = Vec::with_capacity(peer_map.len());
 
         peers.extend(peer_map.iter().filter_map(|(k, v)| {
-            (*k != sender_peer_map_key).then_some(peer_conversion_function(v))
+            (*k != sender_peer_map_key).then_some(peer_conversion_function(k, v))
         }));
 
         // Handle the case when sender peer is not in peer list. Typically,
@@ -204,12 +204,12 @@ where
 
         if let Some(slice) = peer_map.get_range(offset_half_one..end_half_one) {
             peers.extend(slice.iter().filter_map(|(k, v)| {
-                (*k != sender_peer_map_key).then_some(peer_conversion_function(v))
+                (*k != sender_peer_map_key).then_some(peer_conversion_function(k, v))
             }));
         }
         if let Some(slice) = peer_map.get_range(offset_half_two..end_half_two) {
             peers.extend(slice.iter().filter_map(|(k, v)| {
-                (*k != sender_peer_map_key).then_some(peer_conversion_function(v))
+                (*k != sender_peer_map_key).then_some(peer_conversion_function(k, v))
             }));
         }
 
@@ -260,7 +260,7 @@ mod tests {
             &peer_map,
             max_num_peers_to_take,
             sender_peer_map_key,
-            |p| *p,
+            |_, p| *p,
         );
 
         if num_peers_in_map > max_num_peers_to_take + 1 {

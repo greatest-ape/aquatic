@@ -34,8 +34,9 @@ pub struct PendingScrapeId(pub u8);
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub u8);
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ConnectionId(pub usize);
+slotmap::new_key_type! {
+    pub struct ConnectionId;
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct InMessageMeta {

@@ -20,7 +20,7 @@ pub struct InfoHash(
     pub [u8; 20],
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OfferId(
     #[serde(

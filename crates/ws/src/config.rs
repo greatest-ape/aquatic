@@ -154,6 +154,8 @@ pub struct CleaningConfig {
     pub torrent_cleaning_interval: u64,
     /// Remove peers that have not announced for this long (seconds)
     pub max_peer_age: u32,
+    /// Require that offers are answered to withing this period (seconds)
+    pub max_offer_age: u32,
     // Clean connections this often (seconds)
     pub connection_cleaning_interval: u64,
     /// Close connections if no responses have been sent to them for this long (seconds)
@@ -169,8 +171,9 @@ impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             torrent_cleaning_interval: 30,
-            max_peer_age: 1800,
-            max_connection_idle: 60 * 5,
+            max_peer_age: 180,
+            max_offer_age: 120,
+            max_connection_idle: 180,
             connection_cleaning_interval: 30,
             close_after_tls_update_grace_period: 60 * 60 * 60,
         }
