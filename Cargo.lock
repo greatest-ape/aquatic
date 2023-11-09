@@ -321,6 +321,7 @@ dependencies = [
  "glommio",
  "hashbrown 0.14.1",
  "httparse",
+ "indexmap 2.0.2",
  "log",
  "metrics",
  "metrics-exporter-prometheus",
@@ -335,6 +336,7 @@ dependencies = [
  "serde",
  "signal-hook",
  "slab",
+ "slotmap",
  "socket2 0.5.4",
  "tungstenite",
 ]
@@ -2489,6 +2491,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "slotmap"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e08e261d0e8f5c43123b7adf3e4ca1690d655377ac93a03b2c9d3e98de1342"
+dependencies = [
+ "version_check",
 ]
 
 [[package]]

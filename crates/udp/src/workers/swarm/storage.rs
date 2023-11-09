@@ -30,10 +30,10 @@ struct Peer<I: Ip> {
 }
 
 impl<I: Ip> Peer<I> {
-    fn to_response_peer(&self) -> ResponsePeer<I> {
+    fn to_response_peer(_: &PeerId, peer: &Self) -> ResponsePeer<I> {
         ResponsePeer {
-            ip_address: self.ip_address,
-            port: self.port,
+            ip_address: peer.ip_address,
+            port: peer.port,
         }
     }
 }
@@ -352,7 +352,7 @@ mod tests {
 
                 if i == 0 {
                     opt_sender_key = Some(key);
-                    opt_sender_peer = Some(peer.to_response_peer());
+                    opt_sender_peer = Some(Peer::to_response_peer(&key, &peer));
                 }
 
                 peer_map.insert(key, peer);

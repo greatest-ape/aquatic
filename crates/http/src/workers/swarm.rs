@@ -79,10 +79,10 @@ pub struct Peer<I: Ip> {
 }
 
 impl<I: Ip> Peer<I> {
-    pub fn to_response_peer(&self) -> ResponsePeer<I> {
+    pub fn to_response_peer(_: &PeerMapKey<I>, peer: &Self) -> ResponsePeer<I> {
         ResponsePeer {
-            ip_address: self.ip_address,
-            port: self.port,
+            ip_address: peer.ip_address,
+            port: peer.port,
         }
     }
 }

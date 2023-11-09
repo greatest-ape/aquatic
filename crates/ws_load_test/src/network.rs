@@ -125,6 +125,7 @@ impl Connection {
                     &self.load_test_state,
                     &mut self.rng,
                     self.peer_id,
+                    self.send_answer.is_none(),
                 );
 
                 // If self.send_answer is set and request is announce request, make

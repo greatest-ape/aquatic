@@ -3,9 +3,6 @@
 ## High priority
 
 * aquatic_ws
-  * Store OfferId that a peer has sent out and only allow answers matching
-    them to be sent? HashMap<(OfferId, PeerId), ValidUntil> could work, but
-    not if peers reuse offer ids
   * Validate SDP data
 
 ## Medium priority

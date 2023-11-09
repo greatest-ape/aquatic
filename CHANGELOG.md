@@ -26,11 +26,24 @@
 
 * Add support for reporting peer client information
 * Reload TLS certificate (and key) on SIGUSR1
+* Keep track of which offers peers have sent and only allow matching answers
 
 #### Changed
 
+* A response is no longer generated when peers announce with AnnounceEvent::Stopped
 * Compiling with SIMD extensions enabled is no longer required, due to the
   addition of runtime detection to simd-json
+* Only consider announce and scrape responses as signs of connection still
+  being alive. Previously, all messages sent to peer were considered.
+* Decrease default max_peer_age and max_connection_idle config values
+
+#### Fixed
+
+* Fix bug where clean up after closing connections wasn't always done
+* Fix double counting of error responses
+* Actually close connections that are too slow to send responses to
+* If peers announce with AnnounceEvent::Stopped, allow them to later announce on
+  same torrent with different peer_id
 
 ## 0.8.0 - 2023-03-17
 

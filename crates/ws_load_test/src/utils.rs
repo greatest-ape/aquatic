@@ -12,6 +12,7 @@ pub fn create_random_request(
     state: &LoadTestState,
     rng: &mut impl Rng,
     peer_id: PeerId,
+    announce_gen_offers: bool,
 ) -> InMessage {
     let weights = [
         config.torrents.weight_announce as u32,
@@ -23,7 +24,9 @@ pub fn create_random_request(
     let dist = WeightedIndex::new(&weights).expect("random request weighted index");
 
     match items[dist.sample(rng)] {
-        RequestType::Announce => create_announce_request(config, state, rng, peer_id),
+        RequestType::Announce => {
+            create_announce_request(config, state, rng, peer_id, announce_gen_offers)
+        }
         RequestType::Scrape => create_scrape_request(config, state, rng),
     }
 }
@@ -34,6 +37,7 @@ fn create_announce_request(
     state: &LoadTestState,
     rng: &mut impl Rng,
     peer_id: PeerId,
+    gen_offers: bool,
 ) -> InMessage {
     let (event, bytes_left) = {
         if rng.gen_bool(config.torrents.peer_seeder_probability) {
@@ -45,17 +49,23 @@ fn create_announce_request(
 
     let info_hash_index = select_info_hash_index(config, &state, rng);
 
-    let mut offers = Vec::with_capacity(config.torrents.offers_per_request);
+    let offers = if gen_offers {
+        let mut offers = Vec::with_capacity(config.torrents.offers_per_request);
 
-    for _ in 0..config.torrents.offers_per_request {
-        offers.push(AnnounceRequestOffer {
-            offer_id: OfferId(rng.gen()),
-            offer: RtcOffer {
-                t: RtcOfferType::Offer,
-                sdp: "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-".into()
-            },
-        })
-    }
+        for _ in 0..config.torrents.offers_per_request {
+            offers.push(AnnounceRequestOffer {
+                offer_id: OfferId(rng.gen()),
+                offer: RtcOffer {
+                    t: RtcOfferType::Offer,
+                    sdp: "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-".into()
+                },
+            })
+        }
+
+        offers
+    } else {
+        Vec::new()
+    };
 
     InMessage::AnnounceRequest(AnnounceRequest {
         action: AnnounceAction::Announce,
