@@ -59,11 +59,15 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         gamma: Arc::new(gamma),
     };
 
-    let tls_config = create_tls_config().unwrap();
+    let opt_tls_config = if config.enable_tls {
+        Some(create_tls_config().unwrap())
+    } else {
+        None
+    };
 
     for i in 0..config.num_workers {
         let config = config.clone();
-        let tls_config = tls_config.clone();
+        let opt_tls_config = opt_tls_config.clone();
         let state = state.clone();
 
         let placement = get_worker_placement(
@@ -76,7 +80,9 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         LocalExecutorBuilder::new(placement)
             .name("load-test")
             .spawn(move || async move {
-                run_socket_thread(config, tls_config, state).await.unwrap();
+                run_socket_thread(config, opt_tls_config, state)
+                    .await
+                    .unwrap();
             })
             .unwrap();
     }

@@ -35,6 +35,7 @@ futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.24"
 glommio = "0.8"
+httparse = "1"
 itoa = "1"
 libc = "0.2"
 log = "0.4"
@@ -48,8 +49,9 @@ rand = { version = "0.8", features = ["small_rng"] }
 rustls-pemfile = "1"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
-slab = "0.4"
+slotmap = "1"
 socket2 = { version = "0.5", features = ["all"] }
+thiserror = "1"
 
 [dev-dependencies]
 quickcheck = "1"

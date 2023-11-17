@@ -125,6 +125,7 @@ dependencies = [
  "futures-lite",
  "futures-rustls",
  "glommio",
+ "httparse",
  "itoa",
  "libc",
  "log",
@@ -140,8 +141,9 @@ dependencies = [
  "rustls-pemfile",
  "serde",
  "signal-hook",
- "slab",
+ "slotmap",
  "socket2 0.5.4",
+ "thiserror",
 ]
 
 [[package]]
@@ -152,6 +154,7 @@ dependencies = [
  "aquatic_common",
  "aquatic_http_protocol",
  "aquatic_toml_config",
+ "futures",
  "futures-lite",
  "futures-rustls",
  "glommio",

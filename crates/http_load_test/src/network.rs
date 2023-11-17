@@ -9,7 +9,7 @@ use std::{
 
 use aquatic_http_protocol::response::Response;
 use futures_lite::{AsyncReadExt, AsyncWriteExt};
-use futures_rustls::{client::TlsStream, TlsConnector};
+use futures_rustls::TlsConnector;
 use glommio::net::TcpStream;
 use glommio::{prelude::*, timer::TimerActionRepeat};
 use rand::{prelude::SmallRng, SeedableRng};
@@ -18,7 +18,7 @@ use crate::{common::LoadTestState, config::Config, utils::create_random_request}
 
 pub async fn run_socket_thread(
     config: Config,
-    tls_config: Arc<rustls::ClientConfig>,
+    opt_tls_config: Option<Arc<rustls::ClientConfig>>,
     load_test_state: LoadTestState,
 ) -> anyhow::Result<()> {
     let config = Rc::new(config);
@@ -30,9 +30,9 @@ pub async fn run_socket_thread(
     if interval == 0 {
         loop {
             if *num_active_connections.borrow() < config.num_connections {
-                if let Err(err) = Connection::run(
+                if let Err(err) = run_connection(
                     config.clone(),
-                    tls_config.clone(),
+                    opt_tls_config.clone(),
                     load_test_state.clone(),
                     num_active_connections.clone(),
                     rng.clone(),
@@ -50,7 +50,7 @@ pub async fn run_socket_thread(
             periodically_open_connections(
                 config.clone(),
                 interval,
-                tls_config.clone(),
+                opt_tls_config.clone(),
                 load_test_state.clone(),
                 num_active_connections.clone(),
                 rng.clone(),
@@ -66,16 +66,16 @@ pub async fn run_socket_thread(
 async fn periodically_open_connections(
     config: Rc<Config>,
     interval: Duration,
-    tls_config: Arc<rustls::ClientConfig>,
+    opt_tls_config: Option<Arc<rustls::ClientConfig>>,
     load_test_state: LoadTestState,
     num_active_connections: Rc<RefCell<usize>>,
     rng: Rc<RefCell<SmallRng>>,
 ) -> Option<Duration> {
     if *num_active_connections.borrow() < config.num_connections {
         spawn_local(async move {
-            if let Err(err) = Connection::run(
+            if let Err(err) = run_connection(
                 config,
-                tls_config,
+                opt_tls_config,
                 load_test_state,
                 num_active_connections,
                 rng.clone(),
@@ -91,26 +91,18 @@ async fn periodically_open_connections(
     Some(interval)
 }
 
-struct Connection {
+async fn run_connection(
     config: Rc<Config>,
+    opt_tls_config: Option<Arc<rustls::ClientConfig>>,
     load_test_state: LoadTestState,
+    num_active_connections: Rc<RefCell<usize>>,
     rng: Rc<RefCell<SmallRng>>,
-    stream: TlsStream<TcpStream>,
-    buffer: [u8; 2048],
-}
+) -> anyhow::Result<()> {
+    let stream = TcpStream::connect(config.server_address)
+        .await
+        .map_err(|err| anyhow::anyhow!("connect: {:?}", err))?;
 
-impl Connection {
-    async fn run(
-        config: Rc<Config>,
-        tls_config: Arc<rustls::ClientConfig>,
-        load_test_state: LoadTestState,
-        num_active_connections: Rc<RefCell<usize>>,
-        rng: Rc<RefCell<SmallRng>>,
-    ) -> anyhow::Result<()> {
-        let stream = TcpStream::connect(config.server_address)
-            .await
-            .map_err(|err| anyhow::anyhow!("connect: {:?}", err))?;
-
+    if let Some(tls_config) = opt_tls_config {
         let stream = TlsConnector::from(tls_config)
             .connect("example.com".try_into().unwrap(), stream)
             .await?;
@@ -120,18 +112,49 @@ impl Connection {
             load_test_state,
             rng,
             stream,
-            buffer: [0; 2048],
+            buffer: Box::new([0; 2048]),
         };
 
+        connection.run(num_active_connections).await?;
+    } else {
+        let mut connection = Connection {
+            config,
+            load_test_state,
+            rng,
+            stream,
+            buffer: Box::new([0; 2048]),
+        };
+
+        connection.run(num_active_connections).await?;
+    }
+
+    Ok(())
+}
+
+struct Connection<S> {
+    config: Rc<Config>,
+    load_test_state: LoadTestState,
+    rng: Rc<RefCell<SmallRng>>,
+    stream: S,
+    buffer: Box<[u8; 2048]>,
+}
+
+impl<S> Connection<S>
+where
+    S: futures::AsyncRead + futures::AsyncWrite + Unpin + 'static,
+{
+    async fn run(&mut self, num_active_connections: Rc<RefCell<usize>>) -> anyhow::Result<()> {
         *num_active_connections.borrow_mut() += 1;
 
-        if let Err(err) = connection.run_connection_loop().await {
+        let result = self.run_connection_loop().await;
+
+        if let Err(err) = &result {
             ::log::info!("connection error: {:?}", err);
         }
 
         *num_active_connections.borrow_mut() -= 1;
 
-        Ok(())
+        result
     }
 
     async fn run_connection_loop(&mut self) -> anyhow::Result<()> {

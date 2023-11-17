@@ -9,11 +9,11 @@ of sub-implementations for different protocols:
 [aquatic_http]: ./crates/http
 [aquatic_ws]: ./crates/ws
 
-| Name           | Protocol                        | OS requirements |
-|----------------|---------------------------------|-----------------|
-| [aquatic_udp]  | BitTorrent over UDP             | Unix-like       |
-| [aquatic_http] | BitTorrent over HTTP over TLS   | Linux 5.8+      |
-| [aquatic_ws]   | WebTorrent, optionally over TLS | Linux 5.8+      |
+| Name           | Protocol                                  | OS requirements |
+|----------------|-------------------------------------------|-----------------|
+| [aquatic_udp]  | BitTorrent over UDP                       | Unix-like       |
+| [aquatic_http] | BitTorrent over HTTP, optionally over TLS | Linux 5.8+      |
+| [aquatic_ws]   | WebTorrent, optionally over TLS           | Linux 5.8+      |
 
 Features at a glance:
 

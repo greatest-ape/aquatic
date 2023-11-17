@@ -23,6 +23,7 @@ pub struct Config {
     pub url_suffix: String,
     pub duration: usize,
     pub keep_alive: bool,
+    pub enable_tls: bool,
     pub torrents: TorrentConfig,
     pub cpu_pinning: CpuPinningConfigDesc,
 }
@@ -44,6 +45,7 @@ impl Default for Config {
             url_suffix: "".into(),
             duration: 0,
             keep_alive: true,
+            enable_tls: true,
             torrents: TorrentConfig::default(),
             cpu_pinning: Default::default(),
         }

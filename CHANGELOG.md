@@ -20,6 +20,15 @@
 
 * Reload TLS certificate (and key) on SIGUSR1
 
+#### Changed
+
+* Allow running without TLS
+* Allow running behind reverse proxy
+
+#### Fixed
+
+* Fix bug where clean up after closing connections wasn't always done
+
 ### aquatic_ws
 
 #### Added

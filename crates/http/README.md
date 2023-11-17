@@ -49,12 +49,9 @@ Generate the configuration file:
 Make necessary adjustments to the file. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
-`aquatic_http` __only__ runs over TLS, so configuring certificate and private
-key files is required.
+To run over TLS, configure certificate and private key files.
 
-Running behind a reverse proxy is currently not supported due to the
-[difficulties of determining the originating IP address](https://adam-p.ca/blog/2022/03/x-forwarded-for/)
-without knowing the exact setup.
+Running behind a reverse proxy is supported.
 
 ### Running
 

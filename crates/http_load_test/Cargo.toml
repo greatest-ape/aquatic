@@ -19,6 +19,7 @@ aquatic_http_protocol.workspace = true
 aquatic_toml_config.workspace = true
 
 anyhow = "1"
+futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.24"
 hashbrown = "0.14"

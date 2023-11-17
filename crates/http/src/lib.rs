@@ -24,7 +24,7 @@ mod common;
 pub mod config;
 mod workers;
 
-pub const APP_NAME: &str = "aquatic_http: BitTorrent tracker (HTTP over TLS)";
+pub const APP_NAME: &str = "aquatic_http: HTTP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const SHARED_CHANNEL_SIZE: usize = 1024;
@@ -58,10 +58,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
 
-    let tls_config = Arc::new(ArcSwap::from_pointee(create_rustls_config(
-        &config.network.tls_certificate_path,
-        &config.network.tls_private_key_path,
-    )?));
+    let opt_tls_config = if config.network.enable_tls {
+        Some(Arc::new(ArcSwap::from_pointee(create_rustls_config(
+            &config.network.tls_certificate_path,
+            &config.network.tls_private_key_path,
+        )?)))
+    } else {
+        None
+    };
 
     let server_start_instant = ServerStartInstant::new();
 
@@ -71,7 +75,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
-        let tls_config = tls_config.clone();
+        let opt_tls_config = opt_tls_config.clone();
         let request_mesh_builder = request_mesh_builder.clone();
         let priv_dropper = priv_dropper.clone();
 
@@ -89,7 +93,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     sentinel,
                     config,
                     state,
-                    tls_config,
+                    opt_tls_config,
                     request_mesh_builder,
                     priv_dropper,
                     server_start_instant,
@@ -146,16 +150,18 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             SIGUSR1 => {
                 let _ = update_access_list(&config.access_list, &state.access_list);
 
-                match create_rustls_config(
-                    &config.network.tls_certificate_path,
-                    &config.network.tls_private_key_path,
-                ) {
-                    Ok(config) => {
-                        tls_config.store(Arc::new(config));
+                if let Some(tls_config) = opt_tls_config.as_ref() {
+                    match create_rustls_config(
+                        &config.network.tls_certificate_path,
+                        &config.network.tls_private_key_path,
+                    ) {
+                        Ok(config) => {
+                            tls_config.store(Arc::new(config));
 
-                        ::log::info!("successfully updated tls config");
+                            ::log::info!("successfully updated tls config");
+                        }
+                        Err(err) => ::log::error!("could not update tls config: {:#}", err),
                     }
-                    Err(err) => ::log::error!("could not update tls config: {:#}", err),
                 }
             }
             SIGTERM => {

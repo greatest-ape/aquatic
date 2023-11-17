@@ -5,6 +5,9 @@
 * aquatic_ws
   * Validate SDP data
 
+* http
+  * panic sentinel not working
+
 ## Medium priority
 
 * stagger cleaning tasks?
