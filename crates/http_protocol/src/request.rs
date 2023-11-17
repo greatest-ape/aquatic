@@ -244,23 +244,6 @@ impl ScrapeRequest {
     }
 }
 
-#[derive(Debug)]
-pub enum RequestParseError {
-    NeedMoreData,
-    Invalid(anyhow::Error),
-}
-
-impl ::std::fmt::Display for RequestParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NeedMoreData => write!(f, "Incomplete request, more data needed"),
-            Self::Invalid(err) => write!(f, "Invalid request: {:#}", err),
-        }
-    }
-}
-
-impl ::std::error::Error for RequestParseError {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Announce(AnnounceRequest),
@@ -269,20 +252,20 @@ pub enum Request {
 
 impl Request {
     /// Parse Request from HTTP request bytes
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, RequestParseError> {
+    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Option<Self>> {
         let mut headers = [httparse::EMPTY_HEADER; 16];
         let mut http_request = httparse::Request::new(&mut headers);
 
         match http_request.parse(bytes) {
             Ok(httparse::Status::Complete(_)) => {
                 if let Some(path) = http_request.path {
-                    Self::from_http_get_path(path).map_err(RequestParseError::Invalid)
+                    Self::from_http_get_path(path).map(Some)
                 } else {
-                    Err(RequestParseError::Invalid(anyhow::anyhow!("no http path")))
+                    Err(anyhow::anyhow!("no http path"))
                 }
             }
-            Ok(httparse::Status::Partial) => Err(RequestParseError::NeedMoreData),
-            Err(err) => Err(RequestParseError::Invalid(anyhow::Error::from(err))),
+            Ok(httparse::Status::Partial) => Ok(None),
+            Err(err) => Err(anyhow::Error::from(err)),
         }
     }
 
@@ -368,7 +351,7 @@ mod tests {
         bytes.extend_from_slice(&ANNOUNCE_REQUEST_PATH.as_bytes());
         bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
 
-        let parsed_request = Request::from_bytes(&bytes[..]).unwrap();
+        let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();
         let reference_request = get_reference_announce_request();
 
         assert_eq!(parsed_request, reference_request);
@@ -382,7 +365,7 @@ mod tests {
         bytes.extend_from_slice(&SCRAPE_REQUEST_PATH.as_bytes());
         bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
 
-        let parsed_request = Request::from_bytes(&bytes[..]).unwrap();
+        let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();
         let reference_request = Request::Scrape(ScrapeRequest {
             info_hashes: vec![InfoHash(REFERENCE_INFO_HASH)],
         });
@@ -449,7 +432,7 @@ mod tests {
 
             request.write(&mut bytes, &[]).unwrap();
 
-            let parsed_request = Request::from_bytes(&bytes[..]).unwrap();
+            let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();
 
             let success = request == parsed_request;
 

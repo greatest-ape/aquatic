@@ -62,6 +62,7 @@ echo "log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3001'
+enable_tls = true
 tls_certificate_path = './cert.crt'
 tls_private_key_path = './key.pk8'
 " > tls.toml

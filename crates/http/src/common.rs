@@ -10,12 +10,14 @@ use aquatic_http_protocol::{
     response::{AnnounceResponse, ScrapeResponse},
 };
 use glommio::channels::shared_channel::SharedSender;
+use slotmap::new_key_type;
 
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
 
-#[derive(Clone, Copy, Debug)]
-pub struct ConnectionId(pub usize);
+new_key_type! {
+    pub struct ConnectionId;
+}
 
 #[derive(Debug)]
 pub enum ChannelRequest {
