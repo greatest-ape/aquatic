@@ -1,6 +1,6 @@
 mod mio;
 mod storage;
-#[cfg(feature = "io-uring")]
+#[cfg(all(target_os = "linux", feature = "io-uring"))]
 mod uring;
 mod validator;
 
@@ -17,6 +17,9 @@ use crate::{
 };
 
 pub use self::validator::ConnectionValidator;
+
+#[cfg(all(not(target_os = "linux"), feature = "io-uring"))]
+compile_error!("io_uring feature is only supported on Linux");
 
 /// Bytes of data transmitted when sending an IPv4 UDP packet, in addition to payload size
 ///
@@ -46,7 +49,7 @@ pub fn run_socket_worker(
     response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
     priv_dropper: PrivilegeDropper,
 ) {
-    #[cfg(feature = "io-uring")]
+    #[cfg(all(target_os = "linux", feature = "io-uring"))]
     match self::uring::supported_on_current_kernel() {
         Ok(()) => {
             self::uring::SocketWorker::run(

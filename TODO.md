@@ -2,8 +2,9 @@
 
 ## High priority
 
-* aquatic_ws
-  * Validate SDP data
+* CI transfer test
+  * add udp with io_uring
+  * add HTTP without TLS
 
 * http
   * panic sentinel not working

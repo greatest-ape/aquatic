@@ -36,8 +36,10 @@ use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
 /// Size of each request buffer
 ///
-/// Enough for scrape request with 20 info hashes
-const REQUEST_BUF_LEN: usize = 256;
+/// Needs to fit recvmsg metadata in addition to the payload.
+///
+/// The payload of a scrape request with 20 info hashes fits in 256 bytes.
+const REQUEST_BUF_LEN: usize = 512;
 
 /// Size of each response buffer
 ///
@@ -111,6 +113,7 @@ impl SocketWorker {
 
         let socket = create_socket(&config, priv_dropper).expect("create socket");
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
+
         let send_buffers = SendBuffers::new(&config, send_buffer_entries as usize);
         let recv_helper = RecvHelper::new(&config);
 
@@ -372,9 +375,7 @@ impl SocketWorker {
             }
         };
 
-        let buffer = buffer.as_slice();
-
-        let addr = match self.recv_helper.parse(buffer) {
+        let addr = match self.recv_helper.parse(buffer.as_slice()) {
             Ok((request, addr)) => {
                 self.handle_request(request, addr);
 
@@ -412,6 +413,11 @@ impl SocketWorker {
             }
             Err(self::recv_helper::Error::RecvMsgParseError) => {
                 ::log::error!("RecvMsgOut::parse failed");
+
+                return;
+            }
+            Err(self::recv_helper::Error::RecvMsgTruncated) => {
+                ::log::warn!("RecvMsgOut::parse failed: sockaddr or payload truncated");
 
                 return;
             }
