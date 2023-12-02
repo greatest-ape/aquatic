@@ -53,7 +53,7 @@ pub fn run_swarm_worker(
                         &statistics_sender,
                         &mut torrents.ipv4,
                         request,
-                        ip,
+                        ip.into(),
                         peer_valid_until,
                     );
 
@@ -66,7 +66,7 @@ pub fn run_swarm_worker(
                         &statistics_sender,
                         &mut torrents.ipv6,
                         request,
-                        ip,
+                        ip.into(),
                         peer_valid_until,
                     );
 
@@ -126,18 +126,19 @@ fn handle_announce_request<I: Ip>(
     peer_ip: I,
     peer_valid_until: ValidUntil,
 ) -> AnnounceResponse<I> {
-    let max_num_peers_to_take: usize = if request.peers_wanted.0 <= 0 {
+    let max_num_peers_to_take: usize = if request.peers_wanted.0.get() <= 0 {
         config.protocol.max_response_peers
     } else {
         ::std::cmp::min(
             config.protocol.max_response_peers,
-            request.peers_wanted.0.try_into().unwrap(),
+            request.peers_wanted.0.get().try_into().unwrap(),
         )
     };
 
     let torrent_data = torrents.0.entry(request.info_hash).or_default();
 
-    let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
+    let peer_status =
+        PeerStatus::from_event_and_bytes_left(request.event.into(), request.bytes_left);
 
     torrent_data.update_peer(
         config,
@@ -156,10 +157,14 @@ fn handle_announce_request<I: Ip>(
     };
 
     AnnounceResponse {
-        transaction_id: request.transaction_id,
-        announce_interval: AnnounceInterval(config.protocol.peer_announce_interval),
-        leechers: NumberOfPeers(torrent_data.num_leechers().try_into().unwrap_or(i32::MAX)),
-        seeders: NumberOfPeers(torrent_data.num_seeders().try_into().unwrap_or(i32::MAX)),
+        fixed: AnnounceResponseFixedData {
+            transaction_id: request.transaction_id,
+            announce_interval: AnnounceInterval::new(config.protocol.peer_announce_interval),
+            leechers: NumberOfPeers::new(
+                torrent_data.num_leechers().try_into().unwrap_or(i32::MAX),
+            ),
+            seeders: NumberOfPeers::new(torrent_data.num_seeders().try_into().unwrap_or(i32::MAX)),
+        },
         peers: response_peers,
     }
 }
@@ -168,8 +173,6 @@ fn handle_scrape_request<I: Ip>(
     torrents: &mut TorrentMap<I>,
     request: PendingScrapeRequest,
 ) -> PendingScrapeResponse {
-    const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
-
     let torrent_stats = request
         .info_hashes
         .into_iter()
@@ -178,7 +181,7 @@ fn handle_scrape_request<I: Ip>(
                 .0
                 .get(&info_hash)
                 .map(|torrent_data| torrent_data.scrape_statistics())
-                .unwrap_or(EMPTY_STATS);
+                .unwrap_or_else(|| create_torrent_scrape_statistics(0, 0));
 
             (i, stats)
         })
@@ -191,10 +194,10 @@ fn handle_scrape_request<I: Ip>(
 }
 
 #[inline(always)]
-const fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
+fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
     TorrentScrapeStatistics {
-        seeders: NumberOfPeers(seeders),
-        completed: NumberOfDownloads(0), // No implementation planned
-        leechers: NumberOfPeers(leechers),
+        seeders: NumberOfPeers::new(seeders),
+        completed: NumberOfDownloads::new(0), // No implementation planned
+        leechers: NumberOfPeers::new(leechers),
     }
 }

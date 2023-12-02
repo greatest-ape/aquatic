@@ -195,6 +195,8 @@ impl SocketWorker {
 
                     let src = CanonicalSocketAddr::new(src);
 
+                    ::log::trace!("received request bytes: {}", hex_slice(&self.buffer[..bytes_read]));
+
                     let request_parsable = match Request::from_bytes(
                         &self.buffer[..bytes_read],
                         self.config.protocol.max_scrape_torrents,
@@ -221,7 +223,7 @@ impl SocketWorker {
                                 if self.validator.connection_id_valid(src, connection_id) {
                                     let response = ErrorResponse {
                                         transaction_id,
-                                        message: err.right_or("Parse error").into(),
+                                        message: err.into(),
                                     };
 
                                     local_responses.push((response.into(), src));
@@ -285,6 +287,8 @@ impl SocketWorker {
 
         match request {
             Request::Connect(request) => {
+                ::log::trace!("received {:?} from {:?}", request, src);
+
                 let connection_id = self.validator.create_connection_id(src);
 
                 let response = Response::Connect(ConnectResponse {
@@ -295,6 +299,8 @@ impl SocketWorker {
                 local_responses.push((response, src))
             }
             Request::Announce(request) => {
+                ::log::trace!("received {:?} from {:?}", request, src);
+
                 if self
                     .validator
                     .connection_id_valid(src, request.connection_id)
@@ -323,6 +329,8 @@ impl SocketWorker {
                 }
             }
             Request::Scrape(request) => {
+                ::log::trace!("received {:?} from {:?}", request, src);
+
                 if self
                     .validator
                     .connection_id_valid(src, request.connection_id)
@@ -371,6 +379,8 @@ impl SocketWorker {
         } else {
             canonical_addr.get_ipv6_mapped()
         };
+
+        ::log::trace!("sending {:?} to {}, bytes: {}", response, addr, hex_slice(&cursor.get_ref()[..bytes_written]));
 
         match socket.send_to(&cursor.get_ref()[..bytes_written], addr) {
             Ok(amt) if config.statistics.active() => {
@@ -429,4 +439,15 @@ impl SocketWorker {
             },
         }
     }
+}
+
+fn hex_slice(bytes: &[u8]) -> String {
+    let mut output = String::with_capacity(bytes.len() * 3);
+
+    for chunk in bytes.chunks(4) {
+        output.push_str(&hex::encode(chunk));
+        output.push(' ');
+    }
+    
+    output
 }

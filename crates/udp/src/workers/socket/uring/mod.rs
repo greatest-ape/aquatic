@@ -393,7 +393,7 @@ impl SocketWorker {
                         if self.validator.connection_id_valid(addr, connection_id) {
                             let response = ErrorResponse {
                                 transaction_id,
-                                message: err.right_or("Parse error").into(),
+                                message: err.into(),
                             };
 
                             self.local_responses.push_back((response.into(), addr));

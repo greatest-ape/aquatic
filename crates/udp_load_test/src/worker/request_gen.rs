@@ -49,14 +49,14 @@ pub fn process_response(
             rng,
             info_hashes,
             torrent_peers,
-            r.transaction_id,
+            r.fixed.transaction_id,
         ),
         Response::AnnounceIpv6(r) => if_torrent_peer_move_and_create_random_request(
             config,
             rng,
             info_hashes,
             torrent_peers,
-            r.transaction_id,
+            r.fixed.transaction_id,
         ),
         Response::Scrape(r) => if_torrent_peer_move_and_create_random_request(
             config,
@@ -143,24 +143,25 @@ fn create_announce_request(
 ) -> Request {
     let (event, bytes_left) = {
         if rng.gen_bool(config.requests.peer_seeder_probability) {
-            (AnnounceEvent::Completed, NumberOfBytes(0))
+            (AnnounceEvent::Completed, NumberOfBytes::new(0))
         } else {
-            (AnnounceEvent::Started, NumberOfBytes(50))
+            (AnnounceEvent::Started, NumberOfBytes::new(50))
         }
     };
 
     (AnnounceRequest {
         connection_id: torrent_peer.connection_id,
+        action_placeholder: Default::default(),
         transaction_id,
         info_hash: torrent_peer.info_hash,
         peer_id: torrent_peer.peer_id,
-        bytes_downloaded: NumberOfBytes(50),
-        bytes_uploaded: NumberOfBytes(50),
+        bytes_downloaded: NumberOfBytes::new(50),
+        bytes_uploaded: NumberOfBytes::new(50),
         bytes_left,
-        event,
-        ip_address: None,
-        key: PeerKey(12345),
-        peers_wanted: NumberOfPeers(100),
+        event: event.into(),
+        ip_address: Ipv4AddrBytes([0; 4]),
+        key: PeerKey::new(12345),
+        peers_wanted: NumberOfPeers::new(100),
         port: torrent_peer.port,
     })
     .into()
@@ -209,7 +210,7 @@ fn create_torrent_peer(
         scrape_hash_indeces,
         connection_id,
         peer_id: generate_peer_id(),
-        port: Port(rng.gen()),
+        port: Port::new(rng.gen()),
     }
 }
 

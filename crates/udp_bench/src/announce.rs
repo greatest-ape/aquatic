@@ -49,7 +49,7 @@ pub fn bench_announce_handler(
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {
-                    dummy ^= last_peer.port.0;
+                    dummy ^= last_peer.port.0.get();
                 }
             }
         }
@@ -61,7 +61,7 @@ pub fn bench_announce_handler(
                 num_responses += 1;
 
                 if let Some(last_peer) = r.peers.last() {
-                    dummy ^= last_peer.port.0;
+                    dummy ^= last_peer.port.0.get();
                 }
             }
         }
@@ -91,18 +91,19 @@ pub fn create_requests(
         let info_hash_index = gamma_usize(rng, gamma, max_index);
 
         let request = AnnounceRequest {
-            connection_id: ConnectionId(0),
-            transaction_id: TransactionId(rng.gen()),
+            connection_id: ConnectionId::new(0),
+            action_placeholder: Default::default(),
+            transaction_id: TransactionId::new(rng.gen()),
             info_hash: info_hashes[info_hash_index],
             peer_id: PeerId(rng.gen()),
-            bytes_downloaded: NumberOfBytes(rng.gen()),
-            bytes_uploaded: NumberOfBytes(rng.gen()),
-            bytes_left: NumberOfBytes(rng.gen()),
-            event: AnnounceEvent::Started,
-            ip_address: None,
-            key: PeerKey(rng.gen()),
-            peers_wanted: NumberOfPeers(rng.gen()),
-            port: Port(rng.gen()),
+            bytes_downloaded: NumberOfBytes::new(rng.gen()),
+            bytes_uploaded: NumberOfBytes::new(rng.gen()),
+            bytes_left: NumberOfBytes::new(rng.gen()),
+            event: AnnounceEvent::Started.into(),
+            ip_address: Ipv4AddrBytes([0; 4]),
+            key: PeerKey::new(rng.gen()),
+            peers_wanted: NumberOfPeers::new(rng.gen()),
+            port: Port::new(rng.gen()),
         };
 
         requests.push((

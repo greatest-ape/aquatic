@@ -1,5 +1,3 @@
-use std::net::Ipv4Addr;
-use std::net::Ipv6Addr;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -256,8 +254,8 @@ impl<I: Ip> TorrentMap<I> {
 }
 
 pub struct TorrentMaps {
-    pub ipv4: TorrentMap<Ipv4Addr>,
-    pub ipv6: TorrentMap<Ipv6Addr>,
+    pub ipv4: TorrentMap<Ipv4AddrBytes>,
+    pub ipv6: TorrentMap<Ipv6AddrBytes>,
 }
 
 impl Default for TorrentMaps {
@@ -312,7 +310,6 @@ impl TorrentMaps {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use std::net::Ipv4Addr;
 
     use quickcheck::{quickcheck, TestResult};
     use rand::thread_rng;
@@ -326,10 +323,10 @@ mod tests {
 
         peer_id
     }
-    fn gen_peer(i: u32) -> Peer<Ipv4Addr> {
+    fn gen_peer(i: u32) -> Peer<Ipv4AddrBytes> {
         Peer {
-            ip_address: Ipv4Addr::from(i.to_be_bytes()),
-            port: Port(1),
+            ip_address: Ipv4AddrBytes(i.to_be_bytes()),
+            port: Port::new(1),
             is_seeder: false,
             valid_until: ValidUntil::new(ServerStartInstant::new(), 0),
         }
@@ -341,7 +338,7 @@ mod tests {
             let gen_num_peers = data.0 as u32;
             let req_num_peers = data.1 as usize;
 
-            let mut peer_map: PeerMap<Ipv4Addr> = Default::default();
+            let mut peer_map: PeerMap<Ipv4AddrBytes> = Default::default();
 
             let mut opt_sender_key = None;
             let mut opt_sender_peer = None;

@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
@@ -35,8 +34,8 @@ pub enum ConnectedRequest {
 
 #[derive(Debug)]
 pub enum ConnectedResponse {
-    AnnounceIpv4(AnnounceResponse<Ipv4Addr>),
-    AnnounceIpv6(AnnounceResponse<Ipv6Addr>),
+    AnnounceIpv4(AnnounceResponse<Ipv4AddrBytes>),
+    AnnounceIpv6(AnnounceResponse<Ipv6AddrBytes>),
     Scrape(PendingScrapeResponse),
 }
 
@@ -125,7 +124,7 @@ impl PeerStatus {
     pub fn from_event_and_bytes_left(event: AnnounceEvent, bytes_left: NumberOfBytes) -> Self {
         if event == AnnounceEvent::Stopped {
             Self::Stopped
-        } else if bytes_left.0 == 0 {
+        } else if bytes_left.0.get() == 0 {
             Self::Seeding
         } else {
             Self::Leeching
@@ -207,17 +206,17 @@ mod tests {
 
         let f = PeerStatus::from_event_and_bytes_left;
 
-        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(0)));
-        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes(1)));
+        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes::new(0)));
+        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes::new(1)));
 
-        assert_eq!(Seeding, f(AnnounceEvent::Started, NumberOfBytes(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::Started, NumberOfBytes(1)));
+        assert_eq!(Seeding, f(AnnounceEvent::Started, NumberOfBytes::new(0)));
+        assert_eq!(Leeching, f(AnnounceEvent::Started, NumberOfBytes::new(1)));
 
-        assert_eq!(Seeding, f(AnnounceEvent::Completed, NumberOfBytes(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::Completed, NumberOfBytes(1)));
+        assert_eq!(Seeding, f(AnnounceEvent::Completed, NumberOfBytes::new(0)));
+        assert_eq!(Leeching, f(AnnounceEvent::Completed, NumberOfBytes::new(1)));
 
-        assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes(1)));
+        assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes::new(0)));
+        assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes::new(1)));
     }
 
     // Assumes that announce response with maximum amount of ipv6 peers will
@@ -229,17 +228,19 @@ mod tests {
         let config = Config::default();
 
         let peers = ::std::iter::repeat(ResponsePeer {
-            ip_address: Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1),
-            port: Port(1),
+            ip_address: Ipv6AddrBytes(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1).octets()),
+            port: Port::new(1),
         })
         .take(config.protocol.max_response_peers)
         .collect();
 
         let response = Response::AnnounceIpv6(AnnounceResponse {
-            transaction_id: TransactionId(1),
-            announce_interval: AnnounceInterval(1),
-            seeders: NumberOfPeers(1),
-            leechers: NumberOfPeers(1),
+            fixed: AnnounceResponseFixedData {
+                transaction_id: TransactionId::new(1),
+                announce_interval: AnnounceInterval::new(1),
+                seeders: NumberOfPeers::new(1),
+                leechers: NumberOfPeers::new(1),
+            },
             peers,
         });
 

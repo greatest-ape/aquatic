@@ -11,8 +11,8 @@ use std::{
 use anyhow::Context;
 use aquatic_udp::{common::BUFFER_SIZE, config::Config};
 use aquatic_udp_protocol::{
-    common::PeerId, AnnounceEvent, AnnounceRequest, ConnectionId, InfoHash, NumberOfBytes,
-    NumberOfPeers, PeerKey, Port, Request, ScrapeRequest, TransactionId,
+    common::PeerId, AnnounceEvent, AnnounceRequest, ConnectionId, InfoHash, Ipv4AddrBytes,
+    NumberOfBytes, NumberOfPeers, PeerKey, Port, Request, ScrapeRequest, TransactionId,
 };
 
 #[test]
@@ -40,22 +40,23 @@ fn test_invalid_connection_id() -> anyhow::Result<()> {
 
     let announce_request = Request::Announce(AnnounceRequest {
         connection_id: invalid_connection_id,
-        transaction_id: TransactionId(0),
+        action_placeholder: Default::default(),
+        transaction_id: TransactionId::new(0),
         info_hash: InfoHash([0; 20]),
         peer_id: PeerId([0; 20]),
-        bytes_downloaded: NumberOfBytes(0),
-        bytes_uploaded: NumberOfBytes(0),
-        bytes_left: NumberOfBytes(0),
-        event: AnnounceEvent::Started,
-        ip_address: None,
-        key: PeerKey(0),
-        peers_wanted: NumberOfPeers(10),
-        port: Port(1),
+        bytes_downloaded: NumberOfBytes::new(0),
+        bytes_uploaded: NumberOfBytes::new(0),
+        bytes_left: NumberOfBytes::new(0),
+        event: AnnounceEvent::Started.into(),
+        ip_address: Ipv4AddrBytes([0; 4]),
+        key: PeerKey::new(0),
+        peers_wanted: NumberOfPeers::new(10),
+        port: Port::new(1),
     });
 
     let scrape_request = Request::Scrape(ScrapeRequest {
         connection_id: invalid_connection_id,
-        transaction_id: TransactionId(0),
+        transaction_id: TransactionId::new(0),
         info_hashes: vec![InfoHash([0; 20])],
     });
 

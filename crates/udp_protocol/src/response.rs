@@ -1,53 +1,122 @@
 use std::borrow::Cow;
-use std::convert::TryInto;
-use std::io::{self, Cursor, Write};
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::io::{self, Write};
+use std::mem::size_of;
 
-use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{NetworkEndian, WriteBytesExt};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 use super::common::*;
-
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub struct TorrentScrapeStatistics {
-    pub seeders: NumberOfPeers,
-    pub completed: NumberOfDownloads,
-    pub leechers: NumberOfPeers,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct ConnectResponse {
-    pub connection_id: ConnectionId,
-    pub transaction_id: TransactionId,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct AnnounceResponse<I: Ip> {
-    pub transaction_id: TransactionId,
-    pub announce_interval: AnnounceInterval,
-    pub leechers: NumberOfPeers,
-    pub seeders: NumberOfPeers,
-    pub peers: Vec<ResponsePeer<I>>,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct ScrapeResponse {
-    pub transaction_id: TransactionId,
-    pub torrent_stats: Vec<TorrentScrapeStatistics>,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct ErrorResponse {
-    pub transaction_id: TransactionId,
-    pub message: Cow<'static, str>,
-}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Response {
     Connect(ConnectResponse),
-    AnnounceIpv4(AnnounceResponse<Ipv4Addr>),
-    AnnounceIpv6(AnnounceResponse<Ipv6Addr>),
+    AnnounceIpv4(AnnounceResponse<Ipv4AddrBytes>),
+    AnnounceIpv6(AnnounceResponse<Ipv6AddrBytes>),
     Scrape(ScrapeResponse),
     Error(ErrorResponse),
+}
+
+impl Response {
+    #[inline]
+    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        match self {
+            Response::Connect(r) => {
+                bytes.write_i32::<NetworkEndian>(0)?;
+                bytes.write_all(r.as_bytes())?;
+            }
+            Response::AnnounceIpv4(r) => {
+                bytes.write_i32::<NetworkEndian>(1)?;
+                bytes.write_all(r.fixed.as_bytes())?;
+                bytes.write_all((*r.peers.as_slice()).as_bytes())?;
+            }
+            Response::AnnounceIpv6(r) => {
+                bytes.write_i32::<NetworkEndian>(1)?;
+                bytes.write_all(r.fixed.as_bytes())?;
+                bytes.write_all((*r.peers.as_slice()).as_bytes())?;
+            }
+            Response::Scrape(r) => {
+                bytes.write_i32::<NetworkEndian>(2)?;
+                bytes.write_all(r.transaction_id.as_bytes())?;
+                bytes.write_all((*r.torrent_stats.as_slice()).as_bytes())?;
+            }
+            Response::Error(r) => {
+                bytes.write_i32::<NetworkEndian>(3)?;
+                bytes.write_all(r.transaction_id.as_bytes())?;
+                bytes.write_all(r.message.as_bytes())?;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn from_bytes(mut bytes: &[u8], ipv4: bool) -> Result<Self, io::Error> {
+        let action = read_i32_ne(&mut bytes)?;
+
+        match action.get() {
+            // Connect
+            0 => Ok(Response::Connect(
+                ConnectResponse::read_from_prefix(bytes).ok_or_else(invalid_data)?,
+            )),
+            // Announce
+            1 if ipv4 => {
+                let fixed =
+                    AnnounceResponseFixedData::read_from_prefix(bytes).ok_or_else(invalid_data)?;
+
+                let peers = if let Some(bytes) = bytes.get(size_of::<AnnounceResponseFixedData>()..)
+                {
+                    Vec::from(
+                        ResponsePeer::<Ipv4AddrBytes>::slice_from(bytes)
+                            .ok_or_else(invalid_data)?,
+                    )
+                } else {
+                    Vec::new()
+                };
+
+                Ok(Response::AnnounceIpv4(AnnounceResponse { fixed, peers }))
+            }
+            1 if !ipv4 => {
+                let fixed =
+                    AnnounceResponseFixedData::read_from_prefix(bytes).ok_or_else(invalid_data)?;
+
+                let peers = if let Some(bytes) = bytes.get(size_of::<AnnounceResponseFixedData>()..)
+                {
+                    Vec::from(
+                        ResponsePeer::<Ipv6AddrBytes>::slice_from(bytes)
+                            .ok_or_else(invalid_data)?,
+                    )
+                } else {
+                    Vec::new()
+                };
+
+                Ok(Response::AnnounceIpv6(AnnounceResponse { fixed, peers }))
+            }
+            // Scrape
+            2 => {
+                let transaction_id = read_i32_ne(&mut bytes).map(TransactionId)?;
+                let torrent_stats =
+                    Vec::from(TorrentScrapeStatistics::slice_from(bytes).ok_or_else(invalid_data)?);
+
+                Ok((ScrapeResponse {
+                    transaction_id,
+                    torrent_stats,
+                })
+                .into())
+            }
+            // Error
+            3 => {
+                let transaction_id = read_i32_ne(&mut bytes).map(TransactionId)?;
+                let message = String::from_utf8_lossy(&bytes).into_owned().into();
+
+                Ok((ErrorResponse {
+                    transaction_id,
+                    message,
+                })
+                .into())
+            }
+            _ => Err(invalid_data()),
+        }
+    }
 }
 
 impl From<ConnectResponse> for Response {
@@ -56,14 +125,14 @@ impl From<ConnectResponse> for Response {
     }
 }
 
-impl From<AnnounceResponse<Ipv4Addr>> for Response {
-    fn from(r: AnnounceResponse<Ipv4Addr>) -> Self {
+impl From<AnnounceResponse<Ipv4AddrBytes>> for Response {
+    fn from(r: AnnounceResponse<Ipv4AddrBytes>) -> Self {
         Self::AnnounceIpv4(r)
     }
 }
 
-impl From<AnnounceResponse<Ipv6Addr>> for Response {
-    fn from(r: AnnounceResponse<Ipv6Addr>) -> Self {
+impl From<AnnounceResponse<Ipv6AddrBytes>> for Response {
+    fn from(r: AnnounceResponse<Ipv6AddrBytes>) -> Self {
         Self::AnnounceIpv6(r)
     }
 }
@@ -80,203 +149,85 @@ impl From<ErrorResponse> for Response {
     }
 }
 
-impl Response {
-    #[inline]
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
-        match self {
-            Response::Connect(r) => {
-                bytes.write_i32::<NetworkEndian>(0)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
-                bytes.write_i64::<NetworkEndian>(r.connection_id.0)?;
-            }
-            Response::AnnounceIpv4(r) => {
-                bytes.write_i32::<NetworkEndian>(1)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
-                bytes.write_i32::<NetworkEndian>(r.announce_interval.0)?;
-                bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
-                bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
+#[repr(C, packed)]
+pub struct ConnectResponse {
+    pub transaction_id: TransactionId,
+    pub connection_id: ConnectionId,
+}
 
-                for peer in r.peers.iter() {
-                    bytes.write_all(&peer.ip_address.octets())?;
-                    bytes.write_u16::<NetworkEndian>(peer.port.0)?;
-                }
-            }
-            Response::AnnounceIpv6(r) => {
-                bytes.write_i32::<NetworkEndian>(1)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
-                bytes.write_i32::<NetworkEndian>(r.announce_interval.0)?;
-                bytes.write_i32::<NetworkEndian>(r.leechers.0)?;
-                bytes.write_i32::<NetworkEndian>(r.seeders.0)?;
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct AnnounceResponse<I: Ip> {
+    pub fixed: AnnounceResponseFixedData,
+    pub peers: Vec<ResponsePeer<I>>,
+}
 
-                for peer in r.peers.iter() {
-                    bytes.write_all(&peer.ip_address.octets())?;
-                    bytes.write_u16::<NetworkEndian>(peer.port.0)?;
-                }
-            }
-            Response::Scrape(r) => {
-                bytes.write_i32::<NetworkEndian>(2)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
+#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
+#[repr(C, packed)]
+pub struct AnnounceResponseFixedData {
+    pub transaction_id: TransactionId,
+    pub announce_interval: AnnounceInterval,
+    pub leechers: NumberOfPeers,
+    pub seeders: NumberOfPeers,
+}
 
-                for torrent_stat in r.torrent_stats.iter() {
-                    bytes.write_i32::<NetworkEndian>(torrent_stat.seeders.0)?;
-                    bytes.write_i32::<NetworkEndian>(torrent_stat.completed.0)?;
-                    bytes.write_i32::<NetworkEndian>(torrent_stat.leechers.0)?;
-                }
-            }
-            Response::Error(r) => {
-                bytes.write_i32::<NetworkEndian>(3)?;
-                bytes.write_i32::<NetworkEndian>(r.transaction_id.0)?;
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct ScrapeResponse {
+    pub transaction_id: TransactionId,
+    pub torrent_stats: Vec<TorrentScrapeStatistics>,
+}
 
-                bytes.write_all(r.message.as_bytes())?;
-            }
-        }
+#[derive(PartialEq, Eq, Debug, Copy, Clone, AsBytes, FromBytes, FromZeroes)]
+#[repr(C, packed)]
+pub struct TorrentScrapeStatistics {
+    pub seeders: NumberOfPeers,
+    pub completed: NumberOfDownloads,
+    pub leechers: NumberOfPeers,
+}
 
-        Ok(())
-    }
-
-    #[inline]
-    pub fn from_bytes(bytes: &[u8], ipv4: bool) -> Result<Self, io::Error> {
-        let mut cursor = Cursor::new(bytes);
-
-        let action = cursor.read_i32::<NetworkEndian>()?;
-        let transaction_id = cursor.read_i32::<NetworkEndian>()?;
-
-        match action {
-            // Connect
-            0 => {
-                let connection_id = cursor.read_i64::<NetworkEndian>()?;
-
-                Ok((ConnectResponse {
-                    connection_id: ConnectionId(connection_id),
-                    transaction_id: TransactionId(transaction_id),
-                })
-                .into())
-            }
-            // Announce
-            1 if ipv4 => {
-                let announce_interval = cursor.read_i32::<NetworkEndian>()?;
-                let leechers = cursor.read_i32::<NetworkEndian>()?;
-                let seeders = cursor.read_i32::<NetworkEndian>()?;
-
-                let position = cursor.position() as usize;
-                let inner = cursor.into_inner();
-
-                let peers = inner[position..]
-                    .chunks_exact(6)
-                    .map(|chunk| {
-                        let ip_bytes: [u8; 4] = (&chunk[..4]).try_into().unwrap();
-                        let ip_address = Ipv4Addr::from(ip_bytes);
-                        let port = (&chunk[4..]).read_u16::<NetworkEndian>().unwrap();
-
-                        ResponsePeer {
-                            ip_address,
-                            port: Port(port),
-                        }
-                    })
-                    .collect();
-
-                Ok((AnnounceResponse {
-                    transaction_id: TransactionId(transaction_id),
-                    announce_interval: AnnounceInterval(announce_interval),
-                    leechers: NumberOfPeers(leechers),
-                    seeders: NumberOfPeers(seeders),
-                    peers,
-                })
-                .into())
-            }
-            1 if !ipv4 => {
-                let announce_interval = cursor.read_i32::<NetworkEndian>()?;
-                let leechers = cursor.read_i32::<NetworkEndian>()?;
-                let seeders = cursor.read_i32::<NetworkEndian>()?;
-
-                let position = cursor.position() as usize;
-                let inner = cursor.into_inner();
-
-                let peers = inner[position..]
-                    .chunks_exact(18)
-                    .map(|chunk| {
-                        let ip_bytes: [u8; 16] = (&chunk[..16]).try_into().unwrap();
-                        let ip_address = Ipv6Addr::from(ip_bytes);
-                        let port = (&chunk[16..]).read_u16::<NetworkEndian>().unwrap();
-
-                        ResponsePeer {
-                            ip_address,
-                            port: Port(port),
-                        }
-                    })
-                    .collect();
-
-                Ok((AnnounceResponse {
-                    transaction_id: TransactionId(transaction_id),
-                    announce_interval: AnnounceInterval(announce_interval),
-                    leechers: NumberOfPeers(leechers),
-                    seeders: NumberOfPeers(seeders),
-                    peers,
-                })
-                .into())
-            }
-            // Scrape
-            2 => {
-                let position = cursor.position() as usize;
-                let inner = cursor.into_inner();
-
-                let stats = inner[position..]
-                    .chunks_exact(12)
-                    .map(|chunk| {
-                        let mut cursor: Cursor<&[u8]> = Cursor::new(&chunk[..]);
-
-                        let seeders = cursor.read_i32::<NetworkEndian>().unwrap();
-                        let downloads = cursor.read_i32::<NetworkEndian>().unwrap();
-                        let leechers = cursor.read_i32::<NetworkEndian>().unwrap();
-
-                        TorrentScrapeStatistics {
-                            seeders: NumberOfPeers(seeders),
-                            completed: NumberOfDownloads(downloads),
-                            leechers: NumberOfPeers(leechers),
-                        }
-                    })
-                    .collect();
-
-                Ok((ScrapeResponse {
-                    transaction_id: TransactionId(transaction_id),
-                    torrent_stats: stats,
-                })
-                .into())
-            }
-            // Error
-            3 => {
-                let position = cursor.position() as usize;
-                let inner = cursor.into_inner();
-
-                Ok((ErrorResponse {
-                    transaction_id: TransactionId(transaction_id),
-                    message: String::from_utf8_lossy(&inner[position..])
-                        .into_owned()
-                        .into(),
-                })
-                .into())
-            }
-            _ => Ok((ErrorResponse {
-                transaction_id: TransactionId(transaction_id),
-                message: "Invalid action".into(),
-            })
-            .into()),
-        }
-    }
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct ErrorResponse {
+    pub transaction_id: TransactionId,
+    pub message: Cow<'static, str>,
 }
 
 #[cfg(test)]
 mod tests {
     use quickcheck_macros::quickcheck;
+    use zerocopy::network_endian::I32;
+    use zerocopy::network_endian::I64;
 
     use super::*;
+
+    impl quickcheck::Arbitrary for Ipv4AddrBytes {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            Self([
+                u8::arbitrary(g),
+                u8::arbitrary(g),
+                u8::arbitrary(g),
+                u8::arbitrary(g),
+            ])
+        }
+    }
+
+    impl quickcheck::Arbitrary for Ipv6AddrBytes {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let mut bytes = [0; 16];
+
+            for byte in bytes.iter_mut() {
+                *byte = u8::arbitrary(g)
+            }
+
+            Self(bytes)
+        }
+    }
 
     impl quickcheck::Arbitrary for TorrentScrapeStatistics {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                seeders: NumberOfPeers(i32::arbitrary(g)),
-                completed: NumberOfDownloads(i32::arbitrary(g)),
-                leechers: NumberOfPeers(i32::arbitrary(g)),
+                seeders: NumberOfPeers(I32::new(i32::arbitrary(g))),
+                completed: NumberOfDownloads(I32::new(i32::arbitrary(g))),
+                leechers: NumberOfPeers(I32::new(i32::arbitrary(g))),
             }
         }
     }
@@ -284,8 +235,8 @@ mod tests {
     impl quickcheck::Arbitrary for ConnectResponse {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             Self {
-                connection_id: ConnectionId(i64::arbitrary(g)),
-                transaction_id: TransactionId(i32::arbitrary(g)),
+                connection_id: ConnectionId(I64::new(i64::arbitrary(g))),
+                transaction_id: TransactionId(I32::new(i32::arbitrary(g))),
             }
         }
     }
@@ -297,10 +248,12 @@ mod tests {
                 .collect();
 
             Self {
-                transaction_id: TransactionId(i32::arbitrary(g)),
-                announce_interval: AnnounceInterval(i32::arbitrary(g)),
-                leechers: NumberOfPeers(i32::arbitrary(g)),
-                seeders: NumberOfPeers(i32::arbitrary(g)),
+                fixed: AnnounceResponseFixedData {
+                    transaction_id: TransactionId(I32::new(i32::arbitrary(g))),
+                    announce_interval: AnnounceInterval(I32::new(i32::arbitrary(g))),
+                    leechers: NumberOfPeers(I32::new(i32::arbitrary(g))),
+                    seeders: NumberOfPeers(I32::new(i32::arbitrary(g))),
+                },
                 peers,
             }
         }
@@ -313,7 +266,7 @@ mod tests {
                 .collect();
 
             Self {
-                transaction_id: TransactionId(i32::arbitrary(g)),
+                transaction_id: TransactionId(I32::new(i32::arbitrary(g))),
                 torrent_stats,
             }
         }
@@ -328,7 +281,7 @@ mod tests {
         let success = response == r2;
 
         if !success {
-            println!("before: {:#?}\nafter: {:#?}", response, r2);
+            ::pretty_assertions::assert_eq!(response, r2);
         }
 
         success
@@ -340,12 +293,16 @@ mod tests {
     }
 
     #[quickcheck]
-    fn test_announce_response_ipv4_convert_identity(response: AnnounceResponse<Ipv4Addr>) -> bool {
+    fn test_announce_response_ipv4_convert_identity(
+        response: AnnounceResponse<Ipv4AddrBytes>,
+    ) -> bool {
         same_after_conversion(response.into(), true)
     }
 
     #[quickcheck]
-    fn test_announce_response_ipv6_convert_identity(response: AnnounceResponse<Ipv6Addr>) -> bool {
+    fn test_announce_response_ipv6_convert_identity(
+        response: AnnounceResponse<Ipv6AddrBytes>,
+    ) -> bool {
         same_after_conversion(response.into(), false)
     }
 
