@@ -6,15 +6,14 @@ use std::{
 };
 
 use aquatic_common::CanonicalSocketAddr;
-use aquatic_udp_protocol::Response;
 use io_uring::opcode::SendMsg;
 
-use crate::config::Config;
+use crate::{common::CowResponse, config::Config};
 
 use super::{RESPONSE_BUF_LEN, SOCKET_IDENTIFIER};
 
-pub enum Error {
-    NoBuffers,
+pub enum Error<'a> {
+    NoBuffers(CowResponse<'a>),
     SerializationFailed(std::io::Error),
 }
 
@@ -58,12 +57,16 @@ impl SendBuffers {
         self.likely_next_free_index = 0;
     }
 
-    pub fn prepare_entry(
+    pub fn prepare_entry<'a>(
         &mut self,
-        response: &Response,
+        response: CowResponse<'a>,
         addr: CanonicalSocketAddr,
-    ) -> Result<io_uring::squeue::Entry, Error> {
-        let index = self.next_free_index()?;
+    ) -> Result<io_uring::squeue::Entry, Error<'a>> {
+        let index = if let Some(index) = self.next_free_index() {
+            index
+        } else {
+            return Err(Error::NoBuffers(response));
+        };
 
         let (buffer_metadata, buffer) = self.buffers.get_mut(index).unwrap();
 
@@ -82,9 +85,9 @@ impl SendBuffers {
         }
     }
 
-    fn next_free_index(&self) -> Result<usize, Error> {
+    fn next_free_index(&self) -> Option<usize> {
         if self.likely_next_free_index >= self.buffers.len() {
-            return Err(Error::NoBuffers);
+            return None;
         }
 
         for (i, (meta, _)) in self.buffers[self.likely_next_free_index..]
@@ -92,11 +95,11 @@ impl SendBuffers {
             .enumerate()
         {
             if meta.free {
-                return Ok(self.likely_next_free_index + i);
+                return Some(self.likely_next_free_index + i);
             }
         }
 
-        Err(Error::NoBuffers)
+        None
     }
 }
 
@@ -160,7 +163,7 @@ impl SendBuffer {
 
     fn prepare_entry(
         &mut self,
-        response: &Response,
+        response: CowResponse,
         addr: CanonicalSocketAddr,
         socket_is_ipv4: bool,
         metadata: &mut SendBufferMetadata,
@@ -196,7 +199,7 @@ impl SendBuffer {
             Ok(()) => {
                 self.iovec.iov_len = cursor.position() as usize;
 
-                metadata.response_type = ResponseType::from_response(response);
+                metadata.response_type = ResponseType::from_response(&response);
 
                 Ok(SendMsg::new(SOCKET_IDENTIFIER, addr_of_mut!(self.msghdr)).build())
             }
@@ -234,12 +237,12 @@ pub enum ResponseType {
 }
 
 impl ResponseType {
-    fn from_response(response: &Response) -> Self {
+    fn from_response(response: &CowResponse) -> Self {
         match response {
-            Response::Connect(_) => Self::Connect,
-            Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => Self::Announce,
-            Response::Scrape(_) => Self::Scrape,
-            Response::Error(_) => Self::Error,
+            CowResponse::Connect(_) => Self::Connect,
+            CowResponse::AnnounceIpv4(_) | CowResponse::AnnounceIpv6(_) => Self::Announce,
+            CowResponse::Scrape(_) => Self::Scrape,
+            CowResponse::Error(_) => Self::Error,
         }
     }
 }

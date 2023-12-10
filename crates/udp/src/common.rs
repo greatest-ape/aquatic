@@ -1,5 +1,8 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::hash::Hash;
+use std::io::Write;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
@@ -9,10 +12,55 @@ use aquatic_common::access_list::AccessListArcSwap;
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::*;
 use hdrhistogram::Histogram;
+use thingbuf::mpsc::blocking::SendRef;
 
 use crate::config::Config;
 
 pub const BUFFER_SIZE: usize = 8192;
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum CowResponse<'a> {
+    Connect(Cow<'a, ConnectResponse>),
+    AnnounceIpv4(Cow<'a, AnnounceResponse<Ipv4AddrBytes>>),
+    AnnounceIpv6(Cow<'a, AnnounceResponse<Ipv6AddrBytes>>),
+    Scrape(Cow<'a, ScrapeResponse>),
+    Error(Cow<'a, ErrorResponse>),
+}
+
+impl From<Response> for CowResponse<'_> {
+    fn from(value: Response) -> Self {
+        match value {
+            Response::AnnounceIpv4(r) => Self::AnnounceIpv4(Cow::Owned(r)),
+            Response::AnnounceIpv6(r) => Self::AnnounceIpv6(Cow::Owned(r)),
+            Response::Connect(r) => Self::Connect(Cow::Owned(r)),
+            Response::Scrape(r) => Self::Scrape(Cow::Owned(r)),
+            Response::Error(r) => Self::Error(Cow::Owned(r)),
+        }
+    }
+}
+
+impl<'a> CowResponse<'a> {
+    pub fn into_owned(self) -> Response {
+        match self {
+            CowResponse::Connect(r) => Response::Connect(r.into_owned()),
+            CowResponse::AnnounceIpv4(r) => Response::AnnounceIpv4(r.into_owned()),
+            CowResponse::AnnounceIpv6(r) => Response::AnnounceIpv6(r.into_owned()),
+            CowResponse::Scrape(r) => Response::Scrape(r.into_owned()),
+            CowResponse::Error(r) => Response::Error(r.into_owned()),
+        }
+    }
+
+    #[inline]
+    pub fn write(&self, bytes: &mut impl Write) -> Result<(), ::std::io::Error> {
+        match self {
+            Self::Connect(r) => r.write(bytes),
+            Self::AnnounceIpv4(r) => r.write(bytes),
+            Self::AnnounceIpv6(r) => r.write(bytes),
+            Self::Scrape(r) => r.write(bytes),
+            Self::Error(r) => r.write(bytes),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
@@ -37,6 +85,43 @@ pub enum ConnectedResponse {
     AnnounceIpv4(AnnounceResponse<Ipv4AddrBytes>),
     AnnounceIpv6(AnnounceResponse<Ipv6AddrBytes>),
     Scrape(PendingScrapeResponse),
+}
+
+pub enum ConnectedResponseKind {
+    AnnounceIpv4,
+    AnnounceIpv6,
+    Scrape,
+}
+
+pub struct ConnectedResponseWithAddr {
+    pub kind: ConnectedResponseKind,
+    pub announce_ipv4: AnnounceResponse<Ipv4AddrBytes>,
+    pub announce_ipv6: AnnounceResponse<Ipv6AddrBytes>,
+    pub scrape: PendingScrapeResponse,
+    pub addr: CanonicalSocketAddr,
+}
+
+pub struct Recycler;
+
+impl thingbuf::Recycle<ConnectedResponseWithAddr> for Recycler {
+    fn new_element(&self) -> ConnectedResponseWithAddr {
+        ConnectedResponseWithAddr {
+            kind: ConnectedResponseKind::AnnounceIpv4,
+            announce_ipv4: AnnounceResponse::empty(),
+            announce_ipv6: AnnounceResponse::empty(),
+            scrape: PendingScrapeResponse {
+                slab_key: 0,
+                torrent_stats: Default::default(),
+            },
+            addr: CanonicalSocketAddr::new(SocketAddr::V4(SocketAddrV4::new(0.into(), 0))),
+        }
+    }
+    fn recycle(&self, element: &mut ConnectedResponseWithAddr) {
+        element.announce_ipv4.peers.clear();
+        element.announce_ipv6.peers.clear();
+        element.scrape.torrent_stats.clear();
+        element.addr = CanonicalSocketAddr::new(SocketAddr::V4(SocketAddrV4::new(0.into(), 0)));
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -64,17 +149,19 @@ impl ConnectedRequestSender {
         Self { index, senders }
     }
 
+    pub fn any_full(&self) -> bool {
+        self.senders.iter().any(|sender| sender.is_full())
+    }
+
     pub fn try_send_to(
         &self,
         index: SwarmWorkerIndex,
         request: ConnectedRequest,
         addr: CanonicalSocketAddr,
-    ) {
+    ) -> Result<(), (SwarmWorkerIndex, ConnectedRequest, CanonicalSocketAddr)> {
         match self.senders[index.0].try_send((self.index, request, addr)) {
-            Ok(()) => {}
-            Err(TrySendError::Full(_)) => {
-                ::log::error!("Request channel {} is full, dropping request. Try increasing number of swarm workers or raising config.worker_channel_size.", index.0)
-            }
+            Ok(()) => Ok(()),
+            Err(TrySendError::Full(r)) => Err((index, r.1, r.2)),
             Err(TrySendError::Disconnected(_)) => {
                 panic!("Request channel {} is disconnected", index.0);
             }
@@ -83,31 +170,33 @@ impl ConnectedRequestSender {
 }
 
 pub struct ConnectedResponseSender {
-    senders: Vec<Sender<(ConnectedResponse, CanonicalSocketAddr)>>,
+    senders: Vec<thingbuf::mpsc::blocking::Sender<ConnectedResponseWithAddr, Recycler>>,
 }
 
 impl ConnectedResponseSender {
-    pub fn new(senders: Vec<Sender<(ConnectedResponse, CanonicalSocketAddr)>>) -> Self {
+    pub fn new(
+        senders: Vec<thingbuf::mpsc::blocking::Sender<ConnectedResponseWithAddr, Recycler>>,
+    ) -> Self {
         Self { senders }
     }
 
-    pub fn try_send_to(
+    pub fn try_send_ref_to(
         &self,
         index: SocketWorkerIndex,
-        response: ConnectedResponse,
-        addr: CanonicalSocketAddr,
-    ) {
-        match self.senders[index.0].try_send((response, addr)) {
-            Ok(()) => {}
-            Err(TrySendError::Full(_)) => {
-                ::log::error!("Response channel {} is full, dropping response. Try increasing number of socket workers or raising config.worker_channel_size.", index.0)
-            }
-            Err(TrySendError::Disconnected(_)) => {
-                panic!("Response channel {} is disconnected", index.0);
-            }
-        }
+    ) -> Result<SendRef<ConnectedResponseWithAddr>, thingbuf::mpsc::errors::TrySendError> {
+        self.senders[index.0].try_send_ref()
+    }
+
+    pub fn send_ref_to(
+        &self,
+        index: SocketWorkerIndex,
+    ) -> Result<SendRef<ConnectedResponseWithAddr>, thingbuf::mpsc::errors::Closed> {
+        self.senders[index.0].send_ref()
     }
 }
+
+pub type ConnectedResponseReceiver =
+    thingbuf::mpsc::blocking::Receiver<ConnectedResponseWithAddr, Recycler>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum PeerStatus {

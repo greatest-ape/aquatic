@@ -26,8 +26,7 @@ pub struct Config {
     pub swarm_workers: usize,
     pub log_level: LogLevel,
     /// Maximum number of items in each channel passing requests/responses
-    /// between workers. A value of zero means that the channels will be of
-    /// unbounded size.
+    /// between workers. A value of zero is no longer allowed.
     pub worker_channel_size: usize,
     /// How long to block waiting for requests in swarm workers.
     ///
@@ -59,7 +58,7 @@ impl Default for Config {
             socket_workers: 1,
             swarm_workers: 1,
             log_level: LogLevel::Error,
-            worker_channel_size: 0,
+            worker_channel_size: 1024 * 16,
             request_channel_recv_timeout_ms: 100,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
@@ -99,8 +98,6 @@ pub struct NetworkConfig {
     /// $ sudo sysctl -w net.core.rmem_max=104857600
     /// $ sudo sysctl -w net.core.rmem_default=104857600
     pub socket_recv_buffer_size: usize,
-    /// Poll event capacity (mio backend only)
-    pub poll_event_capacity: usize,
     /// Poll timeout in milliseconds (mio backend only)
     pub poll_timeout_ms: u64,
     /// Number of ring entries (io_uring backend only)
@@ -133,7 +130,6 @@ impl Default for NetworkConfig {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             only_ipv6: false,
             socket_recv_buffer_size: 4096 * 128,
-            poll_event_capacity: 4096,
             poll_timeout_ms: 50,
             #[cfg(feature = "io-uring")]
             ring_size: 1024,

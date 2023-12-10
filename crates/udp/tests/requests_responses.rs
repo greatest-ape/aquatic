@@ -35,12 +35,6 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
     for i in 0..20 {
         let is_seeder = i % 3 == 0;
 
-        if is_seeder {
-            num_seeders += 1;
-        } else {
-            num_leechers += 1;
-        }
-
         let socket = UdpSocket::bind(peer_addr)?;
         socket.set_read_timeout(Some(Duration::from_secs(1)))?;
 
@@ -79,6 +73,13 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
             assert!(response_peer_ports.is_subset(&expected_peer_ports));
         } else {
             assert_eq!(response_peer_ports, expected_peer_ports);
+        }
+
+        // Do this after announce is evaluated, since it is expected not to include announcing peer
+        if is_seeder {
+            num_seeders += 1;
+        } else {
+            num_leechers += 1;
         }
 
         let scrape_response = scrape(

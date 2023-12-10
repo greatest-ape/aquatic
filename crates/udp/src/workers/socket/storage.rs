@@ -65,14 +65,12 @@ impl PendingScrapeResponseSlab {
 
     pub fn add_and_get_finished(
         &mut self,
-        response: PendingScrapeResponse,
+        response: &PendingScrapeResponse,
     ) -> Option<ScrapeResponse> {
         let finished = if let Some(entry) = self.0.get_mut(response.slab_key) {
             entry.num_pending -= 1;
 
-            entry
-                .torrent_stats
-                .extend(response.torrent_stats.into_iter());
+            entry.torrent_stats.extend(response.torrent_stats.iter());
 
             entry.num_pending == 0
         } else {
@@ -205,7 +203,7 @@ mod tests {
                     torrent_stats,
                 };
 
-                if let Some(response) = map.add_and_get_finished(response) {
+                if let Some(response) = map.add_and_get_finished(&response) {
                     responses.push(response);
                 }
             }

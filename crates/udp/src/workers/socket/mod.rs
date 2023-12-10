@@ -5,14 +5,11 @@ mod uring;
 mod validator;
 
 use anyhow::Context;
-use aquatic_common::{
-    privileges::PrivilegeDropper, CanonicalSocketAddr, PanicSentinel, ServerStartInstant,
-};
-use crossbeam_channel::Receiver;
+use aquatic_common::{privileges::PrivilegeDropper, PanicSentinel, ServerStartInstant};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::{
-    common::{ConnectedRequestSender, ConnectedResponse, State},
+    common::{ConnectedRequestSender, ConnectedResponseReceiver, State},
     config::Config,
 };
 
@@ -46,7 +43,7 @@ pub fn run_socket_worker(
     validator: ConnectionValidator,
     server_start_instant: ServerStartInstant,
     request_sender: ConnectedRequestSender,
-    response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
+    response_receiver: ConnectedResponseReceiver,
     priv_dropper: PrivilegeDropper,
 ) {
     #[cfg(all(target_os = "linux", feature = "io-uring"))]

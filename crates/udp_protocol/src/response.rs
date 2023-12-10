@@ -20,33 +20,12 @@ impl Response {
     #[inline]
     pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
-            Response::Connect(r) => {
-                bytes.write_i32::<NetworkEndian>(0)?;
-                bytes.write_all(r.as_bytes())?;
-            }
-            Response::AnnounceIpv4(r) => {
-                bytes.write_i32::<NetworkEndian>(1)?;
-                bytes.write_all(r.fixed.as_bytes())?;
-                bytes.write_all((*r.peers.as_slice()).as_bytes())?;
-            }
-            Response::AnnounceIpv6(r) => {
-                bytes.write_i32::<NetworkEndian>(1)?;
-                bytes.write_all(r.fixed.as_bytes())?;
-                bytes.write_all((*r.peers.as_slice()).as_bytes())?;
-            }
-            Response::Scrape(r) => {
-                bytes.write_i32::<NetworkEndian>(2)?;
-                bytes.write_all(r.transaction_id.as_bytes())?;
-                bytes.write_all((*r.torrent_stats.as_slice()).as_bytes())?;
-            }
-            Response::Error(r) => {
-                bytes.write_i32::<NetworkEndian>(3)?;
-                bytes.write_all(r.transaction_id.as_bytes())?;
-                bytes.write_all(r.message.as_bytes())?;
-            }
+            Response::Connect(r) => r.write(bytes),
+            Response::AnnounceIpv4(r) => r.write(bytes),
+            Response::AnnounceIpv6(r) => r.write(bytes),
+            Response::Scrape(r) => r.write(bytes),
+            Response::Error(r) => r.write(bytes),
         }
-
-        Ok(())
     }
 
     #[inline]
@@ -156,10 +135,38 @@ pub struct ConnectResponse {
     pub connection_id: ConnectionId,
 }
 
+impl ConnectResponse {
+    #[inline]
+    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        bytes.write_i32::<NetworkEndian>(0)?;
+        bytes.write_all(self.as_bytes())?;
+
+        Ok(())
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct AnnounceResponse<I: Ip> {
     pub fixed: AnnounceResponseFixedData,
     pub peers: Vec<ResponsePeer<I>>,
+}
+
+impl<I: Ip> AnnounceResponse<I> {
+    pub fn empty() -> Self {
+        Self {
+            fixed: FromZeroes::new_zeroed(),
+            peers: Default::default(),
+        }
+    }
+
+    #[inline]
+    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        bytes.write_i32::<NetworkEndian>(1)?;
+        bytes.write_all(self.fixed.as_bytes())?;
+        bytes.write_all((*self.peers.as_slice()).as_bytes())?;
+
+        Ok(())
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
@@ -177,6 +184,17 @@ pub struct ScrapeResponse {
     pub torrent_stats: Vec<TorrentScrapeStatistics>,
 }
 
+impl ScrapeResponse {
+    #[inline]
+    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        bytes.write_i32::<NetworkEndian>(2)?;
+        bytes.write_all(self.transaction_id.as_bytes())?;
+        bytes.write_all((*self.torrent_stats.as_slice()).as_bytes())?;
+
+        Ok(())
+    }
+}
+
 #[derive(PartialEq, Eq, Debug, Copy, Clone, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
 pub struct TorrentScrapeStatistics {
@@ -189,6 +207,17 @@ pub struct TorrentScrapeStatistics {
 pub struct ErrorResponse {
     pub transaction_id: TransactionId,
     pub message: Cow<'static, str>,
+}
+
+impl ErrorResponse {
+    #[inline]
+    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        bytes.write_i32::<NetworkEndian>(3)?;
+        bytes.write_all(self.transaction_id.as_bytes())?;
+        bytes.write_all(self.message.as_bytes())?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
