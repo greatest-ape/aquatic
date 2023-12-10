@@ -1,10 +1,10 @@
+use std::borrow::Cow;
 use std::io::{Cursor, ErrorKind};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ServerStartInstant;
-use crossbeam_channel::Receiver;
 use mio::net::UdpSocket;
 use mio::{Events, Interest, Poll, Token};
 
@@ -21,17 +21,32 @@ use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
+enum HandleRequestError {
+    RequestChannelFull(Vec<(SwarmWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>),
+}
+
+#[derive(Clone, Copy, Debug)]
+enum PollMode {
+    Regular,
+    SkipPolling,
+    SkipReceiving,
+}
+
 pub struct SocketWorker {
     config: Config,
     shared_state: State,
     request_sender: ConnectedRequestSender,
-    response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
+    response_receiver: ConnectedResponseReceiver,
     access_list_cache: AccessListCache,
     validator: ConnectionValidator,
     server_start_instant: ServerStartInstant,
     pending_scrape_responses: PendingScrapeResponseSlab,
     socket: UdpSocket,
+    opt_resend_buffer: Option<Vec<(Response, CanonicalSocketAddr)>>,
     buffer: [u8; BUFFER_SIZE],
+    polling_mode: PollMode,
+    /// Storage for requests that couldn't be sent to swarm worker because channel was full
+    pending_requests: Vec<(SwarmWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
 }
 
 impl SocketWorker {
@@ -42,12 +57,13 @@ impl SocketWorker {
         validator: ConnectionValidator,
         server_start_instant: ServerStartInstant,
         request_sender: ConnectedRequestSender,
-        response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
+        response_receiver: ConnectedResponseReceiver,
         priv_dropper: PrivilegeDropper,
     ) {
         let socket =
             UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
+        let opt_resend_buffer = (config.network.resend_buffer_max_len > 0).then_some(Vec::new());
 
         let mut worker = Self {
             config,
@@ -59,18 +75,17 @@ impl SocketWorker {
             access_list_cache,
             pending_scrape_responses: Default::default(),
             socket,
+            opt_resend_buffer,
             buffer: [0; BUFFER_SIZE],
+            polling_mode: PollMode::Regular,
+            pending_requests: Default::default(),
         };
 
         worker.run_inner();
     }
 
     pub fn run_inner(&mut self) {
-        let mut local_responses = Vec::new();
-        let mut opt_resend_buffer =
-            (self.config.network.resend_buffer_max_len > 0).then_some(Vec::new());
-
-        let mut events = Events::with_capacity(self.config.network.poll_event_capacity);
+        let mut events = Events::with_capacity(1);
         let mut poll = Poll::new().expect("create poll");
 
         poll.registry()
@@ -91,17 +106,33 @@ impl SocketWorker {
         let mut iter_counter = 0usize;
 
         loop {
-            poll.poll(&mut events, Some(poll_timeout))
-                .expect("failed polling");
+            match self.polling_mode {
+                PollMode::Regular => {
+                    poll.poll(&mut events, Some(poll_timeout))
+                        .expect("failed polling");
 
-            for event in events.iter() {
-                if event.is_readable() {
-                    self.read_and_handle_requests(&mut local_responses, pending_scrape_valid_until);
+                    for event in events.iter() {
+                        if event.is_readable() {
+                            self.read_and_handle_requests(pending_scrape_valid_until);
+                        }
+                    }
+                }
+                PollMode::SkipPolling => {
+                    self.polling_mode = PollMode::Regular;
+
+                    // Continue reading from socket without polling, since
+                    // reading was previouly cancelled
+                    self.read_and_handle_requests(pending_scrape_valid_until);
+                }
+                PollMode::SkipReceiving => {
+                    ::log::info!("Postponing receiving requests because swarm worker channel is full. This means that the OS will be relied on to buffer incoming packets. To prevent this, raise config.worker_channel_size.");
+
+                    self.polling_mode = PollMode::SkipPolling;
                 }
             }
 
             // If resend buffer is enabled, send any responses in it
-            if let Some(resend_buffer) = opt_resend_buffer.as_mut() {
+            if let Some(resend_buffer) = self.opt_resend_buffer.as_mut() {
                 for (response, addr) in resend_buffer.drain(..) {
                     Self::send_response(
                         &self.config,
@@ -109,46 +140,23 @@ impl SocketWorker {
                         &mut self.socket,
                         &mut self.buffer,
                         &mut None,
-                        response,
+                        response.into(),
                         addr,
                     );
                 }
             }
 
-            // Send any connect and error responses generated by this socket worker
-            for (response, addr) in local_responses.drain(..) {
-                Self::send_response(
-                    &self.config,
-                    &self.shared_state,
-                    &mut self.socket,
-                    &mut self.buffer,
-                    &mut opt_resend_buffer,
-                    response,
-                    addr,
-                );
-            }
-
             // Check channel for any responses generated by swarm workers
-            for (response, addr) in self.response_receiver.try_iter() {
-                let opt_response = match response {
-                    ConnectedResponse::Scrape(r) => self
-                        .pending_scrape_responses
-                        .add_and_get_finished(r)
-                        .map(Response::Scrape),
-                    ConnectedResponse::AnnounceIpv4(r) => Some(Response::AnnounceIpv4(r)),
-                    ConnectedResponse::AnnounceIpv6(r) => Some(Response::AnnounceIpv6(r)),
-                };
+            self.handle_swarm_worker_responses();
 
-                if let Some(response) = opt_response {
-                    Self::send_response(
-                        &self.config,
-                        &self.shared_state,
-                        &mut self.socket,
-                        &mut self.buffer,
-                        &mut opt_resend_buffer,
-                        response,
-                        addr,
-                    );
+            // Try sending pending requests
+            while let Some((index, request, addr)) = self.pending_requests.pop() {
+                if let Err(r) = self.request_sender.try_send_to(index, request, addr) {
+                    self.pending_requests.push(r);
+
+                    self.polling_mode = PollMode::SkipReceiving;
+
+                    break;
                 }
             }
 
@@ -174,11 +182,7 @@ impl SocketWorker {
         }
     }
 
-    fn read_and_handle_requests(
-        &mut self,
-        local_responses: &mut Vec<(Response, CanonicalSocketAddr)>,
-        pending_scrape_valid_until: ValidUntil,
-    ) {
+    fn read_and_handle_requests(&mut self, pending_scrape_valid_until: ValidUntil) {
         let mut requests_received_ipv4: usize = 0;
         let mut requests_received_ipv6: usize = 0;
         let mut bytes_received_ipv4: usize = 0;
@@ -194,18 +198,19 @@ impl SocketWorker {
                     }
 
                     let src = CanonicalSocketAddr::new(src);
-
                     let request_parsable = match Request::from_bytes(
                         &self.buffer[..bytes_read],
                         self.config.protocol.max_scrape_torrents,
                     ) {
                         Ok(request) => {
-                            self.handle_request(
-                                local_responses,
-                                pending_scrape_valid_until,
-                                request,
-                                src,
-                            );
+                            if let Err(HandleRequestError::RequestChannelFull(failed_requests)) =
+                                self.handle_request(pending_scrape_valid_until, request, src)
+                            {
+                                self.pending_requests.extend(failed_requests.into_iter());
+                                self.polling_mode = PollMode::SkipReceiving;
+
+                                break;
+                            }
 
                             true
                         }
@@ -221,10 +226,18 @@ impl SocketWorker {
                                 if self.validator.connection_id_valid(src, connection_id) {
                                     let response = ErrorResponse {
                                         transaction_id,
-                                        message: err.right_or("Parse error").into(),
+                                        message: err.into(),
                                     };
 
-                                    local_responses.push((response.into(), src));
+                                    Self::send_response(
+                                        &self.config,
+                                        &self.shared_state,
+                                        &mut self.socket,
+                                        &mut self.buffer,
+                                        &mut self.opt_resend_buffer,
+                                        CowResponse::Error(Cow::Owned(response)),
+                                        src,
+                                    );
                                 }
                             }
 
@@ -276,23 +289,32 @@ impl SocketWorker {
 
     fn handle_request(
         &mut self,
-        local_responses: &mut Vec<(Response, CanonicalSocketAddr)>,
         pending_scrape_valid_until: ValidUntil,
         request: Request,
         src: CanonicalSocketAddr,
-    ) {
+    ) -> Result<(), HandleRequestError> {
         let access_list_mode = self.config.access_list.mode;
 
         match request {
             Request::Connect(request) => {
                 let connection_id = self.validator.create_connection_id(src);
 
-                let response = Response::Connect(ConnectResponse {
+                let response = ConnectResponse {
                     connection_id,
                     transaction_id: request.transaction_id,
-                });
+                };
 
-                local_responses.push((response, src))
+                Self::send_response(
+                    &self.config,
+                    &self.shared_state,
+                    &mut self.socket,
+                    &mut self.buffer,
+                    &mut self.opt_resend_buffer,
+                    CowResponse::Connect(Cow::Owned(response)),
+                    src,
+                );
+
+                Ok(())
             }
             Request::Announce(request) => {
                 if self
@@ -307,19 +329,31 @@ impl SocketWorker {
                         let worker_index =
                             SwarmWorkerIndex::from_info_hash(&self.config, request.info_hash);
 
-                        self.request_sender.try_send_to(
-                            worker_index,
-                            ConnectedRequest::Announce(request),
-                            src,
-                        );
+                        self.request_sender
+                            .try_send_to(worker_index, ConnectedRequest::Announce(request), src)
+                            .map_err(|request| {
+                                HandleRequestError::RequestChannelFull(vec![request])
+                            })
                     } else {
-                        let response = Response::Error(ErrorResponse {
+                        let response = ErrorResponse {
                             transaction_id: request.transaction_id,
                             message: "Info hash not allowed".into(),
-                        });
+                        };
 
-                        local_responses.push((response, src))
+                        Self::send_response(
+                            &self.config,
+                            &self.shared_state,
+                            &mut self.socket,
+                            &mut self.buffer,
+                            &mut self.opt_resend_buffer,
+                            CowResponse::Error(Cow::Owned(response)),
+                            src,
+                        );
+
+                        Ok(())
                     }
+                } else {
+                    Ok(())
                 }
             }
             Request::Scrape(request) => {
@@ -333,15 +367,66 @@ impl SocketWorker {
                         pending_scrape_valid_until,
                     );
 
+                    let mut failed = Vec::new();
+
                     for (swarm_worker_index, request) in split_requests {
-                        self.request_sender.try_send_to(
+                        if let Err(request) = self.request_sender.try_send_to(
                             swarm_worker_index,
                             ConnectedRequest::Scrape(request),
                             src,
-                        );
+                        ) {
+                            failed.push(request);
+                        }
                     }
+
+                    if failed.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(HandleRequestError::RequestChannelFull(failed))
+                    }
+                } else {
+                    Ok(())
                 }
             }
+        }
+    }
+
+    fn handle_swarm_worker_responses(&mut self) {
+        loop {
+            let recv_ref = if let Ok(recv_ref) = self.response_receiver.try_recv_ref() {
+                recv_ref
+            } else {
+                break;
+            };
+
+            let response = match recv_ref.kind {
+                ConnectedResponseKind::Scrape => {
+                    if let Some(r) = self
+                        .pending_scrape_responses
+                        .add_and_get_finished(&recv_ref.scrape)
+                    {
+                        CowResponse::Scrape(Cow::Owned(r))
+                    } else {
+                        continue;
+                    }
+                }
+                ConnectedResponseKind::AnnounceIpv4 => {
+                    CowResponse::AnnounceIpv4(Cow::Borrowed(&recv_ref.announce_ipv4))
+                }
+                ConnectedResponseKind::AnnounceIpv6 => {
+                    CowResponse::AnnounceIpv6(Cow::Borrowed(&recv_ref.announce_ipv6))
+                }
+            };
+
+            Self::send_response(
+                &self.config,
+                &self.shared_state,
+                &mut self.socket,
+                &mut self.buffer,
+                &mut self.opt_resend_buffer,
+                response,
+                recv_ref.addr,
+            );
         }
     }
 
@@ -351,18 +436,18 @@ impl SocketWorker {
         socket: &mut UdpSocket,
         buffer: &mut [u8],
         opt_resend_buffer: &mut Option<Vec<(Response, CanonicalSocketAddr)>>,
-        response: Response,
+        response: CowResponse,
         canonical_addr: CanonicalSocketAddr,
     ) {
-        let mut cursor = Cursor::new(buffer);
+        let mut buffer = Cursor::new(&mut buffer[..]);
 
-        if let Err(err) = response.write(&mut cursor) {
-            ::log::error!("Converting response to bytes failed: {:#}", err);
+        if let Err(err) = response.write(&mut buffer) {
+            ::log::error!("failed writing response to buffer: {:#}", err);
 
             return;
         }
 
-        let bytes_written = cursor.position() as usize;
+        let bytes_written = buffer.position() as usize;
 
         let addr = if config.network.address.is_ipv4() {
             canonical_addr
@@ -372,7 +457,7 @@ impl SocketWorker {
             canonical_addr.get_ipv6_mapped()
         };
 
-        match socket.send_to(&cursor.get_ref()[..bytes_written], addr) {
+        match socket.send_to(&buffer.into_inner()[..bytes_written], addr) {
             Ok(amt) if config.statistics.active() => {
                 let stats = if canonical_addr.is_ipv4() {
                     let stats = &shared_state.statistics_ipv4;
@@ -393,18 +478,18 @@ impl SocketWorker {
                 };
 
                 match response {
-                    Response::Connect(_) => {
+                    CowResponse::Connect(_) => {
                         stats.responses_sent_connect.fetch_add(1, Ordering::Relaxed);
                     }
-                    Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => {
+                    CowResponse::AnnounceIpv4(_) | CowResponse::AnnounceIpv6(_) => {
                         stats
                             .responses_sent_announce
                             .fetch_add(1, Ordering::Relaxed);
                     }
-                    Response::Scrape(_) => {
+                    CowResponse::Scrape(_) => {
                         stats.responses_sent_scrape.fetch_add(1, Ordering::Relaxed);
                     }
-                    Response::Error(_) => {
+                    CowResponse::Error(_) => {
                         stats.responses_sent_error.fetch_add(1, Ordering::Relaxed);
                     }
                 }
@@ -418,7 +503,7 @@ impl SocketWorker {
                     if resend_buffer.len() < config.network.resend_buffer_max_len {
                         ::log::info!("Adding response to resend queue, since sending it to {} failed with: {:#}", addr, err);
 
-                        resend_buffer.push((response, canonical_addr));
+                        resend_buffer.push((response.into_owned(), canonical_addr));
                     } else {
                         ::log::warn!("Response resend buffer full, dropping response");
                     }

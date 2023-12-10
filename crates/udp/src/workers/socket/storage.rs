@@ -65,14 +65,12 @@ impl PendingScrapeResponseSlab {
 
     pub fn add_and_get_finished(
         &mut self,
-        response: PendingScrapeResponse,
+        response: &PendingScrapeResponse,
     ) -> Option<ScrapeResponse> {
         let finished = if let Some(entry) = self.0.get_mut(response.slab_key) {
             entry.num_pending -= 1;
 
-            entry
-                .torrent_stats
-                .extend(response.torrent_stats.into_iter());
+            entry.torrent_stats.extend(response.torrent_stats.iter());
 
             entry.num_pending == 0
         } else {
@@ -156,8 +154,8 @@ mod tests {
             }
 
             let request = ScrapeRequest {
-                transaction_id: TransactionId(t),
-                connection_id: ConnectionId(c),
+                transaction_id: TransactionId::new(t),
+                connection_id: ConnectionId::new(c),
                 info_hashes,
             };
 
@@ -192,9 +190,9 @@ mod tests {
                         (
                             i,
                             TorrentScrapeStatistics {
-                                seeders: NumberOfPeers((info_hash.0[0]) as i32),
-                                leechers: NumberOfPeers(0),
-                                completed: NumberOfDownloads(0),
+                                seeders: NumberOfPeers::new((info_hash.0[0]) as i32),
+                                leechers: NumberOfPeers::new(0),
+                                completed: NumberOfDownloads::new(0),
                             },
                         )
                     })
@@ -205,7 +203,7 @@ mod tests {
                     torrent_stats,
                 };
 
-                if let Some(response) = map.add_and_get_finished(response) {
+                if let Some(response) = map.add_and_get_finished(&response) {
                     responses.push(response);
                 }
             }

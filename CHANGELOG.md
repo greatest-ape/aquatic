@@ -14,6 +14,14 @@
 
 * Add support for reporting peer client information
 
+#### Changed
+
+* Remove support for unbounded worker channels
+* Add backpressure in socket workers. They will postpone reading from the
+  socket if sending a request to a swarm worker failed
+* Reuse allocations in swarm response channel
+* Remove config key `network.poll_event_capacity`
+
 ### aquatic_http
 
 #### Added

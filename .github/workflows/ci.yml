@@ -63,7 +63,9 @@ jobs:
     - name: Setup Rust dependency caching
       uses: Swatinem/rust-cache@v2
     - name: Run tests
-      run: cargo test --verbose --workspace --profile "test-fast"
+      run: cargo test --verbose --profile "test-fast" --workspace
+    - name: Run tests (aquatic_udp with io_uring)
+      run: cargo test --verbose --profile "test-fast" -p aquatic_udp --features "io-uring"
 
   test-file-transfers:
     runs-on: ubuntu-latest

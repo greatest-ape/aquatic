@@ -1,22 +1,22 @@
 mod mio;
 mod storage;
-#[cfg(feature = "io-uring")]
+#[cfg(all(target_os = "linux", feature = "io-uring"))]
 mod uring;
 mod validator;
 
 use anyhow::Context;
-use aquatic_common::{
-    privileges::PrivilegeDropper, CanonicalSocketAddr, PanicSentinel, ServerStartInstant,
-};
-use crossbeam_channel::Receiver;
+use aquatic_common::{privileges::PrivilegeDropper, PanicSentinel, ServerStartInstant};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::{
-    common::{ConnectedRequestSender, ConnectedResponse, State},
+    common::{ConnectedRequestSender, ConnectedResponseReceiver, State},
     config::Config,
 };
 
 pub use self::validator::ConnectionValidator;
+
+#[cfg(all(not(target_os = "linux"), feature = "io-uring"))]
+compile_error!("io_uring feature is only supported on Linux");
 
 /// Bytes of data transmitted when sending an IPv4 UDP packet, in addition to payload size
 ///
@@ -43,10 +43,10 @@ pub fn run_socket_worker(
     validator: ConnectionValidator,
     server_start_instant: ServerStartInstant,
     request_sender: ConnectedRequestSender,
-    response_receiver: Receiver<(ConnectedResponse, CanonicalSocketAddr)>,
+    response_receiver: ConnectedResponseReceiver,
     priv_dropper: PrivilegeDropper,
 ) {
-    #[cfg(feature = "io-uring")]
+    #[cfg(all(target_os = "linux", feature = "io-uring"))]
     match self::uring::supported_on_current_kernel() {
         Ok(()) => {
             self::uring::SocketWorker::run(

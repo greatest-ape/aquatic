@@ -21,3 +21,4 @@ hex = "0.4"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 quickcheck = { version = "1", optional = true }
+zerocopy = { version = "0.7", features = ["derive"] }

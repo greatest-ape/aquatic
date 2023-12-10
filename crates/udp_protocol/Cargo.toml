@@ -15,7 +15,9 @@ aquatic_peer_id.workspace = true
 
 byteorder = "1"
 either = "1"
+zerocopy = { version = "0.7", features = ["derive"] }
 
 [dev-dependencies]
+pretty_assertions = "1"
 quickcheck = "1"
 quickcheck_macros = "1"

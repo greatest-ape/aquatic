@@ -68,7 +68,10 @@ tls_private_key_path = './key.pk8'
 " > tls.toml
 ./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
 
-echo "[network]
+echo "
+log_level = 'trace'
+
+[network]
 address = '127.0.0.1:3000'" > udp.toml
 ./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
 

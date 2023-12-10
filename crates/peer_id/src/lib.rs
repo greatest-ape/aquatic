@@ -3,8 +3,24 @@ use std::{borrow::Cow, fmt::Display, sync::OnceLock};
 use compact_str::{format_compact, CompactString};
 use regex::bytes::Regex;
 use serde::{Deserialize, Serialize};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    AsBytes,
+    FromBytes,
+    FromZeroes,
+)]
+#[repr(transparent)]
 pub struct PeerId(pub [u8; 20]);
 
 impl PeerId {

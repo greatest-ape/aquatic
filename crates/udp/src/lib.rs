@@ -18,7 +18,8 @@ use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::{PanicSentinelWatcher, ServerStartInstant};
 
 use common::{
-    ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, SwarmWorkerIndex,
+    ConnectedRequestSender, ConnectedResponseSender, Recycler, SocketWorkerIndex, State,
+    SwarmWorkerIndex,
 };
 use config::Config;
 use workers::socket::ConnectionValidator;
@@ -58,11 +59,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     for i in 0..config.socket_workers {
-        let (response_sender, response_receiver) = if config.worker_channel_size == 0 {
-            unbounded()
-        } else {
-            bounded(config.worker_channel_size)
-        };
+        let (response_sender, response_receiver) =
+            thingbuf::mpsc::blocking::with_recycle(config.worker_channel_size, Recycler);
 
         response_senders.push(response_sender);
         response_receivers.insert(i, response_receiver);

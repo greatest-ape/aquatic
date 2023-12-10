@@ -12,12 +12,10 @@ use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_common::{CanonicalSocketAddr, PanicSentinel, ValidUntil};
 
-use aquatic_udp_protocol::*;
-
 use crate::common::*;
 use crate::config::Config;
 
-use storage::{TorrentMap, TorrentMaps};
+use storage::TorrentMaps;
 
 pub fn run_swarm_worker(
     _sentinel: PanicSentinel,
@@ -45,42 +43,65 @@ pub fn run_swarm_worker(
 
     loop {
         if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
-            let response = match (request, src.get().ip()) {
-                (ConnectedRequest::Announce(request), IpAddr::V4(ip)) => {
-                    let response = handle_announce_request(
-                        &config,
-                        &mut rng,
-                        &statistics_sender,
-                        &mut torrents.ipv4,
-                        request,
-                        ip,
-                        peer_valid_until,
-                    );
+            // It is OK to block here as long as we don't do blocking sends
+            // in socket workers, which could cause a deadlock
+            match response_sender.send_ref_to(sender_index) {
+                Ok(mut send_ref) => {
+                    send_ref.addr = src;
 
-                    ConnectedResponse::AnnounceIpv4(response)
-                }
-                (ConnectedRequest::Announce(request), IpAddr::V6(ip)) => {
-                    let response = handle_announce_request(
-                        &config,
-                        &mut rng,
-                        &statistics_sender,
-                        &mut torrents.ipv6,
-                        request,
-                        ip,
-                        peer_valid_until,
-                    );
+                    match (request, src.get().ip()) {
+                        (ConnectedRequest::Announce(request), IpAddr::V4(ip)) => {
+                            send_ref.kind = ConnectedResponseKind::AnnounceIpv4;
 
-                    ConnectedResponse::AnnounceIpv6(response)
-                }
-                (ConnectedRequest::Scrape(request), IpAddr::V4(_)) => {
-                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents.ipv4, request))
-                }
-                (ConnectedRequest::Scrape(request), IpAddr::V6(_)) => {
-                    ConnectedResponse::Scrape(handle_scrape_request(&mut torrents.ipv6, request))
-                }
-            };
+                            torrents
+                                .ipv4
+                                .0
+                                .entry(request.info_hash)
+                                .or_default()
+                                .announce(
+                                    &config,
+                                    &statistics_sender,
+                                    &mut rng,
+                                    &request,
+                                    ip.into(),
+                                    peer_valid_until,
+                                    &mut send_ref.announce_ipv4,
+                                );
+                        }
+                        (ConnectedRequest::Announce(request), IpAddr::V6(ip)) => {
+                            send_ref.kind = ConnectedResponseKind::AnnounceIpv6;
 
-            response_sender.try_send_to(sender_index, response, src);
+                            torrents
+                                .ipv6
+                                .0
+                                .entry(request.info_hash)
+                                .or_default()
+                                .announce(
+                                    &config,
+                                    &statistics_sender,
+                                    &mut rng,
+                                    &request,
+                                    ip.into(),
+                                    peer_valid_until,
+                                    &mut send_ref.announce_ipv6,
+                                );
+                        }
+                        (ConnectedRequest::Scrape(request), IpAddr::V4(_)) => {
+                            send_ref.kind = ConnectedResponseKind::Scrape;
+
+                            torrents.ipv4.scrape(request, &mut send_ref.scrape);
+                        }
+                        (ConnectedRequest::Scrape(request), IpAddr::V6(_)) => {
+                            send_ref.kind = ConnectedResponseKind::Scrape;
+
+                            torrents.ipv6.scrape(request, &mut send_ref.scrape);
+                        }
+                    };
+                }
+                Err(_) => {
+                    panic!("swarm response channel closed");
+                }
+            }
         }
 
         // Run periodic tasks
@@ -114,87 +135,5 @@ pub fn run_swarm_worker(
         }
 
         iter_counter = iter_counter.wrapping_add(1);
-    }
-}
-
-fn handle_announce_request<I: Ip>(
-    config: &Config,
-    rng: &mut SmallRng,
-    statistics_sender: &Sender<StatisticsMessage>,
-    torrents: &mut TorrentMap<I>,
-    request: AnnounceRequest,
-    peer_ip: I,
-    peer_valid_until: ValidUntil,
-) -> AnnounceResponse<I> {
-    let max_num_peers_to_take: usize = if request.peers_wanted.0 <= 0 {
-        config.protocol.max_response_peers
-    } else {
-        ::std::cmp::min(
-            config.protocol.max_response_peers,
-            request.peers_wanted.0.try_into().unwrap(),
-        )
-    };
-
-    let torrent_data = torrents.0.entry(request.info_hash).or_default();
-
-    let peer_status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
-
-    torrent_data.update_peer(
-        config,
-        statistics_sender,
-        request.peer_id,
-        peer_ip,
-        request.port,
-        peer_status,
-        peer_valid_until,
-    );
-
-    let response_peers = if let PeerStatus::Stopped = peer_status {
-        Vec::new()
-    } else {
-        torrent_data.extract_response_peers(rng, request.peer_id, max_num_peers_to_take)
-    };
-
-    AnnounceResponse {
-        transaction_id: request.transaction_id,
-        announce_interval: AnnounceInterval(config.protocol.peer_announce_interval),
-        leechers: NumberOfPeers(torrent_data.num_leechers().try_into().unwrap_or(i32::MAX)),
-        seeders: NumberOfPeers(torrent_data.num_seeders().try_into().unwrap_or(i32::MAX)),
-        peers: response_peers,
-    }
-}
-
-fn handle_scrape_request<I: Ip>(
-    torrents: &mut TorrentMap<I>,
-    request: PendingScrapeRequest,
-) -> PendingScrapeResponse {
-    const EMPTY_STATS: TorrentScrapeStatistics = create_torrent_scrape_statistics(0, 0);
-
-    let torrent_stats = request
-        .info_hashes
-        .into_iter()
-        .map(|(i, info_hash)| {
-            let stats = torrents
-                .0
-                .get(&info_hash)
-                .map(|torrent_data| torrent_data.scrape_statistics())
-                .unwrap_or(EMPTY_STATS);
-
-            (i, stats)
-        })
-        .collect();
-
-    PendingScrapeResponse {
-        slab_key: request.slab_key,
-        torrent_stats,
-    }
-}
-
-#[inline(always)]
-const fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
-    TorrentScrapeStatistics {
-        seeders: NumberOfPeers(seeders),
-        completed: NumberOfDownloads(0), // No implementation planned
-        leechers: NumberOfPeers(leechers),
     }
 }

@@ -35,12 +35,6 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
     for i in 0..20 {
         let is_seeder = i % 3 == 0;
 
-        if is_seeder {
-            num_seeders += 1;
-        } else {
-            num_leechers += 1;
-        }
-
         let socket = UdpSocket::bind(peer_addr)?;
         socket.set_read_timeout(Some(Duration::from_secs(1)))?;
 
@@ -67,11 +61,11 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
 
         assert_eq!(announce_response.peers.len(), i.min(PEERS_WANTED));
 
-        assert_eq!(announce_response.seeders.0, num_seeders);
-        assert_eq!(announce_response.leechers.0, num_leechers);
+        assert_eq!(announce_response.fixed.seeders.0.get(), num_seeders);
+        assert_eq!(announce_response.fixed.leechers.0.get(), num_leechers);
 
         let response_peer_ports: HashSet<u16, RandomState> =
-            HashSet::from_iter(announce_response.peers.iter().map(|p| p.port.0));
+            HashSet::from_iter(announce_response.peers.iter().map(|p| p.port.0.get()));
         let expected_peer_ports: HashSet<u16, RandomState> =
             HashSet::from_iter((0..i).map(|i| PEER_PORT_START + i as u16));
 
@@ -79,6 +73,13 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
             assert!(response_peer_ports.is_subset(&expected_peer_ports));
         } else {
             assert_eq!(response_peer_ports, expected_peer_ports);
+        }
+
+        // Do this after announce is evaluated, since it is expected not to include announcing peer
+        if is_seeder {
+            num_seeders += 1;
+        } else {
+            num_leechers += 1;
         }
 
         let scrape_response = scrape(
@@ -89,10 +90,16 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
         )
         .with_context(|| "scrape")?;
 
-        assert_eq!(scrape_response.torrent_stats[0].seeders.0, num_seeders);
-        assert_eq!(scrape_response.torrent_stats[0].leechers.0, num_leechers);
-        assert_eq!(scrape_response.torrent_stats[1].seeders.0, 0);
-        assert_eq!(scrape_response.torrent_stats[1].leechers.0, 0);
+        assert_eq!(
+            scrape_response.torrent_stats[0].seeders.0.get(),
+            num_seeders
+        );
+        assert_eq!(
+            scrape_response.torrent_stats[0].leechers.0.get(),
+            num_leechers
+        );
+        assert_eq!(scrape_response.torrent_stats[1].seeders.0.get(), 0);
+        assert_eq!(scrape_response.torrent_stats[1].leechers.0.get(), 0);
     }
 
     Ok(())

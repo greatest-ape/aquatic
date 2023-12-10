@@ -59,7 +59,7 @@ impl ConnectionValidator {
         (&mut connection_id_bytes[..4]).copy_from_slice(&valid_until);
         (&mut connection_id_bytes[4..]).copy_from_slice(&hash);
 
-        ConnectionId(i64::from_ne_bytes(connection_id_bytes))
+        ConnectionId::new(i64::from_ne_bytes(connection_id_bytes))
     }
 
     pub fn connection_id_valid(
@@ -67,7 +67,7 @@ impl ConnectionValidator {
         source_addr: CanonicalSocketAddr,
         connection_id: ConnectionId,
     ) -> bool {
-        let bytes = connection_id.0.to_ne_bytes();
+        let bytes = connection_id.0.get().to_ne_bytes();
         let (valid_until, hash) = bytes.split_at(4);
         let valid_until: [u8; 4] = valid_until.try_into().unwrap();
 

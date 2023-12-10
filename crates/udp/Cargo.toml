@@ -19,9 +19,12 @@ name = "aquatic_udp"
 
 [features]
 default = ["prometheus"]
-cpu-pinning = ["aquatic_common/hwloc"]
+# Export prometheus metrics
 prometheus = ["metrics", "metrics-util", "metrics-exporter-prometheus"]
+# Experimental io_uring support (Linux 6.0 or later required)
 io-uring = ["dep:io-uring"]
+# Experimental CPU pinning support
+cpu-pinning = ["aquatic_common/hwloc"]
 
 [dependencies]
 aquatic_common.workspace = true
@@ -38,12 +41,8 @@ getrandom = "0.2"
 hashbrown = { version = "0.14", default-features = false }
 hdrhistogram = "7"
 hex = "0.4"
-io-uring = { version = "0.6", optional = true }
 libc = "0.2"
 log = "0.4"
-metrics = { version = "0.21", optional = true }
-metrics-util = { version = "0.15", optional = true }
-metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }
 num-format = "0.4"
@@ -52,8 +51,17 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slab = "0.4"
 socket2 = { version = "0.5", features = ["all"] }
+thingbuf = "0.1"
 time = { version = "0.3", features = ["formatting"] }
 tinytemplate = "1"
+
+# prometheus feature
+metrics = { version = "0.21", optional = true }
+metrics-util = { version = "0.15", optional = true }
+metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
+
+# io-uring feature
+io-uring = { version = "0.6", optional = true }
 
 [dev-dependencies]
 hex = "0.4"
