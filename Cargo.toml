@@ -9,7 +9,6 @@ members = [
     "crates/toml_config",
     "crates/toml_config_derive",
     "crates/udp",
-    "crates/udp_bench",
     "crates/udp_load_test",
     "crates/udp_protocol",
     "crates/ws",
