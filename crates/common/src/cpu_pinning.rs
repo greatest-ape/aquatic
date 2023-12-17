@@ -50,7 +50,7 @@ pub mod mod_name {
     use super::*;
 
     /// Experimental cpu pinning
-    #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
     pub struct struct_name {
         pub active: bool,
         pub direction: CpuPinningDirection,

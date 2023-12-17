@@ -1,0 +1,35 @@
+[package]
+name = "aquatic_load_tester"
+description = "Load test runner for aquatic BitTorrent tracker"
+keywords = ["peer-to-peer", "torrent", "bittorrent"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[[bin]]
+name = "aquatic_load_tester"
+
+[features]
+default = ["udp"]
+udp = ["aquatic_udp", "aquatic_udp_load_test"]
+
+[dependencies]
+aquatic_udp = { optional = true, workspace = true }
+aquatic_udp_load_test = { optional = true, workspace = true }
+
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+indexmap = "2"
+itertools = "0.12"
+nonblock = "0.2"
+once_cell = "1"
+regex = "1"
+serde = "1"
+tempfile = "3"
+toml = "0.8"
+
+[dev-dependencies]
