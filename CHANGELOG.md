@@ -21,6 +21,7 @@
   socket if sending a request to a swarm worker failed
 * Reuse allocations in swarm response channel
 * Remove config key `network.poll_event_capacity`
+* Harden ConnectionValidator to make IP spoofing even more costly
 
 ### aquatic_http
 
