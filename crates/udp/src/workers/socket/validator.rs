@@ -10,23 +10,27 @@ use aquatic_udp_protocol::ConnectionId;
 
 use crate::config::Config;
 
-/// HMAC (BLAKE3) based ConnectionID creator and validator
+/// HMAC (BLAKE3) based ConnectionId creator and validator
+///
+/// The purpose of using ConnectionIds is to make IP spoofing costly, mainly to
+/// prevent the tracker from being used as an amplification vector for DDoS
+/// attacks. By including 32 bits of BLAKE3 keyed hash output in the Ids, an
+/// attacker would have to make on average 2^31 attemps to correctly guess a
+/// single hash. Furthermore, such a hash would only be valid for at most
+/// `max_connection_age` seconds, a short duration to get value for the
+/// bandwidth spent brute forcing it.
 ///
 /// Structure of created ConnectionID (bytes making up inner i64):
-/// - &[0..4]: connection expiration time as number of seconds after
-///   ConnectionValidator instance was created, encoded as u32 bytes.
-///   Value fits around 136 years.
-/// - &[4..8]: truncated keyed BLAKE3 hash of above 4 bytes and octets of
-///   client IP address
-///
-/// The purpose of using ConnectionIDs is to prevent IP spoofing, mainly to
-/// prevent the tracker from being used as an amplification vector for DDoS
-/// attacks. By including 32 bits of BLAKE3 keyed hash output in its contents,
-/// such abuse should be rendered impractical.
+/// - &[0..4]: ConnectionId creation time as number of seconds after
+///   ConnectionValidator instance was created, encoded as u32 bytes. A u32
+///   fits around 136 years in seconds.
+/// - &[4..8]: truncated keyed BLAKE3 hash of:
+///     - previous 4 bytes
+///     - octets of client IP address
 #[derive(Clone)]
 pub struct ConnectionValidator {
     start_time: Instant,
-    max_connection_age: u32,
+    max_connection_age: u64,
     keyed_hasher: blake3::Hasher,
 }
 
@@ -44,19 +48,18 @@ impl ConnectionValidator {
         Ok(Self {
             keyed_hasher,
             start_time: Instant::now(),
-            max_connection_age: config.cleaning.max_connection_age,
+            max_connection_age: config.cleaning.max_connection_age.into(),
         })
     }
 
     pub fn create_connection_id(&mut self, source_addr: CanonicalSocketAddr) -> ConnectionId {
-        let valid_until =
-            (self.start_time.elapsed().as_secs() as u32 + self.max_connection_age).to_ne_bytes();
+        let elapsed = (self.start_time.elapsed().as_secs() as u32).to_ne_bytes();
 
-        let hash = self.hash(valid_until, source_addr.get().ip());
+        let hash = self.hash(elapsed, source_addr.get().ip());
 
         let mut connection_id_bytes = [0u8; 8];
 
-        (&mut connection_id_bytes[..4]).copy_from_slice(&valid_until);
+        (&mut connection_id_bytes[..4]).copy_from_slice(&elapsed);
         (&mut connection_id_bytes[4..]).copy_from_slice(&hash);
 
         ConnectionId::new(i64::from_ne_bytes(connection_id_bytes))
@@ -68,18 +71,27 @@ impl ConnectionValidator {
         connection_id: ConnectionId,
     ) -> bool {
         let bytes = connection_id.0.get().to_ne_bytes();
-        let (valid_until, hash) = bytes.split_at(4);
-        let valid_until: [u8; 4] = valid_until.try_into().unwrap();
+        let (elapsed, hash) = bytes.split_at(4);
+        let elapsed: [u8; 4] = elapsed.try_into().unwrap();
 
-        if !constant_time_eq(hash, &self.hash(valid_until, source_addr.get().ip())) {
+        if !constant_time_eq(hash, &self.hash(elapsed, source_addr.get().ip())) {
             return false;
         }
 
-        u32::from_ne_bytes(valid_until) > self.start_time.elapsed().as_secs() as u32
+        let tracker_elapsed = u64::from(self.start_time.elapsed().as_secs());
+        let client_elapsed = u64::from(u32::from_ne_bytes(elapsed));
+        let client_expiration_time = client_elapsed + self.max_connection_age;
+
+        // In addition to checking if the client connection is expired,
+        // disallow client_elapsed values that are in future and thus could not
+        // have been sent by the tracker. This prevents brute forcing with
+        // `u32::MAX` as 'elapsed' part of ConnectionId to find a hash that
+        // works until the tracker is restarted.
+        (client_expiration_time > tracker_elapsed) & (client_elapsed <= tracker_elapsed)
     }
 
-    fn hash(&mut self, valid_until: [u8; 4], ip_addr: IpAddr) -> [u8; 4] {
-        self.keyed_hasher.update(&valid_until);
+    fn hash(&mut self, elapsed: [u8; 4], ip_addr: IpAddr) -> [u8; 4] {
+        self.keyed_hasher.update(&elapsed);
 
         match ip_addr {
             IpAddr::V4(ip) => self.keyed_hasher.update(&ip.octets()),
