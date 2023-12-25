@@ -27,7 +27,7 @@ impl AccessListMode {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AccessListConfig {
     pub mode: AccessListMode,

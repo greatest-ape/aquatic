@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use aquatic_common::cli::LogLevel;
 #[cfg(feature = "cpu-pinning")]
@@ -8,7 +8,7 @@ use aquatic_common::cpu_pinning::desc::CpuPinningConfigDesc;
 use aquatic_toml_config::TomlConfig;
 
 /// aquatic_udp_load_test configuration
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Server address
@@ -42,7 +42,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     /// True means bind to one localhost IP per socket.
@@ -56,8 +56,6 @@ pub struct NetworkConfig {
     pub first_port: u16,
     /// Socket worker poll timeout in microseconds
     pub poll_timeout: u64,
-    /// Socket worker polling event number
-    pub poll_event_capacity: usize,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
@@ -79,13 +77,12 @@ impl Default for NetworkConfig {
             multiple_client_ipv4s: true,
             first_port: 45_000,
             poll_timeout: 276,
-            poll_event_capacity: 2_877,
             recv_buffer: 6_000_000,
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RequestConfig {
     /// Number of torrents to simulate

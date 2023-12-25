@@ -41,7 +41,7 @@ pub fn run_worker_thread(
         .register(&mut socket, token, interests)
         .unwrap();
 
-    let mut events = Events::with_capacity(config.network.poll_event_capacity);
+    let mut events = Events::with_capacity(1);
 
     let mut statistics = SocketWorkerLocalStatistics::default();
 

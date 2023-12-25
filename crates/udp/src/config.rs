@@ -2,13 +2,13 @@ use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use cfg_if::cfg_if;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use aquatic_common::cli::LogLevel;
 use aquatic_toml_config::TomlConfig;
 
 /// aquatic_udp configuration
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Number of socket worker. One per physical core is recommended.
@@ -78,7 +78,7 @@ impl aquatic_common::cli::Config for Config {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     /// Bind to this address
@@ -138,7 +138,7 @@ impl Default for NetworkConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ProtocolConfig {
     /// Maximum number of torrents to allow in scrape request
@@ -159,7 +159,7 @@ impl Default for ProtocolConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StatisticsConfig {
     /// Collect and print/write statistics this often (seconds)
@@ -231,7 +231,7 @@ impl Default for StatisticsConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CleaningConfig {
     /// Clean torrents this often (seconds)

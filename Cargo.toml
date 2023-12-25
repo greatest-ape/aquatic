@@ -5,6 +5,7 @@ members = [
     "crates/http",
     "crates/http_load_test",
     "crates/http_protocol",
+    "crates/load_tester",
     "crates/peer_id",
     "crates/toml_config",
     "crates/toml_config_derive",
@@ -35,6 +36,7 @@ aquatic_toml_config = { version = "0.8.0", path = "./crates/toml_config" }
 aquatic_toml_config_derive = { version = "0.8.0", path = "./crates/toml_config_derive" }
 aquatic_udp_protocol = { version = "0.8.0", path = "./crates/udp_protocol" }
 aquatic_udp = { version = "0.8.0", path = "./crates/udp" }
+aquatic_udp_load_test = { version = "0.8.0", path = "./crates/udp_load_test" }
 aquatic_ws_protocol = { version = "0.8.0", path = "./crates/ws_protocol" }
 aquatic_ws = { version = "0.8.0", path = "./crates/ws" }
 
