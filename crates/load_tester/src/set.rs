@@ -8,7 +8,7 @@ use crate::{
     run::{ProcessRunner, ProcessStats, RunConfig},
 };
 
-pub trait Server: ::std::fmt::Debug + Copy + Clone + ::std::hash::Hash {
+pub trait Tracker: ::std::fmt::Debug + Copy + Clone + ::std::hash::Hash {
     fn name(&self) -> String;
 }
 
@@ -24,30 +24,30 @@ pub fn run_sets<C, F, I>(
     load_test_gen: F,
 ) where
     C: ::std::fmt::Debug,
-    I: Server,
+    I: Tracker,
     F: Fn(usize) -> Box<dyn ProcessRunner<Command = C>>,
 {
     println!("# Load test report");
 
     let results = set_configs
         .into_iter()
-        .map(|(server_core_count, set_config)| {
-            let server_vcpus =
-                TaskSetCpuList::new(cpu_mode, CpuDirection::Asc, server_core_count).unwrap();
+        .map(|(tracker_core_count, set_config)| {
+            let tracker_vcpus =
+                TaskSetCpuList::new(cpu_mode, CpuDirection::Asc, tracker_core_count).unwrap();
 
             println!(
                 "## Tracker cores: {} (cpus: {})",
-                server_core_count,
-                server_vcpus.as_cpu_list()
+                tracker_core_count,
+                tracker_vcpus.as_cpu_list()
             );
 
-            let server_results = set_config
+            let tracker_results = set_config
                 .implementations
                 .into_iter()
-                .map(|(implementation, server_runs)| {
-                    let server_run_results = server_runs
+                .map(|(implementation, tracker_runs)| {
+                    let tracker_run_results = tracker_runs
                         .iter()
-                        .map(|server_run| {
+                        .map(|tracker_run| {
                             let load_test_run_results = set_config
                                 .load_test_runs
                                 .clone()
@@ -57,16 +57,15 @@ pub fn run_sets<C, F, I>(
                                         command,
                                         &load_test_gen,
                                         implementation,
-                                        &server_run,
-                                        server_vcpus.clone(),
+                                        &tracker_run,
+                                        tracker_vcpus.clone(),
                                         workers,
                                         load_test_vcpus,
                                     )
                                 })
                                 .collect();
 
-                            ServerConfigurationResults {
-                                config_keys: server_run.keys(),
+                            TrackerConfigurationResults {
                                 load_tests: load_test_run_results,
                             }
                         })
@@ -74,14 +73,14 @@ pub fn run_sets<C, F, I>(
 
                     ImplementationResults {
                         name: implementation.name(),
-                        configurations: server_run_results,
+                        configurations: tracker_run_results,
                     }
                 })
                 .collect();
 
-            ServerCoreCountResults {
-                core_count: server_core_count,
-                implementations: server_results,
+            TrackerCoreCountResults {
+                core_count: tracker_core_count,
+                implementations: tracker_results,
             }
         })
         .collect::<Vec<_>>();
@@ -89,14 +88,14 @@ pub fn run_sets<C, F, I>(
     html_summary(&results);
 }
 
-pub struct ServerCoreCountResults {
+pub struct TrackerCoreCountResults {
     core_count: usize,
     implementations: Vec<ImplementationResults>,
 }
 
 pub struct ImplementationResults {
     name: String,
-    configurations: Vec<ServerConfigurationResults>,
+    configurations: Vec<TrackerConfigurationResults>,
 }
 
 impl ImplementationResults {
@@ -114,13 +113,11 @@ impl ImplementationResults {
     }
 }
 
-pub struct ServerConfigurationResults {
-    config_keys: IndexMap<String, String>,
+pub struct TrackerConfigurationResults {
     load_tests: Vec<LoadTestRunResults>,
-    // best_index: Option<usize>,
 }
 
-impl ServerConfigurationResults {
+impl TrackerConfigurationResults {
     fn best_result(&self) -> Option<LoadTestRunResultsSuccess> {
         self.load_tests
             .iter()
@@ -148,57 +145,59 @@ impl LoadTestRunResults {
         command: &C,
         load_test_gen: &F,
         implementation: I,
-        server_process: &Rc<dyn ProcessRunner<Command = C>>,
-        server_vcpus: TaskSetCpuList,
+        tracker_process: &Rc<dyn ProcessRunner<Command = C>>,
+        tracker_vcpus: TaskSetCpuList,
         workers: usize,
         load_test_vcpus: TaskSetCpuList,
     ) -> Self
     where
         C: ::std::fmt::Debug,
-        I: Server,
+        I: Tracker,
         F: Fn(usize) -> Box<dyn ProcessRunner<Command = C>>,
     {
         println!(
             "### {} run ({}) (load test workers: {}, cpus: {})",
             implementation.name(),
-            server_process.info(),
+            tracker_process.info(),
             workers,
             load_test_vcpus.as_cpu_list()
         );
 
         let load_test_runner = load_test_gen(workers);
-        let load_test_keys = load_test_runner.keys();
+        // let load_test_keys = load_test_runner.keys();
 
         let run_config = RunConfig {
-            server_runner: server_process.clone(),
-            server_vcpus: server_vcpus.clone(),
+            tracker_runner: tracker_process.clone(),
+            tracker_vcpus: tracker_vcpus.clone(),
             load_test_runner,
             load_test_vcpus,
         };
 
         match run_config.run(command) {
-            Ok(results) => {
-                let avg_responses = results.avg_responses().unwrap().parse::<f32>().unwrap();
-                let server_process_stats = results.server_process_stats.unwrap();
-
-                println!("- Average responses per second: {}", avg_responses);
+            Ok(r) => {
+                println!("- Average responses per second: {}", r.avg_responses);
                 println!(
-                    "- Average server CPU utilization: {}%",
-                    server_process_stats.avg_cpu_utilization,
+                    "- Average tracker CPU utilization: {}%",
+                    r.tracker_process_stats.avg_cpu_utilization,
                 );
-                println!("- Peak server RSS: {} kB", server_process_stats.peak_rss_kb);
+                println!(
+                    "- Peak tracker RSS: {} kB",
+                    r.tracker_process_stats.peak_rss_kb
+                );
 
                 LoadTestRunResults::Success(LoadTestRunResultsSuccess {
-                    config_keys: load_test_keys,
-                    average_responses: avg_responses,
-                    server_process_stats,
+                    average_responses: r.avg_responses,
+                    // tracker_keys: tracker_process.keys(),
+                    tracker_info: tracker_process.info(),
+                    tracker_process_stats: r.tracker_process_stats,
+                    // load_test_keys,
                 })
             }
             Err(results) => {
-                println!("\nRun failed:\n{:?}\n", results);
+                println!("\nRun failed:\n{:#?}\n", results);
 
                 LoadTestRunResults::Failure(LoadTestRunResultsFailure {
-                    config_keys: load_test_keys,
+                    // load_test_keys
                 })
             }
         }
@@ -207,16 +206,18 @@ impl LoadTestRunResults {
 
 #[derive(Clone)]
 pub struct LoadTestRunResultsSuccess {
-    config_keys: IndexMap<String, String>,
     average_responses: f32,
-    server_process_stats: ProcessStats,
+    // tracker_keys: IndexMap<String, String>,
+    tracker_info: String,
+    tracker_process_stats: ProcessStats,
+    // load_test_keys: IndexMap<String, String>,
 }
 
 pub struct LoadTestRunResultsFailure {
-    config_keys: IndexMap<String, String>,
+    // load_test_keys: IndexMap<String, String>,
 }
 
-pub fn html_summary(results: &[ServerCoreCountResults]) {
+pub fn html_summary(results: &[TrackerCoreCountResults]) {
     let mut all_implementation_names = IndexSet::new();
 
     for core_count_results in results {
@@ -239,11 +240,7 @@ pub fn html_summary(results: &[ServerCoreCountResults]) {
 
         let best_results_for_all_implementations = all_implementation_names
             .iter()
-            .map(|name| {
-                best_results
-                    .get(name)
-                    .and_then(|r| r.as_ref().map(|r| r.average_responses))
-            })
+            .map(|name| best_results.get(name).cloned().flatten())
             .collect::<Vec<_>>();
 
         let data_row = format!(
@@ -256,12 +253,18 @@ pub fn html_summary(results: &[ServerCoreCountResults]) {
             core_count_results.core_count,
             best_results_for_all_implementations
                 .into_iter()
-                .map(|result| format!(
-                    "<td>{}</td>",
-                    result
-                        .map(|r| r.to_string())
-                        .unwrap_or_else(|| "-".to_string())
-                ))
+                .map(|result| {
+                    if let Some(r) = result {
+                        format!(
+                            r#"<td><span title="{}, avg cpu utilization: {}%">{}</span></td>"#,
+                            r.tracker_info,
+                            r.tracker_process_stats.avg_cpu_utilization,
+                            r.average_responses,
+                        )
+                    } else {
+                        "<td>-</td>".to_string()
+                    }
+                })
                 .join("\n"),
         );
 

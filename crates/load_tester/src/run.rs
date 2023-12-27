@@ -6,6 +6,7 @@ use std::{
 };
 
 use indexmap::IndexMap;
+use itertools::Itertools;
 use nonblock::NonBlockingReader;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -22,30 +23,39 @@ pub trait ProcessRunner: ::std::fmt::Debug {
         vcpus: &TaskSetCpuList,
         tmp_file: &mut NamedTempFile,
     ) -> anyhow::Result<Child>;
-    fn info(&self) -> String;
+
     fn keys(&self) -> IndexMap<String, String>;
+
+    fn info(&self) -> String {
+        self.keys()
+            .into_iter()
+            .map(|(k, v)| format!("{}: {}", k, v))
+            .join(", ")
+    }
 }
 
 #[derive(Debug)]
 pub struct RunConfig<C> {
-    pub server_runner: Rc<dyn ProcessRunner<Command = C>>,
-    pub server_vcpus: TaskSetCpuList,
+    pub tracker_runner: Rc<dyn ProcessRunner<Command = C>>,
+    pub tracker_vcpus: TaskSetCpuList,
     pub load_test_runner: Box<dyn ProcessRunner<Command = C>>,
     pub load_test_vcpus: TaskSetCpuList,
 }
 
 impl<C> RunConfig<C> {
-    pub fn run(self, command: &C) -> Result<RunResults<C>, RunResults<C>> {
-        let mut server_config_file = NamedTempFile::new().unwrap();
+    pub fn run(self, command: &C) -> Result<RunSuccessResults, RunErrorResults<C>> {
+        let mut tracker_config_file = NamedTempFile::new().unwrap();
         let mut load_test_config_file = NamedTempFile::new().unwrap();
 
-        let server =
+        let tracker =
             match self
-                .server_runner
-                .run(command, &self.server_vcpus, &mut server_config_file)
+                .tracker_runner
+                .run(command, &self.tracker_vcpus, &mut tracker_config_file)
             {
                 Ok(handle) => ChildWrapper(handle),
-                Err(err) => return Err(RunResults::new(self).set_error(err.into(), "run server")),
+                Err(err) => {
+                    return Err(RunErrorResults::new(self).set_error(err.into(), "run tracker"))
+                }
             };
 
         ::std::thread::sleep(Duration::from_secs(1));
@@ -57,123 +67,149 @@ impl<C> RunConfig<C> {
         ) {
             Ok(handle) => ChildWrapper(handle),
             Err(err) => {
-                return Err(RunResults::new(self)
+                return Err(RunErrorResults::new(self)
                     .set_error(err.into(), "run load test")
-                    .set_server(server))
+                    .set_tracker(tracker))
             }
         };
 
         ::std::thread::sleep(Duration::from_secs(59));
 
-        let cpu_stats_res = Command::new("ps")
+        let tracker_process_stats_res = Command::new("ps")
             .arg("-p")
-            .arg(server.0.id().to_string())
+            .arg(tracker.0.id().to_string())
             .arg("-o")
             .arg("%cpu,rss")
             .arg("--noheader")
             .output();
 
-        let server_process_stats = match cpu_stats_res {
+        let tracker_process_stats = match tracker_process_stats_res {
             Ok(output) if output.status.success() => {
                 ProcessStats::from_str(&String::from_utf8_lossy(&output.stdout)).unwrap()
             }
             Ok(_) => {
-                return Err(RunResults::new(self)
+                return Err(RunErrorResults::new(self)
                     .set_error_context("run ps")
-                    .set_server(server)
-                    .set_load_test(load_tester));
+                    .set_tracker(tracker)
+                    .set_load_test_outputs(load_tester));
             }
             Err(err) => {
-                return Err(RunResults::new(self)
+                return Err(RunErrorResults::new(self)
                     .set_error(err.into(), "run ps")
-                    .set_server(server)
-                    .set_load_test(load_tester));
+                    .set_tracker(tracker)
+                    .set_load_test_outputs(load_tester));
             }
         };
 
         ::std::thread::sleep(Duration::from_secs(5));
 
-        let load_test_data = match load_tester.0.try_wait() {
+        let (load_test_stdout, load_test_stderr) = match load_tester.0.try_wait() {
             Ok(Some(status)) if status.success() => read_child_outputs(load_tester),
             Ok(Some(_)) => {
-                return Err(RunResults::new(self)
+                return Err(RunErrorResults::new(self)
                     .set_error_context("wait for load tester")
-                    .set_server(server)
-                    .set_load_test(load_tester))
+                    .set_tracker(tracker)
+                    .set_load_test_outputs(load_tester))
             }
             Ok(None) => {
                 if let Err(err) = load_tester.0.kill() {
-                    return Err(RunResults::new(self)
+                    return Err(RunErrorResults::new(self)
                         .set_error(err.into(), "kill load tester")
-                        .set_server(server)
-                        .set_load_test(load_tester));
+                        .set_tracker(tracker)
+                        .set_load_test_outputs(load_tester));
                 }
 
                 ::std::thread::sleep(Duration::from_secs(1));
 
                 match load_tester.0.try_wait() {
                     Ok(_) => {
-                        return Err(RunResults::new(self)
+                        return Err(RunErrorResults::new(self)
                             .set_error_context("load tester didn't finish in time")
-                            .set_load_test(load_tester))
+                            .set_load_test_outputs(load_tester))
                     }
                     Err(err) => {
-                        return Err(RunResults::new(self)
+                        return Err(RunErrorResults::new(self)
                             .set_error(err.into(), "wait for load tester after kill")
-                            .set_server(server));
+                            .set_tracker(tracker));
                     }
                 }
             }
             Err(err) => {
-                return Err(RunResults::new(self)
+                return Err(RunErrorResults::new(self)
                     .set_error(err.into(), "wait for load tester")
-                    .set_server(server)
-                    .set_load_test(load_tester))
+                    .set_tracker(tracker)
+                    .set_load_test_outputs(load_tester))
             }
         };
 
-        let mut results = RunResults::new(self);
+        let load_test_stdout = if let Some(load_test_stdout) = load_test_stdout {
+            load_test_stdout
+        } else {
+            return Err(RunErrorResults::new(self)
+                .set_error_context("couldn't read load tester stdout")
+                .set_tracker(tracker)
+                .set_load_test_stderr(load_test_stderr));
+        };
 
-        results.server_process_stats = Some(server_process_stats);
-        results.load_test_stdout = load_test_data.0;
-        results.load_test_stderr = load_test_data.1;
+        let avg_responses = {
+            static RE: Lazy<Regex> = Lazy::new(|| {
+                Regex::new(r"Average responses per second: ([0-9]+\.?[0-9]+)").unwrap()
+            });
+
+            let opt_avg_responses = RE
+                .captures_iter(&load_test_stdout)
+                .next()
+                .map(|c| {
+                    let (_, [avg_responses]) = c.extract();
+
+                    avg_responses.to_string()
+                })
+                .and_then(|v| v.parse::<f32>().ok());
+
+            if let Some(avg_responses) = opt_avg_responses {
+                avg_responses
+            } else {
+                return Err(RunErrorResults::new(self)
+                    .set_error_context("couldn't extract avg_responses")
+                    .set_tracker(tracker)
+                    .set_load_test_stdout(Some(load_test_stdout))
+                    .set_load_test_stderr(load_test_stderr));
+            }
+        };
+
+        let results = RunSuccessResults {
+            tracker_process_stats,
+            avg_responses,
+        };
 
         Ok(results)
     }
 }
 
+pub struct RunSuccessResults {
+    pub tracker_process_stats: ProcessStats,
+    pub avg_responses: f32,
+}
+
 #[derive(Debug)]
-pub struct RunResults<C> {
+pub struct RunErrorResults<C> {
     pub run_config: RunConfig<C>,
-    pub server_process_stats: Option<ProcessStats>,
-    pub server_stdout: Option<String>,
-    pub server_stderr: Option<String>,
+    pub tracker_process_stats: Option<ProcessStats>,
+    pub tracker_stdout: Option<String>,
+    pub tracker_stderr: Option<String>,
     pub load_test_stdout: Option<String>,
     pub load_test_stderr: Option<String>,
     pub error: Option<anyhow::Error>,
     pub error_context: Option<String>,
 }
 
-impl<C> RunResults<C> {
-    pub fn avg_responses(&self) -> Option<String> {
-        static RE: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r"Average responses per second: ([0-9]+\.?[0-9]+)").unwrap());
-
-        self.load_test_stdout.as_ref().and_then(|stdout| {
-            RE.captures_iter(&stdout).next().map(|c| {
-                let (_, [avg_responses]) = c.extract();
-
-                avg_responses.to_string()
-            })
-        })
-    }
-
+impl<C> RunErrorResults<C> {
     fn new(run_config: RunConfig<C>) -> Self {
         Self {
             run_config,
-            server_process_stats: Default::default(),
-            server_stdout: Default::default(),
-            server_stderr: Default::default(),
+            tracker_process_stats: Default::default(),
+            tracker_stdout: Default::default(),
+            tracker_stderr: Default::default(),
             load_test_stdout: Default::default(),
             load_test_stderr: Default::default(),
             error: Default::default(),
@@ -181,19 +217,31 @@ impl<C> RunResults<C> {
         }
     }
 
-    fn set_server(mut self, server: ChildWrapper) -> Self {
-        let (stdout, stderr) = read_child_outputs(server);
+    fn set_tracker(mut self, tracker: ChildWrapper) -> Self {
+        let (stdout, stderr) = read_child_outputs(tracker);
 
-        self.server_stdout = stdout;
-        self.server_stderr = stderr;
+        self.tracker_stdout = stdout;
+        self.tracker_stderr = stderr;
 
         self
     }
 
-    fn set_load_test(mut self, load_test: ChildWrapper) -> Self {
+    fn set_load_test_outputs(mut self, load_test: ChildWrapper) -> Self {
         let (stdout, stderr) = read_child_outputs(load_test);
 
         self.load_test_stdout = stdout;
+        self.load_test_stderr = stderr;
+
+        self
+    }
+
+    fn set_load_test_stdout(mut self, stdout: Option<String>) -> Self {
+        self.load_test_stdout = stdout;
+
+        self
+    }
+
+    fn set_load_test_stderr(mut self, stderr: Option<String>) -> Self {
         self.load_test_stderr = stderr;
 
         self
@@ -241,12 +289,6 @@ impl Drop for ChildWrapper {
         ::std::thread::sleep(Duration::from_secs(1));
 
         let _ = self.0.try_wait();
-    }
-}
-
-impl AsMut<Child> for ChildWrapper {
-    fn as_mut(&mut self) -> &mut Child {
-        &mut self.0
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "aquatic_load_tester"
-description = "Load test runner for aquatic BitTorrent tracker"
+description = "Automated load testing of aquatic and other BitTorrent trackers (Linux only)"
 keywords = ["peer-to-peer", "torrent", "bittorrent"]
 version.workspace = true
 authors.workspace = true
