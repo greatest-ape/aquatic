@@ -13,6 +13,10 @@ Features at a glance:
 - Prometheus metrics
 - Automated CI testing of full file transfers
 
+Known users:
+
+- [tracker.webtorrent.dev](https://tracker.webtorrent.dev) (`wss://tracker.webtorrent.dev`)
+
 ## Performance
 
 ![WebTorrent tracker throughput comparison](../../documents/aquatic-ws-load-test-illustration-2023-01-25.png)
