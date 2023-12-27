@@ -9,11 +9,11 @@ of sub-implementations for different protocols:
 [aquatic_http]: ./crates/http
 [aquatic_ws]: ./crates/ws
 
-| Name           | Protocol                                  | OS requirements |
-|----------------|-------------------------------------------|-----------------|
-| [aquatic_udp]  | BitTorrent over UDP                       | Unix-like       |
-| [aquatic_http] | BitTorrent over HTTP, optionally over TLS | Linux 5.8+      |
-| [aquatic_ws]   | WebTorrent, optionally over TLS           | Linux 5.8+      |
+| Name           | Protocol                                  | OS requirements    |
+|----------------|-------------------------------------------|--------------------|
+| [aquatic_udp]  | BitTorrent over UDP                       | Unix-like          |
+| [aquatic_http] | BitTorrent over HTTP, optionally over TLS | Linux 5.8 or later |
+| [aquatic_ws]   | WebTorrent, optionally over TLS           | Linux 5.8 or later |
 
 Features at a glance:
 
@@ -27,6 +27,7 @@ Features at a glance:
 Known users:
 
 - [explodie.org public tracker](https://explodie.org/opentracker.html) (`udp://explodie.org:6969`), typically [serving ~100,000 requests per second](https://explodie.org/tracker-stats.html)
+- [tracker.webtorrent.dev](https://tracker.webtorrent.dev) (`wss://tracker.webtorrent.dev`)
 
 ## Performance of the UDP implementation
 
