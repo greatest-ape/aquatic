@@ -25,7 +25,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Benchmark UDP BitTorrent trackers aquatic_udp and opentracker
+    /// Benchmark UDP BitTorrent trackers aquatic_udp, opentracker and chihaya
     #[cfg(feature = "udp")]
     Udp(protocols::udp::UdpCommand),
 }

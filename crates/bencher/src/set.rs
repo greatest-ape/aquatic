@@ -27,7 +27,28 @@ pub fn run_sets<C, F, I>(
     I: Tracker,
     F: Fn(usize) -> Box<dyn ProcessRunner<Command = C>>,
 {
-    println!("# Load test report");
+    println!("# Benchmark report");
+
+    let total_num_runs = set_configs
+        .values()
+        .map(|set| {
+            set.implementations.values().map(Vec::len).sum::<usize>() * set.load_test_runs.len()
+        })
+        .sum::<usize>();
+
+    let (estimated_hours, estimated_minutes) = {
+        let minutes = (total_num_runs * 67) / 60;
+
+        (minutes / 60, minutes % 60)
+    };
+
+    println!("");
+    println!("Total number of load test runs: {}", total_num_runs);
+    println!(
+        "Estimated duration: {} hours, {} minutes",
+        estimated_hours, estimated_minutes
+    );
+    println!("");
 
     let results = set_configs
         .into_iter()
@@ -194,7 +215,7 @@ impl LoadTestRunResults {
                 })
             }
             Err(results) => {
-                println!("\nRun failed:\n{:#?}\n", results);
+                println!("\nRun failed:\n{:#}\n", results);
 
                 LoadTestRunResults::Failure(LoadTestRunResultsFailure {
                     // load_test_keys

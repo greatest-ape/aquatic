@@ -47,7 +47,7 @@ impl<C> RunConfig<C> {
         let mut tracker_config_file = NamedTempFile::new().unwrap();
         let mut load_test_config_file = NamedTempFile::new().unwrap();
 
-        let tracker =
+        let mut tracker =
             match self
                 .tracker_runner
                 .run(command, &self.tracker_vcpus, &mut tracker_config_file)
@@ -69,11 +69,20 @@ impl<C> RunConfig<C> {
             Err(err) => {
                 return Err(RunErrorResults::new(self)
                     .set_error(err.into(), "run load test")
-                    .set_tracker(tracker))
+                    .set_tracker_outputs(tracker))
             }
         };
 
-        ::std::thread::sleep(Duration::from_secs(59));
+        for _ in 0..59 {
+            if let Ok(Some(status)) = tracker.0.try_wait() {
+                return Err(RunErrorResults::new(self)
+                    .set_tracker_outputs(tracker)
+                    .set_load_test_outputs(load_tester)
+                    .set_error_context(&format!("tracker exited with {}", status)));
+            }
+
+            ::std::thread::sleep(Duration::from_secs(1));
+        }
 
         let tracker_process_stats_res = Command::new("ps")
             .arg("-p")
@@ -90,13 +99,13 @@ impl<C> RunConfig<C> {
             Ok(_) => {
                 return Err(RunErrorResults::new(self)
                     .set_error_context("run ps")
-                    .set_tracker(tracker)
+                    .set_tracker_outputs(tracker)
                     .set_load_test_outputs(load_tester));
             }
             Err(err) => {
                 return Err(RunErrorResults::new(self)
                     .set_error(err.into(), "run ps")
-                    .set_tracker(tracker)
+                    .set_tracker_outputs(tracker)
                     .set_load_test_outputs(load_tester));
             }
         };
@@ -108,14 +117,14 @@ impl<C> RunConfig<C> {
             Ok(Some(_)) => {
                 return Err(RunErrorResults::new(self)
                     .set_error_context("wait for load tester")
-                    .set_tracker(tracker)
+                    .set_tracker_outputs(tracker)
                     .set_load_test_outputs(load_tester))
             }
             Ok(None) => {
                 if let Err(err) = load_tester.0.kill() {
                     return Err(RunErrorResults::new(self)
                         .set_error(err.into(), "kill load tester")
-                        .set_tracker(tracker)
+                        .set_tracker_outputs(tracker)
                         .set_load_test_outputs(load_tester));
                 }
 
@@ -130,14 +139,14 @@ impl<C> RunConfig<C> {
                     Err(err) => {
                         return Err(RunErrorResults::new(self)
                             .set_error(err.into(), "wait for load tester after kill")
-                            .set_tracker(tracker));
+                            .set_tracker_outputs(tracker));
                     }
                 }
             }
             Err(err) => {
                 return Err(RunErrorResults::new(self)
                     .set_error(err.into(), "wait for load tester")
-                    .set_tracker(tracker)
+                    .set_tracker_outputs(tracker)
                     .set_load_test_outputs(load_tester))
             }
         };
@@ -147,7 +156,7 @@ impl<C> RunConfig<C> {
         } else {
             return Err(RunErrorResults::new(self)
                 .set_error_context("couldn't read load tester stdout")
-                .set_tracker(tracker)
+                .set_tracker_outputs(tracker)
                 .set_load_test_stderr(load_test_stderr));
         };
 
@@ -171,7 +180,7 @@ impl<C> RunConfig<C> {
             } else {
                 return Err(RunErrorResults::new(self)
                     .set_error_context("couldn't extract avg_responses")
-                    .set_tracker(tracker)
+                    .set_tracker_outputs(tracker)
                     .set_load_test_stdout(Some(load_test_stdout))
                     .set_load_test_stderr(load_test_stderr));
             }
@@ -194,7 +203,6 @@ pub struct RunSuccessResults {
 #[derive(Debug)]
 pub struct RunErrorResults<C> {
     pub run_config: RunConfig<C>,
-    pub tracker_process_stats: Option<ProcessStats>,
     pub tracker_stdout: Option<String>,
     pub tracker_stderr: Option<String>,
     pub load_test_stdout: Option<String>,
@@ -207,7 +215,6 @@ impl<C> RunErrorResults<C> {
     fn new(run_config: RunConfig<C>) -> Self {
         Self {
             run_config,
-            tracker_process_stats: Default::default(),
             tracker_stdout: Default::default(),
             tracker_stderr: Default::default(),
             load_test_stdout: Default::default(),
@@ -217,7 +224,7 @@ impl<C> RunErrorResults<C> {
         }
     }
 
-    fn set_tracker(mut self, tracker: ChildWrapper) -> Self {
+    fn set_tracker_outputs(mut self, tracker: ChildWrapper) -> Self {
         let (stdout, stderr) = read_child_outputs(tracker);
 
         self.tracker_stdout = stdout;
@@ -261,6 +268,49 @@ impl<C> RunErrorResults<C> {
     }
 }
 
+impl<C> std::fmt::Display for RunErrorResults<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(t) = self.error_context.as_ref() {
+            writeln!(f, "- {}", t)?;
+        }
+        if let Some(err) = self.error.as_ref() {
+            writeln!(f, "- {:#}", err)?;
+        }
+
+        writeln!(f, "- tracker_runner: {:?}", self.run_config.tracker_runner)?;
+        writeln!(
+            f,
+            "- load_test_runner: {:?}",
+            self.run_config.load_test_runner
+        )?;
+        writeln!(
+            f,
+            "- tracker_vcpus: {}",
+            self.run_config.tracker_vcpus.as_cpu_list()
+        )?;
+        writeln!(
+            f,
+            "- load_test_vcpus: {}",
+            self.run_config.load_test_vcpus.as_cpu_list()
+        )?;
+
+        if let Some(t) = self.tracker_stdout.as_ref() {
+            writeln!(f, "- tracker stdout:\n```\n{}\n```", t)?;
+        }
+        if let Some(t) = self.tracker_stderr.as_ref() {
+            writeln!(f, "- tracker stderr:\n```\n{}\n```", t)?;
+        }
+        if let Some(t) = self.load_test_stdout.as_ref() {
+            writeln!(f, "- load test stdout:\n```\n{}\n```", t)?;
+        }
+        if let Some(t) = self.load_test_stderr.as_ref() {
+            writeln!(f, "- load test stderr:\n```\n{}\n```", t)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct ProcessStats {
     pub avg_cpu_utilization: f32,
@@ -293,23 +343,23 @@ impl Drop for ChildWrapper {
 }
 
 fn read_child_outputs(mut child: ChildWrapper) -> (Option<String>, Option<String>) {
-    let stdout = child.0.stdout.take().map(|stdout| {
+    let stdout = child.0.stdout.take().and_then(|stdout| {
         let mut buf = String::new();
 
         let mut reader = NonBlockingReader::from_fd(stdout).unwrap();
 
         reader.read_available_to_string(&mut buf).unwrap();
 
-        buf
+        (!buf.is_empty()).then_some(buf)
     });
-    let stderr = child.0.stderr.take().map(|stderr| {
+    let stderr = child.0.stderr.take().and_then(|stderr| {
         let mut buf = String::new();
 
         let mut reader = NonBlockingReader::from_fd(stderr).unwrap();
 
         reader.read_available_to_string(&mut buf).unwrap();
 
-        buf
+        (!buf.is_empty()).then_some(buf)
     });
 
     (stdout, stderr)
