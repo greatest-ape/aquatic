@@ -7,6 +7,7 @@ use std::{
 
 use clap::Parser;
 use indexmap::{indexmap, IndexMap};
+use indoc::writedoc;
 use tempfile::NamedTempFile;
 
 use crate::{
@@ -19,6 +20,7 @@ use crate::{
 pub enum UdpTracker {
     Aquatic,
     OpenTracker,
+    Chihaya,
 }
 
 impl Tracker for UdpTracker {
@@ -26,6 +28,7 @@ impl Tracker for UdpTracker {
         match self {
             Self::Aquatic => "aquatic_udp".into(),
             Self::OpenTracker => "opentracker".into(),
+            Self::Chihaya => "chihaya".into(),
         }
     }
 }
@@ -41,6 +44,9 @@ pub struct UdpCommand {
     /// Path to opentracker binary
     #[arg(long, default_value = "opentracker")]
     opentracker: PathBuf,
+    /// Path to chihaya binary
+    #[arg(long, default_value = "chihaya")]
+    chihaya: PathBuf,
 }
 
 impl UdpCommand {
@@ -72,11 +78,16 @@ impl UdpCommand {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(1, 1),
+                        AquaticUdpRunner::new(2, 1),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(0), // Handle requests within event loop
                         OpenTrackerUdpRunner::new(1),
                         OpenTrackerUdpRunner::new(2),
+                    ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(2)),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6]),
@@ -92,6 +103,10 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(2),
                         OpenTrackerUdpRunner::new(4),
                     ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(4)),
+                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6]),
             },
@@ -100,10 +115,15 @@ impl UdpCommand {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(2, 1),
                         AquaticUdpRunner::new(3, 1),
+                        AquaticUdpRunner::new(5, 1),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(3),
                         OpenTrackerUdpRunner::new(6),
+                    ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(6)),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8]),
@@ -112,11 +132,16 @@ impl UdpCommand {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(3, 1),
-                        AquaticUdpRunner::new(6, 1),
+                        AquaticUdpRunner::new(4, 1),
+                        AquaticUdpRunner::new(7, 1),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(4),
                         OpenTrackerUdpRunner::new(8),
+                    ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(8)),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8]),
@@ -125,13 +150,18 @@ impl UdpCommand {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(5, 1),
-                        AquaticUdpRunner::new(10, 1),
+                        AquaticUdpRunner::new(6, 1),
+                        AquaticUdpRunner::new(9, 1),
                         AquaticUdpRunner::new(4, 2),
                         AquaticUdpRunner::new(8, 2),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(6),
                         OpenTrackerUdpRunner::new(12),
+                    ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(12)),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8, 12]),
@@ -140,6 +170,7 @@ impl UdpCommand {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(7, 1),
+                        AquaticUdpRunner::new(8, 1),
                         AquaticUdpRunner::new(14, 1),
                         AquaticUdpRunner::new(6, 2),
                         AquaticUdpRunner::new(12, 2),
@@ -148,6 +179,10 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(8),
                         OpenTrackerUdpRunner::new(16),
                     ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(16)),
+                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12]),
             },
@@ -155,6 +190,7 @@ impl UdpCommand {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(11, 1),
+                        AquaticUdpRunner::new(12, 1),
                         AquaticUdpRunner::new(22, 1),
                         AquaticUdpRunner::new(10, 2),
                         AquaticUdpRunner::new(20, 2),
@@ -165,6 +201,10 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(12),
                         OpenTrackerUdpRunner::new(24),
                     ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(24)),
+                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12, 16]),
             },
@@ -173,8 +213,8 @@ impl UdpCommand {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(15, 1),
                         AquaticUdpRunner::new(30, 1),
-                        AquaticUdpRunner::new(15, 2),
-                        AquaticUdpRunner::new(30, 2),
+                        AquaticUdpRunner::new(14, 2),
+                        AquaticUdpRunner::new(28, 2),
                         AquaticUdpRunner::new(13, 3),
                         AquaticUdpRunner::new(26, 3),
                         AquaticUdpRunner::new(12, 4),
@@ -183,6 +223,10 @@ impl UdpCommand {
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(16),
                         OpenTrackerUdpRunner::new(32),
+                    ],
+                    UdpTracker::Chihaya => vec![
+                        ChihayaUdpRunner::new(None),
+                        ChihayaUdpRunner::new(Some(32)),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12, 16]),
@@ -291,6 +335,65 @@ impl ProcessRunner for OpenTrackerUdpRunner {
 }
 
 #[derive(Debug, Clone)]
+struct ChihayaUdpRunner {
+    gomaxprocs: Option<usize>,
+}
+
+impl ChihayaUdpRunner {
+    fn new(gomaxprocs: Option<usize>) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
+        Rc::new(Self { gomaxprocs })
+    }
+}
+
+impl ProcessRunner for ChihayaUdpRunner {
+    type Command = UdpCommand;
+
+    fn run(
+        &self,
+        command: &Self::Command,
+        vcpus: &TaskSetCpuList,
+        tmp_file: &mut NamedTempFile,
+    ) -> anyhow::Result<Child> {
+        writedoc!(
+            tmp_file,
+            r#"
+            ---
+            chihaya:
+              metrics_addr: "127.0.0.1:0"
+              udp:
+                addr: "127.0.0.1:3000"
+                private_key: "abcdefghijklmnopqrst"
+              storage:
+                name: "memory"
+            "#,
+        )?;
+
+        let mut c = Command::new("taskset");
+
+        let mut c = c
+            .arg("--cpu-list")
+            .arg(vcpus.as_cpu_list())
+            .arg(&command.chihaya)
+            .arg("--config")
+            .arg(tmp_file.path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        if let Some(gomaxprocs) = self.gomaxprocs {
+            c = c.env("GOMAXPROCS", gomaxprocs.to_string());
+        }
+
+        Ok(c.spawn()?)
+    }
+
+    fn keys(&self) -> IndexMap<String, String> {
+        indexmap! {
+            "GOMAXPROCS".to_string() => format!("{:?}", self.gomaxprocs),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct AquaticUdpLoadTestRunner {
     workers: usize,
 }
@@ -308,6 +411,10 @@ impl ProcessRunner for AquaticUdpLoadTestRunner {
 
         c.workers = self.workers as u8;
         c.duration = 60;
+
+        c.requests.weight_connect = 100;
+        c.requests.weight_announce = 100;
+        c.requests.weight_scrape = 1;
 
         let c = toml::to_string_pretty(&c)?;
 

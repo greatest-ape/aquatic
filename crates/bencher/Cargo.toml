@@ -1,6 +1,6 @@
 [package]
-name = "aquatic_load_tester"
-description = "Automated load testing of aquatic and other BitTorrent trackers (Linux only)"
+name = "aquatic_bencher"
+description = "Automated benchmarking of aquatic and other BitTorrent trackers (Linux only)"
 keywords = ["peer-to-peer", "torrent", "bittorrent"]
 version.workspace = true
 authors.workspace = true
@@ -8,10 +8,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-readme.workspace = true
+
+readme = "./README.md"
 
 [[bin]]
-name = "aquatic_load_tester"
+name = "aquatic_bencher"
 
 [features]
 default = ["udp"]
@@ -24,6 +25,7 @@ aquatic_udp_load_test = { optional = true, workspace = true }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 indexmap = "2"
+indoc = "2"
 itertools = "0.12"
 nonblock = "0.2"
 once_cell = "1"

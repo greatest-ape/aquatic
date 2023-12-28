@@ -128,6 +128,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "aquatic_bencher"
+version = "0.8.0"
+dependencies = [
+ "anyhow",
+ "aquatic_udp",
+ "aquatic_udp_load_test",
+ "clap 4.4.11",
+ "indexmap 2.1.0",
+ "indoc",
+ "itertools 0.12.0",
+ "nonblock",
+ "once_cell",
+ "regex",
+ "serde",
+ "tempfile",
+ "toml 0.8.8",
+]
+
+[[package]]
 name = "aquatic_common"
 version = "0.8.0"
 dependencies = [
@@ -230,24 +249,6 @@ dependencies = [
  "serde",
  "serde_bencode",
  "urlencoding",
-]
-
-[[package]]
-name = "aquatic_load_tester"
-version = "0.8.0"
-dependencies = [
- "anyhow",
- "aquatic_udp",
- "aquatic_udp_load_test",
- "clap 4.4.11",
- "indexmap 2.1.0",
- "itertools 0.12.0",
- "nonblock",
- "once_cell",
- "regex",
- "serde",
- "tempfile",
- "toml 0.8.8",
 ]
 
 [[package]]
@@ -1463,6 +1464,12 @@ dependencies = [
  "equivalent",
  "hashbrown 0.14.3",
 ]
+
+[[package]]
+name = "indoc"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e186cfbae8084e513daff4240b4797e342f988cecda4fb6c939150f96315fd8"
 
 [[package]]
 name = "instant"
@@ -3258,9 +3265,9 @@ checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
 
 [[package]]
 name = "winnow"
-version = "0.5.30"
+version = "0.5.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b5c3db89721d50d0e2a673f5043fc4722f76dcc352d7b1ab8b8288bed4ed2c5"
+checksum = "97a4882e6b134d6c28953a387571f1acdd3496830d5e36c5e3a1075580ea641c"
 dependencies = [
  "memchr",
 ]

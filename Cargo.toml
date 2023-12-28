@@ -1,11 +1,11 @@
 [workspace]
 members = [ 
+    "crates/bencher",
     "crates/combined_binary",
     "crates/common",
     "crates/http",
     "crates/http_load_test",
     "crates/http_protocol",
-    "crates/load_tester",
     "crates/peer_id",
     "crates/toml_config",
     "crates/toml_config_derive",
