@@ -13,10 +13,10 @@ struct Args {
     /// executables on
     #[arg(long, default_value_t = CpuMode::Split)]
     cpu_mode: CpuMode,
-    /// Minimum number of tracker cpu cores to run load tests for
+    /// Minimum number of tracker cpu cores to run benchmarks for
     #[arg(long)]
     min_cores: Option<usize>,
-    /// Maximum number of tracker cpu cores to run load tests for
+    /// Maximum number of tracker cpu cores to run benchmarks for
     #[arg(long)]
     max_cores: Option<usize>,
     #[command(subcommand)]
