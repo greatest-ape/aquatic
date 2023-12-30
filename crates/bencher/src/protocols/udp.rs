@@ -266,6 +266,7 @@ impl ProcessRunner for AquaticUdpRunner {
 
         c.socket_workers = self.socket_workers;
         c.swarm_workers = self.swarm_workers;
+        c.protocol.max_response_peers = 50;
 
         let c = toml::to_string_pretty(&c)?;
 
@@ -363,6 +364,8 @@ impl ProcessRunner for ChihayaUdpRunner {
               udp:
                 addr: "127.0.0.1:3000"
                 private_key: "abcdefghijklmnopqrst"
+                max_numwant: 50
+                default_numwant: 50
               storage:
                 name: "memory"
             "#,
@@ -412,7 +415,7 @@ impl ProcessRunner for AquaticUdpLoadTestRunner {
         c.workers = self.workers as u8;
         c.duration = 60;
 
-        c.requests.weight_connect = 100;
+        c.requests.weight_connect = 0;
         c.requests.weight_announce = 100;
         c.requests.weight_scrape = 1;
 

@@ -24,6 +24,8 @@ make
 cd ..
 git clone git://erdgeist.org/opentracker
 cd opentracker
+sed -i "s/^OPTS_production=-O3/OPTS_production=-O3 -march=native -mtune=native/g" Makefile
+sed -i "s/if \(numwant > 200\) numwant = 200/if (numwant > 50) numwant = 50/g" ot_udp.c
 make
 sudo cp ./opentracker /usr/local/bin/
 cd ..
