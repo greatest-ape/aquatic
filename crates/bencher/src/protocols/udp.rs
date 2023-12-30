@@ -154,9 +154,6 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(6),
                         OpenTrackerUdpRunner::new(12),
                     ],
-                    UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(),
-                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8, 12]),
             },
@@ -171,9 +168,6 @@ impl UdpCommand {
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(8),
                         OpenTrackerUdpRunner::new(16),
-                    ],
-                    UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12]),
@@ -194,9 +188,6 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(12),
                         OpenTrackerUdpRunner::new(24),
                     ],
-                    UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(),
-                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[8, 12, 16]),
             },
@@ -215,9 +206,6 @@ impl UdpCommand {
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(16),
                         OpenTrackerUdpRunner::new(32),
-                    ],
-                    UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[8, 12, 16]),
