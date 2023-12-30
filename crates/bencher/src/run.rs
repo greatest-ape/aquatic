@@ -84,6 +84,8 @@ impl<C> RunConfig<C> {
             ::std::thread::sleep(Duration::from_secs(1));
         }
 
+        // Note: a more advanced version tracking threads too would add argument
+        // "-L" and add "comm" to output format list
         let tracker_process_stats_res = Command::new("ps")
             .arg("-p")
             .arg(tracker.0.id().to_string())

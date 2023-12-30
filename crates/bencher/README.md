@@ -1,3 +1,3 @@
-# aquatic_load_tester
+# aquatic_bencher
 
-Automated load testing of aquatic and other BitTorrent trackers. Linux only.
+Automated benchmarking of aquatic and other BitTorrent trackers. Linux only.

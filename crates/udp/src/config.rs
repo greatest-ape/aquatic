@@ -58,7 +58,7 @@ impl Default for Config {
             socket_workers: 1,
             swarm_workers: 1,
             log_level: LogLevel::Error,
-            worker_channel_size: 1024 * 16,
+            worker_channel_size: 1024 * 128,
             request_channel_recv_timeout_ms: 100,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
