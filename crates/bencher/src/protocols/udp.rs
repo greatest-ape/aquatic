@@ -86,8 +86,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(2),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(2)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6]),
@@ -104,8 +103,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(4),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(4)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6]),
@@ -122,8 +120,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(6),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(6)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8]),
@@ -140,8 +137,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(8),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(8)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8]),
@@ -160,8 +156,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(12),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(12)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8, 12]),
@@ -180,8 +175,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(16),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(16)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12]),
@@ -202,8 +196,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(24),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(24)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12, 16]),
@@ -225,8 +218,7 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(32),
                     ],
                     UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(None),
-                        ChihayaUdpRunner::new(Some(32)),
+                        ChihayaUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12, 16]),
@@ -336,13 +328,11 @@ impl ProcessRunner for OpenTrackerUdpRunner {
 }
 
 #[derive(Debug, Clone)]
-struct ChihayaUdpRunner {
-    gomaxprocs: Option<usize>,
-}
+struct ChihayaUdpRunner;
 
 impl ChihayaUdpRunner {
-    fn new(gomaxprocs: Option<usize>) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
-        Rc::new(Self { gomaxprocs })
+    fn new() -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
+        Rc::new(Self)
     }
 }
 
@@ -371,28 +361,19 @@ impl ProcessRunner for ChihayaUdpRunner {
             "#,
         )?;
 
-        let mut c = Command::new("taskset");
-
-        let mut c = c
+        Ok(Command::new("taskset")
             .arg("--cpu-list")
             .arg(vcpus.as_cpu_list())
             .arg(&command.chihaya)
             .arg("--config")
             .arg(tmp_file.path())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        if let Some(gomaxprocs) = self.gomaxprocs {
-            c = c.env("GOMAXPROCS", gomaxprocs.to_string());
-        }
-
-        Ok(c.spawn()?)
+            .stderr(Stdio::piped())
+            .spawn()?)
     }
 
     fn keys(&self) -> IndexMap<String, String> {
-        indexmap! {
-            "GOMAXPROCS".to_string() => format!("{:?}", self.gomaxprocs),
-        }
+        Default::default()
     }
 }
 
