@@ -7,6 +7,8 @@
 #### Added
 
 * Add `aquatic_peer_id` crate with peer client information logic
+* Add `aquatic_bencher` crate for automated benchmarking of aquatic and other
+  BitTorrent trackers
 
 ### aquatic_udp
 
@@ -22,6 +24,8 @@
 * Reuse allocations in swarm response channel
 * Remove config key `network.poll_event_capacity`
 * Harden ConnectionValidator to make IP spoofing even more costly
+* Distribute announce responses from swarm workers over socket workers to
+  decrease performance loss due to underutilized threads
 
 ### aquatic_http
 
