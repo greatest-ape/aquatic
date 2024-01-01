@@ -89,7 +89,7 @@ impl UdpCommand {
                         ChihayaUdpRunner::new(),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6, 8]),
             },
             2 => SetConfig {
                 implementations: indexmap! {
@@ -106,7 +106,7 @@ impl UdpCommand {
                         ChihayaUdpRunner::new(),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6, 8]),
             },
             3 => SetConfig {
                 implementations: indexmap! {
@@ -196,6 +196,7 @@ impl UdpCommand {
                         AquaticUdpRunner::new(11, 5),
                         AquaticUdpRunner::new(10, 6),
                         AquaticUdpRunner::new(20, 6),
+                        AquaticUdpRunner::new(9, 7),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(16),
