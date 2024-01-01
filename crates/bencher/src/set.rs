@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use humanize_bytes::humanize_bytes_binary;
 use indexmap::IndexMap;
 use num_format::{Locale, ToFormattedString};
 
@@ -207,8 +208,8 @@ impl LoadTestRunResults {
                     r.tracker_process_stats.avg_cpu_utilization,
                 );
                 println!(
-                    "- Peak tracker RSS: {} kB",
-                    r.tracker_process_stats.peak_rss_kb
+                    "- Peak tracker RSS: {}",
+                    humanize_bytes_binary!(r.tracker_process_stats.peak_rss_bytes)
                 );
 
                 LoadTestRunResults::Success(LoadTestRunResultsSuccess {

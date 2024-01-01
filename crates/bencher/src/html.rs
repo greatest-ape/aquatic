@@ -1,3 +1,4 @@
+use humanize_bytes::humanize_bytes_binary;
 use indexmap::{IndexMap, IndexSet};
 use indoc::formatdoc;
 use itertools::Itertools;
@@ -198,7 +199,7 @@ pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
                         <td>{avg_responses}</td>
                         {tracker_key_values}
                         <td>{cpu}%</td>
-                        <td>{mem} kB</td>
+                        <td>{mem}</td>
                         <td>{tracker_vcpus}</td>
                         {load_test_key_values}
                         <td>{load_test_vcpus}</td>
@@ -212,7 +213,8 @@ pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
                     }).join("\n"),
                     cpu = r.tracker_stats.map(|stats| stats.avg_cpu_utilization.to_string())
                         .unwrap_or_else(|| "-".to_string()),
-                    mem = r.tracker_stats.map(|stats| stats.peak_rss_kb.to_string())
+                    mem = r.tracker_stats
+                        .map(|stats| humanize_bytes_binary!(stats.peak_rss_bytes).to_string())
                         .unwrap_or_else(|| "-".to_string()),
                     tracker_vcpus = r.tracker_vcpus,
                     load_test_key_values = load_test_key_names.iter().map(|name| {

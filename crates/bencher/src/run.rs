@@ -315,7 +315,7 @@ impl<C> std::fmt::Display for RunErrorResults<C> {
 #[derive(Debug, Clone, Copy)]
 pub struct ProcessStats {
     pub avg_cpu_utilization: f32,
-    pub peak_rss_kb: f32,
+    pub peak_rss_bytes: u64,
 }
 
 impl FromStr for ProcessStats {
@@ -324,9 +324,12 @@ impl FromStr for ProcessStats {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.trim().split_whitespace();
 
+        let avg_cpu_utilization = parts.next().ok_or(())?.parse().map_err(|_| ())?;
+        let peak_rss_kb: f32 = parts.next().ok_or(())?.parse().map_err(|_| ())?;
+
         Ok(Self {
-            avg_cpu_utilization: parts.next().ok_or(())?.parse().map_err(|_| ())?,
-            peak_rss_kb: parts.next().ok_or(())?.parse().map_err(|_| ())?,
+            avg_cpu_utilization,
+            peak_rss_bytes: (peak_rss_kb * 1000.0) as u64,
         })
     }
 }

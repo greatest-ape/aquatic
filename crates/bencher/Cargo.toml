@@ -24,6 +24,7 @@ aquatic_udp_load_test = { optional = true, workspace = true }
 
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+humanize-bytes = "1"
 indexmap = "2"
 indoc = "2"
 itertools = "0.12"
