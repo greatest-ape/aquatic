@@ -164,7 +164,7 @@ impl<C> RunConfig<C> {
 
         let avg_responses = {
             static RE: Lazy<Regex> =
-                Lazy::new(|| Regex::new(r"Average responses per second: ([0-9]+\.?)").unwrap());
+                Lazy::new(|| Regex::new(r"Average responses per second: ([0-9]+)").unwrap());
 
             let opt_avg_responses = RE
                 .captures_iter(&load_test_stdout)
