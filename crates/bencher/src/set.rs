@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use indexmap::{IndexMap, IndexSet};
-use itertools::Itertools;
+use indexmap::IndexMap;
 
 use crate::{
     common::{CpuDirection, CpuMode, TaskSetCpuList},
+    html::html_best_results,
     run::{ProcessRunner, ProcessStats, RunConfig},
 };
 
@@ -106,21 +106,21 @@ pub fn run_sets<C, F, I>(
         })
         .collect::<Vec<_>>();
 
-    html_summary(&results);
+    html_best_results(&results);
 }
 
 pub struct TrackerCoreCountResults {
-    core_count: usize,
-    implementations: Vec<ImplementationResults>,
+    pub core_count: usize,
+    pub implementations: Vec<ImplementationResults>,
 }
 
 pub struct ImplementationResults {
-    name: String,
-    configurations: Vec<TrackerConfigurationResults>,
+    pub name: String,
+    pub configurations: Vec<TrackerConfigurationResults>,
 }
 
 impl ImplementationResults {
-    fn best_result(&self) -> Option<LoadTestRunResultsSuccess> {
+    pub fn best_result(&self) -> Option<LoadTestRunResultsSuccess> {
         self.configurations
             .iter()
             .filter_map(|c| c.best_result())
@@ -135,7 +135,7 @@ impl ImplementationResults {
 }
 
 pub struct TrackerConfigurationResults {
-    load_tests: Vec<LoadTestRunResults>,
+    pub load_tests: Vec<LoadTestRunResults>,
 }
 
 impl TrackerConfigurationResults {
@@ -227,89 +227,13 @@ impl LoadTestRunResults {
 
 #[derive(Clone)]
 pub struct LoadTestRunResultsSuccess {
-    average_responses: f32,
+    pub average_responses: f32,
     // tracker_keys: IndexMap<String, String>,
-    tracker_info: String,
-    tracker_process_stats: ProcessStats,
+    pub tracker_info: String,
+    pub tracker_process_stats: ProcessStats,
     // load_test_keys: IndexMap<String, String>,
 }
 
 pub struct LoadTestRunResultsFailure {
     // load_test_keys: IndexMap<String, String>,
-}
-
-pub fn html_summary(results: &[TrackerCoreCountResults]) {
-    let mut all_implementation_names = IndexSet::new();
-
-    for core_count_results in results {
-        all_implementation_names.extend(
-            core_count_results
-                .implementations
-                .iter()
-                .map(|r| r.name.clone()),
-        );
-    }
-
-    let mut data_rows = Vec::new();
-
-    for core_count_results in results {
-        let best_results = core_count_results
-            .implementations
-            .iter()
-            .map(|implementation| (implementation.name.clone(), implementation.best_result()))
-            .collect::<IndexMap<_, _>>();
-
-        let best_results_for_all_implementations = all_implementation_names
-            .iter()
-            .map(|name| best_results.get(name).cloned().flatten())
-            .collect::<Vec<_>>();
-
-        let data_row = format!(
-            "
-            <tr>
-                <th>{}</th>
-                {}
-            </tr>
-            ",
-            core_count_results.core_count,
-            best_results_for_all_implementations
-                .into_iter()
-                .map(|result| {
-                    if let Some(r) = result {
-                        format!(
-                            r#"<td><span title="{}, avg cpu utilization: {}%">{}</span></td>"#,
-                            r.tracker_info,
-                            r.tracker_process_stats.avg_cpu_utilization,
-                            r.average_responses,
-                        )
-                    } else {
-                        "<td>-</td>".to_string()
-                    }
-                })
-                .join("\n"),
-        );
-
-        data_rows.push(data_row);
-    }
-
-    println!(
-        "
-        <table>
-            <thead>
-                <tr>
-                    <th>CPU cores</th>
-                    {}
-                </tr>
-            </thead>
-            <tbody>
-                {}
-            </tbody>
-        </table>
-        ",
-        all_implementation_names
-            .iter()
-            .map(|name| format!("<th>{name}</th>"))
-            .join("\n"),
-        data_rows.join("\n")
-    )
 }
