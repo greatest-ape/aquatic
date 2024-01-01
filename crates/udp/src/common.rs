@@ -171,13 +171,17 @@ impl ConnectedRequestSender {
 
 pub struct ConnectedResponseSender {
     senders: Vec<thingbuf::mpsc::blocking::Sender<ConnectedResponseWithAddr, Recycler>>,
+    to_any_last_index_picked: usize,
 }
 
 impl ConnectedResponseSender {
     pub fn new(
         senders: Vec<thingbuf::mpsc::blocking::Sender<ConnectedResponseWithAddr, Recycler>>,
     ) -> Self {
-        Self { senders }
+        Self {
+            senders,
+            to_any_last_index_picked: 0,
+        }
     }
 
     pub fn try_send_ref_to(
@@ -192,6 +196,23 @@ impl ConnectedResponseSender {
         index: SocketWorkerIndex,
     ) -> Result<SendRef<ConnectedResponseWithAddr>, thingbuf::mpsc::errors::Closed> {
         self.senders[index.0].send_ref()
+    }
+
+    pub fn send_ref_to_any(
+        &mut self,
+    ) -> Result<SendRef<ConnectedResponseWithAddr>, thingbuf::mpsc::errors::Closed> {
+        let start = self.to_any_last_index_picked + 1;
+
+        for i in (start..start + self.senders.len()).map(|i| i % self.senders.len()) {
+            if let Ok(sender) = self.senders[i].try_send_ref() {
+                self.to_any_last_index_picked = i;
+
+                return Ok(sender);
+            }
+        }
+
+        self.to_any_last_index_picked = start % self.senders.len();
+        self.send_ref_to(SocketWorkerIndex(self.to_any_last_index_picked))
     }
 }
 
