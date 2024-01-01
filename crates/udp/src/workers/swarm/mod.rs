@@ -23,7 +23,7 @@ pub fn run_swarm_worker(
     state: State,
     server_start_instant: ServerStartInstant,
     request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
-    response_sender: ConnectedResponseSender,
+    mut response_sender: ConnectedResponseSender,
     statistics_sender: Sender<StatisticsMessage>,
     worker_index: SwarmWorkerIndex,
 ) {
@@ -43,65 +43,78 @@ pub fn run_swarm_worker(
 
     loop {
         if let Ok((sender_index, request, src)) = request_receiver.recv_timeout(timeout) {
-            // It is OK to block here as long as we don't do blocking sends
-            // in socket workers, which could cause a deadlock
-            match response_sender.send_ref_to(sender_index) {
-                Ok(mut send_ref) => {
+            // It is OK to block here as long as we don't also do blocking
+            // sends in socket workers (doing both could cause a deadlock)
+            match (request, src.get().ip()) {
+                (ConnectedRequest::Announce(request), IpAddr::V4(ip)) => {
+                    // It doesn't matter which socket worker receives announce responses
+                    let mut send_ref = response_sender
+                        .send_ref_to_any()
+                        .expect("swarm response channel is closed");
+
                     send_ref.addr = src;
+                    send_ref.kind = ConnectedResponseKind::AnnounceIpv4;
 
-                    match (request, src.get().ip()) {
-                        (ConnectedRequest::Announce(request), IpAddr::V4(ip)) => {
-                            send_ref.kind = ConnectedResponseKind::AnnounceIpv4;
-
-                            torrents
-                                .ipv4
-                                .0
-                                .entry(request.info_hash)
-                                .or_default()
-                                .announce(
-                                    &config,
-                                    &statistics_sender,
-                                    &mut rng,
-                                    &request,
-                                    ip.into(),
-                                    peer_valid_until,
-                                    &mut send_ref.announce_ipv4,
-                                );
-                        }
-                        (ConnectedRequest::Announce(request), IpAddr::V6(ip)) => {
-                            send_ref.kind = ConnectedResponseKind::AnnounceIpv6;
-
-                            torrents
-                                .ipv6
-                                .0
-                                .entry(request.info_hash)
-                                .or_default()
-                                .announce(
-                                    &config,
-                                    &statistics_sender,
-                                    &mut rng,
-                                    &request,
-                                    ip.into(),
-                                    peer_valid_until,
-                                    &mut send_ref.announce_ipv6,
-                                );
-                        }
-                        (ConnectedRequest::Scrape(request), IpAddr::V4(_)) => {
-                            send_ref.kind = ConnectedResponseKind::Scrape;
-
-                            torrents.ipv4.scrape(request, &mut send_ref.scrape);
-                        }
-                        (ConnectedRequest::Scrape(request), IpAddr::V6(_)) => {
-                            send_ref.kind = ConnectedResponseKind::Scrape;
-
-                            torrents.ipv6.scrape(request, &mut send_ref.scrape);
-                        }
-                    };
+                    torrents
+                        .ipv4
+                        .0
+                        .entry(request.info_hash)
+                        .or_default()
+                        .announce(
+                            &config,
+                            &statistics_sender,
+                            &mut rng,
+                            &request,
+                            ip.into(),
+                            peer_valid_until,
+                            &mut send_ref.announce_ipv4,
+                        );
                 }
-                Err(_) => {
-                    panic!("swarm response channel closed");
+                (ConnectedRequest::Announce(request), IpAddr::V6(ip)) => {
+                    // It doesn't matter which socket worker receives announce responses
+                    let mut send_ref = response_sender
+                        .send_ref_to_any()
+                        .expect("swarm response channel is closed");
+
+                    send_ref.addr = src;
+                    send_ref.kind = ConnectedResponseKind::AnnounceIpv6;
+
+                    torrents
+                        .ipv6
+                        .0
+                        .entry(request.info_hash)
+                        .or_default()
+                        .announce(
+                            &config,
+                            &statistics_sender,
+                            &mut rng,
+                            &request,
+                            ip.into(),
+                            peer_valid_until,
+                            &mut send_ref.announce_ipv6,
+                        );
                 }
-            }
+                (ConnectedRequest::Scrape(request), IpAddr::V4(_)) => {
+                    let mut send_ref = response_sender
+                        .send_ref_to(sender_index)
+                        .expect("swarm response channel is closed");
+
+                    send_ref.addr = src;
+                    send_ref.kind = ConnectedResponseKind::Scrape;
+
+                    torrents.ipv4.scrape(request, &mut send_ref.scrape);
+                }
+                (ConnectedRequest::Scrape(request), IpAddr::V6(_)) => {
+                    let mut send_ref = response_sender
+                        .send_ref_to(sender_index)
+                        .expect("swarm response channel is closed");
+
+                    send_ref.addr = src;
+                    send_ref.kind = ConnectedResponseKind::Scrape;
+
+                    torrents.ipv6.scrape(request, &mut send_ref.scrape);
+                }
+            };
         }
 
         // Run periodic tasks

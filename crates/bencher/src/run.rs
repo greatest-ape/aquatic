@@ -163,9 +163,8 @@ impl<C> RunConfig<C> {
         };
 
         let avg_responses = {
-            static RE: Lazy<Regex> = Lazy::new(|| {
-                Regex::new(r"Average responses per second: ([0-9]+\.?[0-9]+)").unwrap()
-            });
+            static RE: Lazy<Regex> =
+                Lazy::new(|| Regex::new(r"Average responses per second: ([0-9]+)").unwrap());
 
             let opt_avg_responses = RE
                 .captures_iter(&load_test_stdout)
@@ -175,7 +174,7 @@ impl<C> RunConfig<C> {
 
                     avg_responses.to_string()
                 })
-                .and_then(|v| v.parse::<f32>().ok());
+                .and_then(|v| v.parse::<u64>().ok());
 
             if let Some(avg_responses) = opt_avg_responses {
                 avg_responses
@@ -199,7 +198,7 @@ impl<C> RunConfig<C> {
 
 pub struct RunSuccessResults {
     pub tracker_process_stats: ProcessStats,
-    pub avg_responses: f32,
+    pub avg_responses: u64,
 }
 
 #[derive(Debug)]
@@ -316,7 +315,7 @@ impl<C> std::fmt::Display for RunErrorResults<C> {
 #[derive(Debug, Clone, Copy)]
 pub struct ProcessStats {
     pub avg_cpu_utilization: f32,
-    pub peak_rss_kb: f32,
+    pub peak_rss_bytes: u64,
 }
 
 impl FromStr for ProcessStats {
@@ -325,9 +324,12 @@ impl FromStr for ProcessStats {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.trim().split_whitespace();
 
+        let avg_cpu_utilization = parts.next().ok_or(())?.parse().map_err(|_| ())?;
+        let peak_rss_kb: f32 = parts.next().ok_or(())?.parse().map_err(|_| ())?;
+
         Ok(Self {
-            avg_cpu_utilization: parts.next().ok_or(())?.parse().map_err(|_| ())?,
-            peak_rss_kb: parts.next().ok_or(())?.parse().map_err(|_| ())?,
+            avg_cpu_utilization,
+            peak_rss_bytes: (peak_rss_kb * 1000.0) as u64,
         })
     }
 }

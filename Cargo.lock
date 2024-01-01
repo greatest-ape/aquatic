@@ -135,10 +135,12 @@ dependencies = [
  "aquatic_udp",
  "aquatic_udp_load_test",
  "clap 4.4.11",
+ "humanize-bytes",
  "indexmap 2.1.0",
  "indoc",
  "itertools 0.12.0",
  "nonblock",
+ "num-format",
  "once_cell",
  "regex",
  "serde",
@@ -1398,6 +1400,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
+name = "humanize-bytes"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c8f5a0ffae64f844e5e311016d1d8184dd496c7136af420f665a877ac2f0681"
+dependencies = [
+ "smartstring",
+]
+
+[[package]]
 name = "hwloc"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2603,6 +2614,17 @@ name = "smallvec"
 version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4dccd0940a2dcdf68d092b8cbab7dc0ad8fa938bf95787e1b916b0e3d0e8e970"
+
+[[package]]
+name = "smartstring"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fb72c633efbaa2dd666986505016c32c3044395ceaf881518399d2f4127ee29"
+dependencies = [
+ "autocfg",
+ "static_assertions",
+ "version_check",
+]
 
 [[package]]
 name = "snafu"

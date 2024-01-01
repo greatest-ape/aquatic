@@ -1,4 +1,5 @@
 pub mod common;
+pub mod html;
 pub mod protocols;
 pub mod run;
 pub mod set;

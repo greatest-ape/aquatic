@@ -1,10 +1,12 @@
 use std::rc::Rc;
 
-use indexmap::{IndexMap, IndexSet};
-use itertools::Itertools;
+use humanize_bytes::humanize_bytes_binary;
+use indexmap::IndexMap;
+use num_format::{Locale, ToFormattedString};
 
 use crate::{
     common::{CpuDirection, CpuMode, TaskSetCpuList},
+    html::{html_all_runs, html_best_results},
     run::{ProcessRunner, ProcessStats, RunConfig},
 };
 
@@ -106,21 +108,22 @@ pub fn run_sets<C, F, I>(
         })
         .collect::<Vec<_>>();
 
-    html_summary(&results);
+    println!("{}", html_all_runs(&results));
+    println!("{}", html_best_results(&results));
 }
 
 pub struct TrackerCoreCountResults {
-    core_count: usize,
-    implementations: Vec<ImplementationResults>,
+    pub core_count: usize,
+    pub implementations: Vec<ImplementationResults>,
 }
 
 pub struct ImplementationResults {
-    name: String,
-    configurations: Vec<TrackerConfigurationResults>,
+    pub name: String,
+    pub configurations: Vec<TrackerConfigurationResults>,
 }
 
 impl ImplementationResults {
-    fn best_result(&self) -> Option<LoadTestRunResultsSuccess> {
+    pub fn best_result(&self) -> Option<LoadTestRunResultsSuccess> {
         self.configurations
             .iter()
             .filter_map(|c| c.best_result())
@@ -135,7 +138,7 @@ impl ImplementationResults {
 }
 
 pub struct TrackerConfigurationResults {
-    load_tests: Vec<LoadTestRunResults>,
+    pub load_tests: Vec<LoadTestRunResults>,
 }
 
 impl TrackerConfigurationResults {
@@ -185,40 +188,48 @@ impl LoadTestRunResults {
         );
 
         let load_test_runner = load_test_gen(workers);
-        // let load_test_keys = load_test_runner.keys();
+        let load_test_keys = load_test_runner.keys();
 
         let run_config = RunConfig {
             tracker_runner: tracker_process.clone(),
             tracker_vcpus: tracker_vcpus.clone(),
             load_test_runner,
-            load_test_vcpus,
+            load_test_vcpus: load_test_vcpus.clone(),
         };
 
         match run_config.run(command) {
             Ok(r) => {
-                println!("- Average responses per second: {}", r.avg_responses);
+                println!(
+                    "- Average responses per second: {}",
+                    r.avg_responses.to_formatted_string(&Locale::en)
+                );
                 println!(
                     "- Average tracker CPU utilization: {}%",
                     r.tracker_process_stats.avg_cpu_utilization,
                 );
                 println!(
-                    "- Peak tracker RSS: {} kB",
-                    r.tracker_process_stats.peak_rss_kb
+                    "- Peak tracker RSS: {}",
+                    humanize_bytes_binary!(r.tracker_process_stats.peak_rss_bytes)
                 );
 
                 LoadTestRunResults::Success(LoadTestRunResultsSuccess {
                     average_responses: r.avg_responses,
-                    // tracker_keys: tracker_process.keys(),
+                    tracker_keys: tracker_process.keys(),
                     tracker_info: tracker_process.info(),
                     tracker_process_stats: r.tracker_process_stats,
-                    // load_test_keys,
+                    tracker_vcpus,
+                    load_test_keys,
+                    load_test_vcpus,
                 })
             }
             Err(results) => {
                 println!("\nRun failed:\n{:#}\n", results);
 
                 LoadTestRunResults::Failure(LoadTestRunResultsFailure {
-                    // load_test_keys
+                    tracker_keys: tracker_process.keys(),
+                    tracker_vcpus,
+                    load_test_keys,
+                    load_test_vcpus,
                 })
             }
         }
@@ -227,89 +238,18 @@ impl LoadTestRunResults {
 
 #[derive(Clone)]
 pub struct LoadTestRunResultsSuccess {
-    average_responses: f32,
-    // tracker_keys: IndexMap<String, String>,
-    tracker_info: String,
-    tracker_process_stats: ProcessStats,
-    // load_test_keys: IndexMap<String, String>,
+    pub average_responses: u64,
+    pub tracker_keys: IndexMap<String, String>,
+    pub tracker_info: String,
+    pub tracker_process_stats: ProcessStats,
+    pub tracker_vcpus: TaskSetCpuList,
+    pub load_test_keys: IndexMap<String, String>,
+    pub load_test_vcpus: TaskSetCpuList,
 }
 
 pub struct LoadTestRunResultsFailure {
-    // load_test_keys: IndexMap<String, String>,
-}
-
-pub fn html_summary(results: &[TrackerCoreCountResults]) {
-    let mut all_implementation_names = IndexSet::new();
-
-    for core_count_results in results {
-        all_implementation_names.extend(
-            core_count_results
-                .implementations
-                .iter()
-                .map(|r| r.name.clone()),
-        );
-    }
-
-    let mut data_rows = Vec::new();
-
-    for core_count_results in results {
-        let best_results = core_count_results
-            .implementations
-            .iter()
-            .map(|implementation| (implementation.name.clone(), implementation.best_result()))
-            .collect::<IndexMap<_, _>>();
-
-        let best_results_for_all_implementations = all_implementation_names
-            .iter()
-            .map(|name| best_results.get(name).cloned().flatten())
-            .collect::<Vec<_>>();
-
-        let data_row = format!(
-            "
-            <tr>
-                <th>{}</th>
-                {}
-            </tr>
-            ",
-            core_count_results.core_count,
-            best_results_for_all_implementations
-                .into_iter()
-                .map(|result| {
-                    if let Some(r) = result {
-                        format!(
-                            r#"<td><span title="{}, avg cpu utilization: {}%">{}</span></td>"#,
-                            r.tracker_info,
-                            r.tracker_process_stats.avg_cpu_utilization,
-                            r.average_responses,
-                        )
-                    } else {
-                        "<td>-</td>".to_string()
-                    }
-                })
-                .join("\n"),
-        );
-
-        data_rows.push(data_row);
-    }
-
-    println!(
-        "
-        <table>
-            <thead>
-                <tr>
-                    <th>CPU cores</th>
-                    {}
-                </tr>
-            </thead>
-            <tbody>
-                {}
-            </tbody>
-        </table>
-        ",
-        all_implementation_names
-            .iter()
-            .map(|name| format!("<th>{name}</th>"))
-            .join("\n"),
-        data_rows.join("\n")
-    )
+    pub tracker_keys: IndexMap<String, String>,
+    pub tracker_vcpus: TaskSetCpuList,
+    pub load_test_keys: IndexMap<String, String>,
+    pub load_test_vcpus: TaskSetCpuList,
 }
