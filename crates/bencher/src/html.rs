@@ -3,7 +3,10 @@ use indoc::formatdoc;
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 
-use crate::set::{LoadTestRunResults, TrackerCoreCountResults};
+use crate::{
+    run::ProcessStats,
+    set::{LoadTestRunResults, TrackerCoreCountResults},
+};
 
 pub fn html_best_results(results: &[TrackerCoreCountResults]) -> String {
     let mut all_implementation_names = IndexSet::new();
@@ -99,6 +102,7 @@ pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
         avg_responses: Option<u64>,
         tracker_keys: IndexMap<String, String>,
         tracker_vcpus: String,
+        tracker_stats: Option<ProcessStats>,
         load_test_keys: IndexMap<String, String>,
         load_test_vcpus: String,
     }
@@ -133,6 +137,7 @@ pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
                                     avg_responses: Some(l.average_responses),
                                     tracker_keys: l.tracker_keys.clone(),
                                     tracker_vcpus: l.tracker_vcpus.as_cpu_list(),
+                                    tracker_stats: Some(l.tracker_process_stats),
                                     load_test_keys: l.load_test_keys.clone(),
                                     load_test_vcpus: l.load_test_vcpus.as_cpu_list(),
                                 })
@@ -146,6 +151,7 @@ pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
                                     avg_responses: None,
                                     tracker_keys: l.tracker_keys.clone(),
                                     tracker_vcpus: l.tracker_vcpus.as_cpu_list(),
+                                    tracker_stats: None,
                                     load_test_keys: l.load_test_keys.clone(),
                                     load_test_vcpus: l.load_test_vcpus.as_cpu_list(),
                                 })
@@ -158,48 +164,61 @@ pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
 
         output.push_str(&formatdoc! {
             "
-            <h2>Results for {}</h2>
+            <h2>Results for {implementation}</h2>
             <table>
                 <thead>
                     <tr>
                         <th>Cores</th>
                         <th>Responses</th>
-                        {}
-                        {}
+                        {tracker_key_names}
+                        <th>Tracker avg CPU</th>
+                        <th>Tracker peak RSS</th>
                         <th>Tracker vCPUs</th>
+                        {load_test_key_names}
                         <th>Load test vCPUs</th>
                     </tr>
                 </thead>
                 <tbody>
-                {}
+                {body}
                 </tbody>
             </table>
             ",
-            implementation_name,
-            tracker_key_names.iter().map(|name| format!("<th>Tracker {}</th>", name)).join("\n"),
-            load_test_key_names.iter().map(|name| format!("<th>Load test {}</th>", name)).join("\n"),
-            results.into_iter().map(|r| {
+            implementation = implementation_name,
+            tracker_key_names = tracker_key_names.iter()
+                .map(|name| format!("<th>{}</th>", name))
+                .join("\n"),
+            load_test_key_names = load_test_key_names.iter()
+                .map(|name| format!("<th>Load test {}</th>", name))
+                .join("\n"),
+            body = results.into_iter().map(|r| {
                 formatdoc! {
                     "
                     <tr>
-                        <td>{}</td>
-                        <td>{}</td>
-                        {}
-                        {}
-                        <td>{}</td>
-                        <td>{}</td>
+                        <td>{cores}</td>
+                        <td>{avg_responses}</td>
+                        {tracker_key_values}
+                        <td>{cpu}%</td>
+                        <td>{mem} kB</td>
+                        <td>{tracker_vcpus}</td>
+                        {load_test_key_values}
+                        <td>{load_test_vcpus}</td>
                     </tr>
                     ",
-                    r.core_count,
-                    r.avg_responses.map(|v| v.to_formatted_string(&Locale::en)).unwrap_or_else(|| "-".to_string()),
-                    tracker_key_names.iter().map(|name| {
-                        format!("<th>{}</th>", r.tracker_keys.get(name).cloned().unwrap_or_else(|| "-".to_string()))
+                    cores = r.core_count,
+                    avg_responses = r.avg_responses.map(|v| v.to_formatted_string(&Locale::en))
+                        .unwrap_or_else(|| "-".to_string()),
+                    tracker_key_values = tracker_key_names.iter().map(|name| {
+                        format!("<td>{}</td>", r.tracker_keys.get(name).cloned().unwrap_or_else(|| "-".to_string()))
                     }).join("\n"),
-                    load_test_key_names.iter().map(|name| {
-                        format!("<th>{}</th>", r.load_test_keys.get(name).cloned().unwrap_or_else(|| "-".to_string()))
+                    cpu = r.tracker_stats.map(|stats| stats.avg_cpu_utilization.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                    mem = r.tracker_stats.map(|stats| stats.peak_rss_kb.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                    tracker_vcpus = r.tracker_vcpus,
+                    load_test_key_values = load_test_key_names.iter().map(|name| {
+                        format!("<td>{}</td>", r.load_test_keys.get(name).cloned().unwrap_or_else(|| "-".to_string()))
                     }).join("\n"),
-                    r.tracker_vcpus,
-                    r.load_test_vcpus,
+                    load_test_vcpus = r.load_test_vcpus,
                 }
             }).join("\n")
         });
