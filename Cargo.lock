@@ -139,6 +139,7 @@ dependencies = [
  "indoc",
  "itertools 0.12.0",
  "nonblock",
+ "num-format",
  "once_cell",
  "regex",
  "serde",

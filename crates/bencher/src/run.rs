@@ -163,9 +163,8 @@ impl<C> RunConfig<C> {
         };
 
         let avg_responses = {
-            static RE: Lazy<Regex> = Lazy::new(|| {
-                Regex::new(r"Average responses per second: ([0-9]+\.?[0-9]+)").unwrap()
-            });
+            static RE: Lazy<Regex> =
+                Lazy::new(|| Regex::new(r"Average responses per second: ([0-9]+\.?)").unwrap());
 
             let opt_avg_responses = RE
                 .captures_iter(&load_test_stdout)
@@ -175,7 +174,7 @@ impl<C> RunConfig<C> {
 
                     avg_responses.to_string()
                 })
-                .and_then(|v| v.parse::<f32>().ok());
+                .and_then(|v| v.parse::<u64>().ok());
 
             if let Some(avg_responses) = opt_avg_responses {
                 avg_responses
@@ -199,7 +198,7 @@ impl<C> RunConfig<C> {
 
 pub struct RunSuccessResults {
     pub tracker_process_stats: ProcessStats,
-    pub avg_responses: f32,
+    pub avg_responses: u64,
 }
 
 #[derive(Debug)]

@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
 use indexmap::IndexMap;
+use num_format::{Locale, ToFormattedString};
 
 use crate::{
     common::{CpuDirection, CpuMode, TaskSetCpuList},
-    html::html_best_results,
+    html::{html_all_runs, html_best_results},
     run::{ProcessRunner, ProcessStats, RunConfig},
 };
 
@@ -106,7 +107,8 @@ pub fn run_sets<C, F, I>(
         })
         .collect::<Vec<_>>();
 
-    html_best_results(&results);
+    println!("{}", html_all_runs(&results));
+    println!("{}", html_best_results(&results));
 }
 
 pub struct TrackerCoreCountResults {
@@ -185,18 +187,21 @@ impl LoadTestRunResults {
         );
 
         let load_test_runner = load_test_gen(workers);
-        // let load_test_keys = load_test_runner.keys();
+        let load_test_keys = load_test_runner.keys();
 
         let run_config = RunConfig {
             tracker_runner: tracker_process.clone(),
             tracker_vcpus: tracker_vcpus.clone(),
             load_test_runner,
-            load_test_vcpus,
+            load_test_vcpus: load_test_vcpus.clone(),
         };
 
         match run_config.run(command) {
             Ok(r) => {
-                println!("- Average responses per second: {}", r.avg_responses);
+                println!(
+                    "- Average responses per second: {}",
+                    r.avg_responses.to_formatted_string(&Locale::en)
+                );
                 println!(
                     "- Average tracker CPU utilization: {}%",
                     r.tracker_process_stats.avg_cpu_utilization,
@@ -208,17 +213,22 @@ impl LoadTestRunResults {
 
                 LoadTestRunResults::Success(LoadTestRunResultsSuccess {
                     average_responses: r.avg_responses,
-                    // tracker_keys: tracker_process.keys(),
+                    tracker_keys: tracker_process.keys(),
                     tracker_info: tracker_process.info(),
                     tracker_process_stats: r.tracker_process_stats,
-                    // load_test_keys,
+                    tracker_vcpus,
+                    load_test_keys,
+                    load_test_vcpus,
                 })
             }
             Err(results) => {
                 println!("\nRun failed:\n{:#}\n", results);
 
                 LoadTestRunResults::Failure(LoadTestRunResultsFailure {
-                    // load_test_keys
+                    tracker_keys: tracker_process.keys(),
+                    tracker_vcpus,
+                    load_test_keys,
+                    load_test_vcpus,
                 })
             }
         }
@@ -227,13 +237,18 @@ impl LoadTestRunResults {
 
 #[derive(Clone)]
 pub struct LoadTestRunResultsSuccess {
-    pub average_responses: f32,
-    // tracker_keys: IndexMap<String, String>,
+    pub average_responses: u64,
+    pub tracker_keys: IndexMap<String, String>,
     pub tracker_info: String,
     pub tracker_process_stats: ProcessStats,
-    // load_test_keys: IndexMap<String, String>,
+    pub tracker_vcpus: TaskSetCpuList,
+    pub load_test_keys: IndexMap<String, String>,
+    pub load_test_vcpus: TaskSetCpuList,
 }
 
 pub struct LoadTestRunResultsFailure {
-    // load_test_keys: IndexMap<String, String>,
+    pub tracker_keys: IndexMap<String, String>,
+    pub tracker_vcpus: TaskSetCpuList,
+    pub load_test_keys: IndexMap<String, String>,
+    pub load_test_vcpus: TaskSetCpuList,
 }

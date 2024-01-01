@@ -1,7 +1,9 @@
 use indexmap::{IndexMap, IndexSet};
+use indoc::formatdoc;
 use itertools::Itertools;
+use num_format::{Locale, ToFormattedString};
 
-use crate::set::TrackerCoreCountResults;
+use crate::set::{LoadTestRunResults, TrackerCoreCountResults};
 
 pub fn html_best_results(results: &[TrackerCoreCountResults]) -> String {
     let mut all_implementation_names = IndexSet::new();
@@ -45,7 +47,7 @@ pub fn html_best_results(results: &[TrackerCoreCountResults]) -> String {
                             r#"<td><span title="{}, avg cpu utilization: {}%">{}</span></td>"#,
                             r.tracker_info,
                             r.tracker_process_stats.avg_cpu_utilization,
-                            r.average_responses,
+                            r.average_responses.to_formatted_string(&Locale::en),
                         )
                     } else {
                         "<td>-</td>".to_string()
@@ -59,6 +61,7 @@ pub fn html_best_results(results: &[TrackerCoreCountResults]) -> String {
 
     format!(
         "
+        <h2>Best results</h2>
         <table>
             <thead>
                 <tr>
@@ -77,4 +80,130 @@ pub fn html_best_results(results: &[TrackerCoreCountResults]) -> String {
             .join("\n"),
         data_rows.join("\n")
     )
+}
+
+pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
+    let mut all_implementation_names = IndexSet::new();
+
+    for core_count_results in all_results {
+        all_implementation_names.extend(
+            core_count_results
+                .implementations
+                .iter()
+                .map(|r| r.name.clone()),
+        );
+    }
+
+    struct R {
+        core_count: usize,
+        avg_responses: Option<u64>,
+        tracker_keys: IndexMap<String, String>,
+        tracker_vcpus: String,
+        load_test_keys: IndexMap<String, String>,
+        load_test_vcpus: String,
+    }
+
+    let mut output = String::new();
+
+    let mut results_by_implementation: IndexMap<String, Vec<R>> = Default::default();
+
+    for implementation_name in all_implementation_names {
+        let results = results_by_implementation
+            .entry(implementation_name.clone())
+            .or_default();
+
+        let mut tracker_key_names: IndexSet<String> = Default::default();
+        let mut load_test_key_names: IndexSet<String> = Default::default();
+
+        for r in all_results {
+            for i in r
+                .implementations
+                .iter()
+                .filter(|i| i.name == implementation_name)
+            {
+                for c in i.configurations.iter() {
+                    for l in c.load_tests.iter() {
+                        match l {
+                            LoadTestRunResults::Success(l) => {
+                                tracker_key_names.extend(l.tracker_keys.keys().cloned());
+                                load_test_key_names.extend(l.load_test_keys.keys().cloned());
+
+                                results.push(R {
+                                    core_count: r.core_count,
+                                    avg_responses: Some(l.average_responses),
+                                    tracker_keys: l.tracker_keys.clone(),
+                                    tracker_vcpus: l.tracker_vcpus.as_cpu_list(),
+                                    load_test_keys: l.load_test_keys.clone(),
+                                    load_test_vcpus: l.load_test_vcpus.as_cpu_list(),
+                                })
+                            }
+                            LoadTestRunResults::Failure(l) => {
+                                tracker_key_names.extend(l.tracker_keys.keys().cloned());
+                                load_test_key_names.extend(l.load_test_keys.keys().cloned());
+
+                                results.push(R {
+                                    core_count: r.core_count,
+                                    avg_responses: None,
+                                    tracker_keys: l.tracker_keys.clone(),
+                                    tracker_vcpus: l.tracker_vcpus.as_cpu_list(),
+                                    load_test_keys: l.load_test_keys.clone(),
+                                    load_test_vcpus: l.load_test_vcpus.as_cpu_list(),
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        output.push_str(&formatdoc! {
+            "
+            <h2>Results for {}</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cores</th>
+                        <th>Responses</th>
+                        {}
+                        {}
+                        <th>Tracker vCPUs</th>
+                        <th>Load test vCPUs</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {}
+                </tbody>
+            </table>
+            ",
+            implementation_name,
+            tracker_key_names.iter().map(|name| format!("<th>Tracker {}</th>", name)).join("\n"),
+            load_test_key_names.iter().map(|name| format!("<th>Load test {}</th>", name)).join("\n"),
+            results.into_iter().map(|r| {
+                formatdoc! {
+                    "
+                    <tr>
+                        <td>{}</td>
+                        <td>{}</td>
+                        {}
+                        {}
+                        <td>{}</td>
+                        <td>{}</td>
+                    </tr>
+                    ",
+                    r.core_count,
+                    r.avg_responses.map(|v| v.to_formatted_string(&Locale::en)).unwrap_or_else(|| "-".to_string()),
+                    tracker_key_names.iter().map(|name| {
+                        format!("<th>{}</th>", r.tracker_keys.get(name).cloned().unwrap_or_else(|| "-".to_string()))
+                    }).join("\n"),
+                    load_test_key_names.iter().map(|name| {
+                        format!("<th>{}</th>", r.load_test_keys.get(name).cloned().unwrap_or_else(|| "-".to_string()))
+                    }).join("\n"),
+                    r.tracker_vcpus,
+                    r.load_test_vcpus,
+                }
+            }).join("\n")
+        });
+    }
+
+    output
 }
