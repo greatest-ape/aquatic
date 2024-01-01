@@ -2,8 +2,10 @@
 # Prepare for running aquatic_bench for UDP on Debian 12
 
 # Install dependencies
-sudo apt-get update && apt-get upgrade -y
+sudo apt-get update && sudo apt-get upgrade -y
 sudo apt-get install -y curl vim htop screen cmake build-essential pkg-config git screen cvs zlib1g zlib1g-dev golang
+sudo echo "deb http://deb.debian.org/debian bookworm-backports main contrib" >> /etc/apt/sources.list
+sudo apt-get update && sudo apt-get install linux-image-amd64/bookworm-backports
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 
@@ -36,3 +38,5 @@ cd chihaya
 go build ./cmd/chihaya
 sudo cp ./chihaya /usr/local/bin/
 cd ..
+
+echo "Finished. Reboot before running aquatic_bencher"
