@@ -113,6 +113,7 @@ impl UdpCommand {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(2, 1),
                         AquaticUdpRunner::new(3, 1),
+                        AquaticUdpRunner::new(4, 1),
                         AquaticUdpRunner::new(5, 1),
                     ],
                     UdpTracker::OpenTracker => vec![
@@ -123,13 +124,15 @@ impl UdpCommand {
                         ChihayaUdpRunner::new(),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8, 12, 16]),
             },
             4 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(3, 1),
                         AquaticUdpRunner::new(4, 1),
+                        AquaticUdpRunner::new(5, 1),
+                        AquaticUdpRunner::new(6, 1),
                         AquaticUdpRunner::new(7, 1),
                     ],
                     UdpTracker::OpenTracker => vec![
@@ -140,14 +143,17 @@ impl UdpCommand {
                         ChihayaUdpRunner::new(),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[6, 8, 12, 16]),
             },
             6 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(5, 1),
+                        AquaticUdpRunner::new(6, 1),
                         AquaticUdpRunner::new(10, 1),
+
                         AquaticUdpRunner::new(4, 2),
+                        AquaticUdpRunner::new(6, 2),
                         AquaticUdpRunner::new(8, 2),
                     ],
                     UdpTracker::OpenTracker => vec![
@@ -155,31 +161,44 @@ impl UdpCommand {
                         OpenTrackerUdpRunner::new(12),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8, 12]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[6, 8, 12, 16, 24]),
             },
             8 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(7, 1),
+                        AquaticUdpRunner::new(8, 1),
+                        AquaticUdpRunner::new(14, 1),
                         AquaticUdpRunner::new(6, 2),
                         AquaticUdpRunner::new(12, 2),
                         AquaticUdpRunner::new(5, 3),
+                        AquaticUdpRunner::new(10, 3),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(8),
                         OpenTrackerUdpRunner::new(16),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[4, 8, 12, 16]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[8, 12, 16, 24]),
             },
             12 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
                         AquaticUdpRunner::new(10, 2),
+                        AquaticUdpRunner::new(12, 2),
+                        AquaticUdpRunner::new(20, 2),
+
                         AquaticUdpRunner::new(9, 3),
+                        AquaticUdpRunner::new(12, 3),
+                        AquaticUdpRunner::new(18, 3),
+
                         AquaticUdpRunner::new(8, 4),
+                        AquaticUdpRunner::new(12, 4),
                         AquaticUdpRunner::new(16, 4),
-                        AquaticUdpRunner::new(9, 5),
+
+                        AquaticUdpRunner::new(7, 5),
+                        AquaticUdpRunner::new(12, 5),
+                        AquaticUdpRunner::new(14, 5),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(12),
@@ -191,12 +210,29 @@ impl UdpCommand {
             16 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
+                        AquaticUdpRunner::new(12, 2),
+                        AquaticUdpRunner::new(16, 2),
+                        AquaticUdpRunner::new(24, 2),
+
                         AquaticUdpRunner::new(13, 3),
+                        AquaticUdpRunner::new(16, 3),
+                        AquaticUdpRunner::new(26, 3),
+
                         AquaticUdpRunner::new(12, 4),
+                        AquaticUdpRunner::new(16, 4),
+                        AquaticUdpRunner::new(24, 4),
+
                         AquaticUdpRunner::new(11, 5),
+                        AquaticUdpRunner::new(16, 5),
+                        AquaticUdpRunner::new(22, 5),
+
                         AquaticUdpRunner::new(10, 6),
+                        AquaticUdpRunner::new(16, 6),
                         AquaticUdpRunner::new(20, 6),
+
                         AquaticUdpRunner::new(9, 7),
+                        AquaticUdpRunner::new(16, 7),
+                        AquaticUdpRunner::new(18, 7),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(16),
