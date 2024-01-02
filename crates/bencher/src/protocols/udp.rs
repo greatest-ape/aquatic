@@ -108,24 +108,6 @@ impl UdpCommand {
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6, 8]),
             },
-            3 => SetConfig {
-                implementations: indexmap! {
-                    UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(2, 1),
-                        AquaticUdpRunner::new(3, 1),
-                        AquaticUdpRunner::new(4, 1),
-                        AquaticUdpRunner::new(5, 1),
-                    ],
-                    UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(3),
-                        OpenTrackerUdpRunner::new(6),
-                    ],
-                    UdpTracker::Chihaya => vec![
-                        ChihayaUdpRunner::new(),
-                    ],
-                },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[4, 6, 8, 12, 16]),
-            },
             4 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![

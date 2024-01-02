@@ -3,7 +3,6 @@
 ## High priority
 
 * aquatic_bench
-  * consider removing 3 core sets
   * check effects of channel size on RAM use and performance
 
 * CI transfer test
