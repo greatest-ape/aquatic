@@ -210,9 +210,9 @@ impl UdpCommand {
             16 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(12, 2),
+                        AquaticUdpRunner::new(14, 2),
                         AquaticUdpRunner::new(16, 2),
-                        AquaticUdpRunner::new(24, 2),
+                        AquaticUdpRunner::new(28, 2),
 
                         AquaticUdpRunner::new(13, 3),
                         AquaticUdpRunner::new(16, 3),
