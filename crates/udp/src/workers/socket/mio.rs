@@ -125,7 +125,7 @@ impl SocketWorker {
                     self.read_and_handle_requests(pending_scrape_valid_until);
                 }
                 PollMode::SkipReceiving => {
-                    ::log::info!("Postponing receiving requests because swarm worker channel is full. This means that the OS will be relied on to buffer incoming packets. To prevent this, raise config.worker_channel_size.");
+                    ::log::debug!("Postponing receiving requests because swarm worker channel is full. This means that the OS will be relied on to buffer incoming packets. To prevent this, raise config.worker_channel_size.");
 
                     self.polling_mode = PollMode::SkipPolling;
                 }
@@ -192,7 +192,7 @@ impl SocketWorker {
             match self.socket.recv_from(&mut self.buffer[..]) {
                 Ok((bytes_read, src)) => {
                     if src.port() == 0 {
-                        ::log::info!("Ignored request from {} because source port is zero", src);
+                        ::log::debug!("Ignored request from {} because source port is zero", src);
 
                         continue;
                     }
@@ -501,7 +501,7 @@ impl SocketWorker {
                         || (err.kind() == ErrorKind::WouldBlock) =>
                 {
                     if resend_buffer.len() < config.network.resend_buffer_max_len {
-                        ::log::info!("Adding response to resend queue, since sending it to {} failed with: {:#}", addr, err);
+                        ::log::debug!("Adding response to resend queue, since sending it to {} failed with: {:#}", addr, err);
 
                         resend_buffer.push((response.into_owned(), canonical_addr));
                     } else {
