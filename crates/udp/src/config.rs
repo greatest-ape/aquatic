@@ -58,7 +58,7 @@ impl Default for Config {
             socket_workers: 1,
             swarm_workers: 1,
             log_level: LogLevel::Error,
-            worker_channel_size: 1024 * 128,
+            worker_channel_size: 4_096,
             request_channel_recv_timeout_ms: 100,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
@@ -92,11 +92,11 @@ pub struct NetworkConfig {
     /// values for different operating systems:
     ///
     /// macOS:
-    /// $ sudo sysctl net.inet.udp.recvspace=6000000
+    /// $ sudo sysctl net.inet.udp.recvspace=8000000
     ///
     /// Linux:
-    /// $ sudo sysctl -w net.core.rmem_max=104857600
-    /// $ sudo sysctl -w net.core.rmem_default=104857600
+    /// $ sudo sysctl -w net.core.rmem_max=8000000
+    /// $ sudo sysctl -w net.core.rmem_default=8000000
     pub socket_recv_buffer_size: usize,
     /// Poll timeout in milliseconds (mio backend only)
     pub poll_timeout_ms: u64,
@@ -129,7 +129,7 @@ impl Default for NetworkConfig {
         Self {
             address: SocketAddr::from(([0, 0, 0, 0], 3000)),
             only_ipv6: false,
-            socket_recv_buffer_size: 4096 * 128,
+            socket_recv_buffer_size: 8_000_000,
             poll_timeout_ms: 50,
             #[cfg(feature = "io-uring")]
             ring_size: 1024,
