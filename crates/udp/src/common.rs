@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Write;
+use std::mem::size_of;
 use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
@@ -99,6 +100,15 @@ pub struct ConnectedResponseWithAddr {
     pub announce_ipv6: AnnounceResponse<Ipv6AddrBytes>,
     pub scrape: PendingScrapeResponse,
     pub addr: CanonicalSocketAddr,
+}
+
+impl ConnectedResponseWithAddr {
+    pub fn estimated_max_size(config: &Config) -> usize {
+        size_of::<Self>()
+            + config.protocol.max_response_peers
+                * (size_of::<ResponsePeer<Ipv4AddrBytes>>()
+                    + size_of::<ResponsePeer<Ipv6AddrBytes>>())
+    }
 }
 
 pub struct Recycler;

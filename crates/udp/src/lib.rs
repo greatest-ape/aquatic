@@ -3,6 +3,7 @@ pub mod config;
 pub mod workers;
 
 use std::collections::BTreeMap;
+use std::mem::size_of;
 use std::thread::Builder;
 use std::time::Duration;
 
@@ -15,7 +16,7 @@ use aquatic_common::access_list::update_access_list;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::PrivilegeDropper;
-use aquatic_common::{PanicSentinelWatcher, ServerStartInstant};
+use aquatic_common::{CanonicalSocketAddr, PanicSentinelWatcher, ServerStartInstant};
 
 use common::{
     ConnectedRequestSender, ConnectedResponseSender, Recycler, SocketWorkerIndex, State,
@@ -24,11 +25,18 @@ use common::{
 use config::Config;
 use workers::socket::ConnectionValidator;
 
+use crate::common::{ConnectedRequest, ConnectedResponseWithAddr};
+
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
+
+    ::log::info!(
+        "Estimated max channel memory use: {:.02} MB",
+        est_max_total_channel_memory(&config)
+    );
 
     let state = State::new(config.swarm_workers);
     let connection_validator = ConnectionValidator::new(&config)?;
@@ -205,4 +213,17 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn est_max_total_channel_memory(config: &Config) -> f64 {
+    let request_channel_max_size = config.swarm_workers
+        * config.worker_channel_size
+        * (size_of::<SocketWorkerIndex>()
+            + size_of::<ConnectedRequest>()
+            + size_of::<CanonicalSocketAddr>());
+    let response_channel_max_size = config.socket_workers
+        * config.worker_channel_size
+        * ConnectedResponseWithAddr::estimated_max_size(&config);
+
+    (request_channel_max_size as u64 + response_channel_max_size as u64) as f64 / (1024.0 * 1024.0)
 }
