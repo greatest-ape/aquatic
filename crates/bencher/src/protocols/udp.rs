@@ -13,7 +13,7 @@ use tempfile::NamedTempFile;
 use crate::{
     common::{simple_load_test_runs, CpuMode, Priority, TaskSetCpuList},
     run::ProcessRunner,
-    set::{run_sets, SetConfig, Tracker},
+    set::{LoadTestRunnerParameters, SetConfig, Tracker},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -50,29 +50,7 @@ pub struct UdpCommand {
 }
 
 impl UdpCommand {
-    pub fn run(
-        &self,
-        cpu_mode: CpuMode,
-        min_cores: Option<usize>,
-        max_cores: Option<usize>,
-        min_priority: Priority,
-    ) -> anyhow::Result<()> {
-        let sets = self.sets(cpu_mode);
-
-        run_sets(
-            self,
-            cpu_mode,
-            min_cores,
-            max_cores,
-            min_priority,
-            sets,
-            |workers| Box::new(AquaticUdpLoadTestRunner { workers }),
-        );
-
-        Ok(())
-    }
-
-    fn sets(&self, cpu_mode: CpuMode) -> IndexMap<usize, SetConfig<UdpCommand, UdpTracker>> {
+    pub fn sets(&self, cpu_mode: CpuMode) -> IndexMap<usize, SetConfig<UdpCommand, UdpTracker>> {
         // Priorities are based on what has previously produced the best results
         indexmap::indexmap! {
             1 => SetConfig {
@@ -264,6 +242,12 @@ impl UdpCommand {
             },
         }
     }
+
+    pub fn load_test_gen(
+        parameters: LoadTestRunnerParameters,
+    ) -> Box<dyn ProcessRunner<Command = UdpCommand>> {
+        Box::new(AquaticUdpLoadTestRunner { parameters })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -434,7 +418,7 @@ impl ProcessRunner for ChihayaUdpRunner {
 
 #[derive(Debug, Clone)]
 struct AquaticUdpLoadTestRunner {
-    workers: usize,
+    parameters: LoadTestRunnerParameters,
 }
 
 impl ProcessRunner for AquaticUdpLoadTestRunner {
@@ -448,8 +432,9 @@ impl ProcessRunner for AquaticUdpLoadTestRunner {
     ) -> anyhow::Result<Child> {
         let mut c = aquatic_udp_load_test::config::Config::default();
 
-        c.workers = self.workers as u8;
-        c.duration = 60;
+        c.workers = self.parameters.workers as u8;
+        c.duration = self.parameters.duration;
+        c.summarize_last = self.parameters.summarize_last;
 
         c.requests.weight_connect = 0;
         c.requests.weight_announce = 100;
@@ -478,7 +463,7 @@ impl ProcessRunner for AquaticUdpLoadTestRunner {
 
     fn keys(&self) -> IndexMap<String, String> {
         indexmap! {
-            "workers".to_string() => self.workers.to_string(),
+            "workers".to_string() => self.parameters.workers.to_string(),
         }
     }
 }

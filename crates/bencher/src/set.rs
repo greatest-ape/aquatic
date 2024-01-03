@@ -10,6 +10,13 @@ use crate::{
     run::{ProcessRunner, ProcessStats, RunConfig},
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct LoadTestRunnerParameters {
+    pub workers: usize,
+    pub duration: usize,
+    pub summarize_last: usize,
+}
+
 pub trait Tracker: ::std::fmt::Debug + Copy + Clone + ::std::hash::Hash {
     fn name(&self) -> String;
 }
@@ -25,12 +32,14 @@ pub fn run_sets<C, F, I>(
     min_cores: Option<usize>,
     max_cores: Option<usize>,
     min_priority: Priority,
+    duration: usize,
+    summarize_last: usize,
     mut set_configs: IndexMap<usize, SetConfig<C, I>>,
     load_test_gen: F,
 ) where
     C: ::std::fmt::Debug,
     I: Tracker,
-    F: Fn(usize) -> Box<dyn ProcessRunner<Command = C>>,
+    F: Fn(LoadTestRunnerParameters) -> Box<dyn ProcessRunner<Command = C>>,
 {
     if let Some(min_cores) = min_cores {
         set_configs.retain(|cores, _| *cores >= min_cores);
@@ -59,7 +68,7 @@ pub fn run_sets<C, F, I>(
         .sum::<usize>();
 
     let (estimated_hours, estimated_minutes) = {
-        let minutes = (total_num_runs * 67) / 60;
+        let minutes = (total_num_runs * (duration + 7)) / 60;
 
         (minutes / 60, minutes % 60)
     };
@@ -96,13 +105,18 @@ pub fn run_sets<C, F, I>(
                                 .clone()
                                 .into_iter()
                                 .map(|(workers, _, load_test_vcpus)| {
+                                    let load_test_parameters = LoadTestRunnerParameters {
+                                        workers,
+                                        duration,
+                                        summarize_last,
+                                    };
                                     LoadTestRunResults::produce(
                                         command,
                                         &load_test_gen,
+                                        load_test_parameters,
                                         implementation,
                                         &tracker_run,
                                         tracker_vcpus.clone(),
-                                        workers,
                                         load_test_vcpus,
                                     )
                                 })
@@ -188,26 +202,26 @@ impl LoadTestRunResults {
     pub fn produce<C, F, I>(
         command: &C,
         load_test_gen: &F,
+        load_test_parameters: LoadTestRunnerParameters,
         implementation: I,
         tracker_process: &Rc<dyn ProcessRunner<Command = C>>,
         tracker_vcpus: TaskSetCpuList,
-        workers: usize,
         load_test_vcpus: TaskSetCpuList,
     ) -> Self
     where
         C: ::std::fmt::Debug,
         I: Tracker,
-        F: Fn(usize) -> Box<dyn ProcessRunner<Command = C>>,
+        F: Fn(LoadTestRunnerParameters) -> Box<dyn ProcessRunner<Command = C>>,
     {
         println!(
             "### {} run ({}) (load test workers: {}, cpus: {})",
             implementation.name(),
             tracker_process.info(),
-            workers,
+            load_test_parameters.workers,
             load_test_vcpus.as_cpu_list()
         );
 
-        let load_test_runner = load_test_gen(workers);
+        let load_test_runner = load_test_gen(load_test_parameters);
         let load_test_keys = load_test_runner.keys();
 
         let run_config = RunConfig {
@@ -217,7 +231,7 @@ impl LoadTestRunResults {
             load_test_vcpus: load_test_vcpus.clone(),
         };
 
-        match run_config.run(command) {
+        match run_config.run(command, load_test_parameters.duration) {
             Ok(r) => {
                 println!(
                     "- Average responses per second: {}",

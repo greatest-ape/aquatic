@@ -45,7 +45,11 @@ pub struct RunConfig<C> {
 }
 
 impl<C> RunConfig<C> {
-    pub fn run(self, command: &C) -> Result<RunSuccessResults, RunErrorResults<C>> {
+    pub fn run(
+        self,
+        command: &C,
+        duration: usize,
+    ) -> Result<RunSuccessResults, RunErrorResults<C>> {
         let mut tracker_config_file = NamedTempFile::new().unwrap();
         let mut load_test_config_file = NamedTempFile::new().unwrap();
 
@@ -75,7 +79,7 @@ impl<C> RunConfig<C> {
             }
         };
 
-        for _ in 0..59 {
+        for _ in 0..(duration - 1) {
             if let Ok(Some(status)) = tracker.0.try_wait() {
                 return Err(RunErrorResults::new(self)
                     .set_tracker_outputs(tracker)

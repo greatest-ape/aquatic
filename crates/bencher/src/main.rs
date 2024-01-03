@@ -6,6 +6,7 @@ pub mod set;
 
 use clap::{Parser, Subcommand};
 use common::{CpuMode, Priority};
+use set::run_sets;
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -23,6 +24,17 @@ struct Args {
     /// Minimum benchmark priority
     #[arg(long, default_value_t = Priority::Medium)]
     min_priority: Priority,
+    /// How long to run each load test for
+    #[arg(long, default_value_t = 60)]
+    duration: usize,
+    /// Only include data for last N seconds of load test runs.
+    ///
+    /// Useful if the tracker/load tester combination is slow at reaching
+    /// maximum throughput
+    ///
+    /// 0 = use data for whole run
+    #[arg(long, default_value_t = 0)]
+    summarize_last: usize,
     #[command(subcommand)]
     command: Command,
 }
@@ -39,13 +51,21 @@ fn main() {
 
     match args.command {
         #[cfg(feature = "udp")]
-        Command::Udp(command) => command
-            .run(
+        Command::Udp(command) => {
+            let sets = command.sets(args.cpu_mode);
+            let load_test_gen = protocols::udp::UdpCommand::load_test_gen;
+
+            run_sets(
+                &command,
                 args.cpu_mode,
                 args.min_cores,
                 args.max_cores,
                 args.min_priority,
-            )
-            .unwrap(),
+                args.duration,
+                args.summarize_last,
+                sets,
+                load_test_gen,
+            );
+        }
     }
 }
