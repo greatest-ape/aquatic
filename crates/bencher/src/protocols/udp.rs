@@ -1,5 +1,6 @@
 use std::{
     io::Write,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
     process::{Child, Command, Stdio},
     rc::Rc,
@@ -284,6 +285,7 @@ impl ProcessRunner for AquaticUdpRunner {
 
         c.socket_workers = self.socket_workers;
         c.swarm_workers = self.swarm_workers;
+        c.network.address = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 3000));
         c.protocol.max_response_peers = 50;
 
         let c = toml::to_string_pretty(&c)?;
@@ -336,7 +338,7 @@ impl ProcessRunner for OpenTrackerUdpRunner {
     ) -> anyhow::Result<Child> {
         writeln!(
             tmp_file,
-            "listen.udp.workers {}\nlisten.udp 0.0.0.0:3000",
+            "listen.udp.workers {}\nlisten.udp 127.0.0.1:3000",
             self.workers
         )?;
 
