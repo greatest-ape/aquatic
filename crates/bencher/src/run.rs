@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use tempfile::NamedTempFile;
 
-use crate::common::TaskSetCpuList;
+use crate::common::{Priority, TaskSetCpuList};
 
 pub trait ProcessRunner: ::std::fmt::Debug {
     type Command;
@@ -25,6 +25,8 @@ pub trait ProcessRunner: ::std::fmt::Debug {
     ) -> anyhow::Result<Child>;
 
     fn keys(&self) -> IndexMap<String, String>;
+
+    fn priority(&self) -> Priority;
 
     fn info(&self) -> String {
         self.keys()

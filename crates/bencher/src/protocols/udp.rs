@@ -11,7 +11,7 @@ use indoc::writedoc;
 use tempfile::NamedTempFile;
 
 use crate::{
-    common::{simple_load_test_runs, CpuMode, TaskSetCpuList},
+    common::{simple_load_test_runs, CpuMode, Priority, TaskSetCpuList},
     run::ProcessRunner,
     set::{run_sets, SetConfig, Tracker},
 };
@@ -55,173 +55,212 @@ impl UdpCommand {
         cpu_mode: CpuMode,
         min_cores: Option<usize>,
         max_cores: Option<usize>,
+        min_priority: Priority,
     ) -> anyhow::Result<()> {
-        let mut sets = self.sets(cpu_mode);
+        let sets = self.sets(cpu_mode);
 
-        if let Some(min_cores) = min_cores {
-            sets = sets.into_iter().filter(|(k, _)| *k >= min_cores).collect();
-        }
-        if let Some(max_cores) = max_cores {
-            sets = sets.into_iter().filter(|(k, _)| *k <= max_cores).collect();
-        }
-
-        run_sets(self, cpu_mode, sets, |workers| {
-            Box::new(AquaticUdpLoadTestRunner { workers })
-        });
+        run_sets(
+            self,
+            cpu_mode,
+            min_cores,
+            max_cores,
+            min_priority,
+            sets,
+            |workers| Box::new(AquaticUdpLoadTestRunner { workers }),
+        );
 
         Ok(())
     }
 
     fn sets(&self, cpu_mode: CpuMode) -> IndexMap<usize, SetConfig<UdpCommand, UdpTracker>> {
+        // Priorities are based on what has previously produced the best results
         indexmap::indexmap! {
             1 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(1, 1),
-                        AquaticUdpRunner::new(2, 1),
+                        AquaticUdpRunner::new(1, 1, Priority::High),
+                        AquaticUdpRunner::new(2, 1, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(0), // Handle requests within event loop
-                        OpenTrackerUdpRunner::new(1),
-                        OpenTrackerUdpRunner::new(2),
+                        OpenTrackerUdpRunner::new(0, Priority::Low), // Handle requests within event loop
+                        OpenTrackerUdpRunner::new(1, Priority::Medium),
+                        OpenTrackerUdpRunner::new(2, Priority::High),
                     ],
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6, 8]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[
+                    (1, Priority::High),
+                    (2, Priority::Medium),
+                    (4, Priority::Medium),
+                    (6, Priority::Medium),
+                    (8, Priority::High)
+                ]),
             },
             2 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(1, 1),
-                        AquaticUdpRunner::new(2, 1),
-                        AquaticUdpRunner::new(3, 1),
+                        AquaticUdpRunner::new(1, 1, Priority::Low),
+                        AquaticUdpRunner::new(2, 1, Priority::Medium),
+                        AquaticUdpRunner::new(3, 1, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(2),
-                        OpenTrackerUdpRunner::new(4),
+                        OpenTrackerUdpRunner::new(2, Priority::Medium),
+                        OpenTrackerUdpRunner::new(4, Priority::High),
                     ],
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[1, 2, 4, 6, 8]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[
+                    (1, Priority::Medium),
+                    (2, Priority::Medium),
+                    (4, Priority::Medium),
+                    (6, Priority::Medium),
+                    (8, Priority::High)
+                ]),
             },
             4 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(3, 1),
-                        AquaticUdpRunner::new(4, 1),
-                        AquaticUdpRunner::new(5, 1),
-                        AquaticUdpRunner::new(6, 1),
-                        AquaticUdpRunner::new(7, 1),
+                        AquaticUdpRunner::new(3, 1, Priority::Low),
+                        AquaticUdpRunner::new(4, 1, Priority::Low),
+                        AquaticUdpRunner::new(5, 1, Priority::Medium),
+                        AquaticUdpRunner::new(6, 1, Priority::Medium),
+                        AquaticUdpRunner::new(7, 1, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(4),
-                        OpenTrackerUdpRunner::new(8),
+                        OpenTrackerUdpRunner::new(4, Priority::High),
+                        OpenTrackerUdpRunner::new(8, Priority::Medium),
                     ],
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[6, 8, 12, 16]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[
+                    (6, Priority::High),
+                    (8, Priority::Medium),
+                    (12, Priority::High),
+                    (16, Priority::Medium)
+                ]),
             },
             6 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(5, 1),
-                        AquaticUdpRunner::new(6, 1),
-                        AquaticUdpRunner::new(10, 1),
+                        AquaticUdpRunner::new(5, 1, Priority::Medium),
+                        AquaticUdpRunner::new(6, 1, Priority::Medium),
+                        AquaticUdpRunner::new(10, 1, Priority::Low),
 
-                        AquaticUdpRunner::new(4, 2),
-                        AquaticUdpRunner::new(6, 2),
-                        AquaticUdpRunner::new(8, 2),
+                        AquaticUdpRunner::new(4, 2, Priority::Low),
+                        AquaticUdpRunner::new(6, 2, Priority::Medium),
+                        AquaticUdpRunner::new(8, 2, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(6),
-                        OpenTrackerUdpRunner::new(12),
+                        OpenTrackerUdpRunner::new(6, Priority::High),
+                        OpenTrackerUdpRunner::new(12, Priority::Medium),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[6, 8, 12, 16, 24]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[
+                    (6, Priority::Medium),
+                    (8, Priority::Medium),
+                    (12, Priority::High),
+                    (16, Priority::High),
+                    (24, Priority::Medium),
+                ]),
             },
             8 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(7, 1),
-                        AquaticUdpRunner::new(8, 1),
-                        AquaticUdpRunner::new(14, 1),
-                        AquaticUdpRunner::new(6, 2),
-                        AquaticUdpRunner::new(12, 2),
-                        AquaticUdpRunner::new(5, 3),
-                        AquaticUdpRunner::new(10, 3),
+                        AquaticUdpRunner::new(7, 1, Priority::Medium),
+                        AquaticUdpRunner::new(8, 1, Priority::Medium),
+                        AquaticUdpRunner::new(14, 1, Priority::Low),
+                        AquaticUdpRunner::new(6, 2, Priority::Low),
+                        AquaticUdpRunner::new(12, 2, Priority::High),
+                        AquaticUdpRunner::new(5, 3, Priority::Low),
+                        AquaticUdpRunner::new(10, 3, Priority::Medium),
                     ],
                     UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(8),
-                        OpenTrackerUdpRunner::new(16),
+                        OpenTrackerUdpRunner::new(8, Priority::High),
+                        OpenTrackerUdpRunner::new(16, Priority::Medium),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[8, 12, 16, 24]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[
+                    (8, Priority::High),
+                    (12, Priority::Medium),
+                    (16, Priority::High),
+                    (24, Priority::Medium)
+                ]),
             },
             12 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(10, 2),
-                        AquaticUdpRunner::new(12, 2),
-                        AquaticUdpRunner::new(20, 2),
+                        AquaticUdpRunner::new(10, 2, Priority::Medium),
+                        AquaticUdpRunner::new(12, 2, Priority::Medium),
+                        AquaticUdpRunner::new(20, 2, Priority::Low),
 
-                        AquaticUdpRunner::new(9, 3),
-                        AquaticUdpRunner::new(12, 3),
-                        AquaticUdpRunner::new(18, 3),
+                        AquaticUdpRunner::new(9, 3, Priority::Low),
+                        AquaticUdpRunner::new(12, 3, Priority::Medium),
+                        AquaticUdpRunner::new(18, 3, Priority::Low),
 
-                        AquaticUdpRunner::new(8, 4),
-                        AquaticUdpRunner::new(12, 4),
-                        AquaticUdpRunner::new(16, 4),
+                        AquaticUdpRunner::new(8, 4, Priority::Low),
+                        AquaticUdpRunner::new(12, 4, Priority::Medium),
+                        AquaticUdpRunner::new(16, 4, Priority::High),
 
-                        AquaticUdpRunner::new(7, 5),
-                        AquaticUdpRunner::new(12, 5),
-                        AquaticUdpRunner::new(14, 5),
+                        AquaticUdpRunner::new(7, 5, Priority::Low),
+                        AquaticUdpRunner::new(12, 5, Priority::Medium),
+                        AquaticUdpRunner::new(14, 5, Priority::Medium),
                     ],
                     UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(12),
-                        OpenTrackerUdpRunner::new(24),
+                        OpenTrackerUdpRunner::new(12, Priority::High),
+                        OpenTrackerUdpRunner::new(24, Priority::Medium),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[8, 12, 16, 24]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[
+                    (8, Priority::Medium),
+                    (12, Priority::Medium),
+                    (16, Priority::High),
+                    (24, Priority::High),
+                ]),
             },
             16 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::new(14, 2),
-                        AquaticUdpRunner::new(16, 2),
-                        AquaticUdpRunner::new(28, 2),
+                        AquaticUdpRunner::new(14, 2, Priority::Low),
+                        AquaticUdpRunner::new(16, 2, Priority::Low),
+                        AquaticUdpRunner::new(28, 2, Priority::Low),
 
-                        AquaticUdpRunner::new(13, 3),
-                        AquaticUdpRunner::new(16, 3),
-                        AquaticUdpRunner::new(26, 3),
+                        AquaticUdpRunner::new(13, 3, Priority::Low),
+                        AquaticUdpRunner::new(16, 3, Priority::Low),
+                        AquaticUdpRunner::new(26, 3, Priority::Low),
 
-                        AquaticUdpRunner::new(12, 4),
-                        AquaticUdpRunner::new(16, 4),
-                        AquaticUdpRunner::new(24, 4),
+                        AquaticUdpRunner::new(12, 4, Priority::Medium),
+                        AquaticUdpRunner::new(16, 4, Priority::Medium),
+                        AquaticUdpRunner::new(24, 4, Priority::Low),
 
-                        AquaticUdpRunner::new(11, 5),
-                        AquaticUdpRunner::new(16, 5),
-                        AquaticUdpRunner::new(22, 5),
+                        AquaticUdpRunner::new(11, 5, Priority::Low),
+                        AquaticUdpRunner::new(16, 5, Priority::Medium),
+                        AquaticUdpRunner::new(22, 5, Priority::Low),
 
-                        AquaticUdpRunner::new(10, 6),
-                        AquaticUdpRunner::new(16, 6),
-                        AquaticUdpRunner::new(20, 6),
+                        AquaticUdpRunner::new(10, 6, Priority::Low),
+                        AquaticUdpRunner::new(16, 6, Priority::High),
+                        AquaticUdpRunner::new(20, 6, Priority::Medium),
 
-                        AquaticUdpRunner::new(9, 7),
-                        AquaticUdpRunner::new(16, 7),
-                        AquaticUdpRunner::new(18, 7),
+                        AquaticUdpRunner::new(9, 7, Priority::Low),
+                        AquaticUdpRunner::new(16, 7, Priority::Medium),
+                        AquaticUdpRunner::new(18, 7, Priority::Low),
                     ],
                     UdpTracker::OpenTracker => vec![
-                        OpenTrackerUdpRunner::new(16),
-                        OpenTrackerUdpRunner::new(32),
+                        OpenTrackerUdpRunner::new(16, Priority::High),
+                        OpenTrackerUdpRunner::new(32, Priority::Medium),
                     ],
                 },
-                load_test_runs: simple_load_test_runs(cpu_mode, &[8, 12, 16, 24]),
+                load_test_runs: simple_load_test_runs(cpu_mode, &[
+                    (8, Priority::High),
+                    (12, Priority::High),
+                    (16, Priority::High),
+                    (24, Priority::High),
+                ]),
             },
         }
     }
@@ -231,16 +270,19 @@ impl UdpCommand {
 struct AquaticUdpRunner {
     socket_workers: usize,
     swarm_workers: usize,
+    priority: Priority,
 }
 
 impl AquaticUdpRunner {
     fn new(
         socket_workers: usize,
         swarm_workers: usize,
+        priority: Priority,
     ) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
         Rc::new(Self {
             socket_workers,
             swarm_workers,
+            priority,
         })
     }
 }
@@ -275,6 +317,10 @@ impl ProcessRunner for AquaticUdpRunner {
             .spawn()?)
     }
 
+    fn priority(&self) -> crate::common::Priority {
+        self.priority
+    }
+
     fn keys(&self) -> IndexMap<String, String> {
         indexmap! {
             "socket workers".to_string() => self.socket_workers.to_string(),
@@ -286,11 +332,12 @@ impl ProcessRunner for AquaticUdpRunner {
 #[derive(Debug, Clone)]
 struct OpenTrackerUdpRunner {
     workers: usize,
+    priority: Priority,
 }
 
 impl OpenTrackerUdpRunner {
-    fn new(workers: usize) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
-        Rc::new(Self { workers })
+    fn new(workers: usize, priority: Priority) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
+        Rc::new(Self { workers, priority })
     }
 }
 
@@ -320,6 +367,10 @@ impl ProcessRunner for OpenTrackerUdpRunner {
             .spawn()?)
     }
 
+    fn priority(&self) -> crate::common::Priority {
+        self.priority
+    }
+
     fn keys(&self) -> IndexMap<String, String> {
         indexmap! {
             "workers".to_string() => self.workers.to_string(),
@@ -332,7 +383,7 @@ struct ChihayaUdpRunner;
 
 impl ChihayaUdpRunner {
     fn new() -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
-        Rc::new(Self)
+        Rc::new(Self {})
     }
 }
 
@@ -370,6 +421,10 @@ impl ProcessRunner for ChihayaUdpRunner {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?)
+    }
+
+    fn priority(&self) -> crate::common::Priority {
+        Priority::High
     }
 
     fn keys(&self) -> IndexMap<String, String> {
@@ -413,6 +468,12 @@ impl ProcessRunner for AquaticUdpLoadTestRunner {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?)
+    }
+
+    fn priority(&self) -> crate::common::Priority {
+        eprintln!("load test runner priority method called");
+
+        Priority::High
     }
 
     fn keys(&self) -> IndexMap<String, String> {

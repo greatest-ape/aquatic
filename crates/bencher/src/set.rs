@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use num_format::{Locale, ToFormattedString};
 
 use crate::{
-    common::{CpuDirection, CpuMode, TaskSetCpuList},
+    common::{CpuDirection, CpuMode, Priority, TaskSetCpuList},
     html::{html_all_runs, html_best_results},
     run::{ProcessRunner, ProcessStats, RunConfig},
 };
@@ -16,19 +16,39 @@ pub trait Tracker: ::std::fmt::Debug + Copy + Clone + ::std::hash::Hash {
 
 pub struct SetConfig<C, I> {
     pub implementations: IndexMap<I, Vec<Rc<dyn ProcessRunner<Command = C>>>>,
-    pub load_test_runs: Vec<(usize, TaskSetCpuList)>,
+    pub load_test_runs: Vec<(usize, Priority, TaskSetCpuList)>,
 }
 
 pub fn run_sets<C, F, I>(
     command: &C,
     cpu_mode: CpuMode,
-    set_configs: IndexMap<usize, SetConfig<C, I>>,
+    min_cores: Option<usize>,
+    max_cores: Option<usize>,
+    min_priority: Priority,
+    mut set_configs: IndexMap<usize, SetConfig<C, I>>,
     load_test_gen: F,
 ) where
     C: ::std::fmt::Debug,
     I: Tracker,
     F: Fn(usize) -> Box<dyn ProcessRunner<Command = C>>,
 {
+    if let Some(min_cores) = min_cores {
+        set_configs.retain(|cores, _| *cores >= min_cores);
+    }
+    if let Some(max_cores) = max_cores {
+        set_configs.retain(|cores, _| *cores <= max_cores);
+    }
+
+    for set_config in set_configs.values_mut() {
+        for runners in set_config.implementations.values_mut() {
+            runners.retain(|r| r.priority() >= min_priority);
+        }
+
+        set_config
+            .load_test_runs
+            .retain(|(_, priority, _)| *priority >= min_priority);
+    }
+
     println!("# Benchmark report");
 
     let total_num_runs = set_configs
@@ -75,7 +95,7 @@ pub fn run_sets<C, F, I>(
                                 .load_test_runs
                                 .clone()
                                 .into_iter()
-                                .map(|(workers, load_test_vcpus)| {
+                                .map(|(workers, _, load_test_vcpus)| {
                                     LoadTestRunResults::produce(
                                         command,
                                         &load_test_gen,

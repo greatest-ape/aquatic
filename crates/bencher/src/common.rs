@@ -2,6 +2,23 @@ use std::{fmt::Display, ops::Range, thread::available_parallelism};
 
 use itertools::Itertools;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+pub enum Priority {
+    Low,
+    Medium,
+    High,
+}
+
+impl Display for Priority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Low => f.write_str("low"),
+            Self::Medium => f.write_str("medium"),
+            Self::High => f.write_str("high"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TaskSetCpuList(pub Vec<TaskSetCpuIndicator>);
 
@@ -141,13 +158,17 @@ pub enum CpuDirection {
     Desc,
 }
 
-pub fn simple_load_test_runs(cpu_mode: CpuMode, workers: &[usize]) -> Vec<(usize, TaskSetCpuList)> {
+pub fn simple_load_test_runs(
+    cpu_mode: CpuMode,
+    workers: &[(usize, Priority)],
+) -> Vec<(usize, Priority, TaskSetCpuList)> {
     workers
         .into_iter()
         .copied()
-        .map(|workers| {
+        .map(|(workers, priority)| {
             (
                 workers,
+                priority,
                 TaskSetCpuList::new(cpu_mode, CpuDirection::Desc, workers).unwrap(),
             )
         })

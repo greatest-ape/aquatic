@@ -5,7 +5,7 @@ pub mod run;
 pub mod set;
 
 use clap::{Parser, Subcommand};
-use common::CpuMode;
+use common::{CpuMode, Priority};
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -20,6 +20,9 @@ struct Args {
     /// Maximum number of tracker cpu cores to run benchmarks for
     #[arg(long)]
     max_cores: Option<usize>,
+    /// Minimum benchmark priority
+    #[arg(long, default_value_t = Priority::Medium)]
+    min_priority: Priority,
     #[command(subcommand)]
     command: Command,
 }
@@ -37,7 +40,12 @@ fn main() {
     match args.command {
         #[cfg(feature = "udp")]
         Command::Udp(command) => command
-            .run(args.cpu_mode, args.min_cores, args.max_cores)
+            .run(
+                args.cpu_mode,
+                args.min_cores,
+                args.max_cores,
+                args.min_priority,
+            )
             .unwrap(),
     }
 }
