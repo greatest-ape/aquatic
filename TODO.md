@@ -3,10 +3,10 @@
 ## High priority
 
 * aquatic_bench
-  * check effects of channel size on RAM use and performance
+  * Check if opentracker is slow to get up to speed, adjust bencher
+  * Maybe investigate aquatic memory use
 
 * CI transfer test
-  * add udp with io_uring
   * add HTTP without TLS
 
 * http
