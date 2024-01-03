@@ -25,7 +25,7 @@ struct Args {
     #[arg(long, default_value_t = Priority::Medium)]
     min_priority: Priority,
     /// How long to run each load test for
-    #[arg(long, default_value_t = 60)]
+    #[arg(long, default_value_t = 90)]
     duration: usize,
     /// Only include data for last N seconds of load test runs.
     ///
@@ -33,7 +33,7 @@ struct Args {
     /// maximum throughput
     ///
     /// 0 = use data for whole run
-    #[arg(long, default_value_t = 0)]
+    #[arg(long, default_value_t = 30)]
     summarize_last: usize,
     #[command(subcommand)]
     command: Command,
