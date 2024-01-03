@@ -33,6 +33,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         panic!("Error: at least one weight must be larger than zero.");
     }
 
+    if config.summarize_last > config.duration {
+        panic!("Error: report_last_seconds can't be larger than duration");
+    }
+
     println!("Starting client with config: {:#?}", config);
 
     let mut info_hashes = Vec::with_capacity(config.requests.number_of_torrents);
@@ -103,7 +107,7 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
     let mut report_avg_scrape: Vec<f64> = Vec::new();
     let mut report_avg_error: Vec<f64> = Vec::new();
 
-    let interval = 5;
+    const INTERVAL: u64 = 5;
 
     let start_time = Instant::now();
     let duration = Duration::from_secs(config.duration as u64);
@@ -111,7 +115,7 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
     let mut last = start_time;
 
     let time_elapsed = loop {
-        thread::sleep(Duration::from_secs(interval));
+        thread::sleep(Duration::from_secs(INTERVAL));
 
         let requests = fetch_and_reset(&state.statistics.requests);
         let response_peers = fetch_and_reset(&state.statistics.response_peers);
@@ -163,6 +167,15 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
         }
     };
 
+    if config.summarize_last != 0 {
+        let split_at = (config.duration - config.summarize_last) / INTERVAL as usize;
+
+        report_avg_connect = report_avg_connect.split_off(split_at);
+        report_avg_announce = report_avg_announce.split_off(split_at);
+        report_avg_scrape = report_avg_scrape.split_off(split_at);
+        report_avg_error = report_avg_error.split_off(split_at);
+    }
+
     let len = report_avg_connect.len() as f64;
 
     let avg_connect: f64 = report_avg_connect.into_iter().sum::<f64>() / len;
@@ -175,7 +188,15 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
     println!();
     println!("# aquatic load test report");
     println!();
-    println!("Test ran for {} seconds", time_elapsed.as_secs());
+    println!(
+        "Test ran for {} seconds {}",
+        time_elapsed.as_secs(),
+        if config.summarize_last != 0 {
+            format!("(only last {} included in summary)", config.summarize_last)
+        } else {
+            "".to_string()
+        }
+    );
     println!("Average responses per second: {:.2}", avg_total);
     println!("  - Connect responses:  {:.2}", avg_connect);
     println!("  - Announce responses: {:.2}", avg_announce);

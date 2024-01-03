@@ -21,6 +21,10 @@ pub struct Config {
     pub workers: u8,
     /// Run duration (quit and generate report after this many seconds)
     pub duration: usize,
+    /// Only report summary for the last N seconds of run
+    ///
+    /// 0 = include whole run
+    pub summarize_last: usize,
     pub network: NetworkConfig,
     pub requests: RequestConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -34,6 +38,7 @@ impl Default for Config {
             log_level: LogLevel::Error,
             workers: 1,
             duration: 0,
+            summarize_last: 0,
             network: NetworkConfig::default(),
             requests: RequestConfig::default(),
             #[cfg(feature = "cpu-pinning")]
