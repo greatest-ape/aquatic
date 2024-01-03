@@ -160,8 +160,8 @@ fn create_announce_request(
         bytes_left,
         event: event.into(),
         ip_address: Ipv4AddrBytes([0; 4]),
-        key: PeerKey::new(12345),
-        peers_wanted: NumberOfPeers::new(100),
+        key: PeerKey::new(0),
+        peers_wanted: NumberOfPeers::new(config.requests.announce_peers_wanted),
         port: torrent_peer.port,
     })
     .into()
