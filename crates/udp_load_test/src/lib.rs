@@ -84,7 +84,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i as usize),
             );
 
-            run_worker_thread(state, gamma, &config, addr)
+            Worker::run(state, gamma, config, addr)
         })?;
     }
 
