@@ -3,8 +3,12 @@
 ## High priority
 
 * aquatic_bench
-  * Check if opentracker is slow to get up to speed, adjust bencher
-  * Maybe investigate aquatic memory use
+  * Opentracker "slow to get up to speed", is it due to getting faster once
+    inserts are rarely needed since most ip-port combinations have been sent?
+    In that case, a shorter duration (e.g., 30 seconds) would be a good idea.
+  * Maybe investigate aquatic memory use.
+    * Would it use significantly less memory to store peers in an ArrayVec if
+      there are only, say, 2 of them?
 
 * CI transfer test
   * add HTTP without TLS

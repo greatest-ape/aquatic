@@ -157,7 +157,7 @@ impl<I: Ip> TorrentMap<I> {
 }
 
 pub struct TorrentData<I: Ip> {
-    peers: IndexMap<PeerId, Peer<I>>,
+    peers: IndexMap<ResponsePeer<I>, Peer>,
     num_seeders: usize,
 }
 
@@ -184,7 +184,12 @@ impl<I: Ip> TorrentData<I> {
         let status =
             PeerStatus::from_event_and_bytes_left(request.event.into(), request.bytes_left);
 
-        let opt_removed_peer = self.peers.remove(&request.peer_id);
+        let peer_map_key = ResponsePeer {
+            ip_address,
+            port: request.port,
+        };
+
+        let opt_removed_peer = self.peers.remove(&peer_map_key);
 
         if let Some(Peer {
             is_seeder: true, ..
@@ -208,20 +213,19 @@ impl<I: Ip> TorrentData<I> {
             rng,
             &self.peers,
             max_num_peers_to_take,
-            Peer::to_response_peer,
+            |k, _| *k,
             &mut response.peers,
         );
 
         match status {
             PeerStatus::Leeching => {
                 let peer = Peer {
-                    ip_address,
-                    port: request.port,
+                    peer_id: request.peer_id,
                     is_seeder: false,
                     valid_until,
                 };
 
-                self.peers.insert(request.peer_id, peer);
+                self.peers.insert(peer_map_key, peer);
 
                 if config.statistics.peer_clients && opt_removed_peer.is_none() {
                     statistics_sender
@@ -231,13 +235,12 @@ impl<I: Ip> TorrentData<I> {
             }
             PeerStatus::Seeding => {
                 let peer = Peer {
-                    ip_address,
-                    port: request.port,
+                    peer_id: request.peer_id,
                     is_seeder: true,
                     valid_until,
                 };
 
-                self.peers.insert(request.peer_id, peer);
+                self.peers.insert(peer_map_key, peer);
 
                 self.num_seeders += 1;
 
@@ -279,7 +282,7 @@ impl<I: Ip> TorrentData<I> {
         statistics_sender: &Sender<StatisticsMessage>,
         now: SecondsSinceServerStart,
     ) {
-        self.peers.retain(|peer_id, peer| {
+        self.peers.retain(|_, peer| {
             let keep = peer.valid_until.valid(now);
 
             if !keep {
@@ -288,7 +291,7 @@ impl<I: Ip> TorrentData<I> {
                 }
                 if config.statistics.peer_clients {
                     if let Err(_) =
-                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(*peer_id))
+                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
                     {
                         // Should never happen in practice
                         ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
@@ -315,20 +318,10 @@ impl<I: Ip> Default for TorrentData<I> {
 }
 
 #[derive(Clone, Debug)]
-struct Peer<I: Ip> {
-    ip_address: I,
-    port: Port,
+struct Peer {
+    peer_id: PeerId,
     is_seeder: bool,
     valid_until: ValidUntil,
-}
-
-impl<I: Ip> Peer<I> {
-    fn to_response_peer(_: &PeerId, peer: &Self) -> ResponsePeer<I> {
-        ResponsePeer {
-            ip_address: peer.ip_address,
-            port: peer.port,
-        }
-    }
 }
 
 /// Extract response peers

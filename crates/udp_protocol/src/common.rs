@@ -5,7 +5,7 @@ pub use aquatic_peer_id::{PeerClient, PeerId};
 use zerocopy::network_endian::{I32, I64, U16, U32};
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + AsBytes {}
+pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes {}
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(transparent)]
@@ -91,7 +91,7 @@ impl PeerKey {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
 pub struct ResponsePeer<I: Ip> {
     pub ip_address: I,
