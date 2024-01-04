@@ -46,7 +46,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     let state = LoadTestState {
-        info_hashes: Arc::new(info_hashes),
+        info_hashes: Arc::from(info_hashes.into_boxed_slice()),
         statistics: Arc::new(Statistics::default()),
     };
 

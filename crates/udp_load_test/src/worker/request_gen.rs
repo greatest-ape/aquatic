@@ -13,7 +13,7 @@ use crate::utils::*;
 pub fn process_response(
     rng: &mut impl Rng,
     gamma: Gamma<f64>,
-    info_hashes: &Arc<Vec<InfoHash>>,
+    info_hashes: &Arc<[InfoHash]>,
     config: &Config,
     torrent_peers: &mut TorrentPeerMap,
     response: Response,
@@ -89,7 +89,7 @@ pub fn process_response(
 fn if_torrent_peer_move_and_create_random_request(
     config: &Config,
     rng: &mut impl Rng,
-    info_hashes: &Arc<Vec<InfoHash>>,
+    info_hashes: &Arc<[InfoHash]>,
     torrent_peers: &mut TorrentPeerMap,
     transaction_id: TransactionId,
 ) -> Option<Request> {
@@ -110,7 +110,7 @@ fn if_torrent_peer_move_and_create_random_request(
 fn create_random_request(
     config: &Config,
     rng: &mut impl Rng,
-    info_hashes: &Arc<Vec<InfoHash>>,
+    info_hashes: &Arc<[InfoHash]>,
     transaction_id: TransactionId,
     torrent_peer: &TorrentPeer,
 ) -> Request {
@@ -168,7 +168,7 @@ fn create_announce_request(
 }
 
 fn create_scrape_request(
-    info_hashes: &Arc<Vec<InfoHash>>,
+    info_hashes: &Arc<[InfoHash]>,
     torrent_peer: &TorrentPeer,
     transaction_id: TransactionId,
 ) -> Request {
@@ -192,7 +192,7 @@ fn create_torrent_peer(
     config: &Config,
     rng: &mut impl Rng,
     gamma: Gamma<f64>,
-    info_hashes: &Arc<Vec<InfoHash>>,
+    info_hashes: &Arc<[InfoHash]>,
     connection_id: ConnectionId,
 ) -> TorrentPeer {
     let num_scape_hashes = rng.gen_range(1..config.requests.scrape_max_torrents);
