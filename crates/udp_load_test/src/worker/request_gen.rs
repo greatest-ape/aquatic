@@ -172,11 +172,11 @@ fn create_scrape_request(
     torrent_peer: &TorrentPeer,
     transaction_id: TransactionId,
 ) -> Request {
-    let indeces = &torrent_peer.scrape_hash_indeces;
+    let indeces = &torrent_peer.scrape_hash_indices;
 
     let mut scape_hashes = Vec::with_capacity(indeces.len());
 
-    for i in indeces {
+    for i in indeces.iter() {
         scape_hashes.push(info_hashes[*i].to_owned())
     }
 
@@ -195,19 +195,18 @@ fn create_torrent_peer(
     info_hashes: &Arc<[InfoHash]>,
     connection_id: ConnectionId,
 ) -> TorrentPeer {
-    let num_scape_hashes = rng.gen_range(1..config.requests.scrape_max_torrents);
+    let num_scrape_hashes = rng.gen_range(1..config.requests.scrape_max_torrents);
 
-    let mut scrape_hash_indeces = Vec::new();
-
-    for _ in 0..num_scape_hashes {
-        scrape_hash_indeces.push(select_info_hash_index(config, rng, gamma))
-    }
+    let scrape_hash_indices = (0..num_scrape_hashes)
+        .map(|_| select_info_hash_index(config, rng, gamma))
+        .collect::<Vec<_>>()
+        .into_boxed_slice();
 
     let info_hash_index = select_info_hash_index(config, rng, gamma);
 
     TorrentPeer {
         info_hash: info_hashes[info_hash_index],
-        scrape_hash_indeces,
+        scrape_hash_indices,
         connection_id,
         peer_id: generate_peer_id(),
         port: Port::new(rng.gen()),

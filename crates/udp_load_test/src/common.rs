@@ -7,7 +7,7 @@ use aquatic_udp_protocol::*;
 #[derive(PartialEq, Eq, Clone)]
 pub struct TorrentPeer {
     pub info_hash: InfoHash,
-    pub scrape_hash_indeces: Vec<usize>,
+    pub scrape_hash_indices: Box<[usize]>,
     pub connection_id: ConnectionId,
     pub peer_id: PeerId,
     pub port: Port,
