@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use mio::{net::UdpSocket, Events, Interest, Poll, Token};
 use rand::Rng;
-use rand::{prelude::SmallRng, thread_rng, SeedableRng};
+use rand::{prelude::SmallRng, SeedableRng};
 use rand_distr::Gamma;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -28,7 +28,7 @@ pub fn run_worker_thread(
     let mut socket = UdpSocket::from_std(create_socket(config, addr));
     let mut buffer = [0u8; MAX_PACKET_SIZE];
 
-    let mut rng = SmallRng::from_rng(thread_rng()).expect("create SmallRng from thread_rng()");
+    let mut rng = SmallRng::seed_from_u64(0xc3aa8be617b3acce);
     let mut torrent_peers = TorrentPeerMap::default();
 
     let token = Token(0);
@@ -46,7 +46,7 @@ pub fn run_worker_thread(
     let mut statistics = SocketWorkerLocalStatistics::default();
 
     // Bootstrap request cycle
-    let initial_request = create_connect_request(generate_transaction_id(&mut thread_rng()));
+    let initial_request = create_connect_request(generate_transaction_id(&mut rng));
     send_request(&mut socket, &mut buffer, &mut statistics, initial_request);
 
     loop {
