@@ -20,7 +20,7 @@ use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::Senders;
 use glommio::channels::local_channel::{LocalReceiver, LocalSender};
 use glommio::net::TcpStream;
-use glommio::timer::{sleep, timeout};
+use glommio::timer::timeout;
 use glommio::{enclose, prelude::*};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
@@ -214,12 +214,6 @@ struct ConnectionReader<S> {
 impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
     async fn run_in_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
-            while self.out_message_sender.is_full() {
-                sleep(Duration::from_millis(100)).await;
-
-                yield_if_needed().await;
-            }
-
             let message = self
                 .ws_in
                 .next()

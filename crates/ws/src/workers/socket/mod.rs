@@ -287,10 +287,14 @@ async fn receive_out_messages(
             match reference.out_message_sender.try_send((meta, out_message)) {
                 Ok(()) => {}
                 Err(GlommioError::Closed(_)) => {}
-                Err(GlommioError::WouldBlock(_)) => {}
+                Err(GlommioError::WouldBlock(_)) => {
+                    ::log::debug!(
+                        "couldn't send OutMessage over local channel to Connection, channel full"
+                    );
+                }
                 Err(err) => {
                     ::log::debug!(
-                        "Couldn't send out_message from shared channel to local receiver: {:?}",
+                        "couldn't send OutMessage over local channel to Connection: {:?}",
                         err
                     );
                 }
