@@ -178,7 +178,6 @@ pub async fn run_socket_worker(
                             connection_valid_until,
                             out_message_sender,
                             out_message_receiver,
-                            close_conn_receiver,
                             server_start_instant,
                             out_message_consumer_id,
                             connection_id,
@@ -186,11 +185,11 @@ pub async fn run_socket_worker(
                             ip_version
                         };
 
-                        runner.run(control_message_senders, stream).await;
+                        runner.run(control_message_senders, close_conn_receiver, stream).await;
 
                         connection_handles.borrow_mut().remove(connection_id);
                     }),
-                    tq_regular,
+                    tq_prioritized,
                 )
                 .unwrap()
                 .detach();

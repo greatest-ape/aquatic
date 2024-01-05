@@ -42,7 +42,6 @@ pub struct ConnectionRunner {
     pub connection_valid_until: Rc<RefCell<ValidUntil>>,
     pub out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     pub out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
-    pub close_conn_receiver: LocalReceiver<()>,
     pub server_start_instant: ServerStartInstant,
     pub out_message_consumer_id: ConsumerId,
     pub connection_id: ConnectionId,
@@ -54,6 +53,7 @@ impl ConnectionRunner {
     pub async fn run(
         self,
         control_message_senders: Rc<Senders<SwarmControlMessage>>,
+        close_conn_receiver: LocalReceiver<()>,
         stream: TcpStream,
     ) {
         let clean_up_data = ConnectionCleanupData {
@@ -65,14 +65,34 @@ impl ConnectionRunner {
         clean_up_data.before_open();
 
         let config = self.config.clone();
+        let connection_id = self.connection_id.clone();
 
-        if let Err(err) = self.run_inner(clean_up_data.clone(), stream).await {
-            ::log::debug!("connection error: {:#}", err);
-        }
+        let tq_regular = self.tq_regular;
+
+        let connection_future = spawn_local_into(
+            enclose!((
+                clean_up_data
+            ) async move {
+                if let Err(err) = self.run_inner(clean_up_data, stream).await {
+                    ::log::debug!("connection {:?} error: {:#}", connection_id, err);
+                }
+            }),
+            tq_regular,
+        )
+        .unwrap();
+
+        race(connection_future, async {
+            close_conn_receiver.recv().await;
+        })
+        .await;
+
+        ::log::debug!("connection {:?} starting clean up", connection_id);
 
         clean_up_data
             .after_close(&config, control_message_senders)
             .await;
+
+        ::log::debug!("connection {:?} finished clean up", connection_id);
     }
 
     async fn run_inner(
@@ -184,17 +204,7 @@ impl ConnectionRunner {
         )
         .unwrap();
 
-        let close_conn_future = spawn_local_into(
-            async move {
-                self.close_conn_receiver.recv().await;
-
-                Ok(())
-            },
-            self.tq_prioritized,
-        )
-        .unwrap();
-
-        race(close_conn_future, race(reader_handle, writer_handle)).await
+        race(reader_handle, writer_handle).await
     }
 }
 
