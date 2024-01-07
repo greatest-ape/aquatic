@@ -21,6 +21,10 @@ pub struct Config {
     pub workers: u8,
     /// Run duration (quit and generate report after this many seconds)
     pub duration: usize,
+    /// Only report summary for the last N seconds of run
+    ///
+    /// 0 = include whole run
+    pub summarize_last: usize,
     pub network: NetworkConfig,
     pub requests: RequestConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -34,6 +38,7 @@ impl Default for Config {
             log_level: LogLevel::Error,
             workers: 1,
             duration: 0,
+            summarize_last: 0,
             network: NetworkConfig::default(),
             requests: RequestConfig::default(),
             #[cfg(feature = "cpu-pinning")]
@@ -63,11 +68,11 @@ pub struct NetworkConfig {
     /// values for different operating systems:
     ///
     /// macOS:
-    /// $ sudo sysctl net.inet.udp.recvspace=6000000
+    /// $ sudo sysctl net.inet.udp.recvspace=8000000
     ///
     /// Linux:
-    /// $ sudo sysctl -w net.core.rmem_max=104857600
-    /// $ sudo sysctl -w net.core.rmem_default=104857600
+    /// $ sudo sysctl -w net.core.rmem_max=8000000
+    /// $ sudo sysctl -w net.core.rmem_default=8000000
     pub recv_buffer: usize,
 }
 
@@ -76,8 +81,8 @@ impl Default for NetworkConfig {
         Self {
             multiple_client_ipv4s: true,
             first_port: 45_000,
-            poll_timeout: 276,
-            recv_buffer: 6_000_000,
+            poll_timeout: 1,
+            recv_buffer: 8_000_000,
         }
     }
 }
@@ -89,6 +94,8 @@ pub struct RequestConfig {
     pub number_of_torrents: usize,
     /// Maximum number of torrents to ask about in scrape requests
     pub scrape_max_torrents: usize,
+    /// Ask for this number of peers in announce requests
+    pub announce_peers_wanted: i32,
     /// Probability that a generated request is a connect request as part
     /// of sum of the various weight arguments.
     pub weight_connect: usize,
@@ -113,13 +120,14 @@ impl Default for RequestConfig {
     fn default() -> Self {
         Self {
             number_of_torrents: 10_000,
-            scrape_max_torrents: 50,
+            scrape_max_torrents: 10,
+            announce_peers_wanted: 30,
             weight_connect: 0,
             weight_announce: 100,
             weight_scrape: 1,
             torrent_gamma_shape: 0.2,
             torrent_gamma_scale: 100.0,
-            peer_seeder_probability: 0.25,
+            peer_seeder_probability: 0.75,
             additional_request_probability: 0.5,
         }
     }

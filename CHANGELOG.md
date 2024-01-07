@@ -18,6 +18,9 @@
 
 #### Changed
 
+* Index peers by packet source IP and provided port, instead of by peer_id.
+  This prevents users from impersonating others and is likely also slightly
+  faster for IPv4 peers.
 * Remove support for unbounded worker channels
 * Add backpressure in socket workers. They will postpone reading from the
   socket if sending a request to a swarm worker failed

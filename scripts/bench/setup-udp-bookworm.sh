@@ -14,6 +14,7 @@ source "$HOME/.cargo/env"
 cargo build --profile "release-debug" -p aquatic_udp
 cargo build --profile "release-debug" -p aquatic_udp_load_test
 cargo build --profile "release-debug" -p aquatic_bencher --features udp
+git log --oneline | head -n 1
 
 cd $HOME
 mkdir -p projects
@@ -27,9 +28,9 @@ cd ..
 git clone git://erdgeist.org/opentracker
 cd opentracker
 sed -i "s/^OPTS_production=-O3/OPTS_production=-O3 -march=native -mtune=native/g" Makefile
-sed -i "s/if \(numwant > 200\) numwant = 200/if (numwant > 50) numwant = 50/g" ot_udp.c
 make
 sudo cp ./opentracker /usr/local/bin/
+git log --oneline | head -n 1
 cd ..
 
 # Install chihaya
@@ -37,6 +38,12 @@ git clone https://github.com/chihaya/chihaya.git
 cd chihaya
 go build ./cmd/chihaya
 sudo cp ./chihaya /usr/local/bin/
+git log --oneline | head -n 1
 cd ..
+
+rustc --version
+gcc --version
+go version
+lscpu
 
 echo "Finished. Reboot before running aquatic_bencher"
