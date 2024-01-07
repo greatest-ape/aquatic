@@ -173,12 +173,9 @@ pub async fn run_socket_worker(
                             config,
                             access_list,
                             in_message_senders,
-                            tq_prioritized,
-                            tq_regular,
                             connection_valid_until,
                             out_message_sender,
                             out_message_receiver,
-                            close_conn_receiver,
                             server_start_instant,
                             out_message_consumer_id,
                             connection_id,
@@ -186,7 +183,7 @@ pub async fn run_socket_worker(
                             ip_version
                         };
 
-                        runner.run(control_message_senders, stream).await;
+                        runner.run(control_message_senders, close_conn_receiver, stream).await;
 
                         connection_handles.borrow_mut().remove(connection_id);
                     }),
@@ -254,20 +251,20 @@ async fn clean_connections(
         let worker_index = WORKER_INDEX.with(|index| index.get()).to_string();
 
         if config.network.address.is_ipv4() || !config.network.only_ipv6 {
-            ::metrics::increment_gauge!(
+            ::metrics::gauge!(
                 "aquatic_active_connections",
-                0.0,
                 "ip_version" => "4",
                 "worker_index" => worker_index.clone(),
-            );
+            )
+            .increment(0.0);
         }
         if config.network.address.is_ipv6() {
-            ::metrics::increment_gauge!(
+            ::metrics::gauge!(
                 "aquatic_active_connections",
-                0.0,
                 "ip_version" => "6",
                 "worker_index" => worker_index,
-            );
+            )
+            .increment(0.0);
         }
     }
 
@@ -287,10 +284,14 @@ async fn receive_out_messages(
             match reference.out_message_sender.try_send((meta, out_message)) {
                 Ok(()) => {}
                 Err(GlommioError::Closed(_)) => {}
-                Err(GlommioError::WouldBlock(_)) => {}
+                Err(GlommioError::WouldBlock(_)) => {
+                    ::log::debug!(
+                        "couldn't send OutMessage over local channel to Connection, channel full"
+                    );
+                }
                 Err(err) => {
                     ::log::debug!(
-                        "Couldn't send out_message from shared channel to local receiver: {:?}",
+                        "couldn't send OutMessage over local channel to Connection: {:?}",
                         err
                     );
                 }

@@ -2,6 +2,9 @@
 
 ## High priority
 
+* if peer_clients is on, add task to generate prometheus exports on regular
+  interval to clean up data
+
 * aquatic_bench
   * Opentracker "slow to get up to speed", is it due to getting faster once
     inserts are rarely needed since most ip-port combinations have been sent?

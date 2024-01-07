@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use hashbrown::HashMap;
+use metrics::Gauge;
 use rand::rngs::SmallRng;
 
 use aquatic_common::{
@@ -16,10 +17,42 @@ use crate::workers::swarm::WORKER_INDEX;
 type TorrentMap = IndexMap<InfoHash, TorrentData>;
 type PeerMap = IndexMap<PeerId, Peer>;
 
-#[derive(Default)]
 pub struct TorrentMaps {
     ipv4: TorrentMap,
     ipv6: TorrentMap,
+    peers_gauge_ipv4: Gauge,
+    peers_gauge_ipv6: Gauge,
+    torrents_gauge_ipv4: Gauge,
+    torrents_gauge_ipv6: Gauge,
+}
+
+impl Default for TorrentMaps {
+    fn default() -> Self {
+        Self {
+            ipv4: Default::default(),
+            ipv6: Default::default(),
+            peers_gauge_ipv4: ::metrics::gauge!(
+                "aquatic_peers",
+                "ip_version" => "4",
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+            ),
+            peers_gauge_ipv6: ::metrics::gauge!(
+                "aquatic_peers",
+                "ip_version" => "6",
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+            ),
+            torrents_gauge_ipv4: ::metrics::gauge!(
+                "aquatic_torrents",
+                "ip_version" => "4",
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+            ),
+            torrents_gauge_ipv6: ::metrics::gauge!(
+                "aquatic_torrents",
+                "ip_version" => "6",
+                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+            ),
+        }
+    }
 }
 
 impl TorrentMaps {
@@ -33,12 +66,11 @@ impl TorrentMaps {
         request_sender_meta: InMessageMeta,
         request: AnnounceRequest,
     ) {
-        let (torrent_data, ip_version): (&mut TorrentData, &'static str) =
-            if let IpVersion::V4 = request_sender_meta.ip_version {
-                (self.ipv4.entry(request.info_hash).or_default(), "4")
-            } else {
-                (self.ipv6.entry(request.info_hash).or_default(), "6")
-            };
+        let torrent_data = if let IpVersion::V4 = request_sender_meta.ip_version {
+            self.ipv4.entry(request.info_hash).or_default()
+        } else {
+            self.ipv6.entry(request.info_hash).or_default()
+        };
 
         // If there is already a peer with this peer_id, check that connection id
         // is same as that of request sender. Otherwise, ignore request. Since
@@ -89,12 +121,10 @@ impl TorrentMaps {
                         }
 
                         #[cfg(feature = "metrics")]
-                        ::metrics::decrement_gauge!(
-                            "aquatic_peers",
-                            1.0,
-                            "ip_version" => ip_version,
-                            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                        );
+                        match request_sender_meta.ip_version {
+                            IpVersion::V4 => self.peers_gauge_ipv4.decrement(1.0),
+                            IpVersion::V6 => self.peers_gauge_ipv6.decrement(1.0),
+                        }
 
                         return;
                     }
@@ -112,12 +142,10 @@ impl TorrentMaps {
                         entry.insert(peer);
 
                         #[cfg(feature = "metrics")]
-                        ::metrics::increment_gauge!(
-                            "aquatic_peers",
-                            1.0,
-                            "ip_version" => ip_version,
-                            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                        );
+                        match request_sender_meta.ip_version {
+                            IpVersion::V4 => self.peers_gauge_ipv4.increment(1.0),
+                            IpVersion::V6 => self.peers_gauge_ipv6.increment(1.0),
+                        }
                     }
                     PeerStatus::Seeding => {
                         torrent_data.num_seeders += 1;
@@ -133,12 +161,10 @@ impl TorrentMaps {
                         entry.insert(peer);
 
                         #[cfg(feature = "metrics")]
-                        ::metrics::increment_gauge!(
-                            "aquatic_peers",
-                            1.0,
-                            "ip_version" => ip_version,
-                            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                        );
+                        match request_sender_meta.ip_version {
+                            IpVersion::V4 => self.peers_gauge_ipv4.increment(1.0),
+                            IpVersion::V6 => self.peers_gauge_ipv6.increment(1.0),
+                        }
                     }
                     PeerStatus::Stopped => return,
                 },
@@ -311,8 +337,20 @@ impl TorrentMaps {
         let mut access_list_cache = create_access_list_cache(access_list);
         let now = server_start_instant.seconds_elapsed();
 
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4, now, "4");
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6, now, "6");
+        Self::clean_torrent_map(
+            config,
+            &mut access_list_cache,
+            &mut self.ipv4,
+            now,
+            &self.peers_gauge_ipv4,
+        );
+        Self::clean_torrent_map(
+            config,
+            &mut access_list_cache,
+            &mut self.ipv6,
+            now,
+            &self.peers_gauge_ipv6,
+        );
     }
 
     fn clean_torrent_map(
@@ -320,7 +358,7 @@ impl TorrentMaps {
         access_list_cache: &mut AccessListCache,
         torrent_map: &mut TorrentMap,
         now: SecondsSinceServerStart,
-        ip_version: &'static str,
+        peers_gauge: &Gauge,
     ) {
         let mut total_num_peers = 0u64;
 
@@ -357,31 +395,14 @@ impl TorrentMaps {
 
         torrent_map.shrink_to_fit();
 
-        let total_num_peers = total_num_peers as f64;
-
         #[cfg(feature = "metrics")]
-        ::metrics::gauge!(
-            "aquatic_peers",
-            total_num_peers,
-            "ip_version" => ip_version,
-            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-        );
+        peers_gauge.set(total_num_peers as f64)
     }
 
     #[cfg(feature = "metrics")]
     pub fn update_torrent_count_metrics(&self) {
-        ::metrics::gauge!(
-            "aquatic_torrents",
-            self.ipv4.len() as f64,
-            "ip_version" => "4",
-            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-        );
-        ::metrics::gauge!(
-            "aquatic_torrents",
-            self.ipv6.len() as f64,
-            "ip_version" => "6",
-            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-        );
+        self.torrents_gauge_ipv4.set(self.ipv4.len() as f64);
+        self.torrents_gauge_ipv6.set(self.ipv6.len() as f64);
     }
 
     pub fn handle_connection_closed(
@@ -397,24 +418,14 @@ impl TorrentMaps {
                 torrent_data.remove_peer(peer_id);
 
                 #[cfg(feature = "metrics")]
-                ::metrics::decrement_gauge!(
-                    "aquatic_peers",
-                    1.0,
-                    "ip_version" => "4",
-                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                );
+                self.peers_gauge_ipv4.decrement(1.0);
             }
         } else {
             if let Some(torrent_data) = self.ipv6.get_mut(&info_hash) {
                 torrent_data.remove_peer(peer_id);
 
                 #[cfg(feature = "metrics")]
-                ::metrics::decrement_gauge!(
-                    "aquatic_peers",
-                    1.0,
-                    "ip_version" => "6",
-                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                );
+                self.peers_gauge_ipv6.decrement(1.0);
             }
         }
     }

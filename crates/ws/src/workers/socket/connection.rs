@@ -9,7 +9,6 @@ use anyhow::Context;
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::rustls_config::RustlsConfig;
 use aquatic_common::ServerStartInstant;
-use aquatic_peer_id::PeerClient;
 use aquatic_ws_protocol::*;
 use arc_swap::ArcSwap;
 use async_tungstenite::WebSocketStream;
@@ -18,13 +17,16 @@ use futures::{AsyncWriteExt, StreamExt};
 use futures_lite::future::race;
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::Senders;
-use glommio::channels::local_channel::{LocalReceiver, LocalSender};
+use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::net::TcpStream;
-use glommio::timer::{sleep, timeout};
+use glommio::timer::timeout;
 use glommio::{enclose, prelude::*};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use slab::Slab;
+
+#[cfg(feature = "metrics")]
+use metrics::{Counter, Gauge};
 
 use crate::common::*;
 use crate::config::Config;
@@ -33,16 +35,20 @@ use crate::workers::socket::calculate_in_message_consumer_index;
 #[cfg(feature = "metrics")]
 use crate::workers::socket::{ip_version_to_metrics_str, WORKER_INDEX};
 
+/// Length of ConnectionReader backpressure channel
+///
+/// ConnectionReader awaits a message in a channel before proceeding with
+/// reading a request. For each response sent, a message is sent to the
+/// channel, up to a maximum of this constant.
+const READ_PASS_CHANNEL_LEN: usize = 4;
+
 pub struct ConnectionRunner {
     pub config: Rc<Config>,
     pub access_list: Arc<AccessListArcSwap>,
     pub in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
-    pub tq_prioritized: TaskQueueHandle,
-    pub tq_regular: TaskQueueHandle,
     pub connection_valid_until: Rc<RefCell<ValidUntil>>,
     pub out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
     pub out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
-    pub close_conn_receiver: LocalReceiver<()>,
     pub server_start_instant: ServerStartInstant,
     pub out_message_consumer_id: ConsumerId,
     pub connection_id: ConnectionId,
@@ -54,25 +60,45 @@ impl ConnectionRunner {
     pub async fn run(
         self,
         control_message_senders: Rc<Senders<SwarmControlMessage>>,
+        close_conn_receiver: LocalReceiver<()>,
         stream: TcpStream,
     ) {
         let clean_up_data = ConnectionCleanupData {
             announced_info_hashes: Default::default(),
             ip_version: self.ip_version,
             opt_peer_client: Default::default(),
+            #[cfg(feature = "metrics")]
+            active_connections_gauge: ::metrics::gauge!(
+                "aquatic_active_connections",
+                "ip_version" => ip_version_to_metrics_str(self.ip_version),
+                "worker_index" => WORKER_INDEX.get().to_string(),
+            ),
         };
 
         clean_up_data.before_open();
 
         let config = self.config.clone();
+        let connection_id = self.connection_id.clone();
 
-        if let Err(err) = self.run_inner(clean_up_data.clone(), stream).await {
-            ::log::debug!("connection error: {:#}", err);
-        }
+        race(
+            async {
+                if let Err(err) = self.run_inner(clean_up_data.clone(), stream).await {
+                    ::log::debug!("connection {:?} closed: {:#}", connection_id, err);
+                }
+            },
+            async {
+                close_conn_receiver.recv().await;
+            },
+        )
+        .await;
+
+        ::log::debug!("connection {:?} starting clean up", connection_id);
 
         clean_up_data
             .after_close(&config, control_message_senders)
             .await;
+
+        ::log::debug!("connection {:?} finished clean up", connection_id);
     }
 
     async fn run_inner(
@@ -81,7 +107,8 @@ impl ConnectionRunner {
         mut stream: TcpStream,
     ) -> anyhow::Result<()> {
         if let Some(tls_config) = self.opt_tls_config.as_ref() {
-            let tls_acceptor: TlsAcceptor = tls_config.load_full().into();
+            let tls_config = tls_config.load_full();
+            let tls_acceptor = TlsAcceptor::from(tls_config);
 
             let stream = tls_acceptor.accept(stream).await?;
 
@@ -136,65 +163,73 @@ impl ConnectionRunner {
             ..Default::default()
         };
         let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
-
         let (ws_out, ws_in) = futures::StreamExt::split(stream);
 
         let pending_scrape_slab = Rc::new(RefCell::new(Slab::new()));
         let access_list_cache = create_access_list_cache(&self.access_list);
 
+        let (read_pass_sender, read_pass_receiver) = new_bounded(READ_PASS_CHANNEL_LEN);
+
+        for _ in 0..READ_PASS_CHANNEL_LEN {
+            if let Err(err) = read_pass_sender.try_send(()) {
+                panic!(
+                    "couldn't add initial entries to read pass channel: {:#}",
+                    err
+                )
+            };
+        }
+
         let config = self.config.clone();
 
-        let reader_handle = spawn_local_into(
-            enclose!((pending_scrape_slab, clean_up_data) async move {
-                let mut reader = ConnectionReader {
-                    config: self.config.clone(),
-                    access_list_cache,
-                    in_message_senders: self.in_message_senders,
-                    out_message_sender: self.out_message_sender,
-                    pending_scrape_slab,
-                    out_message_consumer_id: self.out_message_consumer_id,
-                    ws_in,
-                    ip_version: self.ip_version,
-                    connection_id: self.connection_id,
-                    clean_up_data: clean_up_data.clone(),
-                };
+        let reader_future = enclose!((pending_scrape_slab, clean_up_data) async move {
+            let mut reader = ConnectionReader {
+                config: self.config.clone(),
+                access_list_cache,
+                in_message_senders: self.in_message_senders,
+                out_message_sender: self.out_message_sender,
+                read_pass_receiver,
+                pending_scrape_slab,
+                out_message_consumer_id: self.out_message_consumer_id,
+                ws_in,
+                ip_version: self.ip_version,
+                connection_id: self.connection_id,
+                clean_up_data: clean_up_data.clone(),
+                #[cfg(feature = "metrics")]
+                total_announce_requests_counter: ::metrics::counter!(
+                    "aquatic_requests_total",
+                    "type" => "announce",
+                    "ip_version" => ip_version_to_metrics_str(self.ip_version),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+                ),
+                #[cfg(feature = "metrics")]
+                total_scrape_requests_counter: ::metrics::counter!(
+                    "aquatic_requests_total",
+                    "type" => "scrape",
+                    "ip_version" => ip_version_to_metrics_str(self.ip_version),
+                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
+                )
+            };
 
-                reader.run_in_message_loop().await
-            }),
-            self.tq_regular,
-        )
-        .unwrap();
+            reader.run_in_message_loop().await
+        });
 
-        let writer_handle = spawn_local_into(
-            async move {
-                let mut writer = ConnectionWriter {
-                    config,
-                    out_message_receiver: self.out_message_receiver,
-                    connection_valid_until: self.connection_valid_until,
-                    ws_out,
-                    pending_scrape_slab,
-                    server_start_instant: self.server_start_instant,
-                    ip_version: self.ip_version,
-                    clean_up_data,
-                };
+        let writer_future = async move {
+            let mut writer = ConnectionWriter {
+                config,
+                out_message_receiver: self.out_message_receiver,
+                read_pass_sender,
+                connection_valid_until: self.connection_valid_until,
+                ws_out,
+                pending_scrape_slab,
+                server_start_instant: self.server_start_instant,
+                ip_version: self.ip_version,
+                clean_up_data,
+            };
 
-                writer.run_out_message_loop().await
-            },
-            self.tq_prioritized,
-        )
-        .unwrap();
+            writer.run_out_message_loop().await
+        };
 
-        let close_conn_future = spawn_local_into(
-            async move {
-                self.close_conn_receiver.recv().await;
-
-                Ok(())
-            },
-            self.tq_prioritized,
-        )
-        .unwrap();
-
-        race(close_conn_future, race(reader_handle, writer_handle)).await
+        race(reader_future, writer_future).await
     }
 }
 
@@ -203,22 +238,26 @@ struct ConnectionReader<S> {
     access_list_cache: AccessListCache,
     in_message_senders: Rc<Senders<(InMessageMeta, InMessage)>>,
     out_message_sender: Rc<LocalSender<(OutMessageMeta, OutMessage)>>,
+    read_pass_receiver: LocalReceiver<()>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
     out_message_consumer_id: ConsumerId,
     ws_in: SplitStream<WebSocketStream<S>>,
     ip_version: IpVersion,
     connection_id: ConnectionId,
     clean_up_data: ConnectionCleanupData,
+    #[cfg(feature = "metrics")]
+    total_announce_requests_counter: Counter,
+    #[cfg(feature = "metrics")]
+    total_scrape_requests_counter: Counter,
 }
 
 impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
     async fn run_in_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
-            while self.out_message_sender.is_full() {
-                sleep(Duration::from_millis(100)).await;
-
-                yield_if_needed().await;
-            }
+            self.read_pass_receiver
+                .recv()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("read pass channel closed"))?;
 
             let message = self
                 .ws_in
@@ -266,12 +305,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
     async fn handle_announce_request(&mut self, request: AnnounceRequest) -> anyhow::Result<()> {
         #[cfg(feature = "metrics")]
-        ::metrics::increment_counter!(
-            "aquatic_requests_total",
-            "type" => "announce",
-            "ip_version" => ip_version_to_metrics_str(self.ip_version),
-            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-        );
+        self.total_announce_requests_counter.increment(1);
 
         let info_hash = request.info_hash;
 
@@ -311,24 +345,28 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                         && self.clean_up_data.opt_peer_client.borrow().is_none()
                     {
                         let peer_id = aquatic_peer_id::PeerId(request.peer_id.0);
-                        let client = peer_id.client();
-                        let prefix = peer_id.first_8_bytes_hex().to_string();
 
-                        ::metrics::increment_gauge!(
+                        let peer_client_gauge = ::metrics::gauge!(
                             "aquatic_peer_clients",
-                            1.0,
-                            "client" => client.to_string(),
+                            "client" => peer_id.client().to_string(),
                         );
 
-                        if self.config.metrics.peer_id_prefixes {
-                            ::metrics::increment_gauge!(
-                                "aquatic_peer_id_prefixes",
-                                1.0,
-                                "prefix_hex" => prefix.to_string(),
-                            );
-                        }
+                        peer_client_gauge.increment(1.0);
 
-                        *self.clean_up_data.opt_peer_client.borrow_mut() = Some((client, prefix));
+                        let opt_peer_id_prefix_gauge =
+                            self.config.metrics.peer_id_prefixes.then(|| {
+                                let g = ::metrics::gauge!(
+                                    "aquatic_peer_id_prefixes",
+                                    "prefix_hex" => peer_id.first_8_bytes_hex().to_string(),
+                                );
+
+                                g.increment(1.0);
+
+                                g
+                            });
+
+                        *self.clean_up_data.opt_peer_client.borrow_mut() =
+                            Some((peer_client_gauge, opt_peer_id_prefix_gauge));
                     };
                 }
             }
@@ -366,12 +404,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
     async fn handle_scrape_request(&mut self, request: ScrapeRequest) -> anyhow::Result<()> {
         #[cfg(feature = "metrics")]
-        ::metrics::increment_counter!(
-            "aquatic_requests_total",
-            "type" => "scrape",
-            "ip_version" => ip_version_to_metrics_str(self.ip_version),
-            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-        );
+        self.total_scrape_requests_counter.increment(1);
 
         let info_hashes = if let Some(info_hashes) = request.info_hashes {
             info_hashes
@@ -463,6 +496,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 struct ConnectionWriter<S> {
     config: Rc<Config>,
     out_message_receiver: LocalReceiver<(OutMessageMeta, OutMessage)>,
+    read_pass_sender: LocalSender<()>,
     connection_valid_until: Rc<RefCell<ValidUntil>>,
     ws_out: SplitSink<WebSocketStream<S>, tungstenite::Message>,
     pending_scrape_slab: Rc<RefCell<Slab<PendingScrapeResponse>>>,
@@ -514,6 +548,12 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                     self.send_out_message(&out_message).await?;
                 }
             };
+
+            if let Err(GlommioError::Closed(_)) = self.read_pass_sender.try_send(()) {
+                return Err(anyhow::anyhow!("read pass channel closed"));
+            }
+
+            yield_if_needed().await;
         }
     }
 
@@ -544,32 +584,24 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
                 OutMessage::ErrorResponse(_) => "error",
             };
 
-            ::metrics::increment_counter!(
+            ::metrics::counter!(
                 "aquatic_responses_total",
                 "type" => out_message_type,
                 "ip_version" => ip_version_to_metrics_str(self.ip_version),
                 "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-            );
+            )
+            .increment(1);
 
-            if let Some((peer_client, prefix)) =
+            // As long as connection is still alive, increment peer client
+            // gauges by zero to prevent them from being removed due to
+            // idleness
+            if let Some((peer_client_gauge, opt_peer_id_prefix_gauge)) =
                 self.clean_up_data.opt_peer_client.borrow().as_ref()
             {
-                // As long as connection is still alive, increment peer client
-                // gauges by zero to prevent them from being removed due to
-                // idleness
+                peer_client_gauge.increment(0.0);
 
-                ::metrics::increment_gauge!(
-                    "aquatic_peer_clients",
-                    0.0,
-                    "client" => peer_client.to_string(),
-                );
-
-                if self.config.metrics.peer_id_prefixes {
-                    ::metrics::increment_gauge!(
-                        "aquatic_peer_id_prefixes",
-                        0.0,
-                        "prefix_hex" => prefix.to_string(),
-                    );
+                if let Some(g) = opt_peer_id_prefix_gauge {
+                    g.increment(0.0);
                 }
             }
         }
@@ -583,18 +615,15 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
 struct ConnectionCleanupData {
     announced_info_hashes: Rc<RefCell<HashMap<InfoHash, PeerId>>>,
     ip_version: IpVersion,
-    opt_peer_client: Rc<RefCell<Option<(PeerClient, String)>>>,
+    opt_peer_client: Rc<RefCell<Option<(Gauge, Option<Gauge>)>>>,
+    #[cfg(feature = "metrics")]
+    active_connections_gauge: Gauge,
 }
 
 impl ConnectionCleanupData {
     fn before_open(&self) {
         #[cfg(feature = "metrics")]
-        ::metrics::increment_gauge!(
-            "aquatic_active_connections",
-            1.0,
-            "ip_version" => ip_version_to_metrics_str(self.ip_version),
-            "worker_index" => WORKER_INDEX.get().to_string(),
-        );
+        self.active_connections_gauge.increment(1.0);
     }
     async fn after_close(
         &self,
@@ -621,28 +650,14 @@ impl ConnectionCleanupData {
         }
 
         #[cfg(feature = "metrics")]
-        {
-            ::metrics::decrement_gauge!(
-                "aquatic_active_connections",
-                1.0,
-                "ip_version" => ip_version_to_metrics_str(self.ip_version),
-                "worker_index" => WORKER_INDEX.get().to_string(),
-            );
+        self.active_connections_gauge.decrement(1.0);
 
-            if let Some((peer_client, prefix)) = self.opt_peer_client.borrow().as_ref() {
-                ::metrics::decrement_gauge!(
-                    "aquatic_peer_clients",
-                    1.0,
-                    "client" => peer_client.to_string(),
-                );
+        #[cfg(feature = "metrics")]
+        if let Some((peer_client_gauge, opt_peer_id_prefix_gauge)) = self.opt_peer_client.take() {
+            peer_client_gauge.decrement(1.0);
 
-                if config.metrics.peer_id_prefixes {
-                    ::metrics::decrement_gauge!(
-                        "aquatic_peer_id_prefixes",
-                        1.0,
-                        "prefix_hex" => prefix.to_string(),
-                    );
-                }
+            if let Some(g) = opt_peer_id_prefix_gauge {
+                g.decrement(1.0);
             }
         }
     }
