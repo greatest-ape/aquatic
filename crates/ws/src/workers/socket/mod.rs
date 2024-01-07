@@ -173,8 +173,6 @@ pub async fn run_socket_worker(
                             config,
                             access_list,
                             in_message_senders,
-                            tq_prioritized,
-                            tq_regular,
                             connection_valid_until,
                             out_message_sender,
                             out_message_receiver,
@@ -189,7 +187,7 @@ pub async fn run_socket_worker(
 
                         connection_handles.borrow_mut().remove(connection_id);
                     }),
-                    tq_prioritized,
+                    tq_regular,
                 )
                 .unwrap()
                 .detach();

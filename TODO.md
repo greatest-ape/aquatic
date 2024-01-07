@@ -3,11 +3,7 @@
 ## High priority
 
 * if peer_clients is on, add task to generate prometheus exports on regular
-  interval to clean up data. should more or less fix prometheus memory leak
-
-* ws
-  * try replacing race with futures::future::select
-  * bug report for glommio regarding memory leak
+  interval to clean up data
 
 * aquatic_bench
   * Opentracker "slow to get up to speed", is it due to getting faster once
