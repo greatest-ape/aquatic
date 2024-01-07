@@ -253,20 +253,20 @@ async fn clean_connections(
         let worker_index = WORKER_INDEX.with(|index| index.get()).to_string();
 
         if config.network.address.is_ipv4() || !config.network.only_ipv6 {
-            ::metrics::increment_gauge!(
+            ::metrics::gauge!(
                 "aquatic_active_connections",
-                0.0,
                 "ip_version" => "4",
                 "worker_index" => worker_index.clone(),
-            );
+            )
+            .increment(0.0);
         }
         if config.network.address.is_ipv6() {
-            ::metrics::increment_gauge!(
+            ::metrics::gauge!(
                 "aquatic_active_connections",
-                0.0,
                 "ip_version" => "6",
                 "worker_index" => worker_index,
-            );
+            )
+            .increment(0.0);
         }
     }
 
