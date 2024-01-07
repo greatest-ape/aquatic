@@ -18,9 +18,12 @@ name = "aquatic_ws"
 name = "aquatic_ws"
 
 [features]
-default = ["prometheus"]
+default = ["prometheus", "mimalloc"]
 prometheus = ["metrics", "metrics-exporter-prometheus"]
 metrics = ["dep:metrics", "metrics-util"]
+# Use mimalloc allocator for much better performance. Requires cmake and a
+# C/C++ compiler
+mimalloc = ["dep:mimalloc"]
 
 [dependencies]
 aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
@@ -43,7 +46,7 @@ log = "0.4"
 metrics = { version = "0.22", optional = true }
 metrics-util = { version = "0.16", optional = true }
 metrics-exporter-prometheus = { version = "0.13", optional = true, default-features = false, features = ["http-listener"] }
-mimalloc = { version = "0.1", default-features = false }
+mimalloc = { version = "0.1", default-features = false, optional = true }
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
 rustls = "0.22"

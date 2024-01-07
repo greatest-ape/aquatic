@@ -6,7 +6,6 @@
   interval to clean up data. should more or less fix prometheus memory leak
 
 * ws
-  * mimalloc feature, same for http
   * try replacing race with futures::future::select
   * bug report for glommio regarding memory leak
 
