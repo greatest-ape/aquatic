@@ -102,13 +102,14 @@ where
     while let Some(message) = stream.next().await {
         match message {
             SwarmControlMessage::ConnectionClosed {
-                info_hash,
-                peer_id,
                 ip_version,
+                announced_info_hashes,
             } => {
-                torrents
-                    .borrow_mut()
-                    .handle_connection_closed(info_hash, peer_id, ip_version);
+                let mut torrents = torrents.borrow_mut();
+
+                for (info_hash, peer_id) in announced_info_hashes {
+                    torrents.handle_connection_closed(info_hash, peer_id, ip_version);
+                }
             }
         }
     }

@@ -67,11 +67,10 @@ impl Into<OutMessageMeta> for InMessageMeta {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum SwarmControlMessage {
     ConnectionClosed {
-        info_hash: InfoHash,
-        peer_id: PeerId,
         ip_version: IpVersion,
+        announced_info_hashes: Vec<(InfoHash, PeerId)>,
     },
 }
