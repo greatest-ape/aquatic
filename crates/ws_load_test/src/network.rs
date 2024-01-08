@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use aquatic_ws_protocol::{InMessage, OfferId, OutMessage, PeerId, RtcAnswer, RtcAnswerType};
+use aquatic_ws_protocol::{InMessage, OfferId, OutMessage, PeerId, RtcAnswer, RtcAnswerType, InfoHash};
 use async_tungstenite::{client_async, WebSocketStream};
 use futures::{SinkExt, StreamExt};
 use futures_rustls::{client::TlsStream, TlsConnector};
@@ -66,7 +66,7 @@ struct Connection {
     rng: SmallRng,
     can_send: bool,
     peer_id: PeerId,
-    send_answer: Option<(PeerId, OfferId)>,
+    send_answer: Option<(InfoHash, PeerId, OfferId)>,
     stream: WebSocketStream<TlsStream<TcpStream>>,
 }
 
@@ -131,7 +131,8 @@ impl Connection {
                 // If self.send_answer is set and request is announce request, make
                 // the request an offer answer
                 let request = if let InMessage::AnnounceRequest(mut r) = request {
-                    if let Some((peer_id, offer_id)) = self.send_answer {
+                    if let Some((info_hash, peer_id, offer_id)) = self.send_answer {
+                        r.info_hash = info_hash;
                         r.answer_to_peer_id = Some(peer_id);
                         r.answer_offer_id = Some(offer_id);
                         r.answer = Some(RtcAnswer {
@@ -142,12 +143,12 @@ impl Connection {
                         r.offers = None;
                     }
 
-                    self.send_answer = None;
-
                     InMessage::AnnounceRequest(r)
                 } else {
                     request
                 };
+
+                self.send_answer = None;
 
                 self.stream.send(request.to_ws_message()).await?;
 
@@ -190,7 +191,7 @@ impl Connection {
                     .responses_offer
                     .fetch_add(1, Ordering::Relaxed);
 
-                self.send_answer = Some((offer.peer_id, offer.offer_id));
+                self.send_answer = Some((offer.info_hash, offer.peer_id, offer.offer_id));
 
                 self.can_send = true;
             }
