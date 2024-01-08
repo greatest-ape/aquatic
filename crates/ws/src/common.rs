@@ -3,7 +3,7 @@ use std::{net::IpAddr, sync::Arc};
 use aquatic_common::access_list::AccessListArcSwap;
 
 pub use aquatic_common::ValidUntil;
-use aquatic_ws_protocol::{InfoHash, PeerId};
+use aquatic_ws_protocol::common::{InfoHash, PeerId};
 
 #[derive(Copy, Clone, Debug)]
 pub enum IpVersion {
@@ -67,11 +67,10 @@ impl Into<OutMessageMeta> for InMessageMeta {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum SwarmControlMessage {
     ConnectionClosed {
-        info_hash: InfoHash,
-        peer_id: PeerId,
         ip_version: IpVersion,
+        announced_info_hashes: Vec<(InfoHash, PeerId)>,
     },
 }

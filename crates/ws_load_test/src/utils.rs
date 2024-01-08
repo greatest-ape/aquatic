@@ -1,104 +1,13 @@
 use std::sync::Arc;
 
-use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use rand_distr::Gamma;
 
 use crate::common::*;
 use crate::config::*;
 
-pub fn create_random_request(
-    config: &Config,
-    state: &LoadTestState,
-    rng: &mut impl Rng,
-    peer_id: PeerId,
-    announce_gen_offers: bool,
-) -> InMessage {
-    let weights = [
-        config.torrents.weight_announce as u32,
-        config.torrents.weight_scrape as u32,
-    ];
-
-    let items = [RequestType::Announce, RequestType::Scrape];
-
-    let dist = WeightedIndex::new(&weights).expect("random request weighted index");
-
-    match items[dist.sample(rng)] {
-        RequestType::Announce => {
-            create_announce_request(config, state, rng, peer_id, announce_gen_offers)
-        }
-        RequestType::Scrape => create_scrape_request(config, state, rng),
-    }
-}
-
 #[inline]
-fn create_announce_request(
-    config: &Config,
-    state: &LoadTestState,
-    rng: &mut impl Rng,
-    peer_id: PeerId,
-    gen_offers: bool,
-) -> InMessage {
-    let (event, bytes_left) = {
-        if rng.gen_bool(config.torrents.peer_seeder_probability) {
-            (AnnounceEvent::Completed, 0)
-        } else {
-            (AnnounceEvent::Started, 50)
-        }
-    };
-
-    let info_hash_index = select_info_hash_index(config, &state, rng);
-
-    let offers = if gen_offers {
-        let mut offers = Vec::with_capacity(config.torrents.offers_per_request);
-
-        for _ in 0..config.torrents.offers_per_request {
-            offers.push(AnnounceRequestOffer {
-                offer_id: OfferId(rng.gen()),
-                offer: RtcOffer {
-                    t: RtcOfferType::Offer,
-                    sdp: "abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-abcdefg-".into()
-                },
-            })
-        }
-
-        offers
-    } else {
-        Vec::new()
-    };
-
-    InMessage::AnnounceRequest(AnnounceRequest {
-        action: AnnounceAction::Announce,
-        info_hash: state.info_hashes[info_hash_index],
-        peer_id,
-        bytes_left: Some(bytes_left),
-        event: Some(event),
-        numwant: Some(offers.len()),
-        offers: Some(offers),
-        answer: None,
-        answer_to_peer_id: None,
-        answer_offer_id: None,
-    })
-}
-
-#[inline]
-fn create_scrape_request(config: &Config, state: &LoadTestState, rng: &mut impl Rng) -> InMessage {
-    let mut scrape_hashes = Vec::with_capacity(5);
-
-    for _ in 0..5 {
-        let info_hash_index = select_info_hash_index(config, &state, rng);
-
-        scrape_hashes.push(state.info_hashes[info_hash_index]);
-    }
-
-    InMessage::ScrapeRequest(ScrapeRequest {
-        action: ScrapeAction::Scrape,
-        info_hashes: Some(ScrapeRequestInfoHashes::Multiple(scrape_hashes)),
-    })
-}
-
-#[inline]
-fn select_info_hash_index(config: &Config, state: &LoadTestState, rng: &mut impl Rng) -> usize {
+pub fn select_info_hash_index(config: &Config, state: &LoadTestState, rng: &mut impl Rng) -> usize {
     gamma_usize(rng, &state.gamma, config.torrents.number_of_torrents - 1)
 }
 

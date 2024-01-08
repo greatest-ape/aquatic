@@ -1,7 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Duration;
 
-use aquatic_ws_protocol::*;
+use aquatic_ws_protocol::{
+    common::*,
+    incoming::{AnnounceEvent, AnnounceRequest, AnnounceRequestOffer, InMessage},
+};
 
 pub fn bench(c: &mut Criterion) {
     let info_hash = InfoHash([
