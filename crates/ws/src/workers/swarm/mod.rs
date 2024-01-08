@@ -125,25 +125,8 @@ async fn handle_request_stream<S>(
     S: futures_lite::Stream<Item = (InMessageMeta, InMessage)> + ::std::marker::Unpin,
 {
     let rng = Rc::new(RefCell::new(SmallRng::from_entropy()));
-
-    let max_peer_age = config.cleaning.max_peer_age;
-    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(
-        server_start_instant,
-        max_peer_age,
-    )));
-
-    // Periodically update peer_valid_until
-    TimerActionRepeat::repeat(enclose!((peer_valid_until) move || {
-        enclose!((peer_valid_until) move || async move {
-            *peer_valid_until.borrow_mut() = ValidUntil::new(server_start_instant, max_peer_age);
-
-            Some(Duration::from_secs(1))
-        })()
-    }));
-
     let config = &config;
     let torrents = &torrents;
-    let peer_valid_until = &peer_valid_until;
     let rng = &rng;
     let out_message_senders = &out_message_senders;
 
@@ -160,7 +143,6 @@ async fn handle_request_stream<S>(
                             &mut rng.borrow_mut(),
                             &mut out_messages,
                             server_start_instant,
-                            peer_valid_until.borrow().to_owned(),
                             meta,
                             request,
                         )

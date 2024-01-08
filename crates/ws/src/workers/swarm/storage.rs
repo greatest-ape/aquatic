@@ -62,7 +62,6 @@ impl TorrentMaps {
         rng: &mut SmallRng,
         out_messages: &mut Vec<(OutMessageMeta, OutMessage)>,
         server_start_instant: ServerStartInstant,
-        valid_until: ValidUntil,
         request_sender_meta: InMessageMeta,
         request: AnnounceRequest,
     ) {
@@ -71,6 +70,8 @@ impl TorrentMaps {
         } else {
             self.ipv6.entry(request.info_hash).or_default()
         };
+
+        let valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age);
 
         // If there is already a peer with this peer_id, check that connection id
         // is same as that of request sender. Otherwise, ignore request. Since
