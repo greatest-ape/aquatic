@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
 use aquatic_common::cpu_pinning::WorkerIndex;
+use aquatic_ws_protocol::common::InfoHash;
 use glommio::LocalExecutorBuilder;
 use rand::prelude::*;
 use rand_distr::Gamma;

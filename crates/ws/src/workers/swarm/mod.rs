@@ -4,6 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
+use aquatic_ws_protocol::incoming::InMessage;
+use aquatic_ws_protocol::outgoing::OutMessage;
 use futures::StreamExt;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::enclose;
@@ -12,7 +14,6 @@ use glommio::timer::TimerActionRepeat;
 use rand::{rngs::SmallRng, SeedableRng};
 
 use aquatic_common::{PanicSentinel, ServerStartInstant};
-use aquatic_ws_protocol::*;
 
 use crate::common::*;
 use crate::config::Config;

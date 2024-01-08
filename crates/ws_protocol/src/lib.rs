@@ -14,16 +14,22 @@ pub mod common;
 pub mod incoming;
 pub mod outgoing;
 
-pub use common::*;
-pub use incoming::*;
-pub use outgoing::*;
-
 #[cfg(test)]
 mod tests {
     use quickcheck::Arbitrary;
     use quickcheck_macros::quickcheck;
 
-    use super::*;
+    use crate::{
+        common::*,
+        incoming::{
+            AnnounceEvent, AnnounceRequest, AnnounceRequestOffer, InMessage, ScrapeRequest,
+            ScrapeRequestInfoHashes,
+        },
+        outgoing::{
+            AnnounceResponse, AnswerOutMessage, OfferOutMessage, OutMessage, ScrapeResponse,
+            ScrapeStatistics,
+        },
+    };
 
     fn arbitrary_20_bytes(g: &mut quickcheck::Gen) -> [u8; 20] {
         let mut bytes = [0u8; 20];

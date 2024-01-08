@@ -3,7 +3,7 @@ use std::{net::IpAddr, sync::Arc};
 use aquatic_common::access_list::AccessListArcSwap;
 
 pub use aquatic_common::ValidUntil;
-use aquatic_ws_protocol::{InfoHash, PeerId};
+use aquatic_ws_protocol::common::{InfoHash, PeerId};
 
 #[derive(Copy, Clone, Debug)]
 pub enum IpVersion {

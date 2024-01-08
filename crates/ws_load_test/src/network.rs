@@ -6,10 +6,16 @@ use std::{
     time::Duration,
 };
 
+use aquatic_ws_protocol::incoming::{
+    AnnounceEvent, AnnounceRequest, AnnounceRequestOffer, InMessage, ScrapeRequestInfoHashes,
+};
+use aquatic_ws_protocol::outgoing::OutMessage;
 use aquatic_ws_protocol::{
-    AnnounceAction, AnnounceEvent, AnnounceRequest, AnnounceRequestOffer, InMessage, InfoHash,
-    OfferId, OutMessage, PeerId, RtcAnswer, RtcAnswerType, RtcOffer, RtcOfferType, ScrapeAction,
-    ScrapeRequest, ScrapeRequestInfoHashes,
+    common::{
+        AnnounceAction, InfoHash, OfferId, PeerId, RtcAnswer, RtcAnswerType, RtcOffer,
+        RtcOfferType, ScrapeAction,
+    },
+    incoming::ScrapeRequest,
 };
 use async_tungstenite::{client_async, WebSocketStream};
 use futures::{SinkExt, StreamExt};
@@ -168,7 +174,7 @@ impl Connection {
                         }),
                         event: None,
                         offers: None,
-                        action: aquatic_ws_protocol::AnnounceAction::Announce,
+                        action: AnnounceAction::Announce,
                         peer_id: self.peer_id,
                         bytes_left: Some(bytes_left),
                         numwant: Some(0),

@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
+use aquatic_ws_protocol::incoming::{AnnounceEvent, AnnounceRequest, ScrapeRequest};
+use aquatic_ws_protocol::outgoing::{
+    AnnounceResponse, AnswerOutMessage, ErrorResponse, ErrorResponseAction, OfferOutMessage,
+    OutMessage, ScrapeResponse, ScrapeStatistics,
+};
 use hashbrown::HashMap;
 use metrics::Gauge;
 use rand::rngs::SmallRng;
@@ -8,7 +13,7 @@ use rand::rngs::SmallRng;
 use aquatic_common::{
     extract_response_peers, IndexMap, SecondsSinceServerStart, ServerStartInstant,
 };
-use aquatic_ws_protocol::*;
+use aquatic_ws_protocol::common::*;
 
 use crate::common::*;
 use crate::config::Config;

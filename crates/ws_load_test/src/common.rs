@@ -1,8 +1,7 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
+use aquatic_ws_protocol::common::InfoHash;
 use rand_distr::Gamma;
-
-pub use aquatic_ws_protocol::*;
 
 #[derive(Default)]
 pub struct Statistics {
