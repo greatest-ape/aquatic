@@ -36,9 +36,9 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     println!("Starting client with config: {:#?}", config);
 
-    let mut info_hashes = Vec::with_capacity(config.torrents.number_of_torrents);
-
     let mut rng = SmallRng::from_entropy();
+
+    let mut info_hashes = Vec::with_capacity(config.torrents.number_of_torrents);
 
     for _ in 0..config.torrents.number_of_torrents {
         info_hashes.push(InfoHash(rng.gen()));
@@ -51,7 +51,7 @@ fn run(config: Config) -> ::anyhow::Result<()> {
     .unwrap();
 
     let state = LoadTestState {
-        info_hashes: Arc::new(info_hashes),
+        info_hashes: Arc::from(info_hashes.into_boxed_slice()),
         statistics: Arc::new(Statistics::default()),
         gamma: Arc::new(gamma),
     };
