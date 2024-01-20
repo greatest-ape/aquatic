@@ -58,7 +58,7 @@ impl SendBuffers {
         self.likely_next_free_index = 0;
     }
 
-    pub fn prepare_entry<'a>(
+    pub fn prepare_entry(
         &mut self,
         response: Response,
         addr: CanonicalSocketAddr,

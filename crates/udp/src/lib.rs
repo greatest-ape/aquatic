@@ -22,6 +22,7 @@ use common::{
 };
 use config::Config;
 use workers::socket::ConnectionValidator;
+use workers::swarm::SwarmWorker;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -79,16 +80,18 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::SwarmWorker(i),
                 );
 
-                workers::swarm::run_swarm_worker(
-                    sentinel,
+                let mut worker = SwarmWorker {
+                    _sentinel: sentinel,
                     config,
                     state,
                     server_start_instant,
                     request_receiver,
                     response_sender,
                     statistics_sender,
-                    SwarmWorkerIndex(i),
-                )
+                    worker_index: SwarmWorkerIndex(i),
+                };
+
+                worker.run();
             })
             .with_context(|| "spawn swarm worker")?;
     }

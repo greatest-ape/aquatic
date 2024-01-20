@@ -36,6 +36,7 @@ const EXTRA_PACKET_SIZE_IPV4: usize = 8 + 18 + 20 + 8;
 /// - 8 bit udp header
 const EXTRA_PACKET_SIZE_IPV6: usize = 8 + 18 + 40 + 8;
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_socket_worker(
     sentinel: PanicSentinel,
     shared_state: State,

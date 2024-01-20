@@ -96,6 +96,7 @@ pub struct SocketWorker {
 }
 
 impl SocketWorker {
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         _sentinel: PanicSentinel,
         shared_state: State,
@@ -136,7 +137,7 @@ impl SocketWorker {
             .build()
             .unwrap();
 
-        let recv_sqe = recv_helper.create_entry(buf_ring.bgid().try_into().unwrap());
+        let recv_sqe = recv_helper.create_entry(buf_ring.bgid());
 
         // This timeout enables regular updates of pending_scrape_valid_until
         // and wakes the main loop to send any pending responses in the case
@@ -209,7 +210,7 @@ impl SocketWorker {
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = self.local_responses.pop_front() {
-                    match self.send_buffers.prepare_entry(response.into(), addr) {
+                    match self.send_buffers.prepare_entry(response, addr) {
                         Ok(entry) => {
                             unsafe { ring.submission().push(&entry).unwrap() };
 
@@ -471,11 +472,11 @@ impl SocketWorker {
                         let worker_index =
                             SwarmWorkerIndex::from_info_hash(&self.config, request.info_hash);
 
-                        if let Err(_) = self.request_sender.try_send_to(
-                            worker_index,
-                            ConnectedRequest::Announce(request),
-                            src,
-                        ) {
+                        if self
+                            .request_sender
+                            .try_send_to(worker_index, ConnectedRequest::Announce(request), src)
+                            .is_err()
+                        {
                             ::log::warn!("request sender full, dropping request");
                         }
                     } else {
@@ -500,11 +501,11 @@ impl SocketWorker {
                     );
 
                     for (swarm_worker_index, request) in split_requests {
-                        if let Err(_) = self.request_sender.try_send_to(
-                            swarm_worker_index,
-                            ConnectedRequest::Scrape(request),
-                            src,
-                        ) {
+                        if self
+                            .request_sender
+                            .try_send_to(swarm_worker_index, ConnectedRequest::Scrape(request), src)
+                            .is_err()
+                        {
                             ::log::warn!("request sender full, dropping request");
                         }
                     }

@@ -49,6 +49,7 @@ pub struct SocketWorker {
 }
 
 impl SocketWorker {
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         _sentinel: PanicSentinel,
         shared_state: State,

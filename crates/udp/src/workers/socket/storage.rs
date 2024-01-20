@@ -130,9 +130,10 @@ mod tests {
             return TestResult::discard();
         }
 
-        let mut config = Config::default();
-
-        config.swarm_workers = swarm_workers as usize;
+        let config = Config {
+            swarm_workers: swarm_workers as usize,
+            ..Default::default()
+        };
 
         let valid_until = ValidUntil::new(ServerStartInstant::new(), 1);
 
