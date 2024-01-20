@@ -293,6 +293,7 @@ dependencies = [
  "aquatic_common",
  "aquatic_toml_config",
  "aquatic_udp_protocol",
+ "arrayvec",
  "blake3",
  "cfg-if",
  "compact_str",
