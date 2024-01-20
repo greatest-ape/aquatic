@@ -146,21 +146,18 @@ fn extract_comment_string(attrs: Vec<Attribute>) -> TokenStream {
         }
 
         for token_tree in attr.tokens {
-            match token_tree {
-                TokenTree::Literal(literal) => {
-                    let mut comment = format!("{}", literal);
+            if let TokenTree::Literal(literal) = token_tree {
+                let mut comment = format!("{}", literal);
 
-                    // Strip leading and trailing quotation marks
-                    comment.remove(comment.len() - 1);
-                    comment.remove(0);
+                // Strip leading and trailing quotation marks
+                comment.remove(comment.len() - 1);
+                comment.remove(0);
 
-                    // Add toml comment indicator
-                    comment.insert(0, '#');
+                // Add toml comment indicator
+                comment.insert(0, '#');
 
-                    output.push_str(&comment);
-                    output.push('\n');
-                }
-                _ => {}
+                output.push_str(&comment);
+                output.push('\n');
             }
         }
     }
