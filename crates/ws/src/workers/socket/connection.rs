@@ -77,7 +77,7 @@ impl ConnectionRunner {
         clean_up_data.before_open();
 
         let config = self.config.clone();
-        let connection_id = self.connection_id.clone();
+        let connection_id = self.connection_id;
 
         race(
             async {
@@ -608,7 +608,7 @@ impl ConnectionCleanupData {
         let mut announced_info_hashes = HashMap::new();
 
         for (info_hash, peer_id) in self.announced_info_hashes.take().into_iter() {
-            let consumer_index = calculate_in_message_consumer_index(&config, info_hash);
+            let consumer_index = calculate_in_message_consumer_index(config, info_hash);
 
             announced_info_hashes
                 .entry(consumer_index)

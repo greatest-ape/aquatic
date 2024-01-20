@@ -27,17 +27,11 @@ impl TaskSetCpuList {
         let indicator = self.0.iter().map(|indicator| match indicator {
             TaskSetCpuIndicator::Single(i) => i.to_string(),
             TaskSetCpuIndicator::Range(range) => {
-                format!(
-                    "{}-{}",
-                    range.start,
-                    range.clone().into_iter().last().unwrap()
-                )
+                format!("{}-{}", range.start, range.clone().last().unwrap())
             }
         });
 
-        Itertools::intersperse_with(indicator, || ",".to_string())
-            .into_iter()
-            .collect()
+        Itertools::intersperse_with(indicator, || ",".to_string()).collect()
     }
 
     pub fn new(
@@ -163,7 +157,7 @@ pub fn simple_load_test_runs(
     workers: &[(usize, Priority)],
 ) -> Vec<(usize, Priority, TaskSetCpuList)> {
     workers
-        .into_iter()
+        .iter()
         .copied()
         .map(|(workers, priority)| {
             (

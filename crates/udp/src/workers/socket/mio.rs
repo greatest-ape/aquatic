@@ -205,7 +205,7 @@ impl SocketWorker {
                             if let Err(HandleRequestError::RequestChannelFull(failed_requests)) =
                                 self.handle_request(pending_scrape_valid_until, request, src)
                             {
-                                self.pending_requests.extend(failed_requests.into_iter());
+                                self.pending_requests.extend(failed_requests);
                                 self.polling_mode = PollMode::SkipReceiving;
 
                                 break;

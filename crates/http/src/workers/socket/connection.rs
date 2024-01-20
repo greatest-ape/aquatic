@@ -383,7 +383,7 @@ where
 
         let body_len = response
             .write(&mut &mut self.response_buffer[position..])
-            .map_err(|err| ConnectionError::ResponseBufferWrite(err))?;
+            .map_err(ConnectionError::ResponseBufferWrite)?;
 
         position += body_len;
 
@@ -391,7 +391,7 @@ where
             return Err(ConnectionError::ResponseBufferFull);
         }
 
-        (&mut self.response_buffer[position..position + 2]).copy_from_slice(b"\r\n");
+        self.response_buffer[position..position + 2].copy_from_slice(b"\r\n");
 
         position += 2;
 
@@ -403,7 +403,7 @@ where
             let start = RESPONSE_HEADER_A.len();
             let end = start + RESPONSE_HEADER_B.len();
 
-            (&mut self.response_buffer[start..end]).copy_from_slice(RESPONSE_HEADER_B);
+            self.response_buffer[start..end].copy_from_slice(RESPONSE_HEADER_B);
         }
 
         // Set content-len header value
@@ -415,7 +415,7 @@ where
             let start = RESPONSE_HEADER_A.len();
             let end = start + content_len_bytes.len();
 
-            (&mut self.response_buffer[start..end]).copy_from_slice(content_len_bytes);
+            self.response_buffer[start..end].copy_from_slice(content_len_bytes);
         }
 
         // Write buffer to stream

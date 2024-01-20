@@ -270,7 +270,7 @@ mod tests {
 
         assert!(bytes.len() == 20);
 
-        arr.copy_from_slice(&bytes[..]);
+        arr.copy_from_slice(bytes);
 
         InfoHash(arr)
     }
@@ -371,8 +371,6 @@ mod tests {
         };
 
         let success = info_hashes == deserialized;
-
-        if !success {}
 
         success
     }

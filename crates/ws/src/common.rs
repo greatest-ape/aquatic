@@ -57,12 +57,12 @@ pub struct OutMessageMeta {
     pub pending_scrape_id: Option<PendingScrapeId>,
 }
 
-impl Into<OutMessageMeta> for InMessageMeta {
-    fn into(self) -> OutMessageMeta {
+impl From<InMessageMeta> for OutMessageMeta {
+    fn from(val: InMessageMeta) -> Self {
         OutMessageMeta {
-            out_message_consumer_id: self.out_message_consumer_id,
-            connection_id: self.connection_id,
-            pending_scrape_id: self.pending_scrape_id,
+            out_message_consumer_id: val.out_message_consumer_id,
+            connection_id: val.connection_id,
+            pending_scrape_id: val.pending_scrape_id,
         }
     }
 }

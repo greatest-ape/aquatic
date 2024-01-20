@@ -29,7 +29,7 @@ pub fn connect(socket: &UdpSocket, tracker_addr: SocketAddr) -> anyhow::Result<C
         transaction_id: TransactionId::new(0),
     });
 
-    let response = request_and_response(&socket, tracker_addr, request)?;
+    let response = request_and_response(socket, tracker_addr, request)?;
 
     if let Response::Connect(response) = response {
         Ok(response.connection_id)
@@ -69,7 +69,7 @@ pub fn announce(
         port: Port::new(peer_port),
     });
 
-    Ok(request_and_response(&socket, tracker_addr, request)?)
+    request_and_response(socket, tracker_addr, request)
 }
 
 pub fn scrape(
@@ -84,12 +84,12 @@ pub fn scrape(
         info_hashes,
     });
 
-    let response = request_and_response(&socket, tracker_addr, request)?;
+    let response = request_and_response(socket, tracker_addr, request)?;
 
     if let Response::Scrape(response) = response {
         Ok(response)
     } else {
-        return Err(anyhow::anyhow!("not scrape response: {:?}", response));
+        Err(anyhow::anyhow!("not scrape response: {:?}", response))
     }
 }
 
@@ -119,6 +119,6 @@ pub fn request_and_response(
             .recv_from(&mut buffer)
             .with_context(|| "recv response")?;
 
-        Ok(Response::from_bytes(&buffer[..bytes_read], true).with_context(|| "parse response")?)
+        Response::from_bytes(&buffer[..bytes_read], true).with_context(|| "parse response")
     }
 }

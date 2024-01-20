@@ -19,7 +19,7 @@ pub fn create_random_request(
 
     let items = [RequestType::Announce, RequestType::Scrape];
 
-    let dist = WeightedIndex::new(&weights).expect("random request weighted index");
+    let dist = WeightedIndex::new(weights).expect("random request weighted index");
 
     match items[dist.sample(rng)] {
         RequestType::Announce => create_announce_request(config, state, rng),
@@ -37,7 +37,7 @@ fn create_announce_request(config: &Config, state: &LoadTestState, rng: &mut imp
         }
     };
 
-    let info_hash_index = select_info_hash_index(config, &state, rng);
+    let info_hash_index = select_info_hash_index(config, state, rng);
 
     Request::Announce(AnnounceRequest {
         info_hash: state.info_hashes[info_hash_index],
@@ -57,7 +57,7 @@ fn create_scrape_request(config: &Config, state: &LoadTestState, rng: &mut impl 
     let mut scrape_hashes = Vec::with_capacity(5);
 
     for _ in 0..5 {
-        let info_hash_index = select_info_hash_index(config, &state, rng);
+        let info_hash_index = select_info_hash_index(config, state, rng);
 
         scrape_hashes.push(state.info_hashes[info_hash_index]);
     }

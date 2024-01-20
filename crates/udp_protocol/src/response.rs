@@ -85,7 +85,7 @@ impl Response {
             // Error
             3 => {
                 let transaction_id = read_i32_ne(&mut bytes).map(TransactionId)?;
-                let message = String::from_utf8_lossy(&bytes).into_owned().into();
+                let message = String::from_utf8_lossy(bytes).into_owned().into();
 
                 Ok((ErrorResponse {
                     transaction_id,

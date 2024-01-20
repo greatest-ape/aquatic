@@ -191,7 +191,7 @@ pub fn html_all_runs(all_results: &[TrackerCoreCountResults]) -> String {
             load_test_key_names = load_test_key_names.iter()
                 .map(|name| format!("<th>Load test {}</th>", name))
                 .join("\n"),
-            body = results.into_iter().map(|r| {
+            body = results.iter_mut().map(|r| {
                 formatdoc! {
                     "
                     <tr>

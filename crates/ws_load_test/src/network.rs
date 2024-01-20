@@ -312,7 +312,7 @@ pub fn random_request_type(config: &Config, rng: &mut impl Rng) -> RequestType {
 
     let items = [RequestType::Announce, RequestType::Scrape];
 
-    let dist = WeightedIndex::new(&weights).expect("random request weighted index");
+    let dist = WeightedIndex::new(weights).expect("random request weighted index");
 
     items[dist.sample(rng)]
 }

@@ -365,13 +365,14 @@ impl<I: Ip> SmallPeerMap<I> {
         self.0.retain(|(_, peer)| {
             let keep = peer.valid_until.valid(now);
 
-            if !keep && config.statistics.peer_clients {
-                if let Err(_) =
-                    statistics_sender.try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
-                {
-                    // Should never happen in practice
-                    ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
-                }
+            if !keep
+                && config.statistics.peer_clients
+                && statistics_sender
+                    .try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
+                    .is_err()
+            {
+                // Should never happen in practice
+                ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
             }
 
             keep
@@ -480,13 +481,13 @@ impl<I: Ip> LargePeerMap<I> {
                 if peer.is_seeder {
                     self.num_seeders -= 1;
                 }
-                if config.statistics.peer_clients {
-                    if let Err(_) =
-                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
-                    {
-                        // Should never happen in practice
-                        ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
-                    }
+                if config.statistics.peer_clients
+                    && statistics_sender
+                        .try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
+                        .is_err()
+                {
+                    // Should never happen in practice
+                    ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
                 }
             }
 

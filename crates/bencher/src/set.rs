@@ -73,13 +73,13 @@ pub fn run_sets<C, F, I>(
         (minutes / 60, minutes % 60)
     };
 
-    println!("");
+    println!();
     println!("Total number of load test runs: {}", total_num_runs);
     println!(
         "Estimated duration: {} hours, {} minutes",
         estimated_hours, estimated_minutes
     );
-    println!("");
+    println!();
 
     let results = set_configs
         .into_iter()
@@ -115,7 +115,7 @@ pub fn run_sets<C, F, I>(
                                         &load_test_gen,
                                         load_test_parameters,
                                         implementation,
-                                        &tracker_run,
+                                        tracker_run,
                                         tracker_vcpus.clone(),
                                         load_test_vcpus,
                                     )

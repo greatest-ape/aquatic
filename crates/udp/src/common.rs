@@ -211,7 +211,7 @@ impl Statistics {
     }
 
     fn create_atomic_usize_vec(len: usize) -> Vec<AtomicUsize> {
-        ::std::iter::repeat_with(|| AtomicUsize::default())
+        ::std::iter::repeat_with(AtomicUsize::default)
             .take(len)
             .collect()
     }

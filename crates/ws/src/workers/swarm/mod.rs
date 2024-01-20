@@ -140,7 +140,7 @@ async fn handle_request_stream<S>(
                 match in_message {
                     InMessage::AnnounceRequest(request) => {
                         torrents.borrow_mut().handle_announce_request(
-                            &config,
+                            config,
                             &mut rng.borrow_mut(),
                             &mut out_messages,
                             server_start_instant,
@@ -150,7 +150,7 @@ async fn handle_request_stream<S>(
                     }
                     InMessage::ScrapeRequest(request) => torrents
                         .borrow_mut()
-                        .handle_scrape_request(&config, &mut out_messages, meta, request),
+                        .handle_scrape_request(config, &mut out_messages, meta, request),
                 };
 
                 for (meta, out_message) in out_messages {

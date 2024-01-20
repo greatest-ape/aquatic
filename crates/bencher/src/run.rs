@@ -59,9 +59,7 @@ impl<C> RunConfig<C> {
                 .run(command, &self.tracker_vcpus, &mut tracker_config_file)
             {
                 Ok(handle) => ChildWrapper(handle),
-                Err(err) => {
-                    return Err(RunErrorResults::new(self).set_error(err.into(), "run tracker"))
-                }
+                Err(err) => return Err(RunErrorResults::new(self).set_error(err, "run tracker")),
             };
 
         ::std::thread::sleep(Duration::from_secs(1));
@@ -74,7 +72,7 @@ impl<C> RunConfig<C> {
             Ok(handle) => ChildWrapper(handle),
             Err(err) => {
                 return Err(RunErrorResults::new(self)
-                    .set_error(err.into(), "run load test")
+                    .set_error(err, "run load test")
                     .set_tracker_outputs(tracker))
             }
         };
@@ -328,7 +326,7 @@ impl FromStr for ProcessStats {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.trim().split_whitespace();
+        let mut parts = s.split_whitespace();
 
         let avg_cpu_utilization = parts.next().ok_or(())?.parse().map_err(|_| ())?;
         let peak_rss_kb: f32 = parts.next().ok_or(())?.parse().map_err(|_| ())?;
