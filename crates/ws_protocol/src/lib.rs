@@ -370,8 +370,6 @@ mod tests {
             ::simd_json::serde::from_str(&mut json).unwrap()
         };
 
-        let success = info_hashes == deserialized;
-
-        success
+        info_hashes == deserialized
     }
 }

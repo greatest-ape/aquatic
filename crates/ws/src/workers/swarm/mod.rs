@@ -24,6 +24,7 @@ use self::storage::TorrentMaps;
 #[cfg(feature = "metrics")]
 thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,

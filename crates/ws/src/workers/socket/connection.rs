@@ -41,6 +41,9 @@ use crate::workers::socket::calculate_in_message_consumer_index;
 #[cfg(feature = "metrics")]
 use crate::workers::socket::{ip_version_to_metrics_str, WORKER_INDEX};
 
+/// Optional second tuple field is for peer id hex representation
+type PeerClientGauge = (Gauge, Option<Gauge>);
+
 pub struct ConnectionRunner {
     pub config: Rc<Config>,
     pub access_list: Arc<AccessListArcSwap>,
@@ -283,6 +286,8 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
         }
     }
 
+    // Silence RefCell lint due to false positives
+    #[allow(clippy::await_holding_refcell_ref)]
     async fn handle_announce_request(&mut self, request: AnnounceRequest) -> anyhow::Result<()> {
         #[cfg(feature = "metrics")]
         self.total_announce_requests_counter.increment(1);
@@ -485,6 +490,8 @@ struct ConnectionWriter<S> {
 }
 
 impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
+    // Silence RefCell lint due to false positives
+    #[allow(clippy::await_holding_refcell_ref)]
     async fn run_out_message_loop(&mut self) -> anyhow::Result<()> {
         loop {
             let (meta, out_message) = self.out_message_receiver.recv().await.ok_or_else(|| {
@@ -590,7 +597,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
 struct ConnectionCleanupData {
     announced_info_hashes: Rc<RefCell<HashMap<InfoHash, PeerId>>>,
     ip_version: IpVersion,
-    opt_peer_client: Rc<RefCell<Option<(Gauge, Option<Gauge>)>>>,
+    opt_peer_client: Rc<RefCell<Option<PeerClientGauge>>>,
     #[cfg(feature = "metrics")]
     active_connections_gauge: Gauge,
 }

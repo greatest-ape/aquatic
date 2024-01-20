@@ -149,6 +149,19 @@ impl Connection {
     }
 
     async fn send_message(&mut self) -> anyhow::Result<()> {
+        let request = self.create_request();
+
+        self.stream.send(request.to_ws_message()).await?;
+
+        self.load_test_state
+            .statistics
+            .requests
+            .fetch_add(1, Ordering::Relaxed);
+
+        Ok(())
+    }
+
+    fn create_request(&mut self) -> InMessage {
         let mut rng = self.rng.borrow_mut();
 
         let request = match random_request_type(&self.config, &mut *rng) {
@@ -226,18 +239,9 @@ impl Connection {
             }
         };
 
-        drop(rng);
-
         self.can_send_answer = None;
 
-        self.stream.send(request.to_ws_message()).await?;
-
-        self.load_test_state
-            .statistics
-            .requests
-            .fetch_add(1, Ordering::Relaxed);
-
-        Ok(())
+        request
     }
 
     async fn read_message(&mut self) -> anyhow::Result<()> {
