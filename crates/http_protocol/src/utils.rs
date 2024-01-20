@@ -280,6 +280,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[quickcheck]
     fn test_urlencode_urldecode_20_bytes(
         a: u8,

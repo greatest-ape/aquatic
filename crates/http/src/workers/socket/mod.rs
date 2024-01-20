@@ -33,6 +33,7 @@ struct ConnectionHandle {
     valid_until: Rc<RefCell<ValidUntil>>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_socket_worker(
     _sentinel: PanicSentinel,
     config: Config,
