@@ -1,67 +1,18 @@
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::io::Write;
-use std::mem::size_of;
-use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
-use crossbeam_channel::{Sender, TrySendError};
+use crossbeam_channel::{Receiver, SendError, Sender, TrySendError};
 
 use aquatic_common::access_list::AccessListArcSwap;
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::*;
 use hdrhistogram::Histogram;
-use thingbuf::mpsc::blocking::SendRef;
 
 use crate::config::Config;
 
 pub const BUFFER_SIZE: usize = 8192;
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub enum CowResponse<'a> {
-    Connect(Cow<'a, ConnectResponse>),
-    AnnounceIpv4(Cow<'a, AnnounceResponse<Ipv4AddrBytes>>),
-    AnnounceIpv6(Cow<'a, AnnounceResponse<Ipv6AddrBytes>>),
-    Scrape(Cow<'a, ScrapeResponse>),
-    Error(Cow<'a, ErrorResponse>),
-}
-
-impl From<Response> for CowResponse<'_> {
-    fn from(value: Response) -> Self {
-        match value {
-            Response::AnnounceIpv4(r) => Self::AnnounceIpv4(Cow::Owned(r)),
-            Response::AnnounceIpv6(r) => Self::AnnounceIpv6(Cow::Owned(r)),
-            Response::Connect(r) => Self::Connect(Cow::Owned(r)),
-            Response::Scrape(r) => Self::Scrape(Cow::Owned(r)),
-            Response::Error(r) => Self::Error(Cow::Owned(r)),
-        }
-    }
-}
-
-impl<'a> CowResponse<'a> {
-    pub fn into_owned(self) -> Response {
-        match self {
-            CowResponse::Connect(r) => Response::Connect(r.into_owned()),
-            CowResponse::AnnounceIpv4(r) => Response::AnnounceIpv4(r.into_owned()),
-            CowResponse::AnnounceIpv6(r) => Response::AnnounceIpv6(r.into_owned()),
-            CowResponse::Scrape(r) => Response::Scrape(r.into_owned()),
-            CowResponse::Error(r) => Response::Error(r.into_owned()),
-        }
-    }
-
-    #[inline]
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), ::std::io::Error> {
-        match self {
-            Self::Connect(r) => r.write(bytes),
-            Self::AnnounceIpv4(r) => r.write(bytes),
-            Self::AnnounceIpv6(r) => r.write(bytes),
-            Self::Scrape(r) => r.write(bytes),
-            Self::Error(r) => r.write(bytes),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
@@ -86,52 +37,6 @@ pub enum ConnectedResponse {
     AnnounceIpv4(AnnounceResponse<Ipv4AddrBytes>),
     AnnounceIpv6(AnnounceResponse<Ipv6AddrBytes>),
     Scrape(PendingScrapeResponse),
-}
-
-pub enum ConnectedResponseKind {
-    AnnounceIpv4,
-    AnnounceIpv6,
-    Scrape,
-}
-
-pub struct ConnectedResponseWithAddr {
-    pub kind: ConnectedResponseKind,
-    pub announce_ipv4: AnnounceResponse<Ipv4AddrBytes>,
-    pub announce_ipv6: AnnounceResponse<Ipv6AddrBytes>,
-    pub scrape: PendingScrapeResponse,
-    pub addr: CanonicalSocketAddr,
-}
-
-impl ConnectedResponseWithAddr {
-    pub fn estimated_max_size(config: &Config) -> usize {
-        size_of::<Self>()
-            + config.protocol.max_response_peers
-                * (size_of::<ResponsePeer<Ipv4AddrBytes>>()
-                    + size_of::<ResponsePeer<Ipv6AddrBytes>>())
-    }
-}
-
-pub struct Recycler;
-
-impl thingbuf::Recycle<ConnectedResponseWithAddr> for Recycler {
-    fn new_element(&self) -> ConnectedResponseWithAddr {
-        ConnectedResponseWithAddr {
-            kind: ConnectedResponseKind::AnnounceIpv4,
-            announce_ipv4: AnnounceResponse::empty(),
-            announce_ipv6: AnnounceResponse::empty(),
-            scrape: PendingScrapeResponse {
-                slab_key: 0,
-                torrent_stats: Default::default(),
-            },
-            addr: CanonicalSocketAddr::new(SocketAddr::V4(SocketAddrV4::new(0.into(), 0))),
-        }
-    }
-    fn recycle(&self, element: &mut ConnectedResponseWithAddr) {
-        element.announce_ipv4.peers.clear();
-        element.announce_ipv6.peers.clear();
-        element.scrape.torrent_stats.clear();
-        element.addr = CanonicalSocketAddr::new(SocketAddr::V4(SocketAddrV4::new(0.into(), 0)));
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -180,54 +85,73 @@ impl ConnectedRequestSender {
 }
 
 pub struct ConnectedResponseSender {
-    senders: Vec<thingbuf::mpsc::blocking::Sender<ConnectedResponseWithAddr, Recycler>>,
+    senders: Vec<Sender<(CanonicalSocketAddr, ConnectedResponse)>>,
     to_any_last_index_picked: usize,
 }
 
 impl ConnectedResponseSender {
-    pub fn new(
-        senders: Vec<thingbuf::mpsc::blocking::Sender<ConnectedResponseWithAddr, Recycler>>,
-    ) -> Self {
+    pub fn new(senders: Vec<Sender<(CanonicalSocketAddr, ConnectedResponse)>>) -> Self {
         Self {
             senders,
             to_any_last_index_picked: 0,
         }
     }
 
-    pub fn try_send_ref_to(
+    pub fn try_send_to(
         &self,
         index: SocketWorkerIndex,
-    ) -> Result<SendRef<ConnectedResponseWithAddr>, thingbuf::mpsc::errors::TrySendError> {
-        self.senders[index.0].try_send_ref()
+        addr: CanonicalSocketAddr,
+        response: ConnectedResponse,
+    ) -> Result<(), TrySendError<(CanonicalSocketAddr, ConnectedResponse)>> {
+        self.senders[index.0].try_send((addr, response))
     }
 
-    pub fn send_ref_to(
+    pub fn send_to(
         &self,
         index: SocketWorkerIndex,
-    ) -> Result<SendRef<ConnectedResponseWithAddr>, thingbuf::mpsc::errors::Closed> {
-        self.senders[index.0].send_ref()
+        addr: CanonicalSocketAddr,
+        response: ConnectedResponse,
+    ) -> Result<(), SendError<(CanonicalSocketAddr, ConnectedResponse)>> {
+        self.senders[index.0].send((addr, response))
     }
 
-    pub fn send_ref_to_any(
+    pub fn send_to_any(
         &mut self,
-    ) -> Result<SendRef<ConnectedResponseWithAddr>, thingbuf::mpsc::errors::Closed> {
+        addr: CanonicalSocketAddr,
+        response: ConnectedResponse,
+    ) -> Result<(), SendError<(CanonicalSocketAddr, ConnectedResponse)>> {
         let start = self.to_any_last_index_picked + 1;
 
-        for i in (start..start + self.senders.len()).map(|i| i % self.senders.len()) {
-            if let Ok(sender) = self.senders[i].try_send_ref() {
-                self.to_any_last_index_picked = i;
+        let mut message = Some((addr, response));
 
-                return Ok(sender);
+        for i in (start..start + self.senders.len()).map(|i| i % self.senders.len()) {
+            match self.senders[i].try_send(message.take().unwrap()) {
+                Ok(()) => {
+                    self.to_any_last_index_picked = i;
+
+                    return Ok(());
+                }
+                Err(TrySendError::Full(msg)) => {
+                    message = Some(msg);
+                }
+                Err(TrySendError::Disconnected(_)) => {
+                    panic!("ConnectedResponseReceiver disconnected");
+                }
             }
         }
 
+        let (addr, response) = message.unwrap();
+
         self.to_any_last_index_picked = start % self.senders.len();
-        self.send_ref_to(SocketWorkerIndex(self.to_any_last_index_picked))
+        self.send_to(
+            SocketWorkerIndex(self.to_any_last_index_picked),
+            addr,
+            response,
+        )
     }
 }
 
-pub type ConnectedResponseReceiver =
-    thingbuf::mpsc::blocking::Receiver<ConnectedResponseWithAddr, Recycler>;
+pub type ConnectedResponseReceiver = Receiver<(CanonicalSocketAddr, ConnectedResponse)>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum PeerStatus {

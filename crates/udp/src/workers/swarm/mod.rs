@@ -47,15 +47,7 @@ pub fn run_swarm_worker(
             // sends in socket workers (doing both could cause a deadlock)
             match (request, src.get().ip()) {
                 (ConnectedRequest::Announce(request), IpAddr::V4(ip)) => {
-                    // It doesn't matter which socket worker receives announce responses
-                    let mut send_ref = response_sender
-                        .send_ref_to_any()
-                        .expect("swarm response channel is closed");
-
-                    send_ref.addr = src;
-                    send_ref.kind = ConnectedResponseKind::AnnounceIpv4;
-
-                    torrents
+                    let response = torrents
                         .ipv4
                         .0
                         .entry(request.info_hash)
@@ -67,19 +59,15 @@ pub fn run_swarm_worker(
                             &request,
                             ip.into(),
                             peer_valid_until,
-                            &mut send_ref.announce_ipv4,
                         );
+
+                    // It doesn't matter which socket worker receives announce responses
+                    response_sender
+                        .send_to_any(src, ConnectedResponse::AnnounceIpv4(response))
+                        .expect("swarm response channel is closed");
                 }
                 (ConnectedRequest::Announce(request), IpAddr::V6(ip)) => {
-                    // It doesn't matter which socket worker receives announce responses
-                    let mut send_ref = response_sender
-                        .send_ref_to_any()
-                        .expect("swarm response channel is closed");
-
-                    send_ref.addr = src;
-                    send_ref.kind = ConnectedResponseKind::AnnounceIpv6;
-
-                    torrents
+                    let response = torrents
                         .ipv6
                         .0
                         .entry(request.info_hash)
@@ -91,28 +79,26 @@ pub fn run_swarm_worker(
                             &request,
                             ip.into(),
                             peer_valid_until,
-                            &mut send_ref.announce_ipv6,
                         );
+
+                    // It doesn't matter which socket worker receives announce responses
+                    response_sender
+                        .send_to_any(src, ConnectedResponse::AnnounceIpv6(response))
+                        .expect("swarm response channel is closed");
                 }
                 (ConnectedRequest::Scrape(request), IpAddr::V4(_)) => {
-                    let mut send_ref = response_sender
-                        .send_ref_to(sender_index)
+                    let response = torrents.ipv4.scrape(request);
+
+                    response_sender
+                        .send_to(sender_index, src, ConnectedResponse::Scrape(response))
                         .expect("swarm response channel is closed");
-
-                    send_ref.addr = src;
-                    send_ref.kind = ConnectedResponseKind::Scrape;
-
-                    torrents.ipv4.scrape(request, &mut send_ref.scrape);
                 }
                 (ConnectedRequest::Scrape(request), IpAddr::V6(_)) => {
-                    let mut send_ref = response_sender
-                        .send_ref_to(sender_index)
+                    let response = torrents.ipv6.scrape(request);
+
+                    response_sender
+                        .send_to(sender_index, src, ConnectedResponse::Scrape(response))
                         .expect("swarm response channel is closed");
-
-                    send_ref.addr = src;
-                    send_ref.kind = ConnectedResponseKind::Scrape;
-
-                    torrents.ipv6.scrape(request, &mut send_ref.scrape);
                 }
             };
         }

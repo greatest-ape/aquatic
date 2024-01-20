@@ -79,24 +79,29 @@ impl TorrentMaps {
 pub struct TorrentMap<I: Ip>(pub IndexMap<InfoHash, TorrentData<I>>);
 
 impl<I: Ip> TorrentMap<I> {
-    pub fn scrape(&mut self, request: PendingScrapeRequest, response: &mut PendingScrapeResponse) {
-        response.slab_key = request.slab_key;
+    pub fn scrape(&mut self, request: PendingScrapeRequest) -> PendingScrapeResponse {
+        let torrent_stats = request
+            .info_hashes
+            .into_iter()
+            .map(|(i, info_hash)| {
+                let stats = self
+                    .0
+                    .get(&info_hash)
+                    .map(|torrent_data| torrent_data.scrape_statistics())
+                    .unwrap_or_else(|| TorrentScrapeStatistics {
+                        seeders: NumberOfPeers::new(0),
+                        leechers: NumberOfPeers::new(0),
+                        completed: NumberOfDownloads::new(0),
+                    });
 
-        let torrent_stats = request.info_hashes.into_iter().map(|(i, info_hash)| {
-            let stats = self
-                .0
-                .get(&info_hash)
-                .map(|torrent_data| torrent_data.scrape_statistics())
-                .unwrap_or_else(|| TorrentScrapeStatistics {
-                    seeders: NumberOfPeers::new(0),
-                    leechers: NumberOfPeers::new(0),
-                    completed: NumberOfDownloads::new(0),
-                });
+                (i, stats)
+            })
+            .collect();
 
-            (i, stats)
-        });
-
-        response.torrent_stats.extend(torrent_stats);
+        PendingScrapeResponse {
+            slab_key: request.slab_key,
+            torrent_stats,
+        }
     }
     /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
     fn clean_and_get_statistics(
@@ -187,8 +192,7 @@ impl<I: Ip> TorrentData<I> {
         request: &AnnounceRequest,
         ip_address: I,
         valid_until: ValidUntil,
-        response: &mut AnnounceResponse<I>,
-    ) {
+    ) -> AnnounceResponse<I> {
         let max_num_peers_to_take: usize = if request.peers_wanted.0.get() <= 0 {
             config.protocol.max_response_peers
         } else {
@@ -209,22 +213,23 @@ impl<I: Ip> TorrentData<I> {
         // Create the response before inserting the peer. This means that we
         // don't have to filter it out from the response peers, and that the
         // reported number of seeders/leechers will not include it
-        let opt_removed_peer = match self {
+        let (response, opt_removed_peer) = match self {
             Self::Small(peer_map) => {
                 let opt_removed_peer = peer_map.remove(&peer_map_key);
 
                 let (seeders, leechers) = peer_map.num_seeders_leechers();
 
-                response.fixed = AnnounceResponseFixedData {
-                    transaction_id: request.transaction_id,
-                    announce_interval: AnnounceInterval::new(
-                        config.protocol.peer_announce_interval,
-                    ),
-                    leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
-                    seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                let response = AnnounceResponse {
+                    fixed: AnnounceResponseFixedData {
+                        transaction_id: request.transaction_id,
+                        announce_interval: AnnounceInterval::new(
+                            config.protocol.peer_announce_interval,
+                        ),
+                        leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
+                        seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                    },
+                    peers: peer_map.extract_response_peers(max_num_peers_to_take),
                 };
-
-                peer_map.extract_response_peers(max_num_peers_to_take, &mut response.peers);
 
                 // Convert peer map to large variant if it is full and
                 // announcing peer is not stopped and will therefore be
@@ -233,23 +238,24 @@ impl<I: Ip> TorrentData<I> {
                     *self = Self::Large(peer_map.to_large());
                 }
 
-                opt_removed_peer
+                (response, opt_removed_peer)
             }
             Self::Large(peer_map) => {
                 let opt_removed_peer = peer_map.remove_peer(&peer_map_key);
 
                 let (seeders, leechers) = peer_map.num_seeders_leechers();
 
-                response.fixed = AnnounceResponseFixedData {
-                    transaction_id: request.transaction_id,
-                    announce_interval: AnnounceInterval::new(
-                        config.protocol.peer_announce_interval,
-                    ),
-                    leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
-                    seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                let response = AnnounceResponse {
+                    fixed: AnnounceResponseFixedData {
+                        transaction_id: request.transaction_id,
+                        announce_interval: AnnounceInterval::new(
+                            config.protocol.peer_announce_interval,
+                        ),
+                        leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
+                        seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                    },
+                    peers: peer_map.extract_response_peers(rng, max_num_peers_to_take),
                 };
-
-                peer_map.extract_response_peers(rng, max_num_peers_to_take, &mut response.peers);
 
                 // Try shrinking the map if announcing peer is stopped and
                 // will therefore not be inserted
@@ -259,7 +265,7 @@ impl<I: Ip> TorrentData<I> {
                     }
                 }
 
-                opt_removed_peer
+                (response, opt_removed_peer)
             }
         };
 
@@ -290,6 +296,8 @@ impl<I: Ip> TorrentData<I> {
                 }
             }
         };
+
+        response
     }
 
     pub fn scrape_statistics(&self) -> TorrentScrapeStatistics {
@@ -313,7 +321,7 @@ impl<I: Ip> Default for TorrentData<I> {
 }
 
 /// Store torrents with up to two peers without an extra heap allocation
-/// 
+///
 /// On public open trackers, this is likely to be the majority of torrents.
 #[derive(Default, Debug)]
 pub struct SmallPeerMap<I: Ip>(ArrayVec<(ResponsePeer<I>, Peer), SMALL_PEER_MAP_CAPACITY>);
@@ -344,12 +352,8 @@ impl<I: Ip> SmallPeerMap<I> {
         None
     }
 
-    fn extract_response_peers(
-        &self,
-        max_num_peers_to_take: usize,
-        peers: &mut Vec<ResponsePeer<I>>,
-    ) {
-        peers.extend(self.0.iter().take(max_num_peers_to_take).map(|(k, _)| k))
+    fn extract_response_peers(&self, max_num_peers_to_take: usize) -> Vec<ResponsePeer<I>> {
+        Vec::from_iter(self.0.iter().take(max_num_peers_to_take).map(|(k, _)| *k))
     }
 
     fn clean_and_get_num_peers(
@@ -427,10 +431,9 @@ impl<I: Ip> LargePeerMap<I> {
         &self,
         rng: &mut impl Rng,
         max_num_peers_to_take: usize,
-        peers: &mut Vec<ResponsePeer<I>>,
-    ) {
+    ) -> Vec<ResponsePeer<I>> {
         if self.peers.len() <= max_num_peers_to_take {
-            peers.extend(self.peers.keys());
+            self.peers.keys().copied().collect()
         } else {
             let middle_index = self.peers.len() / 2;
             let num_to_take_per_half = max_num_peers_to_take / 2;
@@ -451,12 +454,16 @@ impl<I: Ip> LargePeerMap<I> {
             let end_half_one = offset_half_one + num_to_take_per_half;
             let end_half_two = offset_half_two + num_to_take_per_half;
 
+            let mut peers = Vec::with_capacity(max_num_peers_to_take);
+
             if let Some(slice) = self.peers.get_range(offset_half_one..end_half_one) {
                 peers.extend(slice.keys());
             }
             if let Some(slice) = self.peers.get_range(offset_half_two..end_half_two) {
                 peers.extend(slice.keys());
             }
+
+            peers
         }
     }
 

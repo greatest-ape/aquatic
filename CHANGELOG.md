@@ -26,7 +26,6 @@
 * Remove support for unbounded worker channels
 * Add backpressure in socket workers. They will postpone reading from the
   socket if sending a request to a swarm worker failed
-* Reuse allocations in swarm response channel
 * Remove config key `network.poll_event_capacity`
 * Harden ConnectionValidator to make IP spoofing even more costly
 * Distribute announce responses from swarm workers over socket workers to
