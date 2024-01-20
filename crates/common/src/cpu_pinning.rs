@@ -296,12 +296,12 @@ pub fn pin_current_if_configured_to<C: CpuPinningConfig>(
 
         let cpu_set = core_cpu_sets
             .get(core_index)
-            .expect(&format!("get cpu set for core {}", core_index))
+            .unwrap_or_else(|| panic!("get cpu set for core {}", core_index))
             .to_owned();
 
         topology
             .set_cpubind(cpu_set, CPUBIND_THREAD)
-            .expect(&format!("bind thread to core {}", core_index));
+            .unwrap_or_else(|err| panic!("bind thread to core {}: {:?}", core_index, err));
 
         ::log::info!(
             "Pinned worker {:?} to cpu core {}",

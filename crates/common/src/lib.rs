@@ -39,6 +39,7 @@ impl ValidUntil {
 pub struct ServerStartInstant(Instant);
 
 impl ServerStartInstant {
+    #[allow(clippy::new_without_default)] // I prefer ::new here
     pub fn new() -> Self {
         Self(Instant::now())
     }
@@ -82,13 +83,11 @@ impl Drop for PanicSentinel {
         if ::std::thread::panicking() {
             let already_triggered = self.0.fetch_or(true, Ordering::SeqCst);
 
-            if !already_triggered {
-                if unsafe { libc::raise(15) } == -1 {
-                    panic!(
-                        "Could not raise SIGTERM: {:#}",
-                        ::std::io::Error::last_os_error()
-                    )
-                }
+            if !already_triggered && unsafe { libc::raise(15) } == -1 {
+                panic!(
+                    "Could not raise SIGTERM: {:#}",
+                    ::std::io::Error::last_os_error()
+                )
             }
         }
     }

@@ -71,7 +71,7 @@ impl AccessList {
             }
 
             new_list
-                .insert_from_line(&line)
+                .insert_from_line(line)
                 .with_context(|| format!("Invalid line in access list: {}", line))?;
         }
 
@@ -86,6 +86,7 @@ impl AccessList {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -155,10 +156,10 @@ mod tests {
     fn test_parse_info_hash() {
         let f = parse_info_hash;
 
-        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee".into()).is_ok());
-        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef".into()).is_err());
-        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeee".into()).is_err());
-        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö".into()).is_err());
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeee").is_ok());
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeef").is_err());
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeee").is_err());
+        assert!(f("aaaabbbbccccddddeeeeaaaabbbbccccddddeeeö").is_err());
     }
 
     #[test]
