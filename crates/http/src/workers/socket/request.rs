@@ -52,7 +52,7 @@ fn parse_forwarded_header(
     header_format: ReverseProxyPeerIpHeaderFormat,
     headers: &[httparse::Header<'_>],
 ) -> anyhow::Result<IpAddr> {
-    for header in headers.into_iter().rev() {
+    for header in headers.iter().rev() {
         if header.name == header_name {
             match header_format {
                 ReverseProxyPeerIpHeaderFormat::LastAddress => {

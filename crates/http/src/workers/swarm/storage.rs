@@ -66,16 +66,14 @@ impl TorrentMaps {
                         valid_until,
                     );
 
-                let response = AnnounceResponse {
+                AnnounceResponse {
                     complete: seeders,
                     incomplete: leechers,
                     announce_interval: config.protocol.peer_announce_interval,
                     peers: ResponsePeerListV4(response_peers),
                     peers6: ResponsePeerListV6(vec![]),
                     warning_message: None,
-                };
-
-                response
+                }
             }
             IpAddr::V6(peer_ip_address) => {
                 let (seeders, leechers, response_peers) = self
@@ -90,16 +88,14 @@ impl TorrentMaps {
                         valid_until,
                     );
 
-                let response = AnnounceResponse {
+                AnnounceResponse {
                     complete: seeders,
                     incomplete: leechers,
                     announce_interval: config.protocol.peer_announce_interval,
                     peers: ResponsePeerListV4(vec![]),
                     peers6: ResponsePeerListV6(response_peers),
                     warning_message: None,
-                };
-
-                response
+                }
             }
         }
     }

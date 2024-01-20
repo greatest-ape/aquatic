@@ -9,6 +9,18 @@ use serde::Serialize;
 use crate::common::Statistics;
 use crate::config::Config;
 
+#[cfg(feature = "prometheus")]
+macro_rules! set_peer_histogram_gauge {
+    ($ip_version:ident, $data:expr, $type_label:expr) => {
+        ::metrics::gauge!(
+            "aquatic_peers_per_torrent",
+            "type" => $type_label,
+            "ip_version" => $ip_version.clone(),
+        )
+        .set($data as f64);
+    };
+}
+
 pub struct StatisticsCollector {
     shared: Arc<Statistics>,
     last_update: Instant,
@@ -79,59 +91,65 @@ impl StatisticsCollector {
         if config.statistics.run_prometheus_endpoint {
             ::metrics::counter!(
                 "aquatic_requests_total",
-                requests_received.try_into().unwrap(),
                 "ip_version" => self.ip_version.clone(),
-            );
+            )
+            .increment(requests_received.try_into().unwrap());
+
             ::metrics::counter!(
                 "aquatic_responses_total",
-                responses_sent_connect.try_into().unwrap(),
                 "type" => "connect",
                 "ip_version" => self.ip_version.clone(),
-            );
+            )
+            .increment(responses_sent_connect.try_into().unwrap());
+
             ::metrics::counter!(
                 "aquatic_responses_total",
-                responses_sent_announce.try_into().unwrap(),
                 "type" => "announce",
                 "ip_version" => self.ip_version.clone(),
-            );
+            )
+            .increment(responses_sent_announce.try_into().unwrap());
+
             ::metrics::counter!(
                 "aquatic_responses_total",
-                responses_sent_scrape.try_into().unwrap(),
                 "type" => "scrape",
                 "ip_version" => self.ip_version.clone(),
-            );
+            )
+            .increment(responses_sent_scrape.try_into().unwrap());
+
             ::metrics::counter!(
                 "aquatic_responses_total",
-                responses_sent_error.try_into().unwrap(),
                 "type" => "error",
                 "ip_version" => self.ip_version.clone(),
-            );
+            )
+            .increment(responses_sent_error.try_into().unwrap());
+
             ::metrics::counter!(
                 "aquatic_rx_bytes",
-                bytes_received.try_into().unwrap(),
                 "ip_version" => self.ip_version.clone(),
-            );
+            )
+            .increment(bytes_received.try_into().unwrap());
+
             ::metrics::counter!(
                 "aquatic_tx_bytes",
-                bytes_sent.try_into().unwrap(),
                 "ip_version" => self.ip_version.clone(),
-            );
+            )
+            .increment(bytes_sent.try_into().unwrap());
 
             for (worker_index, n) in num_torrents_by_worker.iter().copied().enumerate() {
                 ::metrics::gauge!(
                     "aquatic_torrents",
-                    n as f64,
                     "ip_version" => self.ip_version.clone(),
                     "worker_index" => worker_index.to_string(),
-                );
+                )
+                .set(n as f64);
             }
             for (worker_index, n) in num_peers_by_worker.iter().copied().enumerate() {
                 ::metrics::gauge!(
                     "aquatic_peers",
-                    n as f64,
                     "ip_version" => self.ip_version.clone(),
                     "worker_index" => worker_index.to_string(),
-                );
+                )
+                .set(n as f64);
             }
 
             if config.statistics.torrent_peer_histograms {
@@ -236,83 +254,18 @@ impl PeerHistogramStatistics {
 
     #[cfg(feature = "prometheus")]
     fn update_metrics(&self, ip_version: String) {
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.min as f64,
-            "type" => "max",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p10 as f64,
-            "type" => "p10",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p20 as f64,
-            "type" => "p20",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p30 as f64,
-            "type" => "p30",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p40 as f64,
-            "type" => "p40",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p50 as f64,
-            "type" => "p50",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p60 as f64,
-            "type" => "p60",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p70 as f64,
-            "type" => "p70",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p80 as f64,
-            "type" => "p80",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p90 as f64,
-            "type" => "p90",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p99 as f64,
-            "type" => "p99",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.p999 as f64,
-            "type" => "p99.9",
-            "ip_version" => ip_version.clone(),
-        );
-        ::metrics::gauge!(
-            "aquatic_peers_per_torrent",
-            self.max as f64,
-            "type" => "max",
-            "ip_version" => ip_version.clone(),
-        );
+        set_peer_histogram_gauge!(ip_version, self.min, "min");
+        set_peer_histogram_gauge!(ip_version, self.p10, "p10");
+        set_peer_histogram_gauge!(ip_version, self.p20, "p20");
+        set_peer_histogram_gauge!(ip_version, self.p30, "p30");
+        set_peer_histogram_gauge!(ip_version, self.p40, "p40");
+        set_peer_histogram_gauge!(ip_version, self.p50, "p50");
+        set_peer_histogram_gauge!(ip_version, self.p60, "p60");
+        set_peer_histogram_gauge!(ip_version, self.p70, "p70");
+        set_peer_histogram_gauge!(ip_version, self.p80, "p80");
+        set_peer_histogram_gauge!(ip_version, self.p90, "p90");
+        set_peer_histogram_gauge!(ip_version, self.p99, "p99");
+        set_peer_histogram_gauge!(ip_version, self.p999, "p999");
+        set_peer_histogram_gauge!(ip_version, self.max, "max");
     }
 }

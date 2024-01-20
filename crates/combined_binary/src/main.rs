@@ -12,12 +12,12 @@ fn main() {
     ::std::process::exit(match run() {
         Ok(()) => 0,
         Err(None) => {
-            print_help(|| gen_info(), None);
+            print_help(gen_info, None);
 
             0
         }
         Err(opt_err @ Some(_)) => {
-            print_help(|| gen_info(), opt_err);
+            print_help(gen_info, opt_err);
 
             1
         }
@@ -62,7 +62,7 @@ fn run() -> Result<(), Option<String>> {
         arg => {
             let opt_err = if arg == "-h" || arg == "--help" {
                 None
-            } else if arg.chars().next() == Some('-') {
+            } else if arg.starts_with('-') {
                 Some("First argument must be protocol".to_string())
             } else {
                 Some("Invalid protocol".to_string())

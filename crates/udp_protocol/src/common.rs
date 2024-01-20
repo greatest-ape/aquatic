@@ -104,15 +104,15 @@ pub struct Ipv4AddrBytes(pub [u8; 4]);
 
 impl Ip for Ipv4AddrBytes {}
 
-impl Into<Ipv4Addr> for Ipv4AddrBytes {
-    fn into(self) -> Ipv4Addr {
-        Ipv4Addr::from(self.0)
+impl From<Ipv4AddrBytes> for Ipv4Addr {
+    fn from(val: Ipv4AddrBytes) -> Self {
+        Ipv4Addr::from(val.0)
     }
 }
 
-impl Into<Ipv4AddrBytes> for Ipv4Addr {
-    fn into(self) -> Ipv4AddrBytes {
-        Ipv4AddrBytes(self.octets())
+impl From<Ipv4Addr> for Ipv4AddrBytes {
+    fn from(val: Ipv4Addr) -> Self {
+        Ipv4AddrBytes(val.octets())
     }
 }
 
@@ -122,15 +122,15 @@ pub struct Ipv6AddrBytes(pub [u8; 16]);
 
 impl Ip for Ipv6AddrBytes {}
 
-impl Into<Ipv6Addr> for Ipv6AddrBytes {
-    fn into(self) -> Ipv6Addr {
-        Ipv6Addr::from(self.0)
+impl From<Ipv6AddrBytes> for Ipv6Addr {
+    fn from(val: Ipv6AddrBytes) -> Self {
+        Ipv6Addr::from(val.0)
     }
 }
 
-impl Into<Ipv6AddrBytes> for Ipv6Addr {
-    fn into(self) -> Ipv6AddrBytes {
-        Ipv6AddrBytes(self.octets())
+impl From<Ipv6Addr> for Ipv6AddrBytes {
+    fn from(val: Ipv6Addr) -> Self {
+        Ipv6AddrBytes(val.octets())
     }
 }
 

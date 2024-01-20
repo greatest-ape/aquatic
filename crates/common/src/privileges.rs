@@ -48,15 +48,13 @@ impl PrivilegeDropper {
     }
 
     pub fn after_socket_creation(self) -> anyhow::Result<()> {
-        if self.config.drop_privileges {
-            if self.barrier.wait().is_leader() {
-                PrivDrop::default()
-                    .chroot(self.config.chroot_path.clone())
-                    .group(self.config.group.clone())
-                    .user(self.config.user.clone())
-                    .apply()
-                    .with_context(|| "couldn't drop privileges after socket creation")?;
-            }
+        if self.config.drop_privileges && self.barrier.wait().is_leader() {
+            PrivDrop::default()
+                .chroot(self.config.chroot_path.clone())
+                .group(self.config.group.clone())
+                .user(self.config.user.clone())
+                .apply()
+                .with_context(|| "couldn't drop privileges after socket creation")?;
         }
 
         Ok(())

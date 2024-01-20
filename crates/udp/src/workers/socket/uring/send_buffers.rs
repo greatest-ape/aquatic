@@ -6,14 +6,15 @@ use std::{
 };
 
 use aquatic_common::CanonicalSocketAddr;
+use aquatic_udp_protocol::Response;
 use io_uring::opcode::SendMsg;
 
-use crate::{common::CowResponse, config::Config};
+use crate::config::Config;
 
 use super::{RESPONSE_BUF_LEN, SOCKET_IDENTIFIER};
 
-pub enum Error<'a> {
-    NoBuffers(CowResponse<'a>),
+pub enum Error {
+    NoBuffers(Response),
     SerializationFailed(std::io::Error),
 }
 
@@ -57,11 +58,11 @@ impl SendBuffers {
         self.likely_next_free_index = 0;
     }
 
-    pub fn prepare_entry<'a>(
+    pub fn prepare_entry(
         &mut self,
-        response: CowResponse<'a>,
+        response: Response,
         addr: CanonicalSocketAddr,
-    ) -> Result<io_uring::squeue::Entry, Error<'a>> {
+    ) -> Result<io_uring::squeue::Entry, Error> {
         let index = if let Some(index) = self.next_free_index() {
             index
         } else {
@@ -163,7 +164,7 @@ impl SendBuffer {
 
     fn prepare_entry(
         &mut self,
-        response: CowResponse,
+        response: Response,
         addr: CanonicalSocketAddr,
         socket_is_ipv4: bool,
         metadata: &mut SendBufferMetadata,
@@ -237,12 +238,12 @@ pub enum ResponseType {
 }
 
 impl ResponseType {
-    fn from_response(response: &CowResponse) -> Self {
+    fn from_response(response: &Response) -> Self {
         match response {
-            CowResponse::Connect(_) => Self::Connect,
-            CowResponse::AnnounceIpv4(_) | CowResponse::AnnounceIpv6(_) => Self::Announce,
-            CowResponse::Scrape(_) => Self::Scrape,
-            CowResponse::Error(_) => Self::Error,
+            Response::Connect(_) => Self::Connect,
+            Response::AnnounceIpv4(_) | Response::AnnounceIpv6(_) => Self::Announce,
+            Response::Scrape(_) => Self::Scrape,
+            Response::Error(_) => Self::Error,
         }
     }
 }

@@ -43,7 +43,7 @@ pub fn urldecode_20_bytes(value: &str) -> anyhow::Result<[u8; 20]> {
 
             let hex = [first as u8, second as u8];
 
-            hex::decode_to_slice(&hex, &mut out_arr[i..i + 1])
+            hex::decode_to_slice(hex, &mut out_arr[i..i + 1])
                 .map_err(|err| anyhow::anyhow!("hex decode error: {:?}", err))?;
         } else {
             out_arr[i] = c as u8;
@@ -280,6 +280,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[quickcheck]
     fn test_urlencode_urldecode_20_bytes(
         a: u8,

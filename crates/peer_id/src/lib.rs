@@ -234,7 +234,7 @@ mod tests {
 
         let len = bytes.len();
 
-        (&mut peer_id.0[..len]).copy_from_slice(bytes);
+        peer_id.0[..len].copy_from_slice(bytes);
 
         peer_id
     }

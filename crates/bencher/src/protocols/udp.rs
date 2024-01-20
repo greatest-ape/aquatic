@@ -259,6 +259,7 @@ struct AquaticUdpRunner {
 }
 
 impl AquaticUdpRunner {
+    #[allow(clippy::new_ret_no_self)]
     fn new(
         socket_workers: usize,
         swarm_workers: usize,
@@ -275,6 +276,7 @@ impl AquaticUdpRunner {
 impl ProcessRunner for AquaticUdpRunner {
     type Command = UdpCommand;
 
+    #[allow(clippy::field_reassign_with_default)]
     fn run(
         &self,
         command: &Self::Command,
@@ -322,6 +324,7 @@ struct OpenTrackerUdpRunner {
 }
 
 impl OpenTrackerUdpRunner {
+    #[allow(clippy::new_ret_no_self)]
     fn new(workers: usize, priority: Priority) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
         Rc::new(Self { workers, priority })
     }
@@ -368,6 +371,7 @@ impl ProcessRunner for OpenTrackerUdpRunner {
 struct ChihayaUdpRunner;
 
 impl ChihayaUdpRunner {
+    #[allow(clippy::new_ret_no_self)]
     fn new() -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
         Rc::new(Self {})
     }
@@ -426,6 +430,7 @@ struct AquaticUdpLoadTestRunner {
 impl ProcessRunner for AquaticUdpLoadTestRunner {
     type Command = UdpCommand;
 
+    #[allow(clippy::field_reassign_with_default)]
     fn run(
         &self,
         command: &Self::Command,

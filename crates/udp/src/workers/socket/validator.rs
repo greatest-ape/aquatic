@@ -59,8 +59,8 @@ impl ConnectionValidator {
 
         let mut connection_id_bytes = [0u8; 8];
 
-        (&mut connection_id_bytes[..4]).copy_from_slice(&elapsed);
-        (&mut connection_id_bytes[4..]).copy_from_slice(&hash);
+        connection_id_bytes[..4].copy_from_slice(&elapsed);
+        connection_id_bytes[4..].copy_from_slice(&hash);
 
         ConnectionId::new(i64::from_ne_bytes(connection_id_bytes))
     }
@@ -78,7 +78,7 @@ impl ConnectionValidator {
             return false;
         }
 
-        let tracker_elapsed = u64::from(self.start_time.elapsed().as_secs());
+        let tracker_elapsed = self.start_time.elapsed().as_secs();
         let client_elapsed = u64::from(u32::from_ne_bytes(elapsed));
         let client_expiration_time = client_elapsed + self.max_connection_age;
 

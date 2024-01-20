@@ -63,12 +63,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         let ip = if config.server_address.is_ipv6() {
             Ipv6Addr::LOCALHOST.into()
+        } else if config.network.multiple_client_ipv4s {
+            Ipv4Addr::new(127, 0, 0, 1 + i).into()
         } else {
-            if config.network.multiple_client_ipv4s {
-                Ipv4Addr::new(127, 0, 0, 1 + i).into()
-            } else {
-                Ipv4Addr::LOCALHOST.into()
-            }
+            Ipv4Addr::LOCALHOST.into()
         };
 
         let addr = SocketAddr::new(ip, port);

@@ -152,9 +152,9 @@ pub fn run_statistics_worker(
                 for (prefix, count) in prefixes {
                     ::metrics::gauge!(
                         "aquatic_peer_id_prefixes",
-                        count as f64,
                         "prefix_hex" => prefix.to_string(),
-                    );
+                    )
+                    .set(count as f64);
                 }
             }
 
@@ -169,9 +169,9 @@ pub fn run_statistics_worker(
                 if config.statistics.run_prometheus_endpoint {
                     ::metrics::gauge!(
                         "aquatic_peer_clients",
-                        count as f64,
                         "client" => client.to_string(),
-                    );
+                    )
+                    .set(count as f64);
                 }
             }
 

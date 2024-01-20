@@ -248,7 +248,11 @@ impl TorrentMaps {
                     regarding_offer_id: offer_id,
                 };
 
-                if let Some(_) = answer_receiver.expecting_answers.remove(&expecting_answer) {
+                if answer_receiver
+                    .expecting_answers
+                    .remove(&expecting_answer)
+                    .is_some()
+                {
                     let answer_out_message = AnswerOutMessage {
                         action: AnnounceAction::Announce,
                         peer_id: request.peer_id,
@@ -426,13 +430,11 @@ impl TorrentMaps {
                 #[cfg(feature = "metrics")]
                 self.peers_gauge_ipv4.decrement(1.0);
             }
-        } else {
-            if let Some(torrent_data) = self.ipv6.get_mut(&info_hash) {
-                torrent_data.remove_peer(peer_id);
+        } else if let Some(torrent_data) = self.ipv6.get_mut(&info_hash) {
+            torrent_data.remove_peer(peer_id);
 
-                #[cfg(feature = "metrics")]
-                self.peers_gauge_ipv6.decrement(1.0);
-            }
+            #[cfg(feature = "metrics")]
+            self.peers_gauge_ipv6.decrement(1.0);
         }
     }
 }

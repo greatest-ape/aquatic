@@ -86,7 +86,7 @@ impl AnnounceRequest {
         let mut position = 0usize;
 
         for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes) {
-            let segment_end = ampersand_iter.next().unwrap_or_else(|| query_string.len());
+            let segment_end = ampersand_iter.next().unwrap_or(query_string.len());
 
             let key = query_string
                 .get(position..equal_sign_index)
@@ -207,7 +207,7 @@ impl ScrapeRequest {
         let mut position = 0usize;
 
         for equal_sign_index in ::memchr::memchr_iter(b'=', query_string_bytes) {
-            let segment_end = ampersand_iter.next().unwrap_or_else(|| query_string.len());
+            let segment_end = ampersand_iter.next().unwrap_or(query_string.len());
 
             let key = query_string
                 .get(position..equal_sign_index)
@@ -348,7 +348,7 @@ mod tests {
         let mut bytes = Vec::new();
 
         bytes.extend_from_slice(b"GET ");
-        bytes.extend_from_slice(&ANNOUNCE_REQUEST_PATH.as_bytes());
+        bytes.extend_from_slice(ANNOUNCE_REQUEST_PATH.as_bytes());
         bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
 
         let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();
@@ -362,7 +362,7 @@ mod tests {
         let mut bytes = Vec::new();
 
         bytes.extend_from_slice(b"GET ");
-        bytes.extend_from_slice(&SCRAPE_REQUEST_PATH.as_bytes());
+        bytes.extend_from_slice(SCRAPE_REQUEST_PATH.as_bytes());
         bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
 
         let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();

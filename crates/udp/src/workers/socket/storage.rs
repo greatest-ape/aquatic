@@ -44,7 +44,7 @@ impl PendingScrapeResponseSlab {
 
         for (i, info_hash) in request.info_hashes.into_iter().enumerate() {
             let split_request = split_requests
-                .entry(SwarmWorkerIndex::from_info_hash(&config, info_hash))
+                .entry(SwarmWorkerIndex::from_info_hash(config, info_hash))
                 .or_insert_with(|| PendingScrapeRequest {
                     slab_key,
                     info_hashes: BTreeMap::new(),
@@ -130,9 +130,10 @@ mod tests {
             return TestResult::discard();
         }
 
-        let mut config = Config::default();
-
-        config.swarm_workers = swarm_workers as usize;
+        let config = Config {
+            swarm_workers: swarm_workers as usize,
+            ..Default::default()
+        };
 
         let valid_until = ValidUntil::new(ServerStartInstant::new(), 1);
 

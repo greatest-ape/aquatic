@@ -2,7 +2,6 @@ mod buf_ring;
 mod recv_helper;
 mod send_buffers;
 
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::net::UdpSocket;
@@ -97,6 +96,7 @@ pub struct SocketWorker {
 }
 
 impl SocketWorker {
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         _sentinel: PanicSentinel,
         shared_state: State,
@@ -137,7 +137,7 @@ impl SocketWorker {
             .build()
             .unwrap();
 
-        let recv_sqe = recv_helper.create_entry(buf_ring.bgid().try_into().unwrap());
+        let recv_sqe = recv_helper.create_entry(buf_ring.bgid());
 
         // This timeout enables regular updates of pending_scrape_valid_until
         // and wakes the main loop to send any pending responses in the case
@@ -210,15 +210,14 @@ impl SocketWorker {
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((response, addr)) = self.local_responses.pop_front() {
-                    match self.send_buffers.prepare_entry(response.into(), addr) {
+                    match self.send_buffers.prepare_entry(response, addr) {
                         Ok(entry) => {
                             unsafe { ring.submission().push(&entry).unwrap() };
 
                             num_send_added += 1;
                         }
                         Err(send_buffers::Error::NoBuffers(response)) => {
-                            self.local_responses
-                                .push_front((response.into_owned(), addr));
+                            self.local_responses.push_front((response, addr));
 
                             break;
                         }
@@ -233,40 +232,32 @@ impl SocketWorker {
 
             // Enqueue swarm worker responses
             for _ in 0..(sq_space - num_send_added) {
-                let recv_ref = if let Ok(recv_ref) = self.response_receiver.try_recv_ref() {
-                    recv_ref
+                let (addr, response) = if let Ok(r) = self.response_receiver.try_recv() {
+                    r
                 } else {
                     break;
                 };
 
-                let response = match recv_ref.kind {
-                    ConnectedResponseKind::AnnounceIpv4 => {
-                        CowResponse::AnnounceIpv4(Cow::Borrowed(&recv_ref.announce_ipv4))
-                    }
-                    ConnectedResponseKind::AnnounceIpv6 => {
-                        CowResponse::AnnounceIpv6(Cow::Borrowed(&recv_ref.announce_ipv6))
-                    }
-                    ConnectedResponseKind::Scrape => {
-                        if let Some(response) = self
-                            .pending_scrape_responses
-                            .add_and_get_finished(&recv_ref.scrape)
-                        {
-                            CowResponse::Scrape(Cow::Owned(response))
+                let response = match response {
+                    ConnectedResponse::AnnounceIpv4(r) => Response::AnnounceIpv4(r),
+                    ConnectedResponse::AnnounceIpv6(r) => Response::AnnounceIpv6(r),
+                    ConnectedResponse::Scrape(r) => {
+                        if let Some(r) = self.pending_scrape_responses.add_and_get_finished(&r) {
+                            Response::Scrape(r)
                         } else {
                             continue;
                         }
                     }
                 };
 
-                match self.send_buffers.prepare_entry(response, recv_ref.addr) {
+                match self.send_buffers.prepare_entry(response, addr) {
                     Ok(entry) => {
                         unsafe { ring.submission().push(&entry).unwrap() };
 
                         num_send_added += 1;
                     }
                     Err(send_buffers::Error::NoBuffers(response)) => {
-                        self.local_responses
-                            .push_back((response.into_owned(), recv_ref.addr));
+                        self.local_responses.push_back((response, addr));
 
                         break;
                     }
@@ -481,11 +472,11 @@ impl SocketWorker {
                         let worker_index =
                             SwarmWorkerIndex::from_info_hash(&self.config, request.info_hash);
 
-                        if let Err(_) = self.request_sender.try_send_to(
-                            worker_index,
-                            ConnectedRequest::Announce(request),
-                            src,
-                        ) {
+                        if self
+                            .request_sender
+                            .try_send_to(worker_index, ConnectedRequest::Announce(request), src)
+                            .is_err()
+                        {
                             ::log::warn!("request sender full, dropping request");
                         }
                     } else {
@@ -510,11 +501,11 @@ impl SocketWorker {
                     );
 
                     for (swarm_worker_index, request) in split_requests {
-                        if let Err(_) = self.request_sender.try_send_to(
-                            swarm_worker_index,
-                            ConnectedRequest::Scrape(request),
-                            src,
-                        ) {
+                        if self
+                            .request_sender
+                            .try_send_to(swarm_worker_index, ConnectedRequest::Scrape(request), src)
+                            .is_err()
+                        {
                             ::log::warn!("request sender full, dropping request");
                         }
                     }

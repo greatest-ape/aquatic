@@ -47,6 +47,7 @@ impl Options {
     {
         let mut options = Options::default();
 
+        #[allow(clippy::while_let_loop)] // False positive
         loop {
             if let Some(arg) = arg_iter.next() {
                 match arg.as_str() {

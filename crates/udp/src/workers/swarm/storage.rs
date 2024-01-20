@@ -10,6 +10,7 @@ use aquatic_common::{
 };
 
 use aquatic_udp_protocol::*;
+use arrayvec::ArrayVec;
 use crossbeam_channel::Sender;
 use hdrhistogram::Histogram;
 use rand::prelude::SmallRng;
@@ -17,6 +18,8 @@ use rand::Rng;
 
 use crate::common::*;
 use crate::config::Config;
+
+const SMALL_PEER_MAP_CAPACITY: usize = 2;
 
 pub struct TorrentMaps {
     pub ipv4: TorrentMap<Ipv4AddrBytes>,
@@ -76,20 +79,29 @@ impl TorrentMaps {
 pub struct TorrentMap<I: Ip>(pub IndexMap<InfoHash, TorrentData<I>>);
 
 impl<I: Ip> TorrentMap<I> {
-    pub fn scrape(&mut self, request: PendingScrapeRequest, response: &mut PendingScrapeResponse) {
-        response.slab_key = request.slab_key;
+    pub fn scrape(&mut self, request: PendingScrapeRequest) -> PendingScrapeResponse {
+        let torrent_stats = request
+            .info_hashes
+            .into_iter()
+            .map(|(i, info_hash)| {
+                let stats = self
+                    .0
+                    .get(&info_hash)
+                    .map(|torrent_data| torrent_data.scrape_statistics())
+                    .unwrap_or_else(|| TorrentScrapeStatistics {
+                        seeders: NumberOfPeers::new(0),
+                        leechers: NumberOfPeers::new(0),
+                        completed: NumberOfDownloads::new(0),
+                    });
 
-        let torrent_stats = request.info_hashes.into_iter().map(|(i, info_hash)| {
-            let stats = self
-                .0
-                .get(&info_hash)
-                .map(|torrent_data| torrent_data.scrape_statistics())
-                .unwrap_or_else(|| create_torrent_scrape_statistics(0, 0));
+                (i, stats)
+            })
+            .collect();
 
-            (i, stats)
-        });
-
-        response.torrent_stats.extend(torrent_stats);
+        PendingScrapeResponse {
+            slab_key: request.slab_key,
+            torrent_stats,
+        }
     }
     /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
     fn clean_and_get_statistics(
@@ -100,7 +112,7 @@ impl<I: Ip> TorrentMap<I> {
         access_list_mode: AccessListMode,
         now: SecondsSinceServerStart,
     ) -> (usize, Option<Histogram<u64>>) {
-        let mut num_peers = 0;
+        let mut total_num_peers = 0;
 
         let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.torrent_peer_histograms
         {
@@ -124,17 +136,27 @@ impl<I: Ip> TorrentMap<I> {
                 return false;
             }
 
-            torrent.clean(config, statistics_sender, now);
+            let num_peers = match torrent {
+                TorrentData::Small(peer_map) => {
+                    peer_map.clean_and_get_num_peers(config, statistics_sender, now)
+                }
+                TorrentData::Large(peer_map) => {
+                    let num_peers =
+                        peer_map.clean_and_get_num_peers(config, statistics_sender, now);
 
-            num_peers += torrent.peers.len();
+                    if let Some(peer_map) = peer_map.try_shrink() {
+                        *torrent = TorrentData::Small(peer_map);
+                    }
+
+                    num_peers
+                }
+            };
+
+            total_num_peers += num_peers;
 
             match opt_histogram {
-                Some(ref mut histogram) if torrent.peers.len() != 0 => {
-                    let n = torrent
-                        .peers
-                        .len()
-                        .try_into()
-                        .expect("Couldn't fit usize into u64");
+                Some(ref mut histogram) if num_peers > 0 => {
+                    let n = num_peers.try_into().expect("Couldn't fit usize into u64");
 
                     if let Err(err) = histogram.record(n) {
                         ::log::error!("Couldn't record {} to histogram: {:#}", n, err);
@@ -143,12 +165,12 @@ impl<I: Ip> TorrentMap<I> {
                 _ => (),
             }
 
-            !torrent.peers.is_empty()
+            num_peers > 0
         });
 
         self.0.shrink_to_fit();
 
-        (num_peers, opt_histogram)
+        (total_num_peers, opt_histogram)
     }
 
     pub fn num_torrents(&self) -> usize {
@@ -156,9 +178,9 @@ impl<I: Ip> TorrentMap<I> {
     }
 }
 
-pub struct TorrentData<I: Ip> {
-    peers: IndexMap<ResponsePeer<I>, Peer>,
-    num_seeders: usize,
+pub enum TorrentData<I: Ip> {
+    Small(SmallPeerMap<I>),
+    Large(LargePeerMap<I>),
 }
 
 impl<I: Ip> TorrentData<I> {
@@ -170,8 +192,7 @@ impl<I: Ip> TorrentData<I> {
         request: &AnnounceRequest,
         ip_address: I,
         valid_until: ValidUntil,
-        response: &mut AnnounceResponse<I>,
-    ) {
+    ) -> AnnounceResponse<I> {
         let max_num_peers_to_take: usize = if request.peers_wanted.0.get() <= 0 {
             config.protocol.max_response_peers
         } else {
@@ -189,60 +210,77 @@ impl<I: Ip> TorrentData<I> {
             port: request.port,
         };
 
-        let opt_removed_peer = self.peers.remove(&peer_map_key);
-
-        if let Some(Peer {
-            is_seeder: true, ..
-        }) = opt_removed_peer
-        {
-            self.num_seeders -= 1;
-        }
-
         // Create the response before inserting the peer. This means that we
         // don't have to filter it out from the response peers, and that the
         // reported number of seeders/leechers will not include it
+        let (response, opt_removed_peer) = match self {
+            Self::Small(peer_map) => {
+                let opt_removed_peer = peer_map.remove(&peer_map_key);
 
-        response.fixed = AnnounceResponseFixedData {
-            transaction_id: request.transaction_id,
-            announce_interval: AnnounceInterval::new(config.protocol.peer_announce_interval),
-            leechers: NumberOfPeers::new(self.num_leechers().try_into().unwrap_or(i32::MAX)),
-            seeders: NumberOfPeers::new(self.num_seeders().try_into().unwrap_or(i32::MAX)),
+                let (seeders, leechers) = peer_map.num_seeders_leechers();
+
+                let response = AnnounceResponse {
+                    fixed: AnnounceResponseFixedData {
+                        transaction_id: request.transaction_id,
+                        announce_interval: AnnounceInterval::new(
+                            config.protocol.peer_announce_interval,
+                        ),
+                        leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
+                        seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                    },
+                    peers: peer_map.extract_response_peers(max_num_peers_to_take),
+                };
+
+                // Convert peer map to large variant if it is full and
+                // announcing peer is not stopped and will therefore be
+                // inserted
+                if peer_map.is_full() && status != PeerStatus::Stopped {
+                    *self = Self::Large(peer_map.to_large());
+                }
+
+                (response, opt_removed_peer)
+            }
+            Self::Large(peer_map) => {
+                let opt_removed_peer = peer_map.remove_peer(&peer_map_key);
+
+                let (seeders, leechers) = peer_map.num_seeders_leechers();
+
+                let response = AnnounceResponse {
+                    fixed: AnnounceResponseFixedData {
+                        transaction_id: request.transaction_id,
+                        announce_interval: AnnounceInterval::new(
+                            config.protocol.peer_announce_interval,
+                        ),
+                        leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
+                        seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                    },
+                    peers: peer_map.extract_response_peers(rng, max_num_peers_to_take),
+                };
+
+                // Try shrinking the map if announcing peer is stopped and
+                // will therefore not be inserted
+                if status == PeerStatus::Stopped {
+                    if let Some(peer_map) = peer_map.try_shrink() {
+                        *self = Self::Small(peer_map);
+                    }
+                }
+
+                (response, opt_removed_peer)
+            }
         };
 
-        extract_response_peers(
-            rng,
-            &self.peers,
-            max_num_peers_to_take,
-            |k, _| *k,
-            &mut response.peers,
-        );
-
         match status {
-            PeerStatus::Leeching => {
+            PeerStatus::Leeching | PeerStatus::Seeding => {
                 let peer = Peer {
                     peer_id: request.peer_id,
-                    is_seeder: false,
+                    is_seeder: status == PeerStatus::Seeding,
                     valid_until,
                 };
 
-                self.peers.insert(peer_map_key, peer);
-
-                if config.statistics.peer_clients && opt_removed_peer.is_none() {
-                    statistics_sender
-                        .try_send(StatisticsMessage::PeerAdded(request.peer_id))
-                        .expect("statistics channel should be unbounded");
+                match self {
+                    Self::Small(peer_map) => peer_map.insert(peer_map_key, peer),
+                    Self::Large(peer_map) => peer_map.insert(peer_map_key, peer),
                 }
-            }
-            PeerStatus::Seeding => {
-                let peer = Peer {
-                    peer_id: request.peer_id,
-                    is_seeder: true,
-                    valid_until,
-                };
-
-                self.peers.insert(peer_map_key, peer);
-
-                self.num_seeders += 1;
 
                 if config.statistics.peer_clients && opt_removed_peer.is_none() {
                     statistics_sender
@@ -258,30 +296,184 @@ impl<I: Ip> TorrentData<I> {
                 }
             }
         };
-    }
 
-    pub fn num_leechers(&self) -> usize {
-        self.peers.len() - self.num_seeders
-    }
-
-    pub fn num_seeders(&self) -> usize {
-        self.num_seeders
+        response
     }
 
     pub fn scrape_statistics(&self) -> TorrentScrapeStatistics {
-        create_torrent_scrape_statistics(
-            self.num_seeders.try_into().unwrap_or(i32::MAX),
-            self.num_leechers().try_into().unwrap_or(i32::MAX),
-        )
+        let (seeders, leechers) = match self {
+            Self::Small(peer_map) => peer_map.num_seeders_leechers(),
+            Self::Large(peer_map) => peer_map.num_seeders_leechers(),
+        };
+
+        TorrentScrapeStatistics {
+            seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+            leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
+            completed: NumberOfDownloads::new(0),
+        }
+    }
+}
+
+impl<I: Ip> Default for TorrentData<I> {
+    fn default() -> Self {
+        Self::Small(SmallPeerMap(ArrayVec::default()))
+    }
+}
+
+/// Store torrents with up to two peers without an extra heap allocation
+///
+/// On public open trackers, this is likely to be the majority of torrents.
+#[derive(Default, Debug)]
+pub struct SmallPeerMap<I: Ip>(ArrayVec<(ResponsePeer<I>, Peer), SMALL_PEER_MAP_CAPACITY>);
+
+impl<I: Ip> SmallPeerMap<I> {
+    fn is_full(&self) -> bool {
+        self.0.is_full()
     }
 
-    /// Remove inactive peers and reclaim space
-    fn clean(
+    fn num_seeders_leechers(&self) -> (usize, usize) {
+        let seeders = self.0.iter().filter(|(_, p)| p.is_seeder).count();
+        let leechers = self.0.len() - seeders;
+
+        (seeders, leechers)
+    }
+
+    fn insert(&mut self, key: ResponsePeer<I>, peer: Peer) {
+        self.0.push((key, peer));
+    }
+
+    fn remove(&mut self, key: &ResponsePeer<I>) -> Option<Peer> {
+        for (i, (k, _)) in self.0.iter().enumerate() {
+            if k == key {
+                return Some(self.0.remove(i).1);
+            }
+        }
+
+        None
+    }
+
+    fn extract_response_peers(&self, max_num_peers_to_take: usize) -> Vec<ResponsePeer<I>> {
+        Vec::from_iter(self.0.iter().take(max_num_peers_to_take).map(|(k, _)| *k))
+    }
+
+    fn clean_and_get_num_peers(
         &mut self,
         config: &Config,
         statistics_sender: &Sender<StatisticsMessage>,
         now: SecondsSinceServerStart,
-    ) {
+    ) -> usize {
+        self.0.retain(|(_, peer)| {
+            let keep = peer.valid_until.valid(now);
+
+            if !keep
+                && config.statistics.peer_clients
+                && statistics_sender
+                    .try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
+                    .is_err()
+            {
+                // Should never happen in practice
+                ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
+            }
+
+            keep
+        });
+
+        self.0.len()
+    }
+
+    fn to_large(&self) -> LargePeerMap<I> {
+        let (num_seeders, _) = self.num_seeders_leechers();
+        let peers = self.0.iter().copied().collect();
+
+        LargePeerMap { peers, num_seeders }
+    }
+}
+
+#[derive(Default)]
+pub struct LargePeerMap<I: Ip> {
+    peers: IndexMap<ResponsePeer<I>, Peer>,
+    num_seeders: usize,
+}
+
+impl<I: Ip> LargePeerMap<I> {
+    fn num_seeders_leechers(&self) -> (usize, usize) {
+        (self.num_seeders, self.peers.len() - self.num_seeders)
+    }
+
+    fn insert(&mut self, key: ResponsePeer<I>, peer: Peer) {
+        if peer.is_seeder {
+            self.num_seeders += 1;
+        }
+
+        self.peers.insert(key, peer);
+    }
+
+    fn remove_peer(&mut self, key: &ResponsePeer<I>) -> Option<Peer> {
+        let opt_removed_peer = self.peers.remove(key);
+
+        if let Some(Peer {
+            is_seeder: true, ..
+        }) = opt_removed_peer
+        {
+            self.num_seeders -= 1;
+        }
+
+        opt_removed_peer
+    }
+
+    /// Extract response peers
+    ///
+    /// If there are more peers in map than `max_num_peers_to_take`, do a random
+    /// selection of peers from first and second halves of map in order to avoid
+    /// returning too homogeneous peers.
+    ///
+    /// Does NOT filter out announcing peer.
+    pub fn extract_response_peers(
+        &self,
+        rng: &mut impl Rng,
+        max_num_peers_to_take: usize,
+    ) -> Vec<ResponsePeer<I>> {
+        if self.peers.len() <= max_num_peers_to_take {
+            self.peers.keys().copied().collect()
+        } else {
+            let middle_index = self.peers.len() / 2;
+            let num_to_take_per_half = max_num_peers_to_take / 2;
+
+            let offset_half_one = {
+                let from = 0;
+                let to = usize::max(1, middle_index - num_to_take_per_half);
+
+                rng.gen_range(from..to)
+            };
+            let offset_half_two = {
+                let from = middle_index;
+                let to = usize::max(middle_index + 1, self.peers.len() - num_to_take_per_half);
+
+                rng.gen_range(from..to)
+            };
+
+            let end_half_one = offset_half_one + num_to_take_per_half;
+            let end_half_two = offset_half_two + num_to_take_per_half;
+
+            let mut peers = Vec::with_capacity(max_num_peers_to_take);
+
+            if let Some(slice) = self.peers.get_range(offset_half_one..end_half_one) {
+                peers.extend(slice.keys());
+            }
+            if let Some(slice) = self.peers.get_range(offset_half_two..end_half_two) {
+                peers.extend(slice.keys());
+            }
+
+            peers
+        }
+    }
+
+    fn clean_and_get_num_peers(
+        &mut self,
+        config: &Config,
+        statistics_sender: &Sender<StatisticsMessage>,
+        now: SecondsSinceServerStart,
+    ) -> usize {
         self.peers.retain(|_, peer| {
             let keep = peer.valid_until.valid(now);
 
@@ -289,13 +481,13 @@ impl<I: Ip> TorrentData<I> {
                 if peer.is_seeder {
                     self.num_seeders -= 1;
                 }
-                if config.statistics.peer_clients {
-                    if let Err(_) =
-                        statistics_sender.try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
-                    {
-                        // Should never happen in practice
-                        ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
-                    }
+                if config.statistics.peer_clients
+                    && statistics_sender
+                        .try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
+                        .is_err()
+                {
+                    // Should never happen in practice
+                    ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
                 }
             }
 
@@ -305,79 +497,22 @@ impl<I: Ip> TorrentData<I> {
         if !self.peers.is_empty() {
             self.peers.shrink_to_fit();
         }
+
+        self.peers.len()
+    }
+
+    fn try_shrink(&mut self) -> Option<SmallPeerMap<I>> {
+        (self.peers.len() <= SMALL_PEER_MAP_CAPACITY).then(|| {
+            SmallPeerMap(ArrayVec::from_iter(
+                self.peers.iter().map(|(k, v)| (*k, *v)),
+            ))
+        })
     }
 }
 
-impl<I: Ip> Default for TorrentData<I> {
-    fn default() -> Self {
-        Self {
-            peers: Default::default(),
-            num_seeders: 0,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Peer {
     peer_id: PeerId,
     is_seeder: bool,
     valid_until: ValidUntil,
-}
-
-/// Extract response peers
-///
-/// If there are more peers in map than `max_num_peers_to_take`, do a random
-/// selection of peers from first and second halves of map in order to avoid
-/// returning too homogeneous peers.
-///
-/// Does NOT filter out announcing peer.
-#[inline]
-pub fn extract_response_peers<K, V, R, F>(
-    rng: &mut impl Rng,
-    peer_map: &IndexMap<K, V>,
-    max_num_peers_to_take: usize,
-    peer_conversion_function: F,
-    peers: &mut Vec<R>,
-) where
-    K: Eq + ::std::hash::Hash,
-    F: Fn(&K, &V) -> R,
-{
-    if peer_map.len() <= max_num_peers_to_take {
-        peers.extend(peer_map.iter().map(|(k, v)| peer_conversion_function(k, v)));
-    } else {
-        let middle_index = peer_map.len() / 2;
-        let num_to_take_per_half = max_num_peers_to_take / 2;
-
-        let offset_half_one = {
-            let from = 0;
-            let to = usize::max(1, middle_index - num_to_take_per_half);
-
-            rng.gen_range(from..to)
-        };
-        let offset_half_two = {
-            let from = middle_index;
-            let to = usize::max(middle_index + 1, peer_map.len() - num_to_take_per_half);
-
-            rng.gen_range(from..to)
-        };
-
-        let end_half_one = offset_half_one + num_to_take_per_half;
-        let end_half_two = offset_half_two + num_to_take_per_half;
-
-        if let Some(slice) = peer_map.get_range(offset_half_one..end_half_one) {
-            peers.extend(slice.iter().map(|(k, v)| peer_conversion_function(k, v)));
-        }
-        if let Some(slice) = peer_map.get_range(offset_half_two..end_half_two) {
-            peers.extend(slice.iter().map(|(k, v)| peer_conversion_function(k, v)));
-        }
-    }
-}
-
-#[inline(always)]
-fn create_torrent_scrape_statistics(seeders: i32, leechers: i32) -> TorrentScrapeStatistics {
-    TorrentScrapeStatistics {
-        seeders: NumberOfPeers::new(seeders),
-        completed: NumberOfDownloads::new(0), // No implementation planned
-        leechers: NumberOfPeers::new(leechers),
-    }
 }

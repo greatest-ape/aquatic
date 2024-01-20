@@ -11,6 +11,7 @@ use crate::config::Config;
 
 use super::{SOCKET_IDENTIFIER, USER_DATA_RECV};
 
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
     RecvMsgParseError,
     RecvMsgTruncated,

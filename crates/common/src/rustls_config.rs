@@ -46,6 +46,7 @@ pub fn create_rustls_config(
             .next()
             .ok_or(anyhow::anyhow!("No private keys in file"))??;
 
+        #[allow(clippy::let_and_return)] // Using temporary variable fixes lifetime issue
         key
     };
 
