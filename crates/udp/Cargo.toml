@@ -56,15 +56,14 @@ time = { version = "0.3", features = ["formatting"] }
 tinytemplate = "1"
 
 # prometheus feature
-metrics = { version = "0.21", optional = true }
-metrics-util = { version = "0.15", optional = true }
-metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
+metrics = { version = "0.22", optional = true }
+metrics-util = { version = "0.16", optional = true }
+metrics-exporter-prometheus = { version = "0.13", optional = true, default-features = false, features = ["http-listener"] }
 
 # io-uring feature
 io-uring = { version = "0.6", optional = true }
 
 [dev-dependencies]
-hex = "0.4"
 tempfile = "3"
 quickcheck = "1"
 quickcheck_macros = "1"
