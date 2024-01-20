@@ -16,11 +16,9 @@ use aquatic_http_protocol::response::{
 use arc_swap::ArcSwap;
 use either::Either;
 use futures::stream::FuturesUnordered;
-use futures_lite::future::race;
 use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use futures_rustls::TlsAcceptor;
 use glommio::channels::channel_mesh::Senders;
-use glommio::channels::local_channel::LocalReceiver;
 use glommio::channels::shared_channel::{self, SharedReceiver};
 use glommio::net::TcpStream;
 use once_cell::sync::Lazy;
@@ -76,7 +74,6 @@ pub(super) async fn run_connection(
     server_start_instant: ServerStartInstant,
     opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
     valid_until: Rc<RefCell<ValidUntil>>,
-    close_conn_receiver: LocalReceiver<()>,
     stream: TcpStream,
 ) -> Result<(), ConnectionError> {
     let access_list_cache = create_access_list_cache(&access_list);
@@ -119,7 +116,7 @@ pub(super) async fn run_connection(
             stream,
         };
 
-        conn.run(close_conn_receiver).await?;
+        conn.run().await
     } else {
         let mut conn = Connection {
             config,
@@ -135,10 +132,8 @@ pub(super) async fn run_connection(
             stream,
         };
 
-        conn.run(close_conn_receiver).await?;
+        conn.run().await
     }
-
-    Ok(())
 }
 
 struct Connection<S> {
@@ -159,18 +154,7 @@ impl<S> Connection<S>
 where
     S: futures::AsyncRead + futures::AsyncWrite + Unpin + 'static,
 {
-    async fn run(&mut self, close_conn_receiver: LocalReceiver<()>) -> Result<(), ConnectionError> {
-        let f1 = async { self.run_request_response_loop().await };
-        let f2 = async {
-            close_conn_receiver.recv().await;
-
-            Err(ConnectionError::Inactive)
-        };
-
-        race(f1, f2).await
-    }
-
-    async fn run_request_response_loop(&mut self) -> Result<(), ConnectionError> {
+    async fn run(&mut self) -> Result<(), ConnectionError> {
         loop {
             let response = match self.read_request().await? {
                 Either::Left(response) => Response::Failure(response),

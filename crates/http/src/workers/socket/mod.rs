@@ -12,6 +12,7 @@ use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
 use aquatic_common::{CanonicalSocketAddr, PanicSentinel, ServerStartInstant};
 use arc_swap::ArcSwap;
+use futures_lite::future::race;
 use futures_lite::StreamExt;
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role};
 use glommio::channels::local_channel::{new_bounded, LocalSender};
@@ -97,16 +98,23 @@ pub async fn run_socket_worker(
                             "worker_index" => worker_index.to_string(),
                         );
 
-                        let result = run_connection(
-                            config,
-                            access_list,
-                            request_senders,
-                            server_start_instant,
-                            opt_tls_config,
-                            valid_until.clone(),
-                            close_conn_receiver,
-                            stream,
-                        ).await;
+                        let f1 = async { run_connection(
+                                config,
+                                access_list,
+                                request_senders,
+                                server_start_instant,
+                                opt_tls_config,
+                                valid_until.clone(),
+                                stream,
+                            ).await
+                        };
+                        let f2 = async {
+                            close_conn_receiver.recv().await;
+
+                            Err(ConnectionError::Inactive)
+                        };
+
+                        let result = race(f1, f2).await;
 
                         #[cfg(feature = "metrics")]
                         ::metrics::decrement_gauge!(
