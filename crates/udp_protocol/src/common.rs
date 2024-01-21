@@ -35,13 +35,7 @@ macro_rules! zerocopy_newtype {
     };
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "serde")] {
-        pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes {}
-    } else {
-        pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes + Serialize + Deserialize {}
-    }
-}
+pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes {}
 
 zerocopy_newtype!(AnnounceInterval, I32, "FromInto<i32>");
 
