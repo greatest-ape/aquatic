@@ -22,18 +22,18 @@ pub enum Response {
 
 impl Response {
     #[inline]
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
-            Response::Connect(r) => r.write(bytes),
-            Response::AnnounceIpv4(r) => r.write(bytes),
-            Response::AnnounceIpv6(r) => r.write(bytes),
-            Response::Scrape(r) => r.write(bytes),
-            Response::Error(r) => r.write(bytes),
+            Response::Connect(r) => r.write_bytes(bytes),
+            Response::AnnounceIpv4(r) => r.write_bytes(bytes),
+            Response::AnnounceIpv6(r) => r.write_bytes(bytes),
+            Response::Scrape(r) => r.write_bytes(bytes),
+            Response::Error(r) => r.write_bytes(bytes),
         }
     }
 
     #[inline]
-    pub fn from_bytes(mut bytes: &[u8], ipv4: bool) -> Result<Self, io::Error> {
+    pub fn parse_bytes(mut bytes: &[u8], ipv4: bool) -> Result<Self, io::Error> {
         let action = read_i32_ne(&mut bytes)?;
 
         match action.get() {
@@ -142,7 +142,7 @@ pub struct ConnectResponse {
 
 impl ConnectResponse {
     #[inline]
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         bytes.write_i32::<NetworkEndian>(0)?;
         bytes.write_all(self.as_bytes())?;
 
@@ -166,7 +166,7 @@ impl<I: Ip> AnnounceResponse<I> {
     }
 
     #[inline]
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         bytes.write_i32::<NetworkEndian>(1)?;
         bytes.write_all(self.fixed.as_bytes())?;
         bytes.write_all((*self.peers.as_slice()).as_bytes())?;
@@ -194,7 +194,7 @@ pub struct ScrapeResponse {
 
 impl ScrapeResponse {
     #[inline]
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         bytes.write_i32::<NetworkEndian>(2)?;
         bytes.write_all(self.transaction_id.as_bytes())?;
         bytes.write_all((*self.torrent_stats.as_slice()).as_bytes())?;
@@ -221,7 +221,7 @@ pub struct ErrorResponse {
 
 impl ErrorResponse {
     #[inline]
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         bytes.write_i32::<NetworkEndian>(3)?;
         bytes.write_all(self.transaction_id.as_bytes())?;
         bytes.write_all(self.message.as_bytes())?;
@@ -314,8 +314,8 @@ mod tests {
     fn same_after_conversion(response: Response, ipv4: bool) -> bool {
         let mut buf = Vec::new();
 
-        response.clone().write(&mut buf).unwrap();
-        let r2 = Response::from_bytes(&buf[..], ipv4).unwrap();
+        response.clone().write_bytes(&mut buf).unwrap();
+        let r2 = Response::parse_bytes(&buf[..], ipv4).unwrap();
 
         let success = response == r2;
 

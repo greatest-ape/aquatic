@@ -77,7 +77,7 @@ fn no_response(
         let mut buffer = Cursor::new(&mut buffer[..]);
 
         request
-            .write(&mut buffer)
+            .write_bytes(&mut buffer)
             .with_context(|| "write request")?;
 
         let bytes_written = buffer.position() as usize;

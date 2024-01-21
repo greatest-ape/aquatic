@@ -23,15 +23,15 @@ pub enum Request {
 }
 
 impl Request {
-    pub fn write(self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
-            Request::Connect(r) => r.write(bytes),
-            Request::Announce(r) => r.write(bytes),
-            Request::Scrape(r) => r.write(bytes),
+            Request::Connect(r) => r.write_bytes(bytes),
+            Request::Announce(r) => r.write_bytes(bytes),
+            Request::Scrape(r) => r.write_bytes(bytes),
         }
     }
 
-    pub fn from_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
+    pub fn parse_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
         let action = bytes
             .get(8..12)
             .map(|bytes| I32::from_bytes(bytes.try_into().unwrap()))
@@ -141,7 +141,7 @@ pub struct ConnectRequest {
 }
 
 impl ConnectRequest {
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER)?;
         bytes.write_i32::<NetworkEndian>(0)?;
         bytes.write_all(self.transaction_id.as_bytes())?;
@@ -173,7 +173,7 @@ pub struct AnnounceRequest {
 }
 
 impl AnnounceRequest {
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         bytes.write_all(self.as_bytes())
     }
 }
@@ -238,7 +238,7 @@ pub struct ScrapeRequest {
 }
 
 impl ScrapeRequest {
-    pub fn write(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         bytes.write_all(self.connection_id.as_bytes())?;
         bytes.write_i32::<NetworkEndian>(2)?;
         bytes.write_all(self.transaction_id.as_bytes())?;
@@ -348,8 +348,8 @@ mod tests {
     fn same_after_conversion(request: Request) -> bool {
         let mut buf = Vec::new();
 
-        request.clone().write(&mut buf).unwrap();
-        let r2 = Request::from_bytes(&buf[..], ::std::u8::MAX).unwrap();
+        request.clone().write_bytes(&mut buf).unwrap();
+        let r2 = Request::parse_bytes(&buf[..], ::std::u8::MAX).unwrap();
 
         let success = request == r2;
 

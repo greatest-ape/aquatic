@@ -198,7 +198,7 @@ impl SocketWorker {
                     }
 
                     let src = CanonicalSocketAddr::new(src);
-                    let request_parsable = match Request::from_bytes(
+                    let request_parsable = match Request::parse_bytes(
                         &self.buffer[..bytes_read],
                         self.config.protocol.max_scrape_torrents,
                     ) {
@@ -431,7 +431,7 @@ impl SocketWorker {
     ) {
         let mut buffer = Cursor::new(&mut buffer[..]);
 
-        if let Err(err) = response.write(&mut buffer) {
+        if let Err(err) = response.write_bytes(&mut buffer) {
             ::log::error!("failed writing response to buffer: {:#}", err);
 
             return;

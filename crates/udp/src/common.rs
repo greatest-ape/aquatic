@@ -296,7 +296,7 @@ mod tests {
 
         let mut buf = Vec::new();
 
-        response.write(&mut buf).unwrap();
+        response.write_bytes(&mut buf).unwrap();
 
         println!("Buffer len: {}", buf.len());
 
