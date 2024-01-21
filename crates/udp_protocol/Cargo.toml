@@ -11,6 +11,11 @@ readme.workspace = true
 rust-version.workspace = true
 
 [features]
+# Derive serde Serialize and Deserialize for most types.
+#
+# The implementations leans towards pretty-printing. For instance, it will
+# convert info hashes to hex strings. If you want maximum performance, use
+# the zerocopy-based write_bytes/parse_bytes methods instead.
 serde = ["dep:serde", "dep:serde_with"]
 
 [dependencies]
