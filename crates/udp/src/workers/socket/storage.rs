@@ -155,8 +155,8 @@ mod tests {
             }
 
             let request = ScrapeRequest {
-                transaction_id: TransactionId::new(t),
-                connection_id: ConnectionId::new(c),
+                transaction_id: TransactionId(t.into()),
+                connection_id: ConnectionId(c.into()),
                 info_hashes,
             };
 
@@ -191,9 +191,9 @@ mod tests {
                         (
                             i,
                             TorrentScrapeStatistics {
-                                seeders: NumberOfPeers::new((info_hash.0[0]) as i32),
-                                leechers: NumberOfPeers::new(0),
-                                completed: NumberOfDownloads::new(0),
+                                seeders: NumberOfPeers(((info_hash.0[0]) as i32).into()),
+                                leechers: NumberOfPeers(0.into()),
+                                completed: NumberOfDownloads(0.into()),
                             },
                         )
                     })

@@ -19,7 +19,7 @@ pub fn generate_info_hash() -> InfoHash {
 }
 
 pub fn generate_transaction_id(rng: &mut impl Rng) -> TransactionId {
-    TransactionId::new(rng.gen())
+    TransactionId(rng.gen::<i32>().into())
 }
 
 pub fn create_connect_request(transaction_id: TransactionId) -> Request {

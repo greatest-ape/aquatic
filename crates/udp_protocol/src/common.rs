@@ -5,94 +5,65 @@ pub use aquatic_peer_id::{PeerClient, PeerId};
 use zerocopy::network_endian::{I32, I64, U16, U32};
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes {}
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::{hex::Hex, serde_as, FromInto};
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct AnnounceInterval(pub I32);
+// This mess is necessary because #[cfg_attr] doesn't seem to work on struct fields
+macro_rules! zerocopy_newtype {
+    ($newtype_name:ident, $inner_type:tt, $derive_as:expr) => {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "serde")] {
+                #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+                #[repr(transparent)]
+                #[serde_as]
+                #[derive(Serialize, Deserialize)]
+                #[serde(transparent)]
+                pub struct $newtype_name(
+                    #[serde_as(as = $derive_as)]
+                    pub $inner_type
+                );
+            } else {
+                #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+                #[repr(transparent)]
+                pub struct $newtype_name(
+                    pub $inner_type
+                );
+            }
+        }
+    };
+}
 
-impl AnnounceInterval {
-    pub fn new(v: i32) -> Self {
-        Self(I32::new(v))
+cfg_if::cfg_if! {
+    if #[cfg(feature = "serde")] {
+        pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes {}
+    } else {
+        pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes + Serialize + Deserialize {}
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct InfoHash(pub [u8; 20]);
+zerocopy_newtype!(AnnounceInterval, I32, "FromInto<i32>");
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct ConnectionId(pub I64);
+zerocopy_newtype!(ConnectionId, I64, "FromInto<i64>");
 
-impl ConnectionId {
-    pub fn new(v: i64) -> Self {
-        Self(I64::new(v))
-    }
-}
+zerocopy_newtype!(TransactionId, I32, "FromInto<i32>");
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct TransactionId(pub I32);
+zerocopy_newtype!(NumberOfBytes, I64, "FromInto<i64>");
 
-impl TransactionId {
-    pub fn new(v: i32) -> Self {
-        Self(I32::new(v))
-    }
-}
+zerocopy_newtype!(NumberOfPeers, I32, "FromInto<i32>");
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct NumberOfBytes(pub I64);
+zerocopy_newtype!(NumberOfDownloads, I32, "FromInto<i32>");
 
-impl NumberOfBytes {
-    pub fn new(v: i64) -> Self {
-        Self(I64::new(v))
-    }
-}
+zerocopy_newtype!(Port, U16, "FromInto<u16>");
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct NumberOfPeers(pub I32);
+zerocopy_newtype!(PeerKey, I32, "FromInto<i32>");
 
-impl NumberOfPeers {
-    pub fn new(v: i32) -> Self {
-        Self(I32::new(v))
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct NumberOfDownloads(pub I32);
-
-impl NumberOfDownloads {
-    pub fn new(v: i32) -> Self {
-        Self(I32::new(v))
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct Port(pub U16);
-
-impl Port {
-    pub fn new(v: u16) -> Self {
-        Self(U16::new(v))
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
-#[repr(transparent)]
-pub struct PeerKey(pub I32);
-
-impl PeerKey {
-    pub fn new(v: i32) -> Self {
-        Self(I32::new(v))
-    }
-}
+zerocopy_newtype!(InfoHash, [u8; 20], "Hex");
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ResponsePeer<I: Ip> {
     pub ip_address: I,
     pub port: Port,
@@ -100,6 +71,11 @@ pub struct ResponsePeer<I: Ip> {
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(transparent)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(from = "Ipv4Addr", into = "Ipv4Addr")
+)]
 pub struct Ipv4AddrBytes(pub [u8; 4]);
 
 impl Ip for Ipv4AddrBytes {}
@@ -118,6 +94,11 @@ impl From<Ipv4Addr> for Ipv4AddrBytes {
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(transparent)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(from = "Ipv6Addr", into = "Ipv6Addr")
+)]
 pub struct Ipv6AddrBytes(pub [u8; 16]);
 
 impl Ip for Ipv6AddrBytes {}

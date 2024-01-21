@@ -5,6 +5,9 @@ use either::Either;
 use zerocopy::FromZeroes;
 use zerocopy::{byteorder::network_endian::I32, AsBytes, FromBytes};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use aquatic_peer_id::PeerId;
 
 use super::common::*;
@@ -12,6 +15,7 @@ use super::common::*;
 const PROTOCOL_IDENTIFIER: i64 = 4_497_486_125_440;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Request {
     Connect(ConnectRequest),
     Announce(AnnounceRequest),
@@ -146,16 +150,19 @@ impl From<ScrapeRequest> for Request {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ConnectRequest {
     pub transaction_id: TransactionId,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnnounceRequest {
     pub connection_id: ConnectionId,
     /// This field is only present to enable zero-copy serialization and
     /// deserialization.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub action_placeholder: AnnounceActionPlaceholder,
     pub transaction_id: TransactionId,
     pub info_hash: InfoHash,
@@ -184,25 +191,30 @@ impl Default for AnnounceActionPlaceholder {
 /// Note: Request::from_bytes only creates this struct with values 0..=3
 #[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(transparent)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(from = "AnnounceEvent", into = "AnnounceEvent")
+)]
 pub struct AnnounceEventBytes(I32);
 
 impl From<AnnounceEvent> for AnnounceEventBytes {
     fn from(value: AnnounceEvent) -> Self {
-        Self(I32::new(match value {
-            AnnounceEvent::None => 0,
-            AnnounceEvent::Completed => 1,
-            AnnounceEvent::Started => 2,
-            AnnounceEvent::Stopped => 3,
-        }))
+        Self(I32::new(value as i32))
     }
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "lowercase")
+)]
 pub enum AnnounceEvent {
+    None,
+    Completed,
     Started,
     Stopped,
-    Completed,
-    None,
 }
 
 impl From<AnnounceEventBytes> for AnnounceEvent {
@@ -217,6 +229,7 @@ impl From<AnnounceEventBytes> for AnnounceEvent {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ScrapeRequest {
     pub connection_id: ConnectionId,
     pub transaction_id: TransactionId,
@@ -299,7 +312,7 @@ mod tests {
                 bytes_left: NumberOfBytes(I64::new(i64::arbitrary(g))),
                 event: AnnounceEvent::arbitrary(g).into(),
                 ip_address: Ipv4AddrBytes::arbitrary(g),
-                key: PeerKey::new(i32::arbitrary(g)),
+                key: PeerKey(i32::arbitrary(g).into()),
                 peers_wanted: NumberOfPeers(I32::new(i32::arbitrary(g))),
                 port: Port(U16::new(u16::arbitrary(g))),
             }

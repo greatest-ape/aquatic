@@ -192,7 +192,7 @@ impl Worker {
             scrape_hash_indices,
             connection_id,
             peer_id: generate_peer_id(),
-            port: Port::new(self.rng.gen()),
+            port: Port(self.rng.gen::<u16>().into()),
         }
     }
 
@@ -232,9 +232,9 @@ impl Worker {
                 .rng
                 .gen_bool(self.config.requests.peer_seeder_probability)
             {
-                (AnnounceEvent::Completed, NumberOfBytes::new(0))
+                (AnnounceEvent::Completed, NumberOfBytes(0.into()))
             } else {
-                (AnnounceEvent::Started, NumberOfBytes::new(50))
+                (AnnounceEvent::Started, NumberOfBytes(50.into()))
             }
         };
 
@@ -244,13 +244,13 @@ impl Worker {
             transaction_id,
             info_hash: torrent_peer.info_hash,
             peer_id: torrent_peer.peer_id,
-            bytes_downloaded: NumberOfBytes::new(50),
-            bytes_uploaded: NumberOfBytes::new(50),
+            bytes_downloaded: NumberOfBytes(50.into()),
+            bytes_uploaded: NumberOfBytes(50.into()),
             bytes_left,
             event: event.into(),
             ip_address: Ipv4AddrBytes([0; 4]),
-            key: PeerKey::new(0),
-            peers_wanted: NumberOfPeers::new(self.config.requests.announce_peers_wanted),
+            key: PeerKey(0.into()),
+            peers_wanted: NumberOfPeers(self.config.requests.announce_peers_wanted.into()),
             port: torrent_peer.port,
         })
         .into()

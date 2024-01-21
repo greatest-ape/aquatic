@@ -89,9 +89,9 @@ impl<I: Ip> TorrentMap<I> {
                     .get(&info_hash)
                     .map(|torrent_data| torrent_data.scrape_statistics())
                     .unwrap_or_else(|| TorrentScrapeStatistics {
-                        seeders: NumberOfPeers::new(0),
-                        leechers: NumberOfPeers::new(0),
-                        completed: NumberOfDownloads::new(0),
+                        seeders: NumberOfPeers(0.into()),
+                        leechers: NumberOfPeers(0.into()),
+                        completed: NumberOfDownloads(0.into()),
                     });
 
                 (i, stats)
@@ -222,11 +222,11 @@ impl<I: Ip> TorrentData<I> {
                 let response = AnnounceResponse {
                     fixed: AnnounceResponseFixedData {
                         transaction_id: request.transaction_id,
-                        announce_interval: AnnounceInterval::new(
-                            config.protocol.peer_announce_interval,
+                        announce_interval: AnnounceInterval(
+                            config.protocol.peer_announce_interval.into(),
                         ),
-                        leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
-                        seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                        leechers: NumberOfPeers(leechers.try_into().unwrap_or(i32::MAX).into()),
+                        seeders: NumberOfPeers(seeders.try_into().unwrap_or(i32::MAX).into()),
                     },
                     peers: peer_map.extract_response_peers(max_num_peers_to_take),
                 };
@@ -248,11 +248,11 @@ impl<I: Ip> TorrentData<I> {
                 let response = AnnounceResponse {
                     fixed: AnnounceResponseFixedData {
                         transaction_id: request.transaction_id,
-                        announce_interval: AnnounceInterval::new(
-                            config.protocol.peer_announce_interval,
+                        announce_interval: AnnounceInterval(
+                            config.protocol.peer_announce_interval.into(),
                         ),
-                        leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
-                        seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
+                        leechers: NumberOfPeers(leechers.try_into().unwrap_or(i32::MAX).into()),
+                        seeders: NumberOfPeers(seeders.try_into().unwrap_or(i32::MAX).into()),
                     },
                     peers: peer_map.extract_response_peers(rng, max_num_peers_to_take),
                 };
@@ -307,9 +307,9 @@ impl<I: Ip> TorrentData<I> {
         };
 
         TorrentScrapeStatistics {
-            seeders: NumberOfPeers::new(seeders.try_into().unwrap_or(i32::MAX)),
-            leechers: NumberOfPeers::new(leechers.try_into().unwrap_or(i32::MAX)),
-            completed: NumberOfDownloads::new(0),
+            seeders: NumberOfPeers(seeders.try_into().unwrap_or(i32::MAX).into()),
+            leechers: NumberOfPeers(leechers.try_into().unwrap_or(i32::MAX).into()),
+            completed: NumberOfDownloads(0.into()),
         }
     }
 }

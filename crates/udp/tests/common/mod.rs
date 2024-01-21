@@ -26,7 +26,7 @@ pub fn run_tracker(config: Config) {
 
 pub fn connect(socket: &UdpSocket, tracker_addr: SocketAddr) -> anyhow::Result<ConnectionId> {
     let request = Request::Connect(ConnectRequest {
-        transaction_id: TransactionId::new(0),
+        transaction_id: TransactionId(0.into()),
     });
 
     let response = request_and_response(socket, tracker_addr, request)?;
@@ -56,17 +56,17 @@ pub fn announce(
     let request = Request::Announce(AnnounceRequest {
         connection_id,
         action_placeholder: Default::default(),
-        transaction_id: TransactionId::new(0),
+        transaction_id: TransactionId(0.into()),
         info_hash,
         peer_id,
-        bytes_downloaded: NumberOfBytes::new(0),
-        bytes_uploaded: NumberOfBytes::new(0),
-        bytes_left: NumberOfBytes::new(if seeder { 0 } else { 1 }),
+        bytes_downloaded: NumberOfBytes(0.into()),
+        bytes_uploaded: NumberOfBytes(0.into()),
+        bytes_left: NumberOfBytes(if seeder { 0 } else { 1 }.into()),
         event: AnnounceEvent::Started.into(),
         ip_address: Ipv4AddrBytes([0; 4]),
-        key: PeerKey::new(0),
-        peers_wanted: NumberOfPeers::new(peers_wanted as i32),
-        port: Port::new(peer_port),
+        key: PeerKey(0.into()),
+        peers_wanted: NumberOfPeers((peers_wanted as i32).into()),
+        port: Port(peer_port.into()),
     });
 
     request_and_response(socket, tracker_addr, request)
@@ -80,7 +80,7 @@ pub fn scrape(
 ) -> anyhow::Result<ScrapeResponse> {
     let request = Request::Scrape(ScrapeRequest {
         connection_id,
-        transaction_id: TransactionId::new(0),
+        transaction_id: TransactionId(0.into()),
         info_hashes,
     });
 

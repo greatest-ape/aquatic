@@ -3,8 +3,10 @@ use std::{borrow::Cow, fmt::Display, sync::OnceLock};
 use compact_str::{format_compact, CompactString};
 use regex::bytes::Regex;
 use serde::{Deserialize, Serialize};
+use serde_with::{hex::Hex, serde_as};
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
+#[serde_as]
 #[derive(
     Debug,
     Clone,
@@ -21,7 +23,8 @@ use zerocopy::{AsBytes, FromBytes, FromZeroes};
     FromZeroes,
 )]
 #[repr(transparent)]
-pub struct PeerId(pub [u8; 20]);
+#[serde(transparent)]
+pub struct PeerId(#[serde_as(as = "Hex")] pub [u8; 20]);
 
 impl PeerId {
     pub fn client(&self) -> PeerClient {

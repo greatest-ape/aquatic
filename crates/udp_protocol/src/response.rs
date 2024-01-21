@@ -5,9 +5,13 @@ use std::mem::size_of;
 use byteorder::{NetworkEndian, WriteBytesExt};
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use super::common::*;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Response {
     Connect(ConnectResponse),
     AnnounceIpv4(AnnounceResponse<Ipv4AddrBytes>),
@@ -130,6 +134,7 @@ impl From<ErrorResponse> for Response {
 
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ConnectResponse {
     pub transaction_id: TransactionId,
     pub connection_id: ConnectionId,
@@ -146,6 +151,7 @@ impl ConnectResponse {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnnounceResponse<I: Ip> {
     pub fixed: AnnounceResponseFixedData,
     pub peers: Vec<ResponsePeer<I>>,
@@ -171,6 +177,7 @@ impl<I: Ip> AnnounceResponse<I> {
 
 #[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnnounceResponseFixedData {
     pub transaction_id: TransactionId,
     pub announce_interval: AnnounceInterval,
@@ -179,6 +186,7 @@ pub struct AnnounceResponseFixedData {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ScrapeResponse {
     pub transaction_id: TransactionId,
     pub torrent_stats: Vec<TorrentScrapeStatistics>,
@@ -197,6 +205,7 @@ impl ScrapeResponse {
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TorrentScrapeStatistics {
     pub seeders: NumberOfPeers,
     pub completed: NumberOfDownloads,
@@ -204,6 +213,7 @@ pub struct TorrentScrapeStatistics {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ErrorResponse {
     pub transaction_id: TransactionId,
     pub message: Cow<'static, str>,

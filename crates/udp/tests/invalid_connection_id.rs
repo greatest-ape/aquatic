@@ -41,22 +41,22 @@ fn test_invalid_connection_id() -> anyhow::Result<()> {
     let announce_request = Request::Announce(AnnounceRequest {
         connection_id: invalid_connection_id,
         action_placeholder: Default::default(),
-        transaction_id: TransactionId::new(0),
+        transaction_id: TransactionId(0.into()),
         info_hash: InfoHash([0; 20]),
         peer_id: PeerId([0; 20]),
-        bytes_downloaded: NumberOfBytes::new(0),
-        bytes_uploaded: NumberOfBytes::new(0),
-        bytes_left: NumberOfBytes::new(0),
+        bytes_downloaded: NumberOfBytes(0.into()),
+        bytes_uploaded: NumberOfBytes(0.into()),
+        bytes_left: NumberOfBytes(0.into()),
         event: AnnounceEvent::Started.into(),
         ip_address: Ipv4AddrBytes([0; 4]),
-        key: PeerKey::new(0),
-        peers_wanted: NumberOfPeers::new(10),
-        port: Port::new(1),
+        key: PeerKey(0.into()),
+        peers_wanted: NumberOfPeers(10.into()),
+        port: Port(1.into()),
     });
 
     let scrape_request = Request::Scrape(ScrapeRequest {
         connection_id: invalid_connection_id,
-        transaction_id: TransactionId::new(0),
+        transaction_id: TransactionId(0.into()),
         info_hashes: vec![InfoHash([0; 20])],
     });
 

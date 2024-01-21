@@ -62,7 +62,7 @@ impl ConnectionValidator {
         connection_id_bytes[..4].copy_from_slice(&elapsed);
         connection_id_bytes[4..].copy_from_slice(&hash);
 
-        ConnectionId::new(i64::from_ne_bytes(connection_id_bytes))
+        ConnectionId(i64::from_ne_bytes(connection_id_bytes).into())
     }
 
     pub fn connection_id_valid(
