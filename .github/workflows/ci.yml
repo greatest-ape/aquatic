@@ -66,6 +66,8 @@ jobs:
       run: cargo test --verbose --profile "test-fast" --workspace
     - name: Run tests (aquatic_udp with io_uring)
       run: cargo test --verbose --profile "test-fast" -p aquatic_udp --features "io-uring"
+    - name: Run tests (aquatic_udp_protocol with serde)
+      run: cargo test --verbose --profile "test-fast" -p aquatic_udp_protocol --features "serde"
 
   test-file-transfers:
     runs-on: ubuntu-latest
