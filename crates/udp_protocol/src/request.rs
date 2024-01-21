@@ -378,4 +378,35 @@ mod tests {
 
         TestResult::from_bool(same_after_conversion(request.into()))
     }
+
+    #[quickcheck]
+    #[cfg(feature = "serde")]
+    fn test_serde_connect_request(request: ConnectRequest) -> bool {
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized = serde_json::from_str::<ConnectRequest>(&serialized).unwrap();
+
+        deserialized == request
+    }
+
+    #[quickcheck]
+    #[cfg(feature = "serde")]
+    fn test_serde_announce_request(request: AnnounceRequest) -> bool {
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized = serde_json::from_str::<AnnounceRequest>(&serialized).unwrap();
+
+        deserialized == request
+    }
+
+    #[quickcheck]
+    #[cfg(feature = "serde")]
+    fn test_serde_scrape_request(request: ScrapeRequest) -> TestResult {
+        if request.info_hashes.is_empty() {
+            return TestResult::discard();
+        }
+
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized = serde_json::from_str::<ScrapeRequest>(&serialized).unwrap();
+
+        TestResult::from_bool(deserialized == request)
+    }
 }

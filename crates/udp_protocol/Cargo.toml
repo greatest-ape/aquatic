@@ -27,5 +27,6 @@ serde_with = { version = "3", features = ["hex"], optional = true }
 
 [dev-dependencies]
 pretty_assertions = "1"
+serde_json = "1"
 quickcheck = "1"
 quickcheck_macros = "1"

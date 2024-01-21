@@ -371,6 +371,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "serde",
+ "serde_json",
  "serde_with",
  "zerocopy",
 ]

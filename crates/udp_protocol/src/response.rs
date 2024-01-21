@@ -153,6 +153,7 @@ impl ConnectResponse {
 #[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnnounceResponse<I: Ip> {
+    #[cfg_attr(feature = "serde", serde(flatten))]
     pub fixed: AnnounceResponseFixedData,
     pub peers: Vec<ResponsePeer<I>>,
 }
@@ -348,5 +349,43 @@ mod tests {
     #[quickcheck]
     fn test_scrape_response_convert_identity(response: ScrapeResponse) -> bool {
         same_after_conversion(response.into(), true)
+    }
+
+    #[quickcheck]
+    #[cfg(feature = "serde")]
+    fn test_serde_connect_response(response: ConnectResponse) -> bool {
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized = serde_json::from_str::<ConnectResponse>(&serialized).unwrap();
+
+        deserialized == response
+    }
+
+    #[quickcheck]
+    #[cfg(feature = "serde")]
+    fn test_serde_announce_response_ipv4(response: AnnounceResponse<Ipv4AddrBytes>) -> bool {
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized =
+            serde_json::from_str::<AnnounceResponse<Ipv4AddrBytes>>(&serialized).unwrap();
+
+        deserialized == response
+    }
+
+    #[quickcheck]
+    #[cfg(feature = "serde")]
+    fn test_serde_announce_response_ipv6(response: AnnounceResponse<Ipv6AddrBytes>) -> bool {
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized =
+            serde_json::from_str::<AnnounceResponse<Ipv6AddrBytes>>(&serialized).unwrap();
+
+        deserialized == response
+    }
+
+    #[quickcheck]
+    #[cfg(feature = "serde")]
+    fn test_serde_scrape_response(response: ScrapeResponse) -> bool {
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized = serde_json::from_str::<ScrapeResponse>(&serialized).unwrap();
+
+        deserialized == response
     }
 }
