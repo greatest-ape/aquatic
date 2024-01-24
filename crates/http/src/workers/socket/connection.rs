@@ -26,9 +26,9 @@ use once_cell::sync::Lazy;
 use crate::common::*;
 use crate::config::Config;
 
-use super::request::{parse_request, RequestParseError};
 #[cfg(feature = "metrics")]
-use super::{peer_addr_to_ip_version_str, WORKER_INDEX};
+use super::peer_addr_to_ip_version_str;
+use super::request::{parse_request, RequestParseError};
 
 const REQUEST_BUFFER_SIZE: usize = 2048;
 const RESPONSE_BUFFER_SIZE: usize = 4096;
@@ -67,6 +67,7 @@ pub enum ConnectionError {
     Other(#[from] anyhow::Error),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn run_connection(
     config: Rc<Config>,
     access_list: Arc<AccessListArcSwap>,
@@ -75,6 +76,7 @@ pub(super) async fn run_connection(
     opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
     valid_until: Rc<RefCell<ValidUntil>>,
     stream: TcpStream,
+    worker_index: usize,
 ) -> Result<(), ConnectionError> {
     let access_list_cache = create_access_list_cache(&access_list);
     let request_buffer = Box::new([0u8; REQUEST_BUFFER_SIZE]);
@@ -114,6 +116,7 @@ pub(super) async fn run_connection(
             request_buffer_position: 0,
             response_buffer,
             stream,
+            worker_index_string: worker_index.to_string(),
         };
 
         conn.run().await
@@ -130,6 +133,7 @@ pub(super) async fn run_connection(
             request_buffer_position: 0,
             response_buffer,
             stream,
+            worker_index_string: worker_index.to_string(),
         };
 
         conn.run().await
@@ -148,6 +152,7 @@ struct Connection<S> {
     request_buffer_position: usize,
     response_buffer: Box<[u8; RESPONSE_BUFFER_SIZE]>,
     stream: S,
+    worker_index_string: String,
 }
 
 impl<S> Connection<S>
@@ -244,12 +249,13 @@ where
         match request {
             Request::Announce(request) => {
                 #[cfg(feature = "metrics")]
-                ::metrics::increment_counter!(
+                ::metrics::counter!(
                     "aquatic_requests_total",
                     "type" => "announce",
                     "ip_version" => peer_addr_to_ip_version_str(&peer_addr),
-                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                );
+                    "worker_index" => self.worker_index_string.clone(),
+                )
+                .increment(1);
 
                 let info_hash = request.info_hash;
 
@@ -291,12 +297,13 @@ where
             }
             Request::Scrape(ScrapeRequest { info_hashes }) => {
                 #[cfg(feature = "metrics")]
-                ::metrics::increment_counter!(
+                ::metrics::counter!(
                     "aquatic_requests_total",
                     "type" => "scrape",
                     "ip_version" => peer_addr_to_ip_version_str(&peer_addr),
-                    "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                );
+                    "worker_index" => self.worker_index_string.clone(),
+                )
+                .increment(1);
 
                 let mut info_hashes_by_worker: BTreeMap<usize, Vec<InfoHash>> = BTreeMap::new();
 
@@ -438,12 +445,13 @@ where
                 .opt_peer_addr
                 .expect("peer addr should already have been extracted by now");
 
-            ::metrics::increment_counter!(
+            ::metrics::counter!(
                 "aquatic_responses_total",
                 "type" => response_type,
                 "ip_version" => peer_addr_to_ip_version_str(&peer_addr),
-                "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-            );
+                "worker_index" => self.worker_index_string.clone(),
+            )
+            .increment(1);
         }
 
         Ok(())

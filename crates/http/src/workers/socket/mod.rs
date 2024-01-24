@@ -25,9 +25,6 @@ use crate::common::*;
 use crate::config::Config;
 use crate::workers::socket::connection::{run_connection, ConnectionError};
 
-#[cfg(feature = "metrics")]
-thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
-
 struct ConnectionHandle {
     close_conn_sender: LocalSender<()>,
     valid_until: Rc<RefCell<ValidUntil>>,
@@ -44,9 +41,6 @@ pub async fn run_socket_worker(
     server_start_instant: ServerStartInstant,
     worker_index: usize,
 ) {
-    #[cfg(feature = "metrics")]
-    WORKER_INDEX.with(|index| index.set(worker_index));
-
     let config = Rc::new(config);
     let access_list = state.access_list;
 
@@ -93,11 +87,13 @@ pub async fn run_socket_worker(
                     )
                     async move {
                         #[cfg(feature = "metrics")]
-                        ::metrics::increment_gauge!(
+                        let active_connections_gauge = ::metrics::gauge!(
                             "aquatic_active_connections",
-                            1.0,
                             "worker_index" => worker_index.to_string(),
                         );
+
+                        #[cfg(feature = "metrics")]
+                        active_connections_gauge.increment(1.0);
 
                         let f1 = async { run_connection(
                                 config,
@@ -107,6 +103,7 @@ pub async fn run_socket_worker(
                                 opt_tls_config,
                                 valid_until.clone(),
                                 stream,
+                                worker_index,
                             ).await
                         };
                         let f2 = async {
@@ -118,11 +115,7 @@ pub async fn run_socket_worker(
                         let result = race(f1, f2).await;
 
                         #[cfg(feature = "metrics")]
-                        ::metrics::decrement_gauge!(
-                            "aquatic_active_connections",
-                            1.0,
-                            "worker_index" => worker_index.to_string(),
-                        );
+                        active_connections_gauge.decrement(1.0);
 
                         match result {
                             Ok(()) => (),

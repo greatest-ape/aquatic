@@ -18,9 +18,6 @@ use crate::config::Config;
 
 use self::storage::TorrentMaps;
 
-#[cfg(feature = "metrics")]
-thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
-
 pub async fn run_swarm_worker(
     _sentinel: PanicSentinel,
     config: Config,
@@ -29,12 +26,9 @@ pub async fn run_swarm_worker(
     server_start_instant: ServerStartInstant,
     worker_index: usize,
 ) {
-    #[cfg(feature = "metrics")]
-    WORKER_INDEX.with(|index| index.set(worker_index));
-
     let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
 
-    let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
+    let torrents = Rc::new(RefCell::new(TorrentMaps::new(worker_index)));
     let access_list = state.access_list;
 
     // Periodically clean torrents
@@ -69,16 +63,14 @@ pub async fn run_swarm_worker(
 
             ::metrics::gauge!(
                 "aquatic_torrents",
-                torrents.ipv4.len() as f64,
                 "ip_version" => "4",
                 "worker_index" => worker_index.to_string(),
-            );
+            ).set(torrents.ipv4.len() as f64);
             ::metrics::gauge!(
                 "aquatic_torrents",
-                torrents.ipv6.len() as f64,
                 "ip_version" => "6",
                 "worker_index" => worker_index.to_string(),
-            );
+            ).set(torrents.ipv6.len() as f64);
 
             Some(Duration::from_secs(config.metrics.torrent_count_update_interval))
         })()

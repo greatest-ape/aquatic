@@ -39,8 +39,8 @@ httparse = "1"
 itoa = "1"
 libc = "0.2"
 log = "0.4"
-metrics = { version = "0.21", optional = true }
-metrics-exporter-prometheus = { version = "0.12", optional = true, default-features = false, features = ["http-listener"] }
+metrics = { version = "0.22", optional = true }
+metrics-exporter-prometheus = { version = "0.13", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 memchr = "2"
 privdrop = "0.5"

@@ -16,7 +16,6 @@ use aquatic_http_protocol::response::*;
 use crate::config::Config;
 
 #[cfg(feature = "metrics")]
-use crate::workers::swarm::WORKER_INDEX;
 
 pub trait Ip: ::std::fmt::Debug + Copy + Eq + ::std::hash::Hash {
     #[cfg(feature = "metrics")]
@@ -36,13 +35,35 @@ impl Ip for Ipv6Addr {
     }
 }
 
-#[derive(Default)]
 pub struct TorrentMaps {
     pub ipv4: TorrentMap<Ipv4Addr>,
     pub ipv6: TorrentMap<Ipv6Addr>,
+    #[cfg(feature = "metrics")]
+    pub ipv4_peer_gauge: metrics::Gauge,
+    #[cfg(feature = "metrics")]
+    pub ipv6_peer_gauge: metrics::Gauge,
 }
 
 impl TorrentMaps {
+    pub fn new(worker_index: usize) -> Self {
+        Self {
+            ipv4: Default::default(),
+            ipv6: Default::default(),
+            #[cfg(feature = "metrics")]
+            ipv4_peer_gauge: ::metrics::gauge!(
+                "aquatic_peers",
+                "ip_version" => "4",
+                "worker_index" => worker_index.to_string(),
+            ),
+            #[cfg(feature = "metrics")]
+            ipv6_peer_gauge: ::metrics::gauge!(
+                "aquatic_peers",
+                "ip_version" => "6",
+                "worker_index" => worker_index.to_string(),
+            ),
+        }
+    }
+
     pub fn handle_announce_request(
         &mut self,
         config: &Config,
@@ -63,6 +84,8 @@ impl TorrentMaps {
                         peer_ip_address,
                         request,
                         valid_until,
+                        #[cfg(feature = "metrics")]
+                        &self.ipv4_peer_gauge,
                     );
 
                 AnnounceResponse {
@@ -85,6 +108,8 @@ impl TorrentMaps {
                         peer_ip_address,
                         request,
                         valid_until,
+                        #[cfg(feature = "metrics")]
+                        &self.ipv6_peer_gauge,
                     );
 
                 AnnounceResponse {
@@ -157,8 +182,20 @@ impl TorrentMaps {
 
         let now = server_start_instant.seconds_elapsed();
 
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv4, now);
-        Self::clean_torrent_map(config, &mut access_list_cache, &mut self.ipv6, now);
+        Self::clean_torrent_map(
+            config,
+            &mut access_list_cache,
+            &mut self.ipv4,
+            now,
+            &self.ipv4_peer_gauge,
+        );
+        Self::clean_torrent_map(
+            config,
+            &mut access_list_cache,
+            &mut self.ipv6,
+            now,
+            &self.ipv6_peer_gauge,
+        );
     }
 
     fn clean_torrent_map<I: Ip>(
@@ -166,6 +203,7 @@ impl TorrentMaps {
         access_list_cache: &mut AccessListCache,
         torrent_map: &mut TorrentMap<I>,
         now: SecondsSinceServerStart,
+        #[cfg(feature = "metrics")] peer_gauge: &::metrics::Gauge,
     ) {
         let mut total_num_peers = 0;
 
@@ -197,12 +235,7 @@ impl TorrentMaps {
         let total_num_peers = total_num_peers as f64;
 
         #[cfg(feature = "metrics")]
-        ::metrics::gauge!(
-            "aquatic_peers",
-            total_num_peers,
-            "ip_version" => I::ip_version_str(),
-            "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-        );
+        peer_gauge.set(total_num_peers);
 
         torrent_map.shrink_to_fit();
     }
@@ -238,6 +271,7 @@ impl<I: Ip> TorrentData<I> {
         peer_ip_address: I,
         request: AnnounceRequest,
         valid_until: ValidUntil,
+        #[cfg(feature = "metrics")] peer_gauge: &::metrics::Gauge,
     ) -> (usize, usize, Vec<ResponsePeer<I>>) {
         let peer_status =
             PeerStatus::from_event_and_bytes_left(request.event, Some(request.bytes_left));
@@ -257,12 +291,7 @@ impl<I: Ip> TorrentData<I> {
             PeerStatus::Seeding | PeerStatus::Leeching => {
                 #[cfg(feature = "metrics")]
                 if opt_removed_peer.is_none() {
-                    ::metrics::increment_gauge!(
-                        "aquatic_peers",
-                        1.0,
-                        "ip_version" => I::ip_version_str(),
-                        "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                    );
+                    peer_gauge.increment(1.0);
                 }
 
                 let max_num_peers_to_take = match request.numwant {
@@ -288,12 +317,7 @@ impl<I: Ip> TorrentData<I> {
             PeerStatus::Stopped => {
                 #[cfg(feature = "metrics")]
                 if opt_removed_peer.is_some() {
-                    ::metrics::decrement_gauge!(
-                        "aquatic_peers",
-                        1.0,
-                        "ip_version" => I::ip_version_str(),
-                        "worker_index" => WORKER_INDEX.with(|index| index.get()).to_string(),
-                    );
+                    peer_gauge.decrement(1.0);
                 }
 
                 Vec::new()
