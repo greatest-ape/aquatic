@@ -7,7 +7,6 @@
     interval to clean up data
 
 * http
-  * extract response peers while peer is removed, as in udp implementation
   * consider storing small number of peers without extra heap allocation
   * add CI transfer test for http without TLS
 
