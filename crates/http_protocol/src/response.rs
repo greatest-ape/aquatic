@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use super::common::*;
 use super::utils::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct ResponsePeer<I: Eq> {
     pub ip_address: I,
     pub port: u16,

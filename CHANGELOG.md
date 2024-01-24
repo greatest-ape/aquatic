@@ -41,6 +41,11 @@
 * Support running without TLS
 * Support running behind reverse proxy
 
+#### Changed
+
+* Index peers by packet source IP and provided port instead of by source ip
+  and peer id. This is likely slightly faster.
+
 #### Fixed
 
 * Fix bug where clean up after closing connections wasn't always done

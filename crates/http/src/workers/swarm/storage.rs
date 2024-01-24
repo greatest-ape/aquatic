@@ -245,33 +245,29 @@ impl<I: Ip> TorrentData<I> {
         let peer_status =
             PeerStatus::from_event_and_bytes_left(request.event, Some(request.bytes_left));
 
-        let peer_map_key = PeerMapKey {
-            peer_id: request.peer_id,
-            ip: peer_ip_address,
+        let peer_map_key = ResponsePeer {
+            ip_address: peer_ip_address,
+            port: request.port,
         };
 
         let opt_removed_peer = match peer_status {
             PeerStatus::Leeching => {
                 let peer = Peer {
-                    ip_address: peer_ip_address,
-                    port: request.port,
                     valid_until,
                     seeder: false,
                 };
 
-                self.peers.insert(peer_map_key.clone(), peer)
+                self.peers.insert(peer_map_key, peer)
             }
             PeerStatus::Seeding => {
                 self.num_seeders += 1;
 
                 let peer = Peer {
-                    ip_address: peer_ip_address,
-                    port: request.port,
                     valid_until,
                     seeder: true,
                 };
 
-                self.peers.insert(peer_map_key.clone(), peer)
+                self.peers.insert(peer_map_key, peer)
             }
             PeerStatus::Stopped => self.peers.remove(&peer_map_key),
         };
@@ -314,7 +310,7 @@ impl<I: Ip> TorrentData<I> {
                 &self.peers,
                 max_num_peers_to_take,
                 peer_map_key,
-                Peer::to_response_peer,
+                |k, _| *k,
             )
         };
 
@@ -322,29 +318,12 @@ impl<I: Ip> TorrentData<I> {
     }
 }
 
-type PeerMap<I> = IndexMap<PeerMapKey<I>, Peer<I>>;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct PeerMapKey<I: Ip> {
-    pub peer_id: PeerId,
-    pub ip: I,
-}
+type PeerMap<I> = IndexMap<ResponsePeer<I>, Peer>;
 
 #[derive(Debug, Clone, Copy)]
-struct Peer<I: Ip> {
-    pub ip_address: I,
-    pub port: u16,
+struct Peer {
     pub valid_until: ValidUntil,
     pub seeder: bool,
-}
-
-impl<I: Ip> Peer<I> {
-    fn to_response_peer(_: &PeerMapKey<I>, peer: &Self) -> ResponsePeer<I> {
-        ResponsePeer {
-            ip_address: peer.ip_address,
-            port: peer.port,
-        }
-    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
