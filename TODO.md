@@ -2,22 +2,28 @@
 
 ## High priority
 
-* if peer_clients is on, add task to generate prometheus exports on regular
-  interval to clean up data
+* udp
+  * if peer_clients is on, add task to generate prometheus exports on regular
+    interval to clean up data
+
+* http
+  * extract response peers while peer is removed, as in udp implementation
+  * consider storing small number of peers without extra heap allocation
+  * add CI transfer test for http without TLS
+
+* ws
+  * extract offer receiver peers while peer is removed, as in udp implementation
+  * consider storing small number of peers without extra heap allocation
+  * if peer_clients is on, add task to generate prometheus exports on regular
+    interval to clean up data
 
 * aquatic_bench
   * Opentracker "slow to get up to speed", is it due to getting faster once
     inserts are rarely needed since most ip-port combinations have been sent?
     In that case, a shorter duration (e.g., 30 seconds) would be a good idea.
-  * Maybe investigate aquatic memory use.
-    * Would it use significantly less memory to store peers in an ArrayVec if
-      there are only, say, 2 of them?
 
-* CI transfer test
-  * add HTTP without TLS
-
-* http
-  * panic sentinel not working
+* general
+  * panic sentinel not working? at least seemingly not in http?
 
 ## Medium priority
 
@@ -42,10 +48,6 @@
 
 * aquatic_ws
   * Add cleaning task for ConnectionHandle.announced_info_hashes?
-  * RES memory still high after traffic stops, even if torrent maps and connection slabs go down to 0 len and capacity
-    * replacing indexmap_amortized / simd_json with equivalents doesn't help
-  * SinkExt::send maybe doesn't wake up properly?
-    * related to https://github.com/sdroege/async-tungstenite/blob/master/src/compat.rs#L18 ?
 
 * Performance hyperoptimization (receive interrupts on correct core)
   * If there is no network card RSS support, do eBPF XDP CpuMap redirect based on packet info, to
@@ -63,7 +65,6 @@
     * thiserror?
     * CI
     * uring load test?
-  * what poll event capacity is actually needed?
   * load test
       * move additional request sending to for each received response, maybe
         with probability 0.2
