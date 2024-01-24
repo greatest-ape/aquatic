@@ -1,6 +1,6 @@
 [package]
 name = "aquatic_http"
-description = "High-performance open BitTorrent tracker (HTTP over TLS)"
+description = "High-performance open HTTP BitTorrent tracker (with optional TLS)"
 keywords = ["http", "server", "peer-to-peer", "torrent", "bittorrent"]
 version.workspace = true
 authors.workspace = true
