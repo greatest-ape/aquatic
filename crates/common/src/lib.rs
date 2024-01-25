@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use ahash::RandomState;
-use rand::Rng;
 
 pub mod access_list;
 pub mod cli;
