@@ -15,10 +15,6 @@
 #### Added
 
 * Add support for reporting peer client information
-* Speed up parsing and serialization of requests and responses with
-  [zerocopy](https://crates.io/crates/zerocopy)
-* Store torrents with up to two peers without an extra heap allocation for the
-  peers.
 
 #### Changed
 
@@ -28,10 +24,16 @@
 * Remove support for unbounded worker channels
 * Add backpressure in socket workers. They will postpone reading from the
   socket if sending a request to a swarm worker failed
+* Avoid a heap allocation for torrents with two or less peers. This can save
+  a lot of memory if many torrents are tracked
+* Improve announce performance by avoiding having to filter response peers
+* In announce response statistics, don't include announcing peer
 * Distribute announce responses from swarm workers over socket workers to
   decrease performance loss due to underutilized threads
 * Harden ConnectionValidator to make IP spoofing even more costly
 * Remove config key `network.poll_event_capacity` (always use 1)
+* Speed up parsing and serialization of requests and responses by using
+  [zerocopy](https://crates.io/crates/zerocopy)
 
 ### aquatic_http
 
@@ -40,6 +42,13 @@
 * Reload TLS certificate (and key) on SIGUSR1
 * Support running without TLS
 * Support running behind reverse proxy
+
+#### Changed
+
+* Index peers by packet source IP and provided port instead of by source ip
+  and peer id. This is likely slightly faster.
+* Improve announce performance by avoiding having to filter response peers
+* In announce response statistics, don't include announcing peer
 
 #### Fixed
 

@@ -21,9 +21,6 @@ use crate::SHARED_IN_CHANNEL_SIZE;
 
 use self::storage::TorrentMaps;
 
-#[cfg(feature = "metrics")]
-thread_local! { static WORKER_INDEX: ::std::cell::Cell<usize> = Default::default() }
-
 #[allow(clippy::too_many_arguments)]
 pub async fn run_swarm_worker(
     _sentinel: PanicSentinel,
@@ -35,9 +32,6 @@ pub async fn run_swarm_worker(
     server_start_instant: ServerStartInstant,
     worker_index: usize,
 ) {
-    #[cfg(feature = "metrics")]
-    WORKER_INDEX.with(|index| index.set(worker_index));
-
     let (_, mut control_message_receivers) = control_message_mesh_builder
         .join(Role::Consumer)
         .await
@@ -48,7 +42,7 @@ pub async fn run_swarm_worker(
 
     let out_message_senders = Rc::new(out_message_senders);
 
-    let torrents = Rc::new(RefCell::new(TorrentMaps::default()));
+    let torrents = Rc::new(RefCell::new(TorrentMaps::new(worker_index)));
     let access_list = state.access_list;
 
     // Periodically clean torrents
