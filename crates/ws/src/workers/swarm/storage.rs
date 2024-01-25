@@ -40,15 +40,16 @@ impl TorrentMaps {
         request_sender_meta: InMessageMeta,
         request: AnnounceRequest,
     ) {
-        self.get_torrent_map_by_ip_version(request_sender_meta.ip_version)
-            .handle_announce_request(
-                config,
-                rng,
-                out_messages,
-                server_start_instant,
-                request_sender_meta,
-                request,
-            );
+        let torrent_map = self.get_torrent_map_by_ip_version(request_sender_meta.ip_version);
+
+        torrent_map.handle_announce_request(
+            config,
+            rng,
+            out_messages,
+            server_start_instant,
+            request_sender_meta,
+            request,
+        );
     }
 
     pub fn handle_scrape_request(
@@ -58,8 +59,9 @@ impl TorrentMaps {
         meta: InMessageMeta,
         request: ScrapeRequest,
     ) {
-        self.get_torrent_map_by_ip_version(meta.ip_version)
-            .handle_scrape_request(config, out_messages, meta, request);
+        let torrent_map = self.get_torrent_map_by_ip_version(meta.ip_version);
+
+        torrent_map.handle_scrape_request(config, out_messages, meta, request);
     }
 
     pub fn clean(
@@ -87,8 +89,9 @@ impl TorrentMaps {
         peer_id: PeerId,
         ip_version: IpVersion,
     ) {
-        self.get_torrent_map_by_ip_version(ip_version)
-            .handle_connection_closed(info_hash, peer_id);
+        let torrent_map = self.get_torrent_map_by_ip_version(ip_version);
+
+        torrent_map.handle_connection_closed(info_hash, peer_id);
     }
 
     fn get_torrent_map_by_ip_version(&mut self, ip_version: IpVersion) -> &mut TorrentMap {
@@ -257,14 +260,7 @@ impl TorrentMap {
 
     pub fn handle_connection_closed(&mut self, info_hash: InfoHash, peer_id: PeerId) {
         if let Some(torrent_data) = self.torrents.get_mut(&info_hash) {
-            if let Some(peer) = torrent_data.peers.remove(&peer_id) {
-                if peer.seeder {
-                    torrent_data.num_seeders -= 1;
-                }
-
-                #[cfg(feature = "metrics")]
-                self.peer_gauge.decrement(1.0);
-            }
+            torrent_data.handle_connection_closed(peer_id, &self.peer_gauge);
         }
     }
 
@@ -289,27 +285,11 @@ impl TorrentMap {
                 return false;
             }
 
-            let num_seeders = &mut torrent_data.num_seeders;
+            let num_peers = torrent_data.clean_and_get_num_peers(now);
 
-            torrent_data.peers.retain(|_, peer| {
-                peer.expecting_answers
-                    .retain(|_, valid_until| valid_until.valid(now));
-                peer.expecting_answers.shrink_to_fit();
+            total_num_peers += num_peers as u64;
 
-                let keep = peer.valid_until.valid(now);
-
-                if (!keep) & peer.seeder {
-                    *num_seeders -= 1;
-                }
-
-                keep
-            });
-
-            total_num_peers += torrent_data.peers.len() as u64;
-
-            torrent_data.peers.shrink_to_fit();
-
-            !torrent_data.peers.is_empty()
+            num_peers > 0
         });
 
         self.torrents.shrink_to_fit();
@@ -527,6 +507,41 @@ impl TorrentData {
         } else {
             None
         }
+    }
+
+    pub fn handle_connection_closed(
+        &mut self,
+        peer_id: PeerId,
+        #[cfg(feature = "metrics")] peer_gauge: &::metrics::Gauge,
+    ) {
+        if let Some(peer) = self.peers.remove(&peer_id) {
+            if peer.seeder {
+                self.num_seeders -= 1;
+            }
+
+            #[cfg(feature = "metrics")]
+            peer_gauge.decrement(1.0);
+        }
+    }
+
+    fn clean_and_get_num_peers(&mut self, now: SecondsSinceServerStart) -> usize {
+        self.peers.retain(|_, peer| {
+            peer.expecting_answers
+                .retain(|_, valid_until| valid_until.valid(now));
+            peer.expecting_answers.shrink_to_fit();
+
+            let keep = peer.valid_until.valid(now);
+
+            if (!keep) & peer.seeder {
+                self.num_seeders -= 1;
+            }
+
+            keep
+        });
+
+        self.peers.shrink_to_fit();
+
+        self.peers.len()
     }
 }
 
