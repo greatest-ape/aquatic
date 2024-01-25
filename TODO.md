@@ -2,19 +2,13 @@
 
 ## High priority
 
-* udp
-  * if peer_clients is on, add task to generate prometheus exports on regular
-    interval to clean up data
+* general
+  * add task to generate prometheus exports on regular interval to clean up
+    data. this is important if peer_clients is activated
 
 * http
   * consider storing small number of peers without extra heap allocation
   * add CI transfer test for http without TLS
-
-* ws
-  * extract offer receiver peers while peer is removed, as in udp implementation
-  * consider storing small number of peers without extra heap allocation
-  * if peer_clients is on, add task to generate prometheus exports on regular
-    interval to clean up data
 
 * aquatic_bench
   * Opentracker "slow to get up to speed", is it due to getting faster once
