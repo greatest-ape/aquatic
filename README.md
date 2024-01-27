@@ -42,7 +42,7 @@ the table above.
 
 ## Architectural overview
 
-![Architectural overview of aquatic](./documents/aquatic-architecture-2022-02-02.svg)
+![Architectural overview of aquatic](./documents/aquatic-architecture-2024.svg)
 
 ## Copyright and license
 
