@@ -69,7 +69,7 @@ jobs:
 
   test-file-transfers:
     runs-on: ubuntu-latest
-    name: "Test BitTorrent file transfers over UDP, TLS and WSS"
+    name: "Test BitTorrent file transfers (UDP, HTTP, WebTorrent)"
     timeout-minutes: 20
     container:
       image: rust:1-bullseye
