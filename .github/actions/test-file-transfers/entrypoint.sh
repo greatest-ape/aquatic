@@ -68,13 +68,13 @@ tls_private_key_path = './key.pk8'
 ./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
 
 echo "
-log_level = 'trace'
+log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3000'" > udp.toml
 ./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
 
-echo "log_level = 'trace'
+echo "log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3002'
@@ -84,7 +84,7 @@ tls_private_key_path = './key.pk8'
 " > ws-tls.toml
 ./target/debug/aquatic ws -c ws-tls.toml > "$HOME/ws-tls.log" 2>&1 &
 
-echo "log_level = 'trace'
+echo "log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3003'
@@ -102,14 +102,13 @@ mkdir torrents
 
 # Create torrents
 
-# echo "http-test-ipv4" > seed/http-test-ipv4
 echo "http-test-ipv4" > seed/http-test-ipv4
 echo "tls-test-ipv4" > seed/tls-test-ipv4
 echo "udp-test-ipv4" > seed/udp-test-ipv4
 echo "ws-tls-test-ipv4" > seed/ws-tls-test-ipv4
 echo "ws-test-ipv4" > seed/ws-test-ipv4
 
-mktorrent -p -o "torrents/http-ipv4.torrent" -a "http://127.0.0.1:3000/announce" "seed/http-test-ipv4"
+mktorrent -p -o "torrents/http-ipv4.torrent" -a "http://127.0.0.1:3004/announce" "seed/http-test-ipv4"
 mktorrent -p -o "torrents/tls-ipv4.torrent" -a "https://example.com:3001/announce" "seed/tls-test-ipv4"
 mktorrent -p -o "torrents/udp-ipv4.torrent" -a "udp://127.0.0.1:3000" "seed/udp-test-ipv4"
 mktorrent -p -o "torrents/ws-tls-ipv4.torrent" -a "wss://example.com:3002" "seed/ws-tls-test-ipv4"
@@ -165,7 +164,7 @@ cd ..
 
 # Check for completion
 
-HTTP_IPv4="Ok"
+HTTP_IPv4="Failed"
 TLS_IPv4="Failed"
 UDP_IPv4="Failed"
 WS_TLS_IPv4="Failed"
@@ -218,7 +217,7 @@ do
         fi
     fi
 
-    if [ "$HTTP_IPv4" = "Ok" ] &&[ "$TLS_IPv4" = "Ok" ] && [ "$UDP_IPv4" = "Ok" ] && [ "$WS_TLS_IPv4" = "Ok" ] && [ "$WS_IPv4" = "Ok" ]; then
+    if [ "$HTTP_IPv4" = "Ok" ] && [ "$TLS_IPv4" = "Ok" ] && [ "$UDP_IPv4" = "Ok" ] && [ "$WS_TLS_IPv4" = "Ok" ] && [ "$WS_IPv4" = "Ok" ]; then
         break
     fi
 
