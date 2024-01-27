@@ -28,7 +28,7 @@ More details are available [here](../../documents/aquatic-ws-load-test-2023-01-2
 ### Compiling
 
 - Install Rust with [rustup](https://rustup.rs/) (latest stable release is recommended)
-- Install cmake with your package manager (e.g., `apt-get install cmake`)
+- Install build dependencies with your package manager (e.g., `apt-get install cmake build-essential`)
 - Clone this git repository and build the application:
 
 ```sh

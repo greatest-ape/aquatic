@@ -24,7 +24,7 @@ More benchmark details are available [here](../../documents/aquatic-http-load-te
 ### Compiling
 
 - Install Rust with [rustup](https://rustup.rs/) (latest stable release is recommended)
-- Install cmake with your package manager (e.g., `apt-get install cmake`)
+- Install build dependencies with your package manager (e.g., `apt-get install cmake build-essential`)
 - Clone this git repository and build the application:
 
 ```sh
