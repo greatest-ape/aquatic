@@ -183,6 +183,7 @@ dependencies = [
  "aquatic_http_protocol",
  "aquatic_toml_config",
  "arc-swap",
+ "arrayvec",
  "cfg-if",
  "either",
  "futures",

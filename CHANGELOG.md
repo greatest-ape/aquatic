@@ -47,6 +47,8 @@
 
 * Index peers by packet source IP and provided port instead of by source ip
   and peer id. This is likely slightly faster.
+* Avoid a heap allocation for torrents with four or less peers. This can save
+  a lot of memory if many torrents are tracked
 * Improve announce performance by avoiding having to filter response peers
 * In announce response statistics, don't include announcing peer
 
