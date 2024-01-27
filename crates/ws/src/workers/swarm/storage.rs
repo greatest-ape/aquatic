@@ -176,6 +176,7 @@ impl TorrentMap {
             server_start_instant,
             request_sender_meta,
             &request,
+            #[cfg(feature = "metrics")]
             &self.peer_gauge,
         );
 
@@ -260,7 +261,11 @@ impl TorrentMap {
 
     pub fn handle_connection_closed(&mut self, info_hash: InfoHash, peer_id: PeerId) {
         if let Some(torrent_data) = self.torrents.get_mut(&info_hash) {
-            torrent_data.handle_connection_closed(peer_id, &self.peer_gauge);
+            torrent_data.handle_connection_closed(
+                peer_id,
+                #[cfg(feature = "metrics")]
+                &self.peer_gauge,
+            );
         }
     }
 

@@ -26,6 +26,7 @@ pub struct SetConfig<C, I> {
     pub load_test_runs: Vec<(usize, Priority, TaskSetCpuList)>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_sets<C, F, I>(
     command: &C,
     cpu_mode: CpuMode,

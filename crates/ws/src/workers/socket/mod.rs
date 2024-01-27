@@ -240,14 +240,14 @@ async fn clean_connections(
         }
     });
 
-    ::log::info!(
-        "cleaned connections in worker {}, {} references remaining",
-        WORKER_INDEX.get(),
-        connection_slab.borrow_mut().len()
-    );
-
     #[cfg(feature = "metrics")]
     {
+        ::log::info!(
+            "cleaned connections in worker {}, {} references remaining",
+            WORKER_INDEX.get(),
+            connection_slab.borrow_mut().len()
+        );
+
         // Increment gauges by zero to prevent them from being removed due to
         // idleness
 
