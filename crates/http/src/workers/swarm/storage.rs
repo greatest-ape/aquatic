@@ -99,6 +99,7 @@ impl TorrentMaps {
         }
     }
 
+    #[cfg(feature = "metrics")]
     pub fn update_torrent_metrics(&self) {
         self.ipv4.torrent_gauge.set(self.ipv4.torrents.len() as f64);
         self.ipv6.torrent_gauge.set(self.ipv6.torrents.len() as f64);

@@ -42,6 +42,7 @@ use crate::workers::socket::calculate_in_message_consumer_index;
 use crate::workers::socket::{ip_version_to_metrics_str, WORKER_INDEX};
 
 /// Optional second tuple field is for peer id hex representation
+#[cfg(feature = "metrics")]
 type PeerClientGauge = (Gauge, Option<Gauge>);
 
 pub struct ConnectionRunner {
@@ -68,6 +69,7 @@ impl ConnectionRunner {
         let clean_up_data = ConnectionCleanupData {
             announced_info_hashes: Default::default(),
             ip_version: self.ip_version,
+            #[cfg(feature = "metrics")]
             opt_peer_client: Default::default(),
             #[cfg(feature = "metrics")]
             active_connections_gauge: ::metrics::gauge!(
@@ -597,6 +599,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
 struct ConnectionCleanupData {
     announced_info_hashes: Rc<RefCell<HashMap<InfoHash, PeerId>>>,
     ip_version: IpVersion,
+    #[cfg(feature = "metrics")]
     opt_peer_client: Rc<RefCell<Option<PeerClientGauge>>>,
     #[cfg(feature = "metrics")]
     active_connections_gauge: Gauge,
