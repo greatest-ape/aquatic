@@ -28,6 +28,7 @@ aquatic_http_protocol.workspace = true
 aquatic_toml_config.workspace = true
 
 anyhow = "1"
+arrayvec = "0.7"
 arc-swap = "1"
 cfg-if = "1"
 either = "1"

@@ -58,19 +58,8 @@ pub async fn run_swarm_worker(
     // Periodically update torrent count metrics
     #[cfg(feature = "metrics")]
     TimerActionRepeat::repeat(enclose!((config, torrents) move || {
-        enclose!((config, torrents, worker_index) move || async move {
-            let torrents = torrents.borrow_mut();
-
-            ::metrics::gauge!(
-                "aquatic_torrents",
-                "ip_version" => "4",
-                "worker_index" => worker_index.to_string(),
-            ).set(torrents.ipv4.len() as f64);
-            ::metrics::gauge!(
-                "aquatic_torrents",
-                "ip_version" => "6",
-                "worker_index" => worker_index.to_string(),
-            ).set(torrents.ipv6.len() as f64);
+        enclose!((config, torrents) move || async move {
+            torrents.borrow_mut().update_torrent_metrics();
 
             Some(Duration::from_secs(config.metrics.torrent_count_update_interval))
         })()
