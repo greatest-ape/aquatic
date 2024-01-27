@@ -29,10 +29,11 @@ More details are available [here](../../documents/aquatic-ws-load-test-2023-01-2
 
 - Install Rust with [rustup](https://rustup.rs/) (latest stable release is recommended)
 - Install cmake with your package manager (e.g., `apt-get install cmake`)
-- Clone this git repository and enter its root directory
-- Build the application:
+- Clone this git repository and build the application:
 
 ```sh
+git clone https://github.com/greatest-ape/aquatic.git && cd aquatic
+
 # Recommended: tell Rust to enable support for all SIMD extensions present on
 # current CPU except for those relating to AVX-512. (If you run a processor
 # that doesn't clock down when using AVX-512, you can enable those instructions
@@ -52,6 +53,8 @@ Generate the configuration file:
 
 Make necessary adjustments to the file. You will likely want to adjust `address`
 (listening address) under the `network` section.
+
+To run over TLS, configure certificate and private key files.
 
 Running behind a reverse proxy is supported, as long as IPv4 requests are
 proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
@@ -86,7 +89,9 @@ configuration files in a similar manner to the tracker application.
 After starting the tracker, run the load tester:
 
 ```sh
-./scripts/run-load-test-ws.sh
+. ./scripts/env-native-cpu-without-avx-512 # Optional
+
+cargo build --release -p aquatic_ws_load_test -- --help
 ```
 
 ## Details
@@ -102,8 +107,8 @@ fine in production.
 
 ## Copyright and license
 
-Copyright (c) 2020-2023 Joakim Frostegård
+Copyright (c) Joakim Frostegård
 
-Distributed under the terms of the Apache 2.0 license. Please refer to the
-`LICENSE` file in the repository root directory for details.
+Distributed under the terms of the Apache License, Version 2.0. Please refer to
+the `LICENSE` file in the repository root directory for details.
 

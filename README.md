@@ -46,10 +46,10 @@ the table above.
 
 ## Copyright and license
 
-Copyright (c) 2020-2023 Joakim Frostegård
+Copyright (c) Joakim Frostegård
 
-Distributed under the terms of the Apache 2.0 license. Please refer to the
-`LICENSE` file in the repository root directory for details.
+Distributed under the terms of the Apache License, Version 2.0. Please refer to
+the `LICENSE` file in the repository root directory for details.
 
 ## Trivia
 
