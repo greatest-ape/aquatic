@@ -2,6 +2,10 @@
 
 # aquatic_udp
 #
+# Please note that running aquatic_udp under Docker is NOT RECOMMENDED due to
+# suboptimal performance. This file is provided as a starting point for those
+# who still wish to do so.
+#
 # Customize by setting CONFIG_FILE_CONTENTS and
 # ACCESS_LIST_CONTENTS environment variables.
 #
