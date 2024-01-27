@@ -95,7 +95,6 @@ After starting the tracker, run the load tester:
 
 Implements:
   * [BEP 003]: HTTP BitTorrent protocol ([more details](https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol)). Exceptions:
-    * Only runs over TLS
     * Doesn't track the number of torrent downloads (0 is always sent)
     * Only compact responses are supported
   * [BEP 023]: Compact HTTP responses
