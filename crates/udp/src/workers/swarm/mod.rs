@@ -10,7 +10,7 @@ use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::{CanonicalSocketAddr, PanicSentinel, ValidUntil};
+use aquatic_common::{CanonicalSocketAddr, ValidUntil};
 
 use crate::common::*;
 use crate::config::Config;
@@ -18,7 +18,6 @@ use crate::config::Config;
 use storage::TorrentMaps;
 
 pub struct SwarmWorker {
-    pub _sentinel: PanicSentinel,
     pub config: Config,
     pub state: State,
     pub server_start_instant: ServerStartInstant,
@@ -29,7 +28,7 @@ pub struct SwarmWorker {
 }
 
 impl SwarmWorker {
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> anyhow::Result<()> {
         let mut torrents = TorrentMaps::default();
         let mut rng = SmallRng::from_entropy();
 

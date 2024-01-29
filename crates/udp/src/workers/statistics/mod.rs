@@ -5,7 +5,7 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use aquatic_common::{IndexMap, PanicSentinel};
+use aquatic_common::IndexMap;
 use aquatic_udp_protocol::{PeerClient, PeerId};
 use compact_str::CompactString;
 use crossbeam_channel::Receiver;
@@ -42,11 +42,10 @@ struct TemplateData {
 }
 
 pub fn run_statistics_worker(
-    _sentinel: PanicSentinel,
     config: Config,
     shared_state: State,
     statistics_receiver: Receiver<StatisticsMessage>,
-) {
+) -> anyhow::Result<()> {
     let process_peer_client_data = {
         let mut collect = config.statistics.write_html_to_file;
 
@@ -61,13 +60,10 @@ pub fn run_statistics_worker(
     let opt_tt = if config.statistics.write_html_to_file {
         let mut tt = TinyTemplate::new();
 
-        if let Err(err) = tt.add_template(TEMPLATE_KEY, TEMPLATE_CONTENTS) {
-            ::log::error!("Couldn't parse statistics html template: {:#}", err);
+        tt.add_template(TEMPLATE_KEY, TEMPLATE_CONTENTS)
+            .context("parse statistics html template")?;
 
-            None
-        } else {
-            Some(tt)
-        }
+        Some(tt)
     } else {
         None
     };
