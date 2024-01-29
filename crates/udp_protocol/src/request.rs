@@ -130,7 +130,7 @@ impl From<ScrapeRequest> for Request {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ConnectRequest {
     pub transaction_id: TransactionId,
 }
@@ -145,7 +145,7 @@ impl ConnectRequest {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
 pub struct AnnounceRequest {
     pub connection_id: ConnectionId,

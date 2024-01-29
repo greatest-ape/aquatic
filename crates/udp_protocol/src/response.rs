@@ -128,7 +128,7 @@ impl From<ErrorResponse> for Response {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
 pub struct ConnectResponse {
     pub transaction_id: TransactionId,
@@ -169,7 +169,7 @@ impl<I: Ip> AnnounceResponse<I> {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
 pub struct AnnounceResponseFixedData {
     pub transaction_id: TransactionId,
