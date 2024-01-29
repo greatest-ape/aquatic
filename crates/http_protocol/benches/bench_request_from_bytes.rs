@@ -7,7 +7,7 @@ static INPUT: &[u8] = b"GET /announce?info_hash=%04%0bkV%3f%5cr%14%a6%b7%98%adC%
 
 pub fn bench(c: &mut Criterion) {
     c.bench_function("request-from-bytes", |b| {
-        b.iter(|| Request::from_bytes(black_box(INPUT)))
+        b.iter(|| Request::parse_bytes(black_box(INPUT)))
     });
 }
 

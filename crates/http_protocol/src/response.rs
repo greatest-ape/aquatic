@@ -61,7 +61,7 @@ pub struct AnnounceResponse {
 }
 
 impl AnnounceResponse {
-    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write_bytes<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d8:completei")?;
@@ -124,7 +124,7 @@ pub struct ScrapeResponse {
 }
 
 impl ScrapeResponse {
-    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write_bytes<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         bytes_written += output.write(b"d5:filesd")?;
@@ -160,7 +160,7 @@ impl FailureResponse {
         }
     }
 
-    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write_bytes<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         let mut bytes_written = 0usize;
 
         let reason_bytes = self.failure_reason.as_bytes();
@@ -184,14 +184,14 @@ pub enum Response {
 }
 
 impl Response {
-    pub fn write<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
+    pub fn write_bytes<W: Write>(&self, output: &mut W) -> ::std::io::Result<usize> {
         match self {
-            Response::Announce(r) => r.write(output),
-            Response::Failure(r) => r.write(output),
-            Response::Scrape(r) => r.write(output),
+            Response::Announce(r) => r.write_bytes(output),
+            Response::Failure(r) => r.write_bytes(output),
+            Response::Scrape(r) => r.write_bytes(output),
         }
     }
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ::serde_bencode::Error> {
+    pub fn parse_bytes(bytes: &[u8]) -> Result<Self, ::serde_bencode::Error> {
         ::serde_bencode::from_bytes(bytes)
     }
 }
@@ -285,7 +285,7 @@ mod tests {
 
         let mut hand_written = Vec::new();
 
-        response.write(&mut hand_written).unwrap();
+        response.write_bytes(&mut hand_written).unwrap();
 
         let success = hand_written == reference;
 
@@ -303,7 +303,7 @@ mod tests {
 
         let mut hand_written = Vec::new();
 
-        response.write(&mut hand_written).unwrap();
+        response.write_bytes(&mut hand_written).unwrap();
 
         let success = hand_written == reference;
 
@@ -321,7 +321,7 @@ mod tests {
 
         let mut hand_written = Vec::new();
 
-        response.write(&mut hand_written).unwrap();
+        response.write_bytes(&mut hand_written).unwrap();
 
         let success = hand_written == reference;
 

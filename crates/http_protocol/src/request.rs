@@ -21,7 +21,7 @@ pub struct AnnounceRequest {
 }
 
 impl AnnounceRequest {
-    fn write<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
+    fn write_bytes<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
         output.write_all(b"GET /announce")?;
         output.write_all(url_suffix)?;
         output.write_all(b"?info_hash=")?;
@@ -67,7 +67,7 @@ impl AnnounceRequest {
         Ok(())
     }
 
-    pub fn from_query_string(query_string: &str) -> anyhow::Result<Self> {
+    pub fn parse_query_string(query_string: &str) -> anyhow::Result<Self> {
         // -- Parse key-value pairs
 
         let mut opt_info_hash = None;
@@ -173,7 +173,7 @@ pub struct ScrapeRequest {
 }
 
 impl ScrapeRequest {
-    fn write<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
+    fn write_bytes<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
         output.write_all(b"GET /scrape")?;
         output.write_all(url_suffix)?;
         output.write_all(b"?")?;
@@ -196,7 +196,7 @@ impl ScrapeRequest {
         Ok(())
     }
 
-    pub fn from_query_string(query_string: &str) -> anyhow::Result<Self> {
+    pub fn parse_query_string(query_string: &str) -> anyhow::Result<Self> {
         // -- Parse key-value pairs
 
         let mut info_hashes = Vec::new();
@@ -252,14 +252,14 @@ pub enum Request {
 
 impl Request {
     /// Parse Request from HTTP request bytes
-    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Option<Self>> {
+    pub fn parse_bytes(bytes: &[u8]) -> anyhow::Result<Option<Self>> {
         let mut headers = [httparse::EMPTY_HEADER; 16];
         let mut http_request = httparse::Request::new(&mut headers);
 
         match http_request.parse(bytes) {
             Ok(httparse::Status::Complete(_)) => {
                 if let Some(path) = http_request.path {
-                    Self::from_http_get_path(path).map(Some)
+                    Self::parse_http_get_path(path).map(Some)
                 } else {
                     Err(anyhow::anyhow!("no http path"))
                 }
@@ -282,7 +282,7 @@ impl Request {
     /// UTF-8 string, meaning that non-ascii bytes are invalid characters.
     /// Therefore, these bytes must be converted to their equivalent multi-byte
     /// UTF-8 encodings.
-    pub fn from_http_get_path(path: &str) -> anyhow::Result<Self> {
+    pub fn parse_http_get_path(path: &str) -> anyhow::Result<Self> {
         ::log::debug!("request GET path: {}", path);
 
         let mut split_parts = path.splitn(2, '?');
@@ -291,11 +291,11 @@ impl Request {
         let query_string = split_parts.next().with_context(|| "no query string")?;
 
         if location == "/announce" {
-            Ok(Request::Announce(AnnounceRequest::from_query_string(
+            Ok(Request::Announce(AnnounceRequest::parse_query_string(
                 query_string,
             )?))
         } else if location == "/scrape" {
-            Ok(Request::Scrape(ScrapeRequest::from_query_string(
+            Ok(Request::Scrape(ScrapeRequest::parse_query_string(
                 query_string,
             )?))
         } else {
@@ -305,8 +305,8 @@ impl Request {
 
     pub fn write<W: Write>(&self, output: &mut W, url_suffix: &[u8]) -> ::std::io::Result<()> {
         match self {
-            Self::Announce(r) => r.write(output, url_suffix),
-            Self::Scrape(r) => r.write(output, url_suffix),
+            Self::Announce(r) => r.write_bytes(output, url_suffix),
+            Self::Scrape(r) => r.write_bytes(output, url_suffix),
         }
     }
 }
@@ -351,7 +351,7 @@ mod tests {
         bytes.extend_from_slice(ANNOUNCE_REQUEST_PATH.as_bytes());
         bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
 
-        let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();
+        let parsed_request = Request::parse_bytes(&bytes[..]).unwrap().unwrap();
         let reference_request = get_reference_announce_request();
 
         assert_eq!(parsed_request, reference_request);
@@ -365,7 +365,7 @@ mod tests {
         bytes.extend_from_slice(SCRAPE_REQUEST_PATH.as_bytes());
         bytes.extend_from_slice(b" HTTP/1.1\r\n\r\n");
 
-        let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();
+        let parsed_request = Request::parse_bytes(&bytes[..]).unwrap().unwrap();
         let reference_request = Request::Scrape(ScrapeRequest {
             info_hashes: vec![InfoHash(REFERENCE_INFO_HASH)],
         });
@@ -432,7 +432,7 @@ mod tests {
 
             request.write(&mut bytes, &[]).unwrap();
 
-            let parsed_request = Request::from_bytes(&bytes[..]).unwrap().unwrap();
+            let parsed_request = Request::parse_bytes(&bytes[..]).unwrap().unwrap();
 
             let success = request == parsed_request;
 
