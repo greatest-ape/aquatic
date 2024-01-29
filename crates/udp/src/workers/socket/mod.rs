@@ -66,7 +66,7 @@ pub fn run_socket_worker(
         }
     }
 
-    return self::mio::SocketWorker::run(
+    self::mio::SocketWorker::run(
         shared_state,
         config,
         validator,
@@ -74,7 +74,7 @@ pub fn run_socket_worker(
         request_sender,
         response_receiver,
         priv_dropper,
-    );
+    )
 }
 
 fn create_socket(
