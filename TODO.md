@@ -2,7 +2,7 @@
 
 ## High priority
 
-* general
+* http and ws
   * add task to generate prometheus exports on regular interval to clean up
     data. this is important if peer_clients is activated
 
@@ -12,7 +12,9 @@
     In that case, a shorter duration (e.g., 30 seconds) would be a good idea.
 
 * general
-  * panic sentinel not working? at least seemingly not in http?
+  * Replace panic sentinel with checking threads like in udp implementation.
+    It seems to be broken
+
 
 ## Medium priority
 
@@ -24,14 +26,6 @@
   * Non-trivial dependency updates
     * toml v0.7
     * syn v2.0
-
-* quit whole program if any thread panics
-  * But it would be nice not to panic in workers, but to return errors instead.
-    Once JoinHandle::is_finished is available in stable Rust (#90470), an
-    option would be to
-     * Save JoinHandles
-     * When preparing to quit because of PanicSentinel sending SIGTERM, loop
-       through them, extract error and log it
 
 * Run cargo-deny in CI
 
