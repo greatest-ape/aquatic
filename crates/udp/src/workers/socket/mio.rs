@@ -2,6 +2,7 @@ use std::io::{Cursor, ErrorKind};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
 use aquatic_common::ServerStartInstant;
 use mio::net::UdpSocket;
@@ -58,8 +59,7 @@ impl SocketWorker {
         response_receiver: ConnectedResponseReceiver,
         priv_dropper: PrivilegeDropper,
     ) -> anyhow::Result<()> {
-        let socket =
-            UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
+        let socket = UdpSocket::from_std(create_socket(&config, priv_dropper)?);
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
         let opt_resend_buffer = (config.network.resend_buffer_max_len > 0).then_some(Vec::new());
 
@@ -79,18 +79,16 @@ impl SocketWorker {
             pending_requests: Default::default(),
         };
 
-        worker.run_inner();
-
-        Ok(())
+        worker.run_inner()
     }
 
-    pub fn run_inner(&mut self) {
+    pub fn run_inner(&mut self) -> anyhow::Result<()> {
         let mut events = Events::with_capacity(1);
-        let mut poll = Poll::new().expect("create poll");
+        let mut poll = Poll::new().context("create poll")?;
 
         poll.registry()
             .register(&mut self.socket, Token(0), Interest::READABLE)
-            .expect("register poll");
+            .context("register poll")?;
 
         let poll_timeout = Duration::from_millis(self.config.network.poll_timeout_ms);
 
@@ -108,8 +106,7 @@ impl SocketWorker {
         loop {
             match self.polling_mode {
                 PollMode::Regular => {
-                    poll.poll(&mut events, Some(poll_timeout))
-                        .expect("failed polling");
+                    poll.poll(&mut events, Some(poll_timeout)).context("poll")?;
 
                     for event in events.iter() {
                         if event.is_readable() {

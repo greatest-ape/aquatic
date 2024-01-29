@@ -60,13 +60,10 @@ pub fn run_statistics_worker(
     let opt_tt = if config.statistics.write_html_to_file {
         let mut tt = TinyTemplate::new();
 
-        if let Err(err) = tt.add_template(TEMPLATE_KEY, TEMPLATE_CONTENTS) {
-            ::log::error!("Couldn't parse statistics html template: {:#}", err);
+        tt.add_template(TEMPLATE_KEY, TEMPLATE_CONTENTS)
+            .context("parse statistics html template")?;
 
-            None
-        } else {
-            Some(tt)
-        }
+        Some(tt)
     } else {
         None
     };
