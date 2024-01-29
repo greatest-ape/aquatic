@@ -25,7 +25,7 @@ pub fn parse_request(
     match http_request.parse(buffer).with_context(|| "httparse")? {
         httparse::Status::Complete(_) => {
             let path = http_request.path.ok_or(anyhow::anyhow!("no http path"))?;
-            let request = Request::from_http_get_path(path)?;
+            let request = Request::parse_http_get_path(path)?;
 
             let opt_peer_ip = if config.network.runs_behind_reverse_proxy {
                 let header_name = &config.network.reverse_proxy_ip_header_name;

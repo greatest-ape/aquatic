@@ -71,7 +71,7 @@ impl Worker {
 
             for _ in events.iter() {
                 while let Ok(amt) = self.socket.recv(&mut self.buffer) {
-                    match Response::from_bytes(&self.buffer[0..amt], self.addr.is_ipv4()) {
+                    match Response::parse_bytes(&self.buffer[0..amt], self.addr.is_ipv4()) {
                         Ok(response) => {
                             if let Some(request) = self.process_response(response) {
                                 self.send_request(request);
@@ -288,7 +288,7 @@ impl Worker {
     fn send_request(&mut self, request: Request) {
         let mut cursor = Cursor::new(self.buffer);
 
-        match request.write(&mut cursor) {
+        match request.write_bytes(&mut cursor) {
             Ok(()) => {
                 let position = cursor.position() as usize;
                 let inner = cursor.get_ref();

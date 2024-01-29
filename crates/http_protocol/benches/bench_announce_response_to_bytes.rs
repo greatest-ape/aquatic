@@ -33,7 +33,7 @@ pub fn bench(c: &mut Criterion) {
         b.iter(|| {
             buffer.set_position(0);
 
-            Response::write(black_box(&response), black_box(&mut buffer)).unwrap();
+            Response::write_bytes(black_box(&response), black_box(&mut buffer)).unwrap();
         })
     });
 }

@@ -19,30 +19,15 @@ pub enum Request {
 }
 
 impl Request {
-    pub fn write(self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
-            Request::Connect(r) => {
-                bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER)?;
-                bytes.write_i32::<NetworkEndian>(0)?;
-                bytes.write_all(r.transaction_id.as_bytes())?;
-            }
-
-            Request::Announce(r) => {
-                bytes.write_all(r.as_bytes())?;
-            }
-
-            Request::Scrape(r) => {
-                bytes.write_all(r.connection_id.as_bytes())?;
-                bytes.write_i32::<NetworkEndian>(2)?;
-                bytes.write_all(r.transaction_id.as_bytes())?;
-                bytes.write_all((*r.info_hashes.as_slice()).as_bytes())?;
-            }
+            Request::Connect(r) => r.write_bytes(bytes),
+            Request::Announce(r) => r.write_bytes(bytes),
+            Request::Scrape(r) => r.write_bytes(bytes),
         }
-
-        Ok(())
     }
 
-    pub fn from_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
+    pub fn parse_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
         let action = bytes
             .get(8..12)
             .map(|bytes| I32::from_bytes(bytes.try_into().unwrap()))
@@ -145,12 +130,22 @@ impl From<ScrapeRequest> for Request {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ConnectRequest {
     pub transaction_id: TransactionId,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, AsBytes, FromBytes, FromZeroes)]
+impl ConnectRequest {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER)?;
+        bytes.write_i32::<NetworkEndian>(0)?;
+        bytes.write_all(self.transaction_id.as_bytes())?;
+
+        Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
 #[repr(C, packed)]
 pub struct AnnounceRequest {
     pub connection_id: ConnectionId,
@@ -168,6 +163,12 @@ pub struct AnnounceRequest {
     pub key: PeerKey,
     pub peers_wanted: NumberOfPeers,
     pub port: Port,
+}
+
+impl AnnounceRequest {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        bytes.write_all(self.as_bytes())
+    }
 }
 
 /// Note: Request::from_bytes only creates this struct with value 1
@@ -221,6 +222,17 @@ pub struct ScrapeRequest {
     pub connection_id: ConnectionId,
     pub transaction_id: TransactionId,
     pub info_hashes: Vec<InfoHash>,
+}
+
+impl ScrapeRequest {
+    pub fn write_bytes(&self, bytes: &mut impl Write) -> Result<(), io::Error> {
+        bytes.write_all(self.connection_id.as_bytes())?;
+        bytes.write_i32::<NetworkEndian>(2)?;
+        bytes.write_all(self.transaction_id.as_bytes())?;
+        bytes.write_all((*self.info_hashes.as_slice()).as_bytes())?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -323,8 +335,8 @@ mod tests {
     fn same_after_conversion(request: Request) -> bool {
         let mut buf = Vec::new();
 
-        request.clone().write(&mut buf).unwrap();
-        let r2 = Request::from_bytes(&buf[..], ::std::u8::MAX).unwrap();
+        request.clone().write_bytes(&mut buf).unwrap();
+        let r2 = Request::parse_bytes(&buf[..], ::std::u8::MAX).unwrap();
 
         let success = request == r2;
 

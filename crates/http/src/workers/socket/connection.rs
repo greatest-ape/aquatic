@@ -389,7 +389,7 @@ where
         let mut position = RESPONSE_HEADER.len();
 
         let body_len = response
-            .write(&mut &mut self.response_buffer[position..])
+            .write_bytes(&mut &mut self.response_buffer[position..])
             .map_err(ConnectionError::ResponseBufferWrite)?;
 
         position += body_len;

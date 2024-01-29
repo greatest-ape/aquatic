@@ -227,6 +227,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "tungstenite")]
     #[quickcheck]
     fn quickcheck_serde_identity_in_message(in_message_1: InMessage) -> bool {
         let ws_message = in_message_1.to_ws_message();
@@ -246,6 +247,7 @@ mod tests {
         success
     }
 
+    #[cfg(feature = "tungstenite")]
     #[quickcheck]
     fn quickcheck_serde_identity_out_message(out_message_1: OutMessage) -> bool {
         let ws_message = out_message_1.to_ws_message();

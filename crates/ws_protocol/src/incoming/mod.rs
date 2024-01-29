@@ -15,6 +15,7 @@ pub enum InMessage {
     ScrapeRequest(ScrapeRequest),
 }
 
+#[cfg(feature = "tungstenite")]
 impl InMessage {
     #[inline]
     pub fn to_ws_message(&self) -> ::tungstenite::Message {
