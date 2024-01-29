@@ -35,6 +35,10 @@
 * Speed up parsing and serialization of requests and responses by using
   [zerocopy](https://crates.io/crates/zerocopy)
 
+#### Fixed
+
+* Quit whole application if any worker thread quits
+
 ### aquatic_http
 
 #### Added
