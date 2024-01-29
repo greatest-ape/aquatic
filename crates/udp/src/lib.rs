@@ -3,19 +3,20 @@ pub mod config;
 pub mod workers;
 
 use std::collections::BTreeMap;
-use std::thread::Builder;
+use std::fmt::Display;
+use std::thread::{sleep, Builder, JoinHandle};
 use std::time::Duration;
 
 use anyhow::Context;
 use crossbeam_channel::{bounded, unbounded};
-use signal_hook::consts::{SIGTERM, SIGUSR1};
+use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
 
 use aquatic_common::access_list::update_access_list;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::PrivilegeDropper;
-use aquatic_common::{PanicSentinelWatcher, ServerStartInstant};
+use aquatic_common::ServerStartInstant;
 
 use common::{
     ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, SwarmWorkerIndex,
@@ -28,12 +29,12 @@ pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
-    let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
+    let mut signals = Signals::new([SIGUSR1])?;
 
     let state = State::new(config.swarm_workers);
     let connection_validator = ConnectionValidator::new(&config)?;
-    let (sentinel_watcher, sentinel) = PanicSentinelWatcher::create_with_sentinel();
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
+    let mut join_handles = Vec::new();
 
     update_access_list(&config.access_list, &state.access_list)?;
 
@@ -62,14 +63,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     }
 
     for i in 0..config.swarm_workers {
-        let sentinel = sentinel.clone();
         let config = config.clone();
         let state = state.clone();
         let request_receiver = request_receivers.remove(&i).unwrap().clone();
         let response_sender = ConnectedResponseSender::new(response_senders.clone());
         let statistics_sender = statistics_sender.clone();
 
-        Builder::new()
+        let handle = Builder::new()
             .name(format!("swarm-{:02}", i + 1))
             .spawn(move || {
                 #[cfg(feature = "cpu-pinning")]
@@ -81,7 +81,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 let mut worker = SwarmWorker {
-                    _sentinel: sentinel,
                     config,
                     state,
                     server_start_instant,
@@ -91,13 +90,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     worker_index: SwarmWorkerIndex(i),
                 };
 
-                worker.run();
+                worker.run()
             })
             .with_context(|| "spawn swarm worker")?;
+
+        join_handles.push((WorkerType::Swarm(i), handle));
     }
 
     for i in 0..config.socket_workers {
-        let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
         let connection_validator = connection_validator.clone();
@@ -106,7 +106,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let response_receiver = response_receivers.remove(&i).unwrap();
         let priv_dropper = priv_dropper.clone();
 
-        Builder::new()
+        let handle = Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
                 #[cfg(feature = "cpu-pinning")]
@@ -118,7 +118,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::socket::run_socket_worker(
-                    sentinel,
                     state,
                     config,
                     connection_validator,
@@ -126,13 +125,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     request_sender,
                     response_receiver,
                     priv_dropper,
-                );
+                )
             })
             .with_context(|| "spawn socket worker")?;
+
+        join_handles.push((WorkerType::Socket(i), handle));
     }
 
     if config.statistics.active() {
-        let sentinel = sentinel.clone();
         let state = state.clone();
         let config = config.clone();
 
@@ -156,7 +156,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 })?;
         }
 
-        Builder::new()
+        let handle = Builder::new()
             .name("statistics".into())
             .spawn(move || {
                 #[cfg(feature = "cpu-pinning")]
@@ -167,14 +167,11 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Util,
                 );
 
-                workers::statistics::run_statistics_worker(
-                    sentinel,
-                    config,
-                    state,
-                    statistics_receiver,
-                );
+                workers::statistics::run_statistics_worker(config, state, statistics_receiver)
             })
             .with_context(|| "spawn statistics worker")?;
+
+        join_handles.push((WorkerType::Statistics, handle));
     }
 
     #[cfg(feature = "cpu-pinning")]
@@ -185,21 +182,71 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         WorkerIndex::Util,
     );
 
-    for signal in &mut signals {
-        match signal {
-            SIGUSR1 => {
-                let _ = update_access_list(&config.access_list, &state.access_list);
-            }
-            SIGTERM => {
-                if sentinel_watcher.panic_was_triggered() {
-                    return Err(anyhow::anyhow!("worker thread panicked"));
-                }
+    let handle: JoinHandle<anyhow::Result<()>> = Builder::new()
+        .name("signals".into())
+        .spawn(move || {
+            #[cfg(feature = "cpu-pinning")]
+            pin_current_if_configured_to(
+                &config.cpu_pinning,
+                config.socket_workers,
+                config.swarm_workers,
+                WorkerIndex::Util,
+            );
 
-                break;
+            for signal in &mut signals {
+                match signal {
+                    SIGUSR1 => {
+                        let _ = update_access_list(&config.access_list, &state.access_list);
+                    }
+                    _ => unreachable!(),
+                }
             }
-            _ => unreachable!(),
+
+            Ok(())
+        })
+        .context("spawn signal worker")?;
+
+    join_handles.push((WorkerType::Signals, handle));
+
+    loop {
+        for (i, (_, handle)) in join_handles.iter().enumerate() {
+            if handle.is_finished() {
+                let (worker_type, handle) = join_handles.remove(i);
+
+                match handle.join() {
+                    Ok(Ok(())) => {
+                        return Err(anyhow::anyhow!("{} stopped", worker_type));
+                    }
+                    Ok(Err(err)) => {
+                        return Err(err.context(format!("{} stopped", worker_type)));
+                    }
+                    Err(_) => {
+                        return Err(anyhow::anyhow!("{} panicked", worker_type));
+                    }
+                }
+            }
+        }
+
+        sleep(Duration::from_secs(5));
+    }
+}
+
+enum WorkerType {
+    Swarm(usize),
+    Socket(usize),
+    Statistics,
+    Signals,
+    Prometheus,
+}
+
+impl Display for WorkerType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Swarm(index) => f.write_fmt(format_args!("Swarm worker {}", index)),
+            Self::Socket(index) => f.write_fmt(format_args!("Socket worker {}", index)),
+            Self::Statistics => f.write_str("Statistics worker"),
+            Self::Signals => f.write_str("Signals worker"),
+            Self::Prometheus => f.write_str("Prometheus worker"),
         }
     }
-
-    Ok(())
 }

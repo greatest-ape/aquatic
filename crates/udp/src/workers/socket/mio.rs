@@ -9,7 +9,7 @@ use mio::{Events, Interest, Poll, Token};
 
 use aquatic_common::{
     access_list::create_access_list_cache, privileges::PrivilegeDropper, CanonicalSocketAddr,
-    PanicSentinel, ValidUntil,
+    ValidUntil,
 };
 use aquatic_udp_protocol::*;
 
@@ -49,9 +49,7 @@ pub struct SocketWorker {
 }
 
 impl SocketWorker {
-    #[allow(clippy::too_many_arguments)]
     pub fn run(
-        _sentinel: PanicSentinel,
         shared_state: State,
         config: Config,
         validator: ConnectionValidator,
@@ -59,7 +57,7 @@ impl SocketWorker {
         request_sender: ConnectedRequestSender,
         response_receiver: ConnectedResponseReceiver,
         priv_dropper: PrivilegeDropper,
-    ) {
+    ) -> anyhow::Result<()> {
         let socket =
             UdpSocket::from_std(create_socket(&config, priv_dropper).expect("create socket"));
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
@@ -82,6 +80,8 @@ impl SocketWorker {
         };
 
         worker.run_inner();
+
+        Ok(())
     }
 
     pub fn run_inner(&mut self) {

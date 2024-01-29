@@ -18,7 +18,7 @@ use io_uring::{IoUring, Probe};
 
 use aquatic_common::{
     access_list::create_access_list_cache, privileges::PrivilegeDropper, CanonicalSocketAddr,
-    PanicSentinel, ValidUntil,
+    ValidUntil,
 };
 use aquatic_udp_protocol::*;
 
@@ -96,9 +96,7 @@ pub struct SocketWorker {
 }
 
 impl SocketWorker {
-    #[allow(clippy::too_many_arguments)]
     pub fn run(
-        _sentinel: PanicSentinel,
         shared_state: State,
         config: Config,
         validator: ConnectionValidator,
@@ -106,7 +104,7 @@ impl SocketWorker {
         request_sender: ConnectedRequestSender,
         response_receiver: ConnectedResponseReceiver,
         priv_dropper: PrivilegeDropper,
-    ) {
+    ) -> anyhow::Result<()> {
         let ring_entries = config.network.ring_size.next_power_of_two();
         // Try to fill up the ring with send requests
         let send_buffer_entries = ring_entries;
@@ -191,6 +189,8 @@ impl SocketWorker {
         };
 
         CurrentRing::with(|ring| worker.run_inner(ring));
+
+        Ok(())
     }
 
     fn run_inner(&mut self, ring: &mut IoUring) {

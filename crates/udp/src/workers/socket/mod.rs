@@ -5,7 +5,7 @@ mod uring;
 mod validator;
 
 use anyhow::Context;
-use aquatic_common::{privileges::PrivilegeDropper, PanicSentinel, ServerStartInstant};
+use aquatic_common::{privileges::PrivilegeDropper, ServerStartInstant};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::{
@@ -36,9 +36,7 @@ const EXTRA_PACKET_SIZE_IPV4: usize = 8 + 18 + 20 + 8;
 /// - 8 bit udp header
 const EXTRA_PACKET_SIZE_IPV6: usize = 8 + 18 + 40 + 8;
 
-#[allow(clippy::too_many_arguments)]
 pub fn run_socket_worker(
-    sentinel: PanicSentinel,
     shared_state: State,
     config: Config,
     validator: ConnectionValidator,
@@ -46,12 +44,11 @@ pub fn run_socket_worker(
     request_sender: ConnectedRequestSender,
     response_receiver: ConnectedResponseReceiver,
     priv_dropper: PrivilegeDropper,
-) {
+) -> anyhow::Result<()> {
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
     match self::uring::supported_on_current_kernel() {
         Ok(()) => {
-            self::uring::SocketWorker::run(
-                sentinel,
+            return self::uring::SocketWorker::run(
                 shared_state,
                 config,
                 validator,
@@ -60,8 +57,6 @@ pub fn run_socket_worker(
                 response_receiver,
                 priv_dropper,
             );
-
-            return;
         }
         Err(err) => {
             ::log::warn!(
@@ -71,8 +66,7 @@ pub fn run_socket_worker(
         }
     }
 
-    self::mio::SocketWorker::run(
-        sentinel,
+    return self::mio::SocketWorker::run(
         shared_state,
         config,
         validator,
