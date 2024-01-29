@@ -138,7 +138,7 @@ impl RecvHelper {
 
         let addr = CanonicalSocketAddr::new(addr);
 
-        let request = Request::from_bytes(msg.payload_data(), self.max_scrape_torrents)
+        let request = Request::parse_bytes(msg.payload_data(), self.max_scrape_torrents)
             .map_err(|err| Error::RequestParseError(err, addr))?;
 
         Ok((request, addr))

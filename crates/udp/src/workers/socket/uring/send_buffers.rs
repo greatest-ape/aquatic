@@ -196,7 +196,7 @@ impl SendBuffer {
 
         let mut cursor = Cursor::new(&mut self.bytes[..]);
 
-        match response.write(&mut cursor) {
+        match response.write_bytes(&mut cursor) {
             Ok(()) => {
                 self.iovec.iov_len = cursor.position() as usize;
 

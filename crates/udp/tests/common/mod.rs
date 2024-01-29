@@ -104,7 +104,7 @@ pub fn request_and_response(
         let mut buffer = Cursor::new(&mut buffer[..]);
 
         request
-            .write(&mut buffer)
+            .write_bytes(&mut buffer)
             .with_context(|| "write request")?;
 
         let bytes_written = buffer.position() as usize;
@@ -119,6 +119,6 @@ pub fn request_and_response(
             .recv_from(&mut buffer)
             .with_context(|| "recv response")?;
 
-        Response::from_bytes(&buffer[..bytes_read], true).with_context(|| "parse response")
+        Response::parse_bytes(&buffer[..bytes_read], true).with_context(|| "parse response")
     }
 }

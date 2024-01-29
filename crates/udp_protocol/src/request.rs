@@ -19,7 +19,7 @@ pub enum Request {
 }
 
 impl Request {
-    pub fn write(self, bytes: &mut impl Write) -> Result<(), io::Error> {
+    pub fn write_bytes(self, bytes: &mut impl Write) -> Result<(), io::Error> {
         match self {
             Request::Connect(r) => {
                 bytes.write_i64::<NetworkEndian>(PROTOCOL_IDENTIFIER)?;
@@ -42,7 +42,7 @@ impl Request {
         Ok(())
     }
 
-    pub fn from_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
+    pub fn parse_bytes(bytes: &[u8], max_scrape_torrents: u8) -> Result<Self, RequestParseError> {
         let action = bytes
             .get(8..12)
             .map(|bytes| I32::from_bytes(bytes.try_into().unwrap()))
@@ -323,8 +323,8 @@ mod tests {
     fn same_after_conversion(request: Request) -> bool {
         let mut buf = Vec::new();
 
-        request.clone().write(&mut buf).unwrap();
-        let r2 = Request::from_bytes(&buf[..], ::std::u8::MAX).unwrap();
+        request.clone().write_bytes(&mut buf).unwrap();
+        let r2 = Request::parse_bytes(&buf[..], ::std::u8::MAX).unwrap();
 
         let success = request == r2;
 
