@@ -23,6 +23,7 @@ pub enum OutMessage {
     ErrorResponse(ErrorResponse),
 }
 
+#[cfg(feature = "tungstenite")]
 impl OutMessage {
     #[inline]
     pub fn to_ws_message(&self) -> tungstenite::Message {
