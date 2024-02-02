@@ -82,10 +82,6 @@ impl ConnectedRequestSender {
         Self { index, senders }
     }
 
-    pub fn any_full(&self) -> bool {
-        self.senders.iter().any(|sender| sender.is_full())
-    }
-
     pub fn try_send_to(
         &self,
         index: SwarmWorkerIndex,
