@@ -1,13 +1,15 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
+use std::iter::repeat_with;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use crossbeam_channel::{Receiver, SendError, Sender, TrySendError};
 
 use aquatic_common::access_list::AccessListArcSwap;
-use aquatic_common::CanonicalSocketAddr;
+use aquatic_common::{CanonicalSocketAddr, ServerStartInstant};
 use aquatic_udp_protocol::*;
+use crossbeam_utils::CachePadded;
 use hdrhistogram::Histogram;
 
 use crate::config::Config;
@@ -160,53 +162,86 @@ pub enum StatisticsMessage {
     PeerRemoved(PeerId),
 }
 
-pub struct Statistics {
-    pub requests_received: AtomicUsize,
-    pub responses_sent_connect: AtomicUsize,
-    pub responses_sent_announce: AtomicUsize,
-    pub responses_sent_scrape: AtomicUsize,
-    pub responses_sent_error: AtomicUsize,
+#[derive(Default)]
+pub struct SocketWorkerStatistics {
+    pub requests: AtomicUsize,
+    pub responses_connect: AtomicUsize,
+    pub responses_announce: AtomicUsize,
+    pub responses_scrape: AtomicUsize,
+    pub responses_error: AtomicUsize,
     pub bytes_received: AtomicUsize,
     pub bytes_sent: AtomicUsize,
-    pub torrents: Vec<AtomicUsize>,
-    pub peers: Vec<AtomicUsize>,
+}
+
+pub type CachePaddedArc<T> = CachePadded<Arc<CachePadded<T>>>;
+
+#[derive(Default)]
+pub struct SwarmWorkerStatistics {
+    pub torrents: AtomicUsize,
+    pub peers: AtomicUsize,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum IpVersion {
+    V4,
+    V6,
+}
+
+#[cfg(feature = "prometheus")]
+impl IpVersion {
+    pub fn prometheus_str(&self) -> &'static str {
+        match self {
+            Self::V4 => "4",
+            Self::V6 => "6",
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct IpVersionStatistics<T> {
+    pub ipv4: T,
+    pub ipv6: T,
+}
+
+impl<T> IpVersionStatistics<T> {
+    pub fn by_ip_version(&self, ip_version: IpVersion) -> &T {
+        match ip_version {
+            IpVersion::V4 => &self.ipv4,
+            IpVersion::V6 => &self.ipv6,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Statistics {
+    pub socket: Vec<CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>>,
+    pub swarm: Vec<CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>>,
 }
 
 impl Statistics {
-    pub fn new(num_swarm_workers: usize) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
-            requests_received: Default::default(),
-            responses_sent_connect: Default::default(),
-            responses_sent_announce: Default::default(),
-            responses_sent_scrape: Default::default(),
-            responses_sent_error: Default::default(),
-            bytes_received: Default::default(),
-            bytes_sent: Default::default(),
-            torrents: Self::create_atomic_usize_vec(num_swarm_workers),
-            peers: Self::create_atomic_usize_vec(num_swarm_workers),
+            socket: repeat_with(Default::default)
+                .take(config.socket_workers)
+                .collect(),
+            swarm: repeat_with(Default::default)
+                .take(config.swarm_workers)
+                .collect(),
         }
-    }
-
-    fn create_atomic_usize_vec(len: usize) -> Vec<AtomicUsize> {
-        ::std::iter::repeat_with(AtomicUsize::default)
-            .take(len)
-            .collect()
     }
 }
 
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessListArcSwap>,
-    pub statistics_ipv4: Arc<Statistics>,
-    pub statistics_ipv6: Arc<Statistics>,
+    pub server_start_instant: ServerStartInstant,
 }
 
-impl State {
-    pub fn new(num_swarm_workers: usize) -> Self {
+impl Default for State {
+    fn default() -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
-            statistics_ipv4: Arc::new(Statistics::new(num_swarm_workers)),
-            statistics_ipv6: Arc::new(Statistics::new(num_swarm_workers)),
+            server_start_instant: ServerStartInstant::new(),
         }
     }
 }

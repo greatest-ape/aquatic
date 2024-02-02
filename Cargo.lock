@@ -300,6 +300,7 @@ dependencies = [
  "compact_str",
  "constant_time_eq",
  "crossbeam-channel",
+ "crossbeam-utils",
  "getrandom",
  "hashbrown 0.14.3",
  "hdrhistogram",

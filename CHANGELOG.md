@@ -34,6 +34,7 @@
 * Remove config key `network.poll_event_capacity` (always use 1)
 * Speed up parsing and serialization of requests and responses by using
   [zerocopy](https://crates.io/crates/zerocopy)
+* Report socket worker related prometheus stats per worker
 
 #### Fixed
 

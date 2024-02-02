@@ -44,6 +44,7 @@ struct TemplateData {
 pub fn run_statistics_worker(
     config: Config,
     shared_state: State,
+    statistics: Statistics,
     statistics_receiver: Receiver<StatisticsMessage>,
 ) -> anyhow::Result<()> {
     let process_peer_client_data = {
@@ -68,16 +69,8 @@ pub fn run_statistics_worker(
         None
     };
 
-    let mut ipv4_collector = StatisticsCollector::new(
-        shared_state.statistics_ipv4,
-        #[cfg(feature = "prometheus")]
-        "4".into(),
-    );
-    let mut ipv6_collector = StatisticsCollector::new(
-        shared_state.statistics_ipv6,
-        #[cfg(feature = "prometheus")]
-        "6".into(),
-    );
+    let mut ipv4_collector = StatisticsCollector::new(statistics.clone(), IpVersion::V4);
+    let mut ipv6_collector = StatisticsCollector::new(statistics, IpVersion::V6);
 
     // Store a count to enable not removing peers from the count completely
     // just because they were removed from one torrent

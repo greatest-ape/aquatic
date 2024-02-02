@@ -16,10 +16,10 @@ use aquatic_common::access_list::update_access_list;
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::PrivilegeDropper;
-use aquatic_common::ServerStartInstant;
 
 use common::{
-    ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, SwarmWorkerIndex,
+    ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, Statistics,
+    SwarmWorkerIndex,
 };
 use config::Config;
 use workers::socket::ConnectionValidator;
@@ -31,7 +31,8 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1])?;
 
-    let state = State::new(config.swarm_workers);
+    let state = State::default();
+    let statistics = Statistics::new(&config);
     let connection_validator = ConnectionValidator::new(&config)?;
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
     let mut join_handles = Vec::new();
@@ -45,8 +46,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut response_receivers = BTreeMap::new();
 
     let (statistics_sender, statistics_receiver) = unbounded();
-
-    let server_start_instant = ServerStartInstant::new();
 
     for i in 0..config.swarm_workers {
         let (request_sender, request_receiver) = bounded(config.worker_channel_size);
@@ -68,6 +67,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let request_receiver = request_receivers.remove(&i).unwrap().clone();
         let response_sender = ConnectedResponseSender::new(response_senders.clone());
         let statistics_sender = statistics_sender.clone();
+        let statistics = statistics.swarm[i].clone();
 
         let handle = Builder::new()
             .name(format!("swarm-{:02}", i + 1))
@@ -83,7 +83,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 let mut worker = SwarmWorker {
                     config,
                     state,
-                    server_start_instant,
+                    statistics,
                     request_receiver,
                     response_sender,
                     statistics_sender,
@@ -105,6 +105,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             ConnectedRequestSender::new(SocketWorkerIndex(i), request_senders.clone());
         let response_receiver = response_receivers.remove(&i).unwrap();
         let priv_dropper = priv_dropper.clone();
+        let statistics = statistics.socket[i].clone();
 
         let handle = Builder::new()
             .name(format!("socket-{:02}", i + 1))
@@ -118,10 +119,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 );
 
                 workers::socket::run_socket_worker(
-                    state,
                     config,
+                    state,
+                    statistics,
                     connection_validator,
-                    server_start_instant,
                     request_sender,
                     response_receiver,
                     priv_dropper,
@@ -147,7 +148,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                     WorkerIndex::Util,
                 );
 
-                workers::statistics::run_statistics_worker(config, state, statistics_receiver)
+                workers::statistics::run_statistics_worker(
+                    config,
+                    state,
+                    statistics,
+                    statistics_receiver,
+                )
             })
             .with_context(|| "spawn statistics worker")?;
 

@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use aquatic_common::IndexMap;
 use aquatic_common::SecondsSinceServerStart;
-use aquatic_common::ServerStartInstant;
 use aquatic_common::{
     access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache, AccessListMode},
     ValidUntil,
@@ -41,14 +40,13 @@ impl TorrentMaps {
         &mut self,
         config: &Config,
         state: &State,
+        statistics: &CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>,
         statistics_sender: &Sender<StatisticsMessage>,
         access_list: &Arc<AccessListArcSwap>,
-        server_start_instant: ServerStartInstant,
-        worker_index: SwarmWorkerIndex,
     ) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
-        let now = server_start_instant.seconds_elapsed();
+        let now = state.server_start_instant.seconds_elapsed();
 
         let ipv4 =
             self.ipv4
@@ -58,8 +56,8 @@ impl TorrentMaps {
                 .clean_and_get_statistics(config, statistics_sender, &mut cache, mode, now);
 
         if config.statistics.active() {
-            state.statistics_ipv4.peers[worker_index.0].store(ipv4.0, Ordering::Release);
-            state.statistics_ipv6.peers[worker_index.0].store(ipv6.0, Ordering::Release);
+            statistics.ipv4.peers.store(ipv4.0, Ordering::Relaxed);
+            statistics.ipv6.peers.store(ipv6.0, Ordering::Relaxed);
 
             if let Some(message) = ipv4.1.map(StatisticsMessage::Ipv4PeerHistogram) {
                 if let Err(err) = statistics_sender.try_send(message) {

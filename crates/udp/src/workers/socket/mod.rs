@@ -5,11 +5,14 @@ mod uring;
 mod validator;
 
 use anyhow::Context;
-use aquatic_common::{privileges::PrivilegeDropper, ServerStartInstant};
+use aquatic_common::privileges::PrivilegeDropper;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::{
-    common::{ConnectedRequestSender, ConnectedResponseReceiver, State},
+    common::{
+        CachePaddedArc, ConnectedRequestSender, ConnectedResponseReceiver, IpVersionStatistics,
+        SocketWorkerStatistics, State,
+    },
     config::Config,
 };
 
@@ -37,10 +40,10 @@ const EXTRA_PACKET_SIZE_IPV4: usize = 8 + 18 + 20 + 8;
 const EXTRA_PACKET_SIZE_IPV6: usize = 8 + 18 + 40 + 8;
 
 pub fn run_socket_worker(
-    shared_state: State,
     config: Config,
+    shared_state: State,
+    statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
     validator: ConnectionValidator,
-    server_start_instant: ServerStartInstant,
     request_sender: ConnectedRequestSender,
     response_receiver: ConnectedResponseReceiver,
     priv_dropper: PrivilegeDropper,
@@ -49,10 +52,10 @@ pub fn run_socket_worker(
     match self::uring::supported_on_current_kernel() {
         Ok(()) => {
             return self::uring::SocketWorker::run(
-                shared_state,
                 config,
+                shared_state,
+                statistics,
                 validator,
-                server_start_instant,
                 request_sender,
                 response_receiver,
                 priv_dropper,
@@ -67,10 +70,10 @@ pub fn run_socket_worker(
     }
 
     self::mio::SocketWorker::run(
-        shared_state,
         config,
+        shared_state,
+        statistics,
         validator,
-        server_start_instant,
         request_sender,
         response_receiver,
         priv_dropper,
