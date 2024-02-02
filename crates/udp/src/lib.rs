@@ -193,6 +193,11 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                         .build()
                         .context("build prometheus recorder and exporter")?;
 
+                    let recorder_handle = recorder.handle();
+
+                    ::metrics::set_global_recorder(recorder)
+                        .context("set global metrics recorder")?;
+
                     ::tokio::spawn(async move {
                         let mut interval = ::tokio::time::interval(Duration::from_secs(5));
 
@@ -201,7 +206,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
                             // Periodically render metrics to make sure
                             // idles are cleaned up
-                            recorder.handle().render();
+                            recorder_handle.render();
                         }
                     });
 
