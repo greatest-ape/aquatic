@@ -16,6 +16,34 @@ use crate::config::Config;
 
 pub const BUFFER_SIZE: usize = 8192;
 
+#[derive(Clone, Copy, Debug)]
+pub enum IpVersion {
+    V4,
+    V6,
+}
+
+#[cfg(feature = "prometheus")]
+impl IpVersion {
+    pub fn prometheus_str(&self) -> &'static str {
+        match self {
+            Self::V4 => "4",
+            Self::V6 => "6",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SocketWorkerIndex(pub usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct SwarmWorkerIndex(pub usize);
+
+impl SwarmWorkerIndex {
+    pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
+        Self(info_hash.0[0] as usize % config.swarm_workers)
+    }
+}
+
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
     pub slab_key: usize,
@@ -39,18 +67,6 @@ pub enum ConnectedResponse {
     AnnounceIpv4(AnnounceResponse<Ipv4AddrBytes>),
     AnnounceIpv6(AnnounceResponse<Ipv6AddrBytes>),
     Scrape(PendingScrapeResponse),
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct SocketWorkerIndex(pub usize);
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct SwarmWorkerIndex(pub usize);
-
-impl SwarmWorkerIndex {
-    pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
-        Self(info_hash.0[0] as usize % config.swarm_workers)
-    }
 }
 
 pub struct ConnectedRequestSender {
@@ -155,11 +171,38 @@ impl ConnectedResponseSender {
 
 pub type ConnectedResponseReceiver = Receiver<(CanonicalSocketAddr, ConnectedResponse)>;
 
-pub enum StatisticsMessage {
-    Ipv4PeerHistogram(Histogram<u64>),
-    Ipv6PeerHistogram(Histogram<u64>),
-    PeerAdded(PeerId),
-    PeerRemoved(PeerId),
+#[derive(Clone)]
+pub struct Statistics {
+    pub socket: Vec<CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>>,
+    pub swarm: Vec<CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>>,
+}
+
+impl Statistics {
+    pub fn new(config: &Config) -> Self {
+        Self {
+            socket: repeat_with(Default::default)
+                .take(config.socket_workers)
+                .collect(),
+            swarm: repeat_with(Default::default)
+                .take(config.swarm_workers)
+                .collect(),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct IpVersionStatistics<T> {
+    pub ipv4: T,
+    pub ipv6: T,
+}
+
+impl<T> IpVersionStatistics<T> {
+    pub fn by_ip_version(&self, ip_version: IpVersion) -> &T {
+        match ip_version {
+            IpVersion::V4 => &self.ipv4,
+            IpVersion::V6 => &self.ipv6,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -181,54 +224,11 @@ pub struct SwarmWorkerStatistics {
     pub peers: AtomicUsize,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum IpVersion {
-    V4,
-    V6,
-}
-
-#[cfg(feature = "prometheus")]
-impl IpVersion {
-    pub fn prometheus_str(&self) -> &'static str {
-        match self {
-            Self::V4 => "4",
-            Self::V6 => "6",
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct IpVersionStatistics<T> {
-    pub ipv4: T,
-    pub ipv6: T,
-}
-
-impl<T> IpVersionStatistics<T> {
-    pub fn by_ip_version(&self, ip_version: IpVersion) -> &T {
-        match ip_version {
-            IpVersion::V4 => &self.ipv4,
-            IpVersion::V6 => &self.ipv6,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct Statistics {
-    pub socket: Vec<CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>>,
-    pub swarm: Vec<CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>>,
-}
-
-impl Statistics {
-    pub fn new(config: &Config) -> Self {
-        Self {
-            socket: repeat_with(Default::default)
-                .take(config.socket_workers)
-                .collect(),
-            swarm: repeat_with(Default::default)
-                .take(config.swarm_workers)
-                .collect(),
-        }
-    }
+pub enum StatisticsMessage {
+    Ipv4PeerHistogram(Histogram<u64>),
+    Ipv6PeerHistogram(Histogram<u64>),
+    PeerAdded(PeerId),
+    PeerRemoved(PeerId),
 }
 
 #[derive(Clone)]
