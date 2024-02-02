@@ -39,6 +39,7 @@
 #### Fixed
 
 * Quit whole application if any worker thread quits
+* Disallow announce requests with port value of 0
 
 ### aquatic_http
 

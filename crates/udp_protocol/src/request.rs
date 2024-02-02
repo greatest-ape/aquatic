@@ -58,15 +58,21 @@ impl Request {
                 let request = AnnounceRequest::read_from_prefix(bytes)
                     .ok_or_else(|| RequestParseError::unsendable_text("invalid data"))?;
 
-                // Make sure not to create AnnounceEventBytes with invalid value
-                if matches!(request.event.0.get(), (0..=3)) {
-                    Ok(Request::Announce(request))
-                } else {
+                if request.port.0.get() == 0 {
+                    Err(RequestParseError::sendable_text(
+                        "Port can't be 0",
+                        request.connection_id,
+                        request.transaction_id,
+                    ))
+                } else if !matches!(request.event.0.get(), (0..=3)) {
+                    // Make sure not to allow AnnounceEventBytes with invalid value
                     Err(RequestParseError::sendable_text(
                         "Invalid announce event",
                         request.connection_id,
                         request.transaction_id,
                     ))
+                } else {
+                    Ok(Request::Announce(request))
                 }
             }
             // Scrape
