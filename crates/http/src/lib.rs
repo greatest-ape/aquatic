@@ -104,11 +104,16 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     #[cfg(feature = "prometheus")]
     if config.metrics.run_prometheus_endpoint {
+        let idle_timeout = config
+            .cleaning
+            .connection_cleaning_interval
+            .max(config.cleaning.torrent_cleaning_interval)
+            .max(config.metrics.torrent_count_update_interval)
+            * 2;
+
         let handle = aquatic_common::spawn_prometheus_endpoint(
             config.metrics.prometheus_endpoint_address,
-            Some(Duration::from_secs(
-                config.cleaning.torrent_cleaning_interval * 2,
-            )),
+            Some(Duration::from_secs(idle_timeout)),
         )?;
 
         join_handles.push((WorkerType::Prometheus, handle));
