@@ -2,19 +2,10 @@
 
 ## High priority
 
-* http and ws
-  * add task to generate prometheus exports on regular interval to clean up
-    data. this is important if peer_clients is activated
-
 * aquatic_bench
   * Opentracker "slow to get up to speed", is it due to getting faster once
     inserts are rarely needed since most ip-port combinations have been sent?
     In that case, a shorter duration (e.g., 30 seconds) would be a good idea.
-
-* general
-  * Replace panic sentinel with checking threads like in udp implementation.
-    It seems to be broken
-
 
 ## Medium priority
 
