@@ -68,5 +68,3 @@
 
 ## aquatic_udp_protocol
 * Use `bytes` crate: seems to worsen performance somewhat
-* Zerocopy (https://docs.rs/zerocopy/0.3.0/zerocopy/index.html) for requests
-  and responses. Doesn't improve performance
