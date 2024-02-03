@@ -11,7 +11,7 @@ readme.workspace = true
 rust-version.workspace = true
 
 [features]
-cpu-pinning = ["aquatic_common/hwloc"]
+cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [lib]
 name = "aquatic_udp_load_test"

@@ -1,12 +1,12 @@
+use std::fmt::Display;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::time::Instant;
 
 use ahash::RandomState;
 
 pub mod access_list;
 pub mod cli;
+#[cfg(feature = "cpu-pinning")]
 pub mod cpu_pinning;
 pub mod privileges;
 #[cfg(feature = "rustls")]
@@ -56,42 +56,6 @@ impl ServerStartInstant {
 #[derive(Debug, Clone, Copy)]
 pub struct SecondsSinceServerStart(u32);
 
-pub struct PanicSentinelWatcher(Arc<AtomicBool>);
-
-impl PanicSentinelWatcher {
-    pub fn create_with_sentinel() -> (Self, PanicSentinel) {
-        let triggered = Arc::new(AtomicBool::new(false));
-        let sentinel = PanicSentinel(triggered.clone());
-
-        (Self(triggered), sentinel)
-    }
-
-    pub fn panic_was_triggered(&self) -> bool {
-        self.0.load(Ordering::SeqCst)
-    }
-}
-
-/// Raises SIGTERM when dropped
-///
-/// Pass to threads to have panics in them cause whole program to exit.
-#[derive(Clone)]
-pub struct PanicSentinel(Arc<AtomicBool>);
-
-impl Drop for PanicSentinel {
-    fn drop(&mut self) {
-        if ::std::thread::panicking() {
-            let already_triggered = self.0.fetch_or(true, Ordering::SeqCst);
-
-            if !already_triggered && unsafe { libc::raise(15) } == -1 {
-                panic!(
-                    "Could not raise SIGTERM: {:#}",
-                    ::std::io::Error::last_os_error()
-                )
-            }
-        }
-    }
-}
-
 /// SocketAddr that is not an IPv6-mapped IPv4 address
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct CanonicalSocketAddr(SocketAddr);
@@ -136,5 +100,82 @@ impl CanonicalSocketAddr {
 
     pub fn is_ipv4(&self) -> bool {
         self.0.is_ipv4()
+    }
+}
+
+#[cfg(feature = "prometheus")]
+pub fn spawn_prometheus_endpoint(
+    addr: SocketAddr,
+    timeout: Option<::std::time::Duration>,
+    timeout_mask: Option<metrics_util::MetricKindMask>,
+) -> anyhow::Result<::std::thread::JoinHandle<anyhow::Result<()>>> {
+    use std::thread::Builder;
+    use std::time::Duration;
+
+    use anyhow::Context;
+
+    let handle = Builder::new()
+        .name("prometheus".into())
+        .spawn(move || {
+            use metrics_exporter_prometheus::PrometheusBuilder;
+            use metrics_util::MetricKindMask;
+
+            let rt = ::tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .context("build prometheus tokio runtime")?;
+
+            rt.block_on(async {
+                let mask = timeout_mask.unwrap_or(MetricKindMask::ALL);
+
+                let (recorder, exporter) = PrometheusBuilder::new()
+                    .idle_timeout(mask, timeout)
+                    .with_http_listener(addr)
+                    .build()
+                    .context("build prometheus recorder and exporter")?;
+
+                let recorder_handle = recorder.handle();
+
+                ::metrics::set_global_recorder(recorder).context("set global metrics recorder")?;
+
+                ::tokio::spawn(async move {
+                    let mut interval = ::tokio::time::interval(Duration::from_secs(5));
+
+                    loop {
+                        interval.tick().await;
+
+                        // Periodically render metrics to make sure
+                        // idles are cleaned up
+                        recorder_handle.render();
+                    }
+                });
+
+                exporter.await.context("run prometheus exporter")
+            })
+        })
+        .context("spawn prometheus endpoint")?;
+
+    Ok(handle)
+}
+
+pub enum WorkerType {
+    Swarm(usize),
+    Socket(usize),
+    Statistics,
+    Signals,
+    #[cfg(feature = "prometheus")]
+    Prometheus,
+}
+
+impl Display for WorkerType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Swarm(index) => f.write_fmt(format_args!("Swarm worker {}", index + 1)),
+            Self::Socket(index) => f.write_fmt(format_args!("Socket worker {}", index + 1)),
+            Self::Statistics => f.write_str("Statistics worker"),
+            Self::Signals => f.write_str("Signals worker"),
+            #[cfg(feature = "prometheus")]
+            Self::Prometheus => f.write_str("Prometheus worker"),
+        }
     }
 }

@@ -10,7 +10,7 @@ use std::time::Duration;
 use anyhow::Context;
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
-use aquatic_common::{CanonicalSocketAddr, PanicSentinel, ServerStartInstant};
+use aquatic_common::{CanonicalSocketAddr, ServerStartInstant};
 use arc_swap::ArcSwap;
 use futures_lite::future::race;
 use futures_lite::StreamExt;
@@ -32,7 +32,6 @@ struct ConnectionHandle {
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_socket_worker(
-    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
@@ -40,13 +39,16 @@ pub async fn run_socket_worker(
     priv_dropper: PrivilegeDropper,
     server_start_instant: ServerStartInstant,
     worker_index: usize,
-) {
+) -> anyhow::Result<()> {
     let config = Rc::new(config);
     let access_list = state.access_list;
 
-    let listener = create_tcp_listener(&config, priv_dropper).expect("create tcp listener");
+    let listener = create_tcp_listener(&config, priv_dropper).context("create tcp listener")?;
 
-    let (request_senders, _) = request_mesh_builder.join(Role::Producer).await.unwrap();
+    let (request_senders, _) = request_mesh_builder
+        .join(Role::Producer)
+        .await
+        .map_err(|err| anyhow::anyhow!("join request mesh: {:#}", err))?;
     let request_senders = Rc::new(request_senders);
 
     let connection_handles = Rc::new(RefCell::new(HopSlotMap::with_key()));
@@ -145,6 +147,8 @@ pub async fn run_socket_worker(
             }
         }
     }
+
+    Ok(())
 }
 
 async fn clean_connections(

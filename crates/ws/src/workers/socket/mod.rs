@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::Context;
 use aquatic_common::privileges::PrivilegeDropper;
 use aquatic_common::rustls_config::RustlsConfig;
-use aquatic_common::{PanicSentinel, ServerStartInstant};
+use aquatic_common::ServerStartInstant;
 use aquatic_ws_protocol::common::InfoHash;
 use aquatic_ws_protocol::incoming::InMessage;
 use aquatic_ws_protocol::outgoing::OutMessage;
@@ -50,7 +50,6 @@ struct ConnectionHandle {
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_socket_worker(
-    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
@@ -60,25 +59,40 @@ pub async fn run_socket_worker(
     priv_dropper: PrivilegeDropper,
     server_start_instant: ServerStartInstant,
     worker_index: usize,
-) {
+) -> anyhow::Result<()> {
     #[cfg(feature = "metrics")]
     WORKER_INDEX.with(|index| index.set(worker_index));
 
     let config = Rc::new(config);
     let access_list = state.access_list;
 
-    let listener = create_tcp_listener(&config, priv_dropper).expect("create tcp listener");
+    let listener = create_tcp_listener(&config, priv_dropper).context("create tcp listener")?;
 
     ::log::info!("created tcp listener");
 
     let (control_message_senders, _) = control_message_mesh_builder
         .join(Role::Producer)
         .await
-        .unwrap();
-    let control_message_senders = Rc::new(control_message_senders);
+        .map_err(|err| anyhow::anyhow!("join control message mesh: {:#}", err))?;
+    let (in_message_senders, _) = in_message_mesh_builder
+        .join(Role::Producer)
+        .await
+        .map_err(|err| anyhow::anyhow!("join in message mesh: {:#}", err))?;
+    let (_, mut out_message_receivers) = out_message_mesh_builder
+        .join(Role::Consumer)
+        .await
+        .map_err(|err| anyhow::anyhow!("join out message mesh: {:#}", err))?;
 
-    let (in_message_senders, _) = in_message_mesh_builder.join(Role::Producer).await.unwrap();
+    let control_message_senders = Rc::new(control_message_senders);
     let in_message_senders = Rc::new(in_message_senders);
+
+    let out_message_consumer_id = ConsumerId(
+        out_message_receivers
+            .consumer_id()
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    );
 
     let tq_prioritized = executor().create_task_queue(
         Shares::Static(100),
@@ -87,16 +101,6 @@ pub async fn run_socket_worker(
     );
     let tq_regular =
         executor().create_task_queue(Shares::Static(1), Latency::NotImportant, "regular");
-
-    let (_, mut out_message_receivers) =
-        out_message_mesh_builder.join(Role::Consumer).await.unwrap();
-    let out_message_consumer_id = ConsumerId(
-        out_message_receivers
-            .consumer_id()
-            .unwrap()
-            .try_into()
-            .unwrap(),
-    );
 
     ::log::info!("joined channels");
 
@@ -114,14 +118,14 @@ pub async fn run_socket_worker(
         }),
         tq_prioritized,
     )
-    .unwrap();
+    .map_err(|err| anyhow::anyhow!("spawn connection cleaning task: {:#}", err))?;
 
     for (_, out_message_receiver) in out_message_receivers.streams() {
         spawn_local_into(
             receive_out_messages(out_message_receiver, connection_handles.clone()),
             tq_regular,
         )
-        .unwrap()
+        .map_err(|err| anyhow::anyhow!("spawn out message receiving task: {:#}", err))?
         .detach();
     }
 
@@ -197,6 +201,8 @@ pub async fn run_socket_worker(
             }
         }
     }
+
+    Ok(())
 }
 
 async fn clean_connections(

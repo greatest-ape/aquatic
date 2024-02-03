@@ -3,11 +3,11 @@ pub mod config;
 pub mod workers;
 
 use std::collections::BTreeMap;
-use std::fmt::Display;
 use std::thread::{sleep, Builder, JoinHandle};
 use std::time::Duration;
 
 use anyhow::Context;
+use aquatic_common::WorkerType;
 use crossbeam_channel::{bounded, unbounded};
 use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
@@ -162,58 +162,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
     #[cfg(feature = "prometheus")]
     if config.statistics.active() && config.statistics.run_prometheus_endpoint {
-        let config = config.clone();
-
-        let handle = Builder::new()
-            .name("prometheus".into())
-            .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::Util,
-                );
-
-                use metrics_exporter_prometheus::PrometheusBuilder;
-                use metrics_util::MetricKindMask;
-
-                let rt = ::tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .context("build prometheus tokio runtime")?;
-
-                rt.block_on(async {
-                    let (recorder, exporter) = PrometheusBuilder::new()
-                        .idle_timeout(
-                            MetricKindMask::ALL,
-                            Some(Duration::from_secs(config.statistics.interval * 2)),
-                        )
-                        .with_http_listener(config.statistics.prometheus_endpoint_address)
-                        .build()
-                        .context("build prometheus recorder and exporter")?;
-
-                    let recorder_handle = recorder.handle();
-
-                    ::metrics::set_global_recorder(recorder)
-                        .context("set global metrics recorder")?;
-
-                    ::tokio::spawn(async move {
-                        let mut interval = ::tokio::time::interval(Duration::from_secs(5));
-
-                        loop {
-                            interval.tick().await;
-
-                            // Periodically render metrics to make sure
-                            // idles are cleaned up
-                            recorder_handle.render();
-                        }
-                    });
-
-                    exporter.await.context("run prometheus exporter")
-                })
-            })
-            .with_context(|| "spawn prometheus exporter worker")?;
+        let handle = aquatic_common::spawn_prometheus_endpoint(
+            config.statistics.prometheus_endpoint_address,
+            Some(Duration::from_secs(
+                config.cleaning.torrent_cleaning_interval * 2,
+            )),
+            None,
+        )?;
 
         join_handles.push((WorkerType::Prometheus, handle));
     }
@@ -277,27 +232,5 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         }
 
         sleep(Duration::from_secs(5));
-    }
-}
-
-enum WorkerType {
-    Swarm(usize),
-    Socket(usize),
-    Statistics,
-    Signals,
-    #[cfg(feature = "prometheus")]
-    Prometheus,
-}
-
-impl Display for WorkerType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Swarm(index) => f.write_fmt(format_args!("Swarm worker {}", index + 1)),
-            Self::Socket(index) => f.write_fmt(format_args!("Socket worker {}", index + 1)),
-            Self::Statistics => f.write_str("Statistics worker"),
-            Self::Signals => f.write_str("Signals worker"),
-            #[cfg(feature = "prometheus")]
-            Self::Prometheus => f.write_str("Prometheus worker"),
-        }
     }
 }

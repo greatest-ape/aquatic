@@ -19,11 +19,11 @@ name = "aquatic_http"
 
 [features]
 default = ["prometheus"]
-prometheus = ["metrics", "metrics-exporter-prometheus"]
+prometheus = ["aquatic_common/prometheus", "metrics", "dep:metrics-util"]
 metrics = ["dep:metrics"]
 
 [dependencies]
-aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
+aquatic_common = { workspace = true, features = ["rustls"] }
 aquatic_http_protocol.workspace = true
 aquatic_toml_config.workspace = true
 
@@ -40,8 +40,6 @@ httparse = "1"
 itoa = "1"
 libc = "0.2"
 log = "0.4"
-metrics = { version = "0.22", optional = true }
-metrics-exporter-prometheus = { version = "0.13", optional = true, default-features = false, features = ["http-listener"] }
 mimalloc = { version = "0.1", default-features = false }
 memchr = "2"
 privdrop = "0.5"
@@ -53,6 +51,10 @@ signal-hook = { version = "0.3" }
 slotmap = "1"
 socket2 = { version = "0.5", features = ["all"] }
 thiserror = "1"
+
+# metrics feature
+metrics = { version = "0.22", optional = true }
+metrics-util = { version = "0.16", optional = true }
 
 [dev-dependencies]
 quickcheck = "1"

@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
 use aquatic_common::cli::LogLevel;
-use aquatic_common::cpu_pinning::desc::CpuPinningConfigDesc;
 use aquatic_toml_config::TomlConfig;
 use serde::Deserialize;
 
@@ -17,7 +16,6 @@ pub struct Config {
     pub duration: usize,
     pub measure_after_max_connections_reached: bool,
     pub torrents: TorrentConfig,
-    pub cpu_pinning: CpuPinningConfigDesc,
 }
 
 impl aquatic_common::cli::Config for Config {
@@ -37,7 +35,6 @@ impl Default for Config {
             duration: 0,
             measure_after_max_connections_reached: true,
             torrents: TorrentConfig::default(),
-            cpu_pinning: Default::default(),
         }
     }
 }

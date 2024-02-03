@@ -2,19 +2,10 @@
 
 ## High priority
 
-* http and ws
-  * add task to generate prometheus exports on regular interval to clean up
-    data. this is important if peer_clients is activated
-
 * aquatic_bench
   * Opentracker "slow to get up to speed", is it due to getting faster once
     inserts are rarely needed since most ip-port combinations have been sent?
     In that case, a shorter duration (e.g., 30 seconds) would be a good idea.
-
-* general
-  * Replace panic sentinel with checking threads like in udp implementation.
-    It seems to be broken
-
 
 ## Medium priority
 
@@ -52,11 +43,6 @@
       * move additional request sending to for each received response, maybe
         with probability 0.2
 
-* aquatic_ws
-  * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
-    * 20 byte parsing: consider using something like ArrayString<80> to avoid
-      heap allocations
-
 # Not important
 
 * aquatic_http:
@@ -82,5 +68,3 @@
 
 ## aquatic_udp_protocol
 * Use `bytes` crate: seems to worsen performance somewhat
-* Zerocopy (https://docs.rs/zerocopy/0.3.0/zerocopy/index.html) for requests
-  and responses. Doesn't improve performance

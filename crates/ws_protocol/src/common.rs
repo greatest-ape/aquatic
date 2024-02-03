@@ -84,9 +84,20 @@ fn serialize_20_bytes<S>(data: &[u8; 20], serializer: S) -> Result<S::Ok, S::Err
 where
     S: Serializer,
 {
-    let text: String = data.iter().map(|byte| char::from(*byte)).collect();
+    // Length of 40 is enough since each char created from a byte will
+    // utf-8-encode to max 2 bytes
+    let mut str_buffer = [0u8; 40];
+    let mut offset = 0;
 
-    serializer.serialize_str(&text)
+    for byte in data {
+        offset += char::from(*byte)
+            .encode_utf8(&mut str_buffer[offset..])
+            .len();
+    }
+
+    let text = ::std::str::from_utf8(&str_buffer[..offset]).unwrap();
+
+    serializer.serialize_str(text)
 }
 
 struct TwentyByteVisitor;

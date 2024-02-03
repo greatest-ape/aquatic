@@ -13,7 +13,7 @@ use glommio::prelude::*;
 use glommio::timer::TimerActionRepeat;
 use rand::{rngs::SmallRng, SeedableRng};
 
-use aquatic_common::{PanicSentinel, ServerStartInstant};
+use aquatic_common::ServerStartInstant;
 
 use crate::common::*;
 use crate::config::Config;
@@ -21,9 +21,7 @@ use crate::SHARED_IN_CHANNEL_SIZE;
 
 use self::storage::TorrentMaps;
 
-#[allow(clippy::too_many_arguments)]
 pub async fn run_swarm_worker(
-    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     control_message_mesh_builder: MeshBuilder<SwarmControlMessage, Partial>,
@@ -31,14 +29,19 @@ pub async fn run_swarm_worker(
     out_message_mesh_builder: MeshBuilder<(OutMessageMeta, OutMessage), Partial>,
     server_start_instant: ServerStartInstant,
     worker_index: usize,
-) {
+) -> anyhow::Result<()> {
     let (_, mut control_message_receivers) = control_message_mesh_builder
         .join(Role::Consumer)
         .await
-        .unwrap();
-
-    let (_, mut in_message_receivers) = in_message_mesh_builder.join(Role::Consumer).await.unwrap();
-    let (out_message_senders, _) = out_message_mesh_builder.join(Role::Producer).await.unwrap();
+        .map_err(|err| anyhow::anyhow!("join control message mesh: {:#}", err))?;
+    let (_, mut in_message_receivers) = in_message_mesh_builder
+        .join(Role::Consumer)
+        .await
+        .map_err(|err| anyhow::anyhow!("join in message mesh: {:#}", err))?;
+    let (out_message_senders, _) = out_message_mesh_builder
+        .join(Role::Producer)
+        .await
+        .map_err(|err| anyhow::anyhow!("join out message mesh: {:#}", err))?;
 
     let out_message_senders = Rc::new(out_message_senders);
 
@@ -89,6 +92,8 @@ pub async fn run_swarm_worker(
     for handle in handles {
         handle.await;
     }
+
+    Ok(())
 }
 
 async fn handle_control_message_stream<S>(torrents: Rc<RefCell<TorrentMaps>>, mut stream: S)

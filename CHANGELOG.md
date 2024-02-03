@@ -57,10 +57,12 @@
   a lot of memory if many torrents are tracked
 * Improve announce performance by avoiding having to filter response peers
 * In announce response statistics, don't include announcing peer
+* Remove CPU pinning support
 
 #### Fixed
 
 * Fix bug where clean up after closing connections wasn't always done
+* Quit whole application if any worker thread quits
 
 ### aquatic_ws
 
@@ -78,6 +80,7 @@
 * Only consider announce and scrape responses as signs of connection still
   being alive. Previously, all messages sent to peer were considered.
 * Decrease default max_peer_age and max_connection_idle config values
+* Remove CPU pinning support
 
 #### Fixed
 
@@ -87,6 +90,7 @@
 * Actually close connections that are too slow to send responses to
 * If peers announce with AnnounceEvent::Stopped, allow them to later announce on
   same torrent with different peer_id
+* Quit whole application if any worker thread quits
 
 ## 0.8.0 - 2023-03-17
 
