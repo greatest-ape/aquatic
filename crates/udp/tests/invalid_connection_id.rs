@@ -5,6 +5,7 @@ use common::*;
 use std::{
     io::{Cursor, ErrorKind},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket},
+    num::NonZeroU16,
     time::Duration,
 };
 
@@ -51,7 +52,7 @@ fn test_invalid_connection_id() -> anyhow::Result<()> {
         ip_address: Ipv4AddrBytes([0; 4]),
         key: PeerKey::new(0),
         peers_wanted: NumberOfPeers::new(10),
-        port: Port::new(1),
+        port: Port::new(NonZeroU16::new(1).unwrap()),
     });
 
     let scrape_request = Request::Scrape(ScrapeRequest {

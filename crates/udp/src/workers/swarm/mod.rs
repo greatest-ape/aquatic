@@ -5,7 +5,6 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
-use aquatic_common::ServerStartInstant;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use rand::{rngs::SmallRng, SeedableRng};
@@ -20,7 +19,7 @@ use storage::TorrentMaps;
 pub struct SwarmWorker {
     pub config: Config,
     pub state: State,
-    pub server_start_instant: ServerStartInstant,
+    pub statistics: CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>,
     pub request_receiver: Receiver<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>,
     pub response_sender: ConnectedResponseSender,
     pub statistics_sender: Sender<StatisticsMessage>,
@@ -33,8 +32,10 @@ impl SwarmWorker {
         let mut rng = SmallRng::from_entropy();
 
         let timeout = Duration::from_millis(self.config.request_channel_recv_timeout_ms);
-        let mut peer_valid_until =
-            ValidUntil::new(self.server_start_instant, self.config.cleaning.max_peer_age);
+        let mut peer_valid_until = ValidUntil::new(
+            self.state.server_start_instant,
+            self.config.cleaning.max_peer_age,
+        );
 
         let cleaning_interval = Duration::from_secs(self.config.cleaning.torrent_cleaning_interval);
         let statistics_update_interval = Duration::from_secs(self.config.statistics.interval);
@@ -110,17 +111,18 @@ impl SwarmWorker {
             if iter_counter % 128 == 0 {
                 let now = Instant::now();
 
-                peer_valid_until =
-                    ValidUntil::new(self.server_start_instant, self.config.cleaning.max_peer_age);
+                peer_valid_until = ValidUntil::new(
+                    self.state.server_start_instant,
+                    self.config.cleaning.max_peer_age,
+                );
 
                 if now > last_cleaning + cleaning_interval {
                     torrents.clean_and_update_statistics(
                         &self.config,
                         &self.state,
+                        &self.statistics,
                         &self.statistics_sender,
                         &self.state.access_list,
-                        self.server_start_instant,
-                        self.worker_index,
                     );
 
                     last_cleaning = now;
@@ -128,10 +130,14 @@ impl SwarmWorker {
                 if self.config.statistics.active()
                     && now > last_statistics_update + statistics_update_interval
                 {
-                    self.state.statistics_ipv4.torrents[self.worker_index.0]
-                        .store(torrents.ipv4.num_torrents(), Ordering::Release);
-                    self.state.statistics_ipv6.torrents[self.worker_index.0]
-                        .store(torrents.ipv6.num_torrents(), Ordering::Release);
+                    self.statistics
+                        .ipv4
+                        .torrents
+                        .store(torrents.ipv4.num_torrents(), Ordering::Relaxed);
+                    self.statistics
+                        .ipv6
+                        .torrents
+                        .store(torrents.ipv6.num_torrents(), Ordering::Relaxed);
 
                     last_statistics_update = now;
                 }

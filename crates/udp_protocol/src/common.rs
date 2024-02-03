@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::num::NonZeroU16;
 
 pub use aquatic_peer_id::{PeerClient, PeerId};
 use zerocopy::network_endian::{I32, I64, U16, U32};
@@ -76,8 +77,8 @@ impl NumberOfDownloads {
 pub struct Port(pub U16);
 
 impl Port {
-    pub fn new(v: u16) -> Self {
-        Self(U16::new(v))
+    pub fn new(v: NonZeroU16) -> Self {
+        Self(U16::new(v.into()))
     }
 }
 

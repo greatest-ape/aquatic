@@ -34,10 +34,12 @@
 * Remove config key `network.poll_event_capacity` (always use 1)
 * Speed up parsing and serialization of requests and responses by using
   [zerocopy](https://crates.io/crates/zerocopy)
+* Report socket worker related prometheus stats per worker
 
 #### Fixed
 
 * Quit whole application if any worker thread quits
+* Disallow announce requests with port value of 0
 
 ### aquatic_http
 

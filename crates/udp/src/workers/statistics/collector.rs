@@ -1,43 +1,41 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use hdrhistogram::Histogram;
 use num_format::{Locale, ToFormattedString};
 use serde::Serialize;
 
-use crate::common::Statistics;
 use crate::config::Config;
+
+use super::{IpVersion, Statistics};
 
 #[cfg(feature = "prometheus")]
 macro_rules! set_peer_histogram_gauge {
-    ($ip_version:ident, $data:expr, $type_label:expr) => {
+    ($ip_version:expr, $data:expr, $type_label:expr) => {
         ::metrics::gauge!(
             "aquatic_peers_per_torrent",
             "type" => $type_label,
-            "ip_version" => $ip_version.clone(),
+            "ip_version" => $ip_version,
         )
         .set($data as f64);
     };
 }
 
 pub struct StatisticsCollector {
-    shared: Arc<Statistics>,
+    statistics: Statistics,
+    ip_version: IpVersion,
     last_update: Instant,
     pending_histograms: Vec<Histogram<u64>>,
     last_complete_histogram: PeerHistogramStatistics,
-    #[cfg(feature = "prometheus")]
-    ip_version: String,
 }
 
 impl StatisticsCollector {
-    pub fn new(shared: Arc<Statistics>, #[cfg(feature = "prometheus")] ip_version: String) -> Self {
+    pub fn new(statistics: Statistics, ip_version: IpVersion) -> Self {
         Self {
-            shared,
+            statistics,
             last_update: Instant::now(),
             pending_histograms: Vec::new(),
             last_complete_histogram: Default::default(),
-            #[cfg(feature = "prometheus")]
             ip_version,
         }
     }
@@ -55,27 +53,177 @@ impl StatisticsCollector {
         &mut self,
         #[cfg(feature = "prometheus")] config: &Config,
     ) -> CollectedStatistics {
-        let requests_received = Self::fetch_and_reset(&self.shared.requests_received);
-        let responses_sent_connect = Self::fetch_and_reset(&self.shared.responses_sent_connect);
-        let responses_sent_announce = Self::fetch_and_reset(&self.shared.responses_sent_announce);
-        let responses_sent_scrape = Self::fetch_and_reset(&self.shared.responses_sent_scrape);
-        let responses_sent_error = Self::fetch_and_reset(&self.shared.responses_sent_error);
+        let mut requests = 0;
+        let mut responses_connect: usize = 0;
+        let mut responses_announce: usize = 0;
+        let mut responses_scrape: usize = 0;
+        let mut responses_error: usize = 0;
+        let mut bytes_received: usize = 0;
+        let mut bytes_sent: usize = 0;
+        let mut num_torrents: usize = 0;
+        let mut num_peers: usize = 0;
 
-        let bytes_received = Self::fetch_and_reset(&self.shared.bytes_received);
-        let bytes_sent = Self::fetch_and_reset(&self.shared.bytes_sent);
+        #[cfg(feature = "prometheus")]
+        let ip_version_prometheus_str = self.ip_version.prometheus_str();
 
-        let num_torrents_by_worker: Vec<usize> = self
-            .shared
-            .torrents
+        for (i, statistics) in self
+            .statistics
+            .socket
             .iter()
-            .map(|n| n.load(Ordering::Relaxed))
-            .collect();
-        let num_peers_by_worker: Vec<usize> = self
-            .shared
-            .peers
+            .map(|s| s.by_ip_version(self.ip_version))
+            .enumerate()
+        {
+            {
+                let n = statistics.requests.fetch_and(0, Ordering::Relaxed);
+
+                requests += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::counter!(
+                        "aquatic_requests_total",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .increment(n.try_into().unwrap());
+                }
+            }
+            {
+                let n = statistics.responses_connect.fetch_and(0, Ordering::Relaxed);
+
+                responses_connect += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::counter!(
+                        "aquatic_responses_total",
+                        "type" => "connect",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .increment(n.try_into().unwrap());
+                }
+            }
+            {
+                let n = statistics
+                    .responses_announce
+                    .fetch_and(0, Ordering::Relaxed);
+
+                responses_announce += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::counter!(
+                        "aquatic_responses_total",
+                        "type" => "announce",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .increment(n.try_into().unwrap());
+                }
+            }
+            {
+                let n = statistics.responses_scrape.fetch_and(0, Ordering::Relaxed);
+
+                responses_scrape += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::counter!(
+                        "aquatic_responses_total",
+                        "type" => "scrape",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .increment(n.try_into().unwrap());
+                }
+            }
+            {
+                let n = statistics.responses_error.fetch_and(0, Ordering::Relaxed);
+
+                responses_error += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::counter!(
+                        "aquatic_responses_total",
+                        "type" => "error",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .increment(n.try_into().unwrap());
+                }
+            }
+            {
+                let n = statistics.bytes_received.fetch_and(0, Ordering::Relaxed);
+
+                bytes_received += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::counter!(
+                        "aquatic_rx_bytes",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .increment(n.try_into().unwrap());
+                }
+            }
+            {
+                let n = statistics.bytes_sent.fetch_and(0, Ordering::Relaxed);
+
+                bytes_sent += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::counter!(
+                        "aquatic_tx_bytes",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .increment(n.try_into().unwrap());
+                }
+            }
+        }
+
+        for (i, statistics) in self
+            .statistics
+            .swarm
             .iter()
-            .map(|n| n.load(Ordering::Relaxed))
-            .collect();
+            .map(|s| s.by_ip_version(self.ip_version))
+            .enumerate()
+        {
+            {
+                let n = statistics.torrents.load(Ordering::Relaxed);
+
+                num_torrents += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::gauge!(
+                        "aquatic_torrents",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .set(n as f64);
+                }
+            }
+            {
+                let n = statistics.peers.load(Ordering::Relaxed);
+
+                num_peers += n;
+
+                #[cfg(feature = "prometheus")]
+                if config.statistics.run_prometheus_endpoint {
+                    ::metrics::gauge!(
+                        "aquatic_peers",
+                        "ip_version" => ip_version_prometheus_str,
+                        "worker_index" => i.to_string(),
+                    )
+                    .set(n as f64);
+                }
+            }
+        }
 
         let elapsed = {
             let now = Instant::now();
@@ -88,84 +236,16 @@ impl StatisticsCollector {
         };
 
         #[cfg(feature = "prometheus")]
-        if config.statistics.run_prometheus_endpoint {
-            ::metrics::counter!(
-                "aquatic_requests_total",
-                "ip_version" => self.ip_version.clone(),
-            )
-            .increment(requests_received.try_into().unwrap());
-
-            ::metrics::counter!(
-                "aquatic_responses_total",
-                "type" => "connect",
-                "ip_version" => self.ip_version.clone(),
-            )
-            .increment(responses_sent_connect.try_into().unwrap());
-
-            ::metrics::counter!(
-                "aquatic_responses_total",
-                "type" => "announce",
-                "ip_version" => self.ip_version.clone(),
-            )
-            .increment(responses_sent_announce.try_into().unwrap());
-
-            ::metrics::counter!(
-                "aquatic_responses_total",
-                "type" => "scrape",
-                "ip_version" => self.ip_version.clone(),
-            )
-            .increment(responses_sent_scrape.try_into().unwrap());
-
-            ::metrics::counter!(
-                "aquatic_responses_total",
-                "type" => "error",
-                "ip_version" => self.ip_version.clone(),
-            )
-            .increment(responses_sent_error.try_into().unwrap());
-
-            ::metrics::counter!(
-                "aquatic_rx_bytes",
-                "ip_version" => self.ip_version.clone(),
-            )
-            .increment(bytes_received.try_into().unwrap());
-
-            ::metrics::counter!(
-                "aquatic_tx_bytes",
-                "ip_version" => self.ip_version.clone(),
-            )
-            .increment(bytes_sent.try_into().unwrap());
-
-            for (worker_index, n) in num_torrents_by_worker.iter().copied().enumerate() {
-                ::metrics::gauge!(
-                    "aquatic_torrents",
-                    "ip_version" => self.ip_version.clone(),
-                    "worker_index" => worker_index.to_string(),
-                )
-                .set(n as f64);
-            }
-            for (worker_index, n) in num_peers_by_worker.iter().copied().enumerate() {
-                ::metrics::gauge!(
-                    "aquatic_peers",
-                    "ip_version" => self.ip_version.clone(),
-                    "worker_index" => worker_index.to_string(),
-                )
-                .set(n as f64);
-            }
-
-            if config.statistics.torrent_peer_histograms {
-                self.last_complete_histogram
-                    .update_metrics(self.ip_version.clone());
-            }
+        if config.statistics.run_prometheus_endpoint && config.statistics.torrent_peer_histograms {
+            self.last_complete_histogram
+                .update_metrics(ip_version_prometheus_str);
         }
 
-        let num_peers: usize = num_peers_by_worker.into_iter().sum();
-        let num_torrents: usize = num_torrents_by_worker.into_iter().sum();
-
-        let requests_per_second = requests_received as f64 / elapsed;
-        let responses_per_second_connect = responses_sent_connect as f64 / elapsed;
-        let responses_per_second_announce = responses_sent_announce as f64 / elapsed;
-        let responses_per_second_scrape = responses_sent_scrape as f64 / elapsed;
-        let responses_per_second_error = responses_sent_error as f64 / elapsed;
+        let requests_per_second = requests as f64 / elapsed;
+        let responses_per_second_connect = responses_connect as f64 / elapsed;
+        let responses_per_second_announce = responses_announce as f64 / elapsed;
+        let responses_per_second_scrape = responses_scrape as f64 / elapsed;
+        let responses_per_second_error = responses_error as f64 / elapsed;
         let bytes_received_per_second = bytes_received as f64 / elapsed;
         let bytes_sent_per_second = bytes_sent as f64 / elapsed;
 
@@ -192,10 +272,6 @@ impl StatisticsCollector {
             num_peers: num_peers.to_formatted_string(&Locale::en),
             peer_histogram: self.last_complete_histogram.clone(),
         }
-    }
-
-    fn fetch_and_reset(atomic: &AtomicUsize) -> usize {
-        atomic.fetch_and(0, Ordering::Relaxed)
     }
 }
 
@@ -253,7 +329,7 @@ impl PeerHistogramStatistics {
     }
 
     #[cfg(feature = "prometheus")]
-    fn update_metrics(&self, ip_version: String) {
+    fn update_metrics(&self, ip_version: &'static str) {
         set_peer_histogram_gauge!(ip_version, self.min, "min");
         set_peer_histogram_gauge!(ip_version, self.p10, "p10");
         set_peer_histogram_gauge!(ip_version, self.p20, "p20");

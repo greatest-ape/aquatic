@@ -6,6 +6,7 @@ use std::{
     fs::File,
     io::Write,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket},
+    num::NonZeroU16,
     time::Duration,
 };
 
@@ -78,7 +79,7 @@ fn test_access_list(
         &socket,
         tracker_addr,
         connection_id,
-        1,
+        NonZeroU16::new(1).unwrap(),
         info_hash_fail,
         10,
         false,
@@ -95,7 +96,7 @@ fn test_access_list(
         &socket,
         tracker_addr,
         connection_id,
-        1,
+        NonZeroU16::new(1).unwrap(),
         info_hash_success,
         10,
         false,

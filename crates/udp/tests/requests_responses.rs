@@ -5,6 +5,7 @@ use common::*;
 use std::{
     collections::{hash_map::RandomState, HashSet},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket},
+    num::NonZeroU16,
     time::Duration,
 };
 
@@ -45,7 +46,7 @@ fn test_multiple_connect_announce_scrape() -> anyhow::Result<()> {
                 &socket,
                 tracker_addr,
                 connection_id,
-                PEER_PORT_START + i as u16,
+                NonZeroU16::new(PEER_PORT_START + i as u16).unwrap(),
                 info_hash,
                 PEERS_WANTED,
                 is_seeder,

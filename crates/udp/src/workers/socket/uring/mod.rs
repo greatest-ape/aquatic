@@ -11,7 +11,6 @@ use std::sync::atomic::Ordering;
 
 use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
-use aquatic_common::ServerStartInstant;
 use io_uring::opcode::Timeout;
 use io_uring::types::{Fixed, Timespec};
 use io_uring::{IoUring, Probe};
@@ -76,11 +75,11 @@ impl CurrentRing {
 pub struct SocketWorker {
     config: Config,
     shared_state: State,
+    statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
     request_sender: ConnectedRequestSender,
     response_receiver: ConnectedResponseReceiver,
     access_list_cache: AccessListCache,
     validator: ConnectionValidator,
-    server_start_instant: ServerStartInstant,
     #[allow(dead_code)]
     socket: UdpSocket,
     pending_scrape_responses: PendingScrapeResponseSlab,
@@ -97,10 +96,10 @@ pub struct SocketWorker {
 
 impl SocketWorker {
     pub fn run(
-        shared_state: State,
         config: Config,
+        shared_state: State,
+        statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
         validator: ConnectionValidator,
-        server_start_instant: ServerStartInstant,
         request_sender: ConnectedRequestSender,
         response_receiver: ConnectedResponseReceiver,
         priv_dropper: PrivilegeDropper,
@@ -164,14 +163,16 @@ impl SocketWorker {
             cleaning_timeout_sqe.clone(),
         ];
 
-        let pending_scrape_valid_until =
-            ValidUntil::new(server_start_instant, config.cleaning.max_pending_scrape_age);
+        let pending_scrape_valid_until = ValidUntil::new(
+            shared_state.server_start_instant,
+            config.cleaning.max_pending_scrape_age,
+        );
 
         let mut worker = Self {
             config,
             shared_state,
+            statistics,
             validator,
-            server_start_instant,
             request_sender,
             response_receiver,
             access_list_cache,
@@ -293,7 +294,7 @@ impl SocketWorker {
             }
             USER_DATA_PULSE_TIMEOUT => {
                 self.pending_scrape_valid_until = ValidUntil::new(
-                    self.server_start_instant,
+                    self.shared_state.server_start_instant,
                     self.config.cleaning.max_pending_scrape_age,
                 );
 
@@ -302,7 +303,7 @@ impl SocketWorker {
             }
             USER_DATA_CLEANING_TIMEOUT => {
                 self.pending_scrape_responses
-                    .clean(self.server_start_instant.seconds_elapsed());
+                    .clean(self.shared_state.server_start_instant.seconds_elapsed());
 
                 self.resubmittable_sqe_buf
                     .push(self.cleaning_timeout_sqe.clone());
@@ -322,9 +323,9 @@ impl SocketWorker {
                         self.send_buffers.response_type_and_ipv4(send_buffer_index);
 
                     let (statistics, extra_bytes) = if receiver_is_ipv4 {
-                        (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
+                        (&self.statistics.ipv4, EXTRA_PACKET_SIZE_IPV4)
                     } else {
-                        (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+                        (&self.statistics.ipv6, EXTRA_PACKET_SIZE_IPV6)
                     };
 
                     statistics
@@ -332,10 +333,10 @@ impl SocketWorker {
                         .fetch_add(result as usize + extra_bytes, Ordering::Relaxed);
 
                     let response_counter = match response_type {
-                        ResponseType::Connect => &statistics.responses_sent_connect,
-                        ResponseType::Announce => &statistics.responses_sent_announce,
-                        ResponseType::Scrape => &statistics.responses_sent_scrape,
-                        ResponseType::Error => &statistics.responses_sent_error,
+                        ResponseType::Connect => &statistics.responses_connect,
+                        ResponseType::Announce => &statistics.responses_announce,
+                        ResponseType::Scrape => &statistics.responses_scrape,
+                        ResponseType::Error => &statistics.responses_error,
                     };
 
                     response_counter.fetch_add(1, Ordering::Relaxed);
@@ -433,15 +434,15 @@ impl SocketWorker {
 
         if self.config.statistics.active() {
             let (statistics, extra_bytes) = if addr.is_ipv4() {
-                (&self.shared_state.statistics_ipv4, EXTRA_PACKET_SIZE_IPV4)
+                (&self.statistics.ipv4, EXTRA_PACKET_SIZE_IPV4)
             } else {
-                (&self.shared_state.statistics_ipv6, EXTRA_PACKET_SIZE_IPV6)
+                (&self.statistics.ipv6, EXTRA_PACKET_SIZE_IPV6)
             };
 
             statistics
                 .bytes_received
                 .fetch_add(buffer.len() + extra_bytes, Ordering::Relaxed);
-            statistics.requests_received.fetch_add(1, Ordering::Relaxed);
+            statistics.requests.fetch_add(1, Ordering::Relaxed);
         }
     }
 

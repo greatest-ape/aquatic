@@ -1,18 +1,48 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
+use std::iter::repeat_with;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use crossbeam_channel::{Receiver, SendError, Sender, TrySendError};
 
 use aquatic_common::access_list::AccessListArcSwap;
-use aquatic_common::CanonicalSocketAddr;
+use aquatic_common::{CanonicalSocketAddr, ServerStartInstant};
 use aquatic_udp_protocol::*;
+use crossbeam_utils::CachePadded;
 use hdrhistogram::Histogram;
 
 use crate::config::Config;
 
 pub const BUFFER_SIZE: usize = 8192;
+
+#[derive(Clone, Copy, Debug)]
+pub enum IpVersion {
+    V4,
+    V6,
+}
+
+#[cfg(feature = "prometheus")]
+impl IpVersion {
+    pub fn prometheus_str(&self) -> &'static str {
+        match self {
+            Self::V4 => "4",
+            Self::V6 => "6",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SocketWorkerIndex(pub usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct SwarmWorkerIndex(pub usize);
+
+impl SwarmWorkerIndex {
+    pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
+        Self(info_hash.0[0] as usize % config.swarm_workers)
+    }
+}
 
 #[derive(Debug)]
 pub struct PendingScrapeRequest {
@@ -39,18 +69,6 @@ pub enum ConnectedResponse {
     Scrape(PendingScrapeResponse),
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct SocketWorkerIndex(pub usize);
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct SwarmWorkerIndex(pub usize);
-
-impl SwarmWorkerIndex {
-    pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
-        Self(info_hash.0[0] as usize % config.swarm_workers)
-    }
-}
-
 pub struct ConnectedRequestSender {
     index: SocketWorkerIndex,
     senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>>,
@@ -62,10 +80,6 @@ impl ConnectedRequestSender {
         senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>>,
     ) -> Self {
         Self { index, senders }
-    }
-
-    pub fn any_full(&self) -> bool {
-        self.senders.iter().any(|sender| sender.is_full())
     }
 
     pub fn try_send_to(
@@ -153,27 +167,57 @@ impl ConnectedResponseSender {
 
 pub type ConnectedResponseReceiver = Receiver<(CanonicalSocketAddr, ConnectedResponse)>;
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub enum PeerStatus {
-    Seeding,
-    Leeching,
-    Stopped,
+#[derive(Clone)]
+pub struct Statistics {
+    pub socket: Vec<CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>>,
+    pub swarm: Vec<CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>>,
 }
 
-impl PeerStatus {
-    /// Determine peer status from announce event and number of bytes left.
-    ///
-    /// Likely, the last branch will be taken most of the time.
-    #[inline]
-    pub fn from_event_and_bytes_left(event: AnnounceEvent, bytes_left: NumberOfBytes) -> Self {
-        if event == AnnounceEvent::Stopped {
-            Self::Stopped
-        } else if bytes_left.0.get() == 0 {
-            Self::Seeding
-        } else {
-            Self::Leeching
+impl Statistics {
+    pub fn new(config: &Config) -> Self {
+        Self {
+            socket: repeat_with(Default::default)
+                .take(config.socket_workers)
+                .collect(),
+            swarm: repeat_with(Default::default)
+                .take(config.swarm_workers)
+                .collect(),
         }
     }
+}
+
+#[derive(Default)]
+pub struct IpVersionStatistics<T> {
+    pub ipv4: T,
+    pub ipv6: T,
+}
+
+impl<T> IpVersionStatistics<T> {
+    pub fn by_ip_version(&self, ip_version: IpVersion) -> &T {
+        match ip_version {
+            IpVersion::V4 => &self.ipv4,
+            IpVersion::V6 => &self.ipv6,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct SocketWorkerStatistics {
+    pub requests: AtomicUsize,
+    pub responses_connect: AtomicUsize,
+    pub responses_announce: AtomicUsize,
+    pub responses_scrape: AtomicUsize,
+    pub responses_error: AtomicUsize,
+    pub bytes_received: AtomicUsize,
+    pub bytes_sent: AtomicUsize,
+}
+
+pub type CachePaddedArc<T> = CachePadded<Arc<CachePadded<T>>>;
+
+#[derive(Default)]
+pub struct SwarmWorkerStatistics {
+    pub torrents: AtomicUsize,
+    pub peers: AtomicUsize,
 }
 
 pub enum StatisticsMessage {
@@ -183,85 +227,28 @@ pub enum StatisticsMessage {
     PeerRemoved(PeerId),
 }
 
-pub struct Statistics {
-    pub requests_received: AtomicUsize,
-    pub responses_sent_connect: AtomicUsize,
-    pub responses_sent_announce: AtomicUsize,
-    pub responses_sent_scrape: AtomicUsize,
-    pub responses_sent_error: AtomicUsize,
-    pub bytes_received: AtomicUsize,
-    pub bytes_sent: AtomicUsize,
-    pub torrents: Vec<AtomicUsize>,
-    pub peers: Vec<AtomicUsize>,
-}
-
-impl Statistics {
-    pub fn new(num_swarm_workers: usize) -> Self {
-        Self {
-            requests_received: Default::default(),
-            responses_sent_connect: Default::default(),
-            responses_sent_announce: Default::default(),
-            responses_sent_scrape: Default::default(),
-            responses_sent_error: Default::default(),
-            bytes_received: Default::default(),
-            bytes_sent: Default::default(),
-            torrents: Self::create_atomic_usize_vec(num_swarm_workers),
-            peers: Self::create_atomic_usize_vec(num_swarm_workers),
-        }
-    }
-
-    fn create_atomic_usize_vec(len: usize) -> Vec<AtomicUsize> {
-        ::std::iter::repeat_with(AtomicUsize::default)
-            .take(len)
-            .collect()
-    }
-}
-
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessListArcSwap>,
-    pub statistics_ipv4: Arc<Statistics>,
-    pub statistics_ipv6: Arc<Statistics>,
+    pub server_start_instant: ServerStartInstant,
 }
 
-impl State {
-    pub fn new(num_swarm_workers: usize) -> Self {
+impl Default for State {
+    fn default() -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
-            statistics_ipv4: Arc::new(Statistics::new(num_swarm_workers)),
-            statistics_ipv6: Arc::new(Statistics::new(num_swarm_workers)),
+            server_start_instant: ServerStartInstant::new(),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv6Addr;
+    use std::{net::Ipv6Addr, num::NonZeroU16};
 
     use crate::config::Config;
 
     use super::*;
-
-    #[test]
-    fn test_peer_status_from_event_and_bytes_left() {
-        use crate::common::*;
-
-        use PeerStatus::*;
-
-        let f = PeerStatus::from_event_and_bytes_left;
-
-        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes::new(0)));
-        assert_eq!(Stopped, f(AnnounceEvent::Stopped, NumberOfBytes::new(1)));
-
-        assert_eq!(Seeding, f(AnnounceEvent::Started, NumberOfBytes::new(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::Started, NumberOfBytes::new(1)));
-
-        assert_eq!(Seeding, f(AnnounceEvent::Completed, NumberOfBytes::new(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::Completed, NumberOfBytes::new(1)));
-
-        assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes::new(0)));
-        assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes::new(1)));
-    }
 
     // Assumes that announce response with maximum amount of ipv6 peers will
     // be the longest
@@ -273,7 +260,7 @@ mod tests {
 
         let peers = ::std::iter::repeat(ResponsePeer {
             ip_address: Ipv6AddrBytes(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1).octets()),
-            port: Port::new(1),
+            port: Port::new(NonZeroU16::new(1).unwrap()),
         })
         .take(config.protocol.max_response_peers)
         .collect();

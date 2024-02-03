@@ -3,6 +3,7 @@
 use std::{
     io::Cursor,
     net::{SocketAddr, UdpSocket},
+    num::NonZeroU16,
     time::Duration,
 };
 
@@ -42,7 +43,7 @@ pub fn announce(
     socket: &UdpSocket,
     tracker_addr: SocketAddr,
     connection_id: ConnectionId,
-    peer_port: u16,
+    peer_port: NonZeroU16,
     info_hash: InfoHash,
     peers_wanted: usize,
     seeder: bool,
@@ -50,7 +51,7 @@ pub fn announce(
     let mut peer_id = PeerId([0; 20]);
 
     for chunk in peer_id.0.chunks_exact_mut(2) {
-        chunk.copy_from_slice(&peer_port.to_ne_bytes());
+        chunk.copy_from_slice(&peer_port.get().to_ne_bytes());
     }
 
     let request = Request::Announce(AnnounceRequest {
