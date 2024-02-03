@@ -165,12 +165,16 @@ dependencies = [
  "indexmap 2.1.0",
  "libc",
  "log",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "metrics-util",
  "privdrop",
  "rand",
  "rustls",
  "rustls-pemfile",
  "serde",
  "simple_logger",
+ "tokio",
  "toml 0.5.11",
 ]
 
@@ -309,8 +313,6 @@ dependencies = [
  "libc",
  "log",
  "metrics",
- "metrics-exporter-prometheus",
- "metrics-util",
  "mimalloc",
  "mio",
  "num-format",
@@ -324,7 +326,6 @@ dependencies = [
  "tempfile",
  "time",
  "tinytemplate",
- "tokio",
 ]
 
 [[package]]

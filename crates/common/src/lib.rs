@@ -138,3 +138,63 @@ impl CanonicalSocketAddr {
         self.0.is_ipv4()
     }
 }
+
+#[cfg(feature = "prometheus")]
+pub fn spawn_prometheus_endpoint(
+    addr: SocketAddr,
+    timeout: Option<::std::time::Duration>,
+) -> anyhow::Result<::std::thread::JoinHandle<anyhow::Result<()>>> {
+    use std::thread::Builder;
+    use std::time::Duration;
+
+    use anyhow::Context;
+
+    let handle = Builder::new()
+        .name("prometheus".into())
+        .spawn(move || {
+            #[cfg(feature = "cpu-pinning")]
+            pin_current_if_configured_to(
+                &config.cpu_pinning,
+                config.socket_workers,
+                config.swarm_workers,
+                WorkerIndex::Util,
+            );
+
+            use metrics_exporter_prometheus::PrometheusBuilder;
+            use metrics_util::MetricKindMask;
+
+            let rt = ::tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .context("build prometheus tokio runtime")?;
+
+            rt.block_on(async {
+                let (recorder, exporter) = PrometheusBuilder::new()
+                    .idle_timeout(MetricKindMask::ALL, timeout)
+                    .with_http_listener(addr)
+                    .build()
+                    .context("build prometheus recorder and exporter")?;
+
+                let recorder_handle = recorder.handle();
+
+                ::metrics::set_global_recorder(recorder).context("set global metrics recorder")?;
+
+                ::tokio::spawn(async move {
+                    let mut interval = ::tokio::time::interval(Duration::from_secs(5));
+
+                    loop {
+                        interval.tick().await;
+
+                        // Periodically render metrics to make sure
+                        // idles are cleaned up
+                        recorder_handle.render();
+                    }
+                });
+
+                exporter.await.context("run prometheus exporter")
+            })
+        })
+        .context("spawn prometheus endpoint")?;
+
+    Ok(handle)
+}
