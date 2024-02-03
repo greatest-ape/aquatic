@@ -158,7 +158,6 @@ dependencies = [
  "arc-swap",
  "duplicate",
  "git-testament",
- "glommio",
  "hashbrown 0.14.3",
  "hex",
  "hwloc",

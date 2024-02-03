@@ -24,7 +24,7 @@ prometheus = ["metrics", "aquatic_common/prometheus"]
 # Experimental io_uring support (Linux 6.0 or later required)
 io-uring = ["dep:io-uring"]
 # Experimental CPU pinning support
-cpu-pinning = ["aquatic_common/hwloc"]
+cpu-pinning = ["aquatic_common/cpu-pinning"]
 
 [dependencies]
 aquatic_common.workspace = true

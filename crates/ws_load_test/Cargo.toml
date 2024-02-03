@@ -14,7 +14,7 @@ rust-version.workspace = true
 name = "aquatic_ws_load_test"
 
 [dependencies]
-aquatic_common = { workspace = true, features = ["glommio"] }
+aquatic_common.workspace = true
 aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 

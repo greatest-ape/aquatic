@@ -3,8 +3,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use ::glommio::LocalExecutorBuilder;
-use aquatic_common::cpu_pinning::glommio::{get_worker_placement, set_affinity_for_util_worker};
-use aquatic_common::cpu_pinning::WorkerIndex;
 use rand::prelude::*;
 use rand_distr::Gamma;
 
@@ -65,19 +63,12 @@ fn run(config: Config) -> ::anyhow::Result<()> {
         None
     };
 
-    for i in 0..config.num_workers {
+    for _ in 0..config.num_workers {
         let config = config.clone();
         let opt_tls_config = opt_tls_config.clone();
         let state = state.clone();
 
-        let placement = get_worker_placement(
-            &config.cpu_pinning,
-            config.num_workers,
-            0,
-            WorkerIndex::SocketWorker(i),
-        )?;
-
-        LocalExecutorBuilder::new(placement)
+        LocalExecutorBuilder::default()
             .name("load-test")
             .spawn(move || async move {
                 run_socket_thread(config, opt_tls_config, state)
@@ -85,10 +76,6 @@ fn run(config: Config) -> ::anyhow::Result<()> {
                     .unwrap();
             })
             .unwrap();
-    }
-
-    if config.cpu_pinning.active {
-        set_affinity_for_util_worker(&config.cpu_pinning, config.num_workers, 0)?;
     }
 
     monitor_statistics(state, &config);
