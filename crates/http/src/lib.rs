@@ -114,6 +114,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let handle = aquatic_common::spawn_prometheus_endpoint(
             config.metrics.prometheus_endpoint_address,
             Some(Duration::from_secs(idle_timeout)),
+            Some(metrics_util::MetricKindMask::GAUGE),
         )?;
 
         join_handles.push((WorkerType::Prometheus, handle));

@@ -19,7 +19,7 @@ name = "aquatic_http"
 
 [features]
 default = ["prometheus"]
-prometheus = ["aquatic_common/prometheus", "metrics"]
+prometheus = ["aquatic_common/prometheus", "metrics", "dep:metrics-util"]
 metrics = ["dep:metrics"]
 
 [dependencies]
@@ -54,6 +54,7 @@ thiserror = "1"
 
 # metrics feature
 metrics = { version = "0.22", optional = true }
+metrics-util = { version = "0.16", optional = true }
 
 [dev-dependencies]
 quickcheck = "1"

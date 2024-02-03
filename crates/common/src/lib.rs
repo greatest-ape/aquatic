@@ -107,6 +107,7 @@ impl CanonicalSocketAddr {
 pub fn spawn_prometheus_endpoint(
     addr: SocketAddr,
     timeout: Option<::std::time::Duration>,
+    timeout_mask: Option<metrics_util::MetricKindMask>,
 ) -> anyhow::Result<::std::thread::JoinHandle<anyhow::Result<()>>> {
     use std::thread::Builder;
     use std::time::Duration;
@@ -125,8 +126,10 @@ pub fn spawn_prometheus_endpoint(
                 .context("build prometheus tokio runtime")?;
 
             rt.block_on(async {
+                let mask = timeout_mask.unwrap_or(MetricKindMask::ALL);
+
                 let (recorder, exporter) = PrometheusBuilder::new()
-                    .idle_timeout(MetricKindMask::ALL, timeout)
+                    .idle_timeout(mask, timeout)
                     .with_http_listener(addr)
                     .build()
                     .context("build prometheus recorder and exporter")?;

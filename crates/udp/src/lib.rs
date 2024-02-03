@@ -167,6 +167,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             Some(Duration::from_secs(
                 config.cleaning.torrent_cleaning_interval * 2,
             )),
+            None,
         )?;
 
         join_handles.push((WorkerType::Prometheus, handle));
