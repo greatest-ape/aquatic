@@ -109,7 +109,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let response_mesh_builder = response_mesh_builder.clone();
 
         let handle = Builder::new()
-            .name(format!("socket-{:02}", i + 1))
+            .name(format!("swarm-{:02}", i + 1))
             .spawn(move || {
                 LocalExecutorBuilder::default()
                     .make()
