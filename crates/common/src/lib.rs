@@ -115,14 +115,6 @@ pub fn spawn_prometheus_endpoint(
     let handle = Builder::new()
         .name("prometheus".into())
         .spawn(move || {
-            #[cfg(feature = "cpu-pinning")]
-            pin_current_if_configured_to(
-                &config.cpu_pinning,
-                config.socket_workers,
-                config.swarm_workers,
-                WorkerIndex::Util,
-            );
-
             use metrics_exporter_prometheus::PrometheusBuilder;
             use metrics_util::MetricKindMask;
 
