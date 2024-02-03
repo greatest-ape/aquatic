@@ -6,7 +6,7 @@ use aquatic_toml_config::TomlConfig;
 use git_testament::{git_testament, CommitKind};
 use log::LevelFilter;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use simple_logger::SimpleLogger;
+use simplelog::{ColorChoice, TermLogger, TerminalMode, ThreadLogMode};
 
 /// Log level. Available values are off, error, warn, info, debug and trace.
 #[derive(Debug, Clone, Copy, PartialEq, TomlConfig, Serialize, Deserialize)]
@@ -203,6 +203,19 @@ where
 }
 
 fn start_logger(log_level: LogLevel) -> ::anyhow::Result<()> {
+    let mut builder = simplelog::ConfigBuilder::new();
+
+    builder
+        .set_thread_mode(ThreadLogMode::Both)
+        .set_thread_level(LevelFilter::Error)
+        .set_target_level(LevelFilter::Error)
+        .set_location_level(LevelFilter::Off);
+
+    let config = match builder.set_time_offset_to_local() {
+        Ok(builder) => builder.build(),
+        Err(builder) => builder.build(),
+    };
+
     let level_filter = match log_level {
         LogLevel::Off => LevelFilter::Off,
         LogLevel::Error => LevelFilter::Error,
@@ -212,11 +225,13 @@ fn start_logger(log_level: LogLevel) -> ::anyhow::Result<()> {
         LogLevel::Trace => LevelFilter::Trace,
     };
 
-    SimpleLogger::new()
-        .with_level(level_filter)
-        .with_utc_timestamps()
-        .init()
-        .context("Couldn't initialize logger")?;
+    TermLogger::init(
+        level_filter,
+        config,
+        TerminalMode::Stderr,
+        ColorChoice::Auto,
+    )
+    .context("Couldn't initialize logger")?;
 
     Ok(())
 }
