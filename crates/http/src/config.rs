@@ -1,8 +1,7 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 use aquatic_common::{
-    access_list::AccessListConfig, cpu_pinning::asc::CpuPinningConfigAsc,
-    privileges::PrivilegeConfig,
+    access_list::AccessListConfig, privileges::PrivilegeConfig,
 };
 use aquatic_toml_config::TomlConfig;
 use serde::{Deserialize, Serialize};
@@ -43,7 +42,6 @@ pub struct Config {
     /// emitting of an error-level log message, while successful updates of the
     /// access list result in emitting of an info-level log message.
     pub access_list: AccessListConfig,
-    pub cpu_pinning: CpuPinningConfigAsc,
     #[cfg(feature = "metrics")]
     pub metrics: MetricsConfig,
 }
@@ -59,7 +57,6 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            cpu_pinning: Default::default(),
             #[cfg(feature = "metrics")]
             metrics: Default::default(),
         }

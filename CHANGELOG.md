@@ -57,6 +57,7 @@
   a lot of memory if many torrents are tracked
 * Improve announce performance by avoiding having to filter response peers
 * In announce response statistics, don't include announcing peer
+* Remove CPU pinning support
 
 #### Fixed
 
@@ -79,6 +80,7 @@
 * Only consider announce and scrape responses as signs of connection still
   being alive. Previously, all messages sent to peer were considered.
 * Decrease default max_peer_age and max_connection_idle config values
+* Remove CPU pinning support
 
 #### Fixed
 
