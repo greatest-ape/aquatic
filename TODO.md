@@ -43,11 +43,6 @@
       * move additional request sending to for each received response, maybe
         with probability 0.2
 
-* aquatic_ws
-  * large amount of temporary allocations in serialize_20_bytes, pretty many in deserialize_20_bytes
-    * 20 byte parsing: consider using something like ArrayString<80> to avoid
-      heap allocations
-
 # Not important
 
 * aquatic_http:
