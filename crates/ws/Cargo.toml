@@ -26,7 +26,7 @@ metrics = ["dep:metrics", "metrics-util"]
 mimalloc = ["dep:mimalloc"]
 
 [dependencies]
-aquatic_common = { workspace = true, features = ["rustls", "glommio"] }
+aquatic_common = { workspace = true, features = ["rustls"] }
 aquatic_peer_id.workspace = true
 aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true

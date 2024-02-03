@@ -88,6 +88,7 @@
 * Actually close connections that are too slow to send responses to
 * If peers announce with AnnounceEvent::Stopped, allow them to later announce on
   same torrent with different peer_id
+* Quit whole application if any worker thread quits
 
 ## 0.8.0 - 2023-03-17
 

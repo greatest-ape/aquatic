@@ -1,7 +1,5 @@
 use std::fmt::Display;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::time::Instant;
 
 use ahash::RandomState;
@@ -56,42 +54,6 @@ impl ServerStartInstant {
 
 #[derive(Debug, Clone, Copy)]
 pub struct SecondsSinceServerStart(u32);
-
-pub struct PanicSentinelWatcher(Arc<AtomicBool>);
-
-impl PanicSentinelWatcher {
-    pub fn create_with_sentinel() -> (Self, PanicSentinel) {
-        let triggered = Arc::new(AtomicBool::new(false));
-        let sentinel = PanicSentinel(triggered.clone());
-
-        (Self(triggered), sentinel)
-    }
-
-    pub fn panic_was_triggered(&self) -> bool {
-        self.0.load(Ordering::SeqCst)
-    }
-}
-
-/// Raises SIGTERM when dropped
-///
-/// Pass to threads to have panics in them cause whole program to exit.
-#[derive(Clone)]
-pub struct PanicSentinel(Arc<AtomicBool>);
-
-impl Drop for PanicSentinel {
-    fn drop(&mut self) {
-        if ::std::thread::panicking() {
-            let already_triggered = self.0.fetch_or(true, Ordering::SeqCst);
-
-            if !already_triggered && unsafe { libc::raise(15) } == -1 {
-                panic!(
-                    "Could not raise SIGTERM: {:#}",
-                    ::std::io::Error::last_os_error()
-                )
-            }
-        }
-    }
-}
 
 /// SocketAddr that is not an IPv6-mapped IPv4 address
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
