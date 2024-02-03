@@ -244,7 +244,7 @@ impl Default for State {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv6Addr;
+    use std::{net::Ipv6Addr, num::NonZeroU16};
 
     use crate::config::Config;
 
@@ -260,7 +260,7 @@ mod tests {
 
         let peers = ::std::iter::repeat(ResponsePeer {
             ip_address: Ipv6AddrBytes(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1).octets()),
-            port: Port::new(1),
+            port: Port::new(NonZeroU16::new(1).unwrap()),
         })
         .take(config.protocol.max_response_peers)
         .collect();

@@ -1,6 +1,5 @@
 use std::io::Cursor;
 use std::net::SocketAddr;
-use std::num::NonZeroU16;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
@@ -193,7 +192,7 @@ impl Worker {
             scrape_hash_indices,
             connection_id,
             peer_id: generate_peer_id(),
-            port: Port::new(self.rng.gen::<NonZeroU16>().into()),
+            port: Port::new(self.rng.gen()),
         }
     }
 

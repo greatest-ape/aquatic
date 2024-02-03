@@ -281,7 +281,7 @@ impl RequestParseError {
 mod tests {
     use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
-    use zerocopy::network_endian::{I32, I64, U16};
+    use zerocopy::network_endian::{I32, I64};
 
     use super::*;
 
@@ -319,7 +319,7 @@ mod tests {
                 ip_address: Ipv4AddrBytes::arbitrary(g),
                 key: PeerKey::new(i32::arbitrary(g)),
                 peers_wanted: NumberOfPeers(I32::new(i32::arbitrary(g))),
-                port: Port(U16::new(u16::arbitrary(g))),
+                port: Port::new(quickcheck::Arbitrary::arbitrary(g)),
             }
         }
     }
