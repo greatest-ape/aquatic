@@ -61,6 +61,7 @@
 #### Fixed
 
 * Fix bug where clean up after closing connections wasn't always done
+* Quit whole application if any worker thread quits
 
 ### aquatic_ws
 

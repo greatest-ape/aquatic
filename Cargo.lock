@@ -200,7 +200,6 @@ dependencies = [
  "log",
  "memchr",
  "metrics",
- "metrics-exporter-prometheus",
  "mimalloc",
  "once_cell",
  "privdrop",

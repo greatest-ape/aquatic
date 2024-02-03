@@ -3,11 +3,11 @@ pub mod config;
 pub mod workers;
 
 use std::collections::BTreeMap;
-use std::fmt::Display;
 use std::thread::{sleep, Builder, JoinHandle};
 use std::time::Duration;
 
 use anyhow::Context;
+use aquatic_common::WorkerType;
 use crossbeam_channel::{bounded, unbounded};
 use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
@@ -231,27 +231,5 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         }
 
         sleep(Duration::from_secs(5));
-    }
-}
-
-enum WorkerType {
-    Swarm(usize),
-    Socket(usize),
-    Statistics,
-    Signals,
-    #[cfg(feature = "prometheus")]
-    Prometheus,
-}
-
-impl Display for WorkerType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Swarm(index) => f.write_fmt(format_args!("Swarm worker {}", index + 1)),
-            Self::Socket(index) => f.write_fmt(format_args!("Socket worker {}", index + 1)),
-            Self::Statistics => f.write_str("Statistics worker"),
-            Self::Signals => f.write_str("Signals worker"),
-            #[cfg(feature = "prometheus")]
-            Self::Prometheus => f.write_str("Prometheus worker"),
-        }
     }
 }

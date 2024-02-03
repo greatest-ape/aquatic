@@ -11,7 +11,7 @@ use glommio::{enclose, prelude::*};
 use rand::prelude::SmallRng;
 use rand::SeedableRng;
 
-use aquatic_common::{PanicSentinel, ServerStartInstant, ValidUntil};
+use aquatic_common::{ServerStartInstant, ValidUntil};
 
 use crate::common::*;
 use crate::config::Config;
@@ -19,14 +19,16 @@ use crate::config::Config;
 use self::storage::TorrentMaps;
 
 pub async fn run_swarm_worker(
-    _sentinel: PanicSentinel,
     config: Config,
     state: State,
     request_mesh_builder: MeshBuilder<ChannelRequest, Partial>,
     server_start_instant: ServerStartInstant,
     worker_index: usize,
-) {
-    let (_, mut request_receivers) = request_mesh_builder.join(Role::Consumer).await.unwrap();
+) -> anyhow::Result<()> {
+    let (_, mut request_receivers) = request_mesh_builder
+        .join(Role::Consumer)
+        .await
+        .map_err(|err| anyhow::anyhow!("join request mesh: {:#}", err))?;
 
     let torrents = Rc::new(RefCell::new(TorrentMaps::new(worker_index)));
     let access_list = state.access_list;
@@ -82,6 +84,8 @@ pub async fn run_swarm_worker(
     for handle in handles {
         handle.await;
     }
+
+    Ok(())
 }
 
 async fn handle_request_stream<S>(
