@@ -93,7 +93,7 @@ impl UdpCommand {
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
-                    (1, Priority::Medium),
+                    (1, Priority::High),
                     (2, Priority::Medium),
                     (4, Priority::Medium),
                     (6, Priority::Medium),
