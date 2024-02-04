@@ -126,7 +126,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             })
             .context("spawn swarm worker")?;
 
-        join_handles.push((WorkerType::Socket(i), handle));
+        join_handles.push((WorkerType::Swarm(i), handle));
     }
 
     #[cfg(feature = "prometheus")]
