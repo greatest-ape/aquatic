@@ -1,22 +1,15 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
-use hashbrown::HashMap;
-
 use aquatic_udp_protocol::*;
 
-#[derive(PartialEq, Eq, Clone)]
-pub struct TorrentPeer {
-    pub info_hash: InfoHash,
-    pub scrape_hash_indices: Box<[usize]>,
-    pub connection_id: ConnectionId,
-    pub peer_id: PeerId,
-    pub port: Port,
+#[derive(Clone)]
+pub struct LoadTestState {
+    pub info_hashes: Arc<[InfoHash]>,
+    pub statistics: Arc<SharedStatistics>,
 }
 
-pub type TorrentPeerMap = HashMap<TransactionId, TorrentPeer>;
-
 #[derive(Default)]
-pub struct Statistics {
+pub struct SharedStatistics {
     pub requests: AtomicUsize,
     pub response_peers: AtomicUsize,
     pub responses_connect: AtomicUsize,
@@ -25,25 +18,8 @@ pub struct Statistics {
     pub responses_error: AtomicUsize,
 }
 
-#[derive(Clone)]
-pub struct LoadTestState {
-    pub info_hashes: Arc<[InfoHash]>,
-    pub statistics: Arc<Statistics>,
-}
-
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum RequestType {
-    Announce,
-    Connect,
-    Scrape,
-}
-
-#[derive(Default)]
-pub struct SocketWorkerLocalStatistics {
-    pub requests: usize,
-    pub response_peers: usize,
-    pub responses_connect: usize,
-    pub responses_announce: usize,
-    pub responses_scrape: usize,
-    pub responses_error: usize,
+pub struct Peer {
+    pub announce_info_hash: InfoHash,
+    pub announce_port: Port,
+    pub scrape_info_hash_indices: Box<[usize]>,
 }

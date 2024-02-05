@@ -25,6 +25,8 @@ pub struct Config {
     ///
     /// 0 = include whole run
     pub summarize_last: usize,
+    /// Display data on number of peers per info hash
+    pub peer_histogram: bool,
     pub network: NetworkConfig,
     pub requests: RequestConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -39,6 +41,7 @@ impl Default for Config {
             workers: 1,
             duration: 0,
             summarize_last: 0,
+            peer_histogram: true,
             network: NetworkConfig::default(),
             requests: RequestConfig::default(),
             #[cfg(feature = "cpu-pinning")]
@@ -59,8 +62,6 @@ pub struct NetworkConfig {
     pub multiple_client_ipv4s: bool,
     /// Number of first client port
     pub first_port: u16,
-    /// Socket worker poll timeout in microseconds
-    pub poll_timeout: u64,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
@@ -81,7 +82,6 @@ impl Default for NetworkConfig {
         Self {
             multiple_client_ipv4s: true,
             first_port: 45_000,
-            poll_timeout: 1,
             recv_buffer: 8_000_000,
         }
     }
@@ -92,6 +92,8 @@ impl Default for NetworkConfig {
 pub struct RequestConfig {
     /// Number of torrents to simulate
     pub number_of_torrents: usize,
+    /// Number of peers to simulate
+    pub number_of_peers: usize,
     /// Maximum number of torrents to ask about in scrape requests
     pub scrape_max_torrents: usize,
     /// Ask for this number of peers in announce requests
@@ -105,30 +107,21 @@ pub struct RequestConfig {
     /// Probability that a generated request is a scrape request, as part
     /// of sum of the various weight arguments.
     pub weight_scrape: usize,
-    /// Peers choose torrents according to this Gamma distribution shape
-    pub torrent_gamma_shape: f64,
-    /// Peers choose torrents according to this Gamma distribution scale
-    pub torrent_gamma_scale: f64,
     /// Probability that a generated peer is a seeder
     pub peer_seeder_probability: f64,
-    /// Probability that an additional connect request will be sent for each
-    /// mio event
-    pub additional_request_probability: f32,
 }
 
 impl Default for RequestConfig {
     fn default() -> Self {
         Self {
             number_of_torrents: 10_000,
+            number_of_peers: 100_000,
             scrape_max_torrents: 10,
             announce_peers_wanted: 30,
             weight_connect: 0,
             weight_announce: 100,
             weight_scrape: 1,
-            torrent_gamma_shape: 0.2,
-            torrent_gamma_scale: 100.0,
             peer_seeder_probability: 0.75,
-            additional_request_probability: 0.5,
         }
     }
 }

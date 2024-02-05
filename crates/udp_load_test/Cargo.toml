@@ -25,9 +25,8 @@ aquatic_toml_config.workspace = true
 aquatic_udp_protocol.workspace = true
 
 anyhow = "1"
-hashbrown = "0.14"
+hdrhistogram = "7"
 mimalloc = { version = "0.1", default-features = false }
-mio = { version = "0.8", features = ["net", "os-poll"] }
 rand_distr = "0.4"
 rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
