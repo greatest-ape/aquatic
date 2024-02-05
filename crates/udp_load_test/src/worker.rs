@@ -56,7 +56,7 @@ impl Worker {
     }
 
     fn run_inner(&mut self) {
-        let connection_id = self.aquire_connection_id();
+        let connection_id = self.acquire_connection_id();
 
         let mut requests_sent = 0usize;
         let mut responses_received = 0usize;
@@ -125,7 +125,7 @@ impl Worker {
         }
     }
 
-    fn aquire_connection_id(&mut self) -> ConnectionId {
+    fn acquire_connection_id(&mut self) -> ConnectionId {
         loop {
             self.send_connect_request(0, u32::MAX);
 
