@@ -21,7 +21,7 @@ pub struct Worker {
     peers: Box<[Peer]>,
     request_type_dist: RequestTypeDist,
     addr: SocketAddr,
-    socket: UdpSocket,
+    sockets: Vec<UdpSocket>,
     buffer: [u8; MAX_PACKET_SIZE],
     rng: SmallRng,
     statistics: LocalStatistics,
@@ -29,7 +29,12 @@ pub struct Worker {
 
 impl Worker {
     pub fn run(config: Config, shared_state: LoadTestState, peers: Box<[Peer]>, addr: SocketAddr) {
-        let socket = create_socket(&config, addr);
+        let mut sockets = Vec::new();
+
+        for _ in 0..config.network.sockets_per_worker {
+            sockets.push(create_socket(&config, addr));
+        }
+
         let buffer = [0u8; MAX_PACKET_SIZE];
         let rng = SmallRng::seed_from_u64(0xc3aa8be617b3acce);
         let statistics = LocalStatistics::default();
@@ -41,7 +46,7 @@ impl Worker {
             peers,
             request_type_dist,
             addr,
-            socket,
+            sockets,
             buffer,
             rng,
             statistics,
@@ -56,48 +61,59 @@ impl Worker {
         let mut requests_sent = 0usize;
         let mut responses_received = 0usize;
 
+        let mut connect_socket_index = 0u8;
         let mut peer_index = 0usize;
         let mut loop_index = 0usize;
 
         loop {
             let response_ratio = responses_received as f64 / requests_sent.max(1) as f64;
 
-            if response_ratio >= 0.95 || requests_sent == 0 || self.rng.gen::<u8>() == 0 {
-                match self.request_type_dist.sample(&mut self.rng) {
-                    RequestType::Connect => {
-                        self.send_connect_request(u32::MAX - 1);
-                    }
-                    RequestType::Announce => {
-                        self.send_announce_request(connection_id, peer_index);
+            if response_ratio >= 0.90 || requests_sent == 0 || self.rng.gen::<u8>() == 0 {
+                for _ in 0..self.sockets.len() {
+                    match self.request_type_dist.sample(&mut self.rng) {
+                        RequestType::Connect => {
+                            self.send_connect_request(connect_socket_index, u32::MAX - 1);
 
-                        peer_index = (peer_index + 1) % self.peers.len();
-                    }
-                    RequestType::Scrape => {
-                        self.send_scrape_request(connection_id, peer_index);
+                            connect_socket_index = connect_socket_index.wrapping_add(1)
+                                % self.config.network.sockets_per_worker;
+                        }
+                        RequestType::Announce => {
+                            self.send_announce_request(connection_id, peer_index);
 
-                        peer_index = (peer_index + 1) % self.peers.len();
+                            peer_index = (peer_index + 1) % self.peers.len();
+                        }
+                        RequestType::Scrape => {
+                            self.send_scrape_request(connection_id, peer_index);
+
+                            peer_index = (peer_index + 1) % self.peers.len();
+                        }
                     }
+
+                    requests_sent += 1;
                 }
-
-                requests_sent += 1;
             }
 
-            match self.socket.recv(&mut self.buffer[..]) {
-                Ok(amt) => {
-                    match Response::parse_bytes(&self.buffer[0..amt], self.addr.is_ipv4()) {
-                        Ok(response) => {
-                            self.handle_response(response);
-                        }
-                        Err(err) => {
-                            eprintln!("Received invalid response: {:#?}", err);
-                        }
-                    }
+            for socket_index in 0..self.sockets.len() {
+                // Do this instead of iterating over Vec to fix borrow checker complaint
+                let socket = self.sockets.get(socket_index).unwrap();
 
-                    responses_received += 1;
-                }
-                Err(err) if err.kind() == ErrorKind::WouldBlock => (),
-                Err(err) => {
-                    eprintln!("recv error: {:#}", err);
+                match socket.recv(&mut self.buffer[..]) {
+                    Ok(amt) => {
+                        match Response::parse_bytes(&self.buffer[0..amt], self.addr.is_ipv4()) {
+                            Ok(response) => {
+                                self.handle_response(response);
+                            }
+                            Err(err) => {
+                                eprintln!("Received invalid response: {:#?}", err);
+                            }
+                        }
+
+                        responses_received += 1;
+                    }
+                    Err(err) if err.kind() == ErrorKind::WouldBlock => (),
+                    Err(err) => {
+                        eprintln!("recv error: {:#}", err);
+                    }
                 }
             }
 
@@ -111,10 +127,10 @@ impl Worker {
 
     fn aquire_connection_id(&mut self) -> ConnectionId {
         loop {
-            self.send_connect_request(u32::MAX);
+            self.send_connect_request(0, u32::MAX);
 
             for _ in 0..100 {
-                match self.socket.recv(&mut self.buffer[..]) {
+                match self.sockets[0].recv(&mut self.buffer[..]) {
                     Ok(amt) => {
                         match Response::parse_bytes(&self.buffer[0..amt], self.addr.is_ipv4()) {
                             Ok(Response::Connect(r)) => {
@@ -139,7 +155,7 @@ impl Worker {
         }
     }
 
-    fn send_connect_request(&mut self, transaction_id: u32) {
+    fn send_connect_request(&mut self, socket_index: u8, transaction_id: u32) {
         let transaction_id = TransactionId::new(i32::from_ne_bytes(transaction_id.to_ne_bytes()));
 
         let request = ConnectRequest { transaction_id };
@@ -150,7 +166,7 @@ impl Worker {
 
         let position = cursor.position() as usize;
 
-        match self.socket.send(&cursor.get_ref()[..position]) {
+        match self.sockets[socket_index as usize].send(&cursor.get_ref()[..position]) {
             Ok(_) => {
                 self.statistics.requests += 1;
             }
@@ -199,7 +215,7 @@ impl Worker {
 
         let position = cursor.position() as usize;
 
-        match self.socket.send(&cursor.get_ref()[..position]) {
+        match self.sockets[peer.socket_index as usize].send(&cursor.get_ref()[..position]) {
             Ok(_) => {
                 self.statistics.requests += 1;
             }
@@ -233,7 +249,7 @@ impl Worker {
 
         let position = cursor.position() as usize;
 
-        match self.socket.send(&cursor.get_ref()[..position]) {
+        match self.sockets[peer.socket_index as usize].send(&cursor.get_ref()[..position]) {
             Ok(_) => {
                 self.statistics.requests += 1;
             }

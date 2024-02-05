@@ -54,8 +54,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     // Start workers
 
     for (i, peers) in (0..config.workers).zip(peers_by_worker) {
-        let port = config.network.first_port + (i as u16);
-
         let ip = if config.server_address.is_ipv6() {
             Ipv6Addr::LOCALHOST.into()
         } else if config.network.multiple_client_ipv4s {
@@ -64,7 +62,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             Ipv4Addr::LOCALHOST.into()
         };
 
-        let addr = SocketAddr::new(ip, port);
+        let addr = SocketAddr::new(ip, 0);
         let config = config.clone();
         let state = state.clone();
 
@@ -230,6 +228,7 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
             announce_info_hash,
             announce_port: Port::new(rng.gen()),
             scrape_info_hash_indices,
+            socket_index: rng.gen_range(0..config.network.sockets_per_worker),
         }
     })
     .take(config.requests.number_of_peers)

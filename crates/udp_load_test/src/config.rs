@@ -60,8 +60,8 @@ pub struct NetworkConfig {
     ///
     /// Setting this to true can cause issues on macOS.
     pub multiple_client_ipv4s: bool,
-    /// Number of first client port
-    pub first_port: u16,
+    /// Number of sockets to open per worker
+    pub sockets_per_worker: u8,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
@@ -81,7 +81,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             multiple_client_ipv4s: true,
-            first_port: 45_000,
+            sockets_per_worker: 4,
             recv_buffer: 8_000_000,
         }
     }
