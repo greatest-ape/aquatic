@@ -41,7 +41,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         panic!("Error: report_last_seconds can't be larger than duration");
     }
 
-    println!("Starting client with config: {:#?}", config);
+    println!("Starting client with config: {:#?}\n", config);
 
     let info_hash_dist = InfoHashDist::new(&config)?;
     let peers_by_worker = create_peers(&config, &info_hash_dist);
@@ -235,6 +235,8 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
     .collect::<Vec<_>>();
 
     if let Some(peers_per_info_hash) = opt_peers_per_info_hash {
+        println!("Number of info hashes: {}", peers_per_info_hash.len());
+
         let mut histogram = Histogram::<u64>::new(2).unwrap();
 
         for num_peers in peers_per_info_hash.values() {
@@ -245,10 +247,12 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
             1.0, 10.0, 25.0, 50.0, 75.0, 85.0, 90.0, 95.0, 98.0, 99.9, 100.0,
         ];
 
+        println!("Peers per info hash:");
+
         for p in percentiles {
             let value = histogram.value_at_percentile(p);
 
-            println!("Peers at info hash percentile {}: {}", p, value);
+            println!("  - p{}: {}", p, value);
         }
     }
 
@@ -297,7 +301,7 @@ impl InfoHashDist {
             .map(|i| {
                 let floor = num_torrents as f64 / config.requests.number_of_peers as f64;
 
-                floor + (7.0f64 - ((300.0 * f64::from(i)) / f64::from(num_torrents))).exp()
+                floor + (6.5f64 - ((500.0 * f64::from(i)) / f64::from(num_torrents))).exp()
             })
             .collect();
 

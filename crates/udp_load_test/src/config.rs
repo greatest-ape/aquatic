@@ -114,8 +114,8 @@ pub struct RequestConfig {
 impl Default for RequestConfig {
     fn default() -> Self {
         Self {
-            number_of_torrents: 10_000,
-            number_of_peers: 100_000,
+            number_of_torrents: 1_000_000,
+            number_of_peers: 2_000_000,
             scrape_max_torrents: 10,
             announce_peers_wanted: 30,
             weight_connect: 0,
