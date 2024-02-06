@@ -353,7 +353,7 @@ impl Worker {
             .response_peers
             .fetch_add(self.statistics.response_peers, Ordering::Relaxed);
 
-        if self.config.peer_histogram {
+        if self.config.extra_statistics {
             let message = StatisticsMessage::ResponsesPerInfoHash(
                 self.announce_responses_per_info_hash.split_off(0),
             );

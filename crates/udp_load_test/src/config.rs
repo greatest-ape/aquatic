@@ -25,8 +25,8 @@ pub struct Config {
     ///
     /// 0 = include whole run
     pub summarize_last: usize,
-    /// Display data on number of peers per info hash
-    pub peer_histogram: bool,
+    /// Display extra statistics
+    pub extra_statistics: bool,
     pub network: NetworkConfig,
     pub requests: RequestConfig,
     #[cfg(feature = "cpu-pinning")]
@@ -41,7 +41,7 @@ impl Default for Config {
             workers: 1,
             duration: 0,
             summarize_last: 0,
-            peer_histogram: true,
+            extra_statistics: true,
             network: NetworkConfig::default(),
             requests: RequestConfig::default(),
             #[cfg(feature = "cpu-pinning")]

@@ -113,7 +113,7 @@ fn monitor_statistics(
         thread::sleep(Duration::from_secs(INTERVAL));
 
         let mut opt_responses_per_info_hash: Option<IndexMap<usize, u64>> =
-            config.peer_histogram.then_some(Default::default());
+            config.extra_statistics.then_some(Default::default());
 
         for message in statistics_receiver.try_iter() {
             match message {
@@ -239,7 +239,7 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
     let mut rng = SmallRng::seed_from_u64(0xc3a58be617b3acce);
 
     let mut opt_peers_per_info_hash: Option<IndexMap<usize, u64>> =
-        config.peer_histogram.then_some(IndexMap::default());
+        config.extra_statistics.then_some(IndexMap::default());
 
     let mut all_peers = repeat_with(|| {
         let num_scrape_indices = rng.gen_range(1..config.requests.scrape_max_torrents + 1);
