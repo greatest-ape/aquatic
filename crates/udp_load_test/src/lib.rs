@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::IndexMap;
 use aquatic_udp_protocol::{InfoHash, Port};
+use crossbeam_channel::{unbounded, Receiver};
 use hdrhistogram::Histogram;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
@@ -22,11 +23,7 @@ use common::*;
 use config::Config;
 use worker::*;
 
-impl aquatic_common::cli::Config for Config {
-    fn get_log_level(&self) -> Option<aquatic_common::cli::LogLevel> {
-        Some(self.log_level)
-    }
-}
+const PERCENTILES: &[f64] = &[10.0, 25.0, 50.0, 75.0, 90.0, 95.0, 99.0, 99.9, 100.0];
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     if config.requests.weight_announce
@@ -51,6 +48,8 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         statistics: Arc::new(SharedStatistics::default()),
     };
 
+    let (statistics_sender, statistics_receiver) = unbounded();
+
     // Start workers
 
     for (i, peers) in (0..config.workers).zip(peers_by_worker) {
@@ -65,6 +64,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let addr = SocketAddr::new(ip, 0);
         let config = config.clone();
         let state = state.clone();
+        let statistics_sender = statistics_sender.clone();
 
         Builder::new().name("load-test".into()).spawn(move || {
             #[cfg(feature = "cpu-pinning")]
@@ -75,7 +75,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i as usize),
             );
 
-            Worker::run(config, state, peers, addr)
+            Worker::run(config, state, statistics_sender, peers, addr)
         })?;
     }
 
@@ -87,12 +87,16 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         WorkerIndex::Util,
     );
 
-    monitor_statistics(state, &config);
+    monitor_statistics(state, &config, statistics_receiver);
 
     Ok(())
 }
 
-fn monitor_statistics(state: LoadTestState, config: &Config) {
+fn monitor_statistics(
+    state: LoadTestState,
+    config: &Config,
+    statistics_receiver: Receiver<StatisticsMessage>,
+) {
     let mut report_avg_connect: Vec<f64> = Vec::new();
     let mut report_avg_announce: Vec<f64> = Vec::new();
     let mut report_avg_scrape: Vec<f64> = Vec::new();
@@ -107,6 +111,21 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
     let time_elapsed = loop {
         thread::sleep(Duration::from_secs(INTERVAL));
+
+        let mut opt_responses_per_info_hash: Option<IndexMap<usize, u64>> =
+            config.peer_histogram.then_some(Default::default());
+
+        for message in statistics_receiver.try_iter() {
+            match message {
+                StatisticsMessage::ResponsesPerInfoHash(data) => {
+                    if let Some(responses_per_info_hash) = opt_responses_per_info_hash.as_mut() {
+                        for (k, v) in data {
+                            *responses_per_info_hash.entry(k).or_default() += v;
+                        }
+                    }
+                }
+            }
+        }
 
         let requests = fetch_and_reset(&state.statistics.requests);
         let response_peers = fetch_and_reset(&state.statistics.response_peers);
@@ -150,6 +169,20 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
             "Peers per announce response: {:.2}",
             peers_per_announce_response
         );
+
+        if let Some(responses_per_info_hash) = opt_responses_per_info_hash.as_ref() {
+            let mut histogram = Histogram::<u64>::new(2).unwrap();
+
+            for num_responses in responses_per_info_hash.values().copied() {
+                histogram.record(num_responses).unwrap();
+            }
+
+            println!("Announce responses per info hash:");
+
+            for p in PERCENTILES {
+                println!("  - p{}: {}", p, histogram.value_at_percentile(*p));
+            }
+        }
 
         let time_elapsed = start_time.elapsed();
 
@@ -225,6 +258,7 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
         }
 
         Peer {
+            announce_info_hash_index,
             announce_info_hash,
             announce_port: Port::new(rng.gen()),
             scrape_info_hash_indices,
@@ -243,16 +277,10 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
             histogram.record(*num_peers).unwrap();
         }
 
-        let percentiles = [
-            1.0, 10.0, 25.0, 50.0, 75.0, 85.0, 90.0, 95.0, 98.0, 99.9, 100.0,
-        ];
-
         println!("Peers per info hash:");
 
-        for p in percentiles {
-            let value = histogram.value_at_percentile(p);
-
-            println!("  - p{}: {}", p, value);
+        for p in PERCENTILES {
+            println!("  - p{}: {}", p, histogram.value_at_percentile(*p));
         }
     }
 

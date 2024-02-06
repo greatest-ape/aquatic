@@ -50,6 +50,12 @@ impl Default for Config {
     }
 }
 
+impl aquatic_common::cli::Config for Config {
+    fn get_log_level(&self) -> Option<aquatic_common::cli::LogLevel> {
+        Some(self.log_level)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {

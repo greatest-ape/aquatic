@@ -335,6 +335,7 @@ dependencies = [
  "aquatic_common",
  "aquatic_toml_config",
  "aquatic_udp_protocol",
+ "crossbeam-channel",
  "hdrhistogram",
  "mimalloc",
  "quickcheck",

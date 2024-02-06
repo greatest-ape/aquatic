@@ -1,5 +1,6 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
+use aquatic_common::IndexMap;
 use aquatic_udp_protocol::*;
 
 #[derive(Clone)]
@@ -19,8 +20,13 @@ pub struct SharedStatistics {
 }
 
 pub struct Peer {
+    pub announce_info_hash_index: usize,
     pub announce_info_hash: InfoHash,
     pub announce_port: Port,
     pub scrape_info_hash_indices: Box<[usize]>,
     pub socket_index: u8,
+}
+
+pub enum StatisticsMessage {
+    ResponsesPerInfoHash(IndexMap<usize, u64>),
 }

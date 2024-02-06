@@ -25,6 +25,7 @@ aquatic_toml_config.workspace = true
 aquatic_udp_protocol.workspace = true
 
 anyhow = "1"
+crossbeam-channel = "0.5"
 hdrhistogram = "7"
 mimalloc = { version = "0.1", default-features = false }
 rand_distr = "0.4"

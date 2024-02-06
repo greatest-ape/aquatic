@@ -3,6 +3,8 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use aquatic_common::IndexMap;
+use crossbeam_channel::Sender;
 use rand::Rng;
 use rand::{prelude::SmallRng, SeedableRng};
 use rand_distr::{Distribution, WeightedIndex};
@@ -12,6 +14,7 @@ use aquatic_udp_protocol::*;
 
 use crate::common::{LoadTestState, Peer};
 use crate::config::Config;
+use crate::StatisticsMessage;
 
 const MAX_PACKET_SIZE: usize = 8192;
 
@@ -25,10 +28,18 @@ pub struct Worker {
     buffer: [u8; MAX_PACKET_SIZE],
     rng: SmallRng,
     statistics: LocalStatistics,
+    statistics_sender: Sender<StatisticsMessage>,
+    announce_responses_per_info_hash: IndexMap<usize, u64>,
 }
 
 impl Worker {
-    pub fn run(config: Config, shared_state: LoadTestState, peers: Box<[Peer]>, addr: SocketAddr) {
+    pub fn run(
+        config: Config,
+        shared_state: LoadTestState,
+        statistics_sender: Sender<StatisticsMessage>,
+        peers: Box<[Peer]>,
+        addr: SocketAddr,
+    ) {
         let mut sockets = Vec::new();
 
         for _ in 0..config.network.sockets_per_worker {
@@ -50,6 +61,8 @@ impl Worker {
             buffer,
             rng,
             statistics,
+            statistics_sender,
+            announce_responses_per_info_hash: Default::default(),
         };
 
         instance.run_inner();
@@ -267,10 +280,30 @@ impl Worker {
             Response::AnnounceIpv4(r) => {
                 self.statistics.responses_announce += 1;
                 self.statistics.response_peers += r.peers.len();
+
+                let peer_index =
+                    u32::from_ne_bytes(r.fixed.transaction_id.0.get().to_ne_bytes()) as usize;
+
+                if let Some(peer) = self.peers.get(peer_index) {
+                    *self
+                        .announce_responses_per_info_hash
+                        .entry(peer.announce_info_hash_index)
+                        .or_default() += 1;
+                }
             }
             Response::AnnounceIpv6(r) => {
                 self.statistics.responses_announce += 1;
                 self.statistics.response_peers += r.peers.len();
+
+                let peer_index =
+                    u32::from_ne_bytes(r.fixed.transaction_id.0.get().to_ne_bytes()) as usize;
+
+                if let Some(peer) = self.peers.get(peer_index) {
+                    *self
+                        .announce_responses_per_info_hash
+                        .entry(peer.announce_info_hash_index)
+                        .or_default() += 1;
+                }
             }
             Response::Scrape(_) => {
                 self.statistics.responses_scrape += 1;
@@ -302,6 +335,14 @@ impl Worker {
         shared_statistics
             .response_peers
             .fetch_add(self.statistics.response_peers, Ordering::Relaxed);
+
+        if self.config.peer_histogram {
+            let message = StatisticsMessage::ResponsesPerInfoHash(
+                self.announce_responses_per_info_hash.split_off(0),
+            );
+
+            self.statistics_sender.try_send(message).unwrap();
+        }
 
         self.statistics = LocalStatistics::default();
     }
