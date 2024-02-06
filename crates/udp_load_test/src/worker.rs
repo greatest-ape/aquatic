@@ -69,7 +69,11 @@ impl Worker {
     }
 
     fn run_inner(&mut self) {
-        let connection_id = self.acquire_connection_id();
+        let mut connection_ids = Vec::new();
+
+        for _ in 0..self.config.network.sockets_per_worker {
+            connection_ids.push(self.acquire_connection_id());
+        }
 
         let mut requests_sent = 0usize;
         let mut responses_received = 0usize;
@@ -91,12 +95,12 @@ impl Worker {
                                 % self.config.network.sockets_per_worker;
                         }
                         RequestType::Announce => {
-                            self.send_announce_request(connection_id, peer_index);
+                            self.send_announce_request(&connection_ids, peer_index);
 
                             peer_index = (peer_index + 1) % self.peers.len();
                         }
                         RequestType::Scrape => {
-                            self.send_scrape_request(connection_id, peer_index);
+                            self.send_scrape_request(&connection_ids, peer_index);
 
                             peer_index = (peer_index + 1) % self.peers.len();
                         }
@@ -189,7 +193,7 @@ impl Worker {
         }
     }
 
-    fn send_announce_request(&mut self, connection_id: ConnectionId, peer_index: usize) {
+    fn send_announce_request(&mut self, connection_ids: &[ConnectionId], peer_index: usize) {
         let peer = self.peers.get(peer_index).unwrap();
 
         let (event, bytes_left) = {
@@ -207,7 +211,7 @@ impl Worker {
             TransactionId::new(i32::from_ne_bytes((peer_index as u32).to_ne_bytes()));
 
         let request = AnnounceRequest {
-            connection_id,
+            connection_id: connection_ids[peer.socket_index as usize],
             action_placeholder: Default::default(),
             transaction_id,
             info_hash: peer.announce_info_hash,
@@ -238,7 +242,7 @@ impl Worker {
         }
     }
 
-    fn send_scrape_request(&mut self, connection_id: ConnectionId, peer_index: usize) {
+    fn send_scrape_request(&mut self, connection_ids: &[ConnectionId], peer_index: usize) {
         let peer = self.peers.get(peer_index).unwrap();
 
         let transaction_id =
@@ -251,7 +255,7 @@ impl Worker {
         }
 
         let request = ScrapeRequest {
-            connection_id,
+            connection_id: connection_ids[peer.socket_index as usize],
             transaction_id,
             info_hashes,
         };
