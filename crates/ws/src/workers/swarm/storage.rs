@@ -356,7 +356,7 @@ impl TorrentData {
                     peer.valid_until = valid_until;
                 }
                 PeerStatus::Stopped => {
-                    let peer = entry.remove();
+                    let peer = entry.swap_remove();
 
                     if peer.seeder {
                         self.num_seeders -= 1;
@@ -477,7 +477,7 @@ impl TorrentData {
 
             if answer_receiver
                 .expecting_answers
-                .remove(&expecting_answer)
+                .swap_remove(&expecting_answer)
                 .is_some()
             {
                 let answer_out_message = AnswerOutMessage {
@@ -519,7 +519,7 @@ impl TorrentData {
         peer_id: PeerId,
         #[cfg(feature = "metrics")] peer_gauge: &::metrics::Gauge,
     ) {
-        if let Some(peer) = self.peers.remove(&peer_id) {
+        if let Some(peer) = self.peers.swap_remove(&peer_id) {
             if peer.seeder {
                 self.num_seeders -= 1;
             }

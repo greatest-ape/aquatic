@@ -1,3 +1,4 @@
+use std::iter::repeat_with;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::atomic::AtomicUsize;
 use std::sync::{atomic::Ordering, Arc};
@@ -6,23 +7,23 @@ use std::time::{Duration, Instant};
 
 #[cfg(feature = "cpu-pinning")]
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
-use rand_distr::Gamma;
+use aquatic_common::IndexMap;
+use aquatic_udp_protocol::{InfoHash, Port};
+use crossbeam_channel::{unbounded, Receiver};
+use hdrhistogram::Histogram;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
+use rand_distr::{Distribution, WeightedAliasIndex};
 
-pub mod common;
+mod common;
 pub mod config;
-pub mod utils;
-pub mod worker;
+mod worker;
 
 use common::*;
 use config::Config;
-use utils::*;
 use worker::*;
 
-impl aquatic_common::cli::Config for Config {
-    fn get_log_level(&self) -> Option<aquatic_common::cli::LogLevel> {
-        Some(self.log_level)
-    }
-}
+const PERCENTILES: &[f64] = &[10.0, 25.0, 50.0, 75.0, 90.0, 95.0, 99.0, 99.9, 100.0];
 
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     if config.requests.weight_announce
@@ -37,30 +38,21 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         panic!("Error: report_last_seconds can't be larger than duration");
     }
 
-    println!("Starting client with config: {:#?}", config);
+    println!("Starting client with config: {:#?}\n", config);
 
-    let mut info_hashes = Vec::with_capacity(config.requests.number_of_torrents);
-
-    for _ in 0..config.requests.number_of_torrents {
-        info_hashes.push(generate_info_hash());
-    }
+    let info_hash_dist = InfoHashDist::new(&config)?;
+    let peers_by_worker = create_peers(&config, &info_hash_dist);
 
     let state = LoadTestState {
-        info_hashes: Arc::from(info_hashes.into_boxed_slice()),
-        statistics: Arc::new(Statistics::default()),
+        info_hashes: info_hash_dist.into_arc_info_hashes(),
+        statistics: Arc::new(SharedStatistics::default()),
     };
 
-    let gamma = Gamma::new(
-        config.requests.torrent_gamma_shape,
-        config.requests.torrent_gamma_scale,
-    )
-    .unwrap();
+    let (statistics_sender, statistics_receiver) = unbounded();
 
     // Start workers
 
-    for i in 0..config.workers {
-        let port = config.network.first_port + (i as u16);
-
+    for (i, peers) in (0..config.workers).zip(peers_by_worker) {
         let ip = if config.server_address.is_ipv6() {
             Ipv6Addr::LOCALHOST.into()
         } else if config.network.multiple_client_ipv4s {
@@ -69,9 +61,10 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
             Ipv4Addr::LOCALHOST.into()
         };
 
-        let addr = SocketAddr::new(ip, port);
+        let addr = SocketAddr::new(ip, 0);
         let config = config.clone();
         let state = state.clone();
+        let statistics_sender = statistics_sender.clone();
 
         Builder::new().name("load-test".into()).spawn(move || {
             #[cfg(feature = "cpu-pinning")]
@@ -82,7 +75,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                 WorkerIndex::SocketWorker(i as usize),
             );
 
-            Worker::run(state, gamma, config, addr)
+            Worker::run(config, state, statistics_sender, peers, addr)
         })?;
     }
 
@@ -94,12 +87,16 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         WorkerIndex::Util,
     );
 
-    monitor_statistics(state, &config);
+    monitor_statistics(state, &config, statistics_receiver);
 
     Ok(())
 }
 
-fn monitor_statistics(state: LoadTestState, config: &Config) {
+fn monitor_statistics(
+    state: LoadTestState,
+    config: &Config,
+    statistics_receiver: Receiver<StatisticsMessage>,
+) {
     let mut report_avg_connect: Vec<f64> = Vec::new();
     let mut report_avg_announce: Vec<f64> = Vec::new();
     let mut report_avg_scrape: Vec<f64> = Vec::new();
@@ -114,6 +111,21 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
     let time_elapsed = loop {
         thread::sleep(Duration::from_secs(INTERVAL));
+
+        let mut opt_responses_per_info_hash: Option<IndexMap<usize, u64>> =
+            config.extra_statistics.then_some(Default::default());
+
+        for message in statistics_receiver.try_iter() {
+            match message {
+                StatisticsMessage::ResponsesPerInfoHash(data) => {
+                    if let Some(responses_per_info_hash) = opt_responses_per_info_hash.as_mut() {
+                        for (k, v) in data {
+                            *responses_per_info_hash.entry(k).or_default() += v;
+                        }
+                    }
+                }
+            }
+        }
 
         let requests = fetch_and_reset(&state.statistics.requests);
         let response_peers = fetch_and_reset(&state.statistics.response_peers);
@@ -157,6 +169,20 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
             "Peers per announce response: {:.2}",
             peers_per_announce_response
         );
+
+        if let Some(responses_per_info_hash) = opt_responses_per_info_hash.as_ref() {
+            let mut histogram = Histogram::<u64>::new(2).unwrap();
+
+            for num_responses in responses_per_info_hash.values().copied() {
+                histogram.record(num_responses).unwrap();
+            }
+
+            println!("Announce responses per info hash:");
+
+            for p in PERCENTILES {
+                println!("  - p{}: {}", p, histogram.value_at_percentile(*p));
+            }
+        }
 
         let time_elapsed = start_time.elapsed();
 
@@ -207,4 +233,122 @@ fn monitor_statistics(state: LoadTestState, config: &Config) {
 
 fn fetch_and_reset(atomic_usize: &AtomicUsize) -> f64 {
     atomic_usize.fetch_and(0, Ordering::Relaxed) as f64
+}
+
+fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer]>> {
+    let mut rng = SmallRng::seed_from_u64(0xc3a58be617b3acce);
+
+    let mut opt_peers_per_info_hash: Option<IndexMap<usize, u64>> =
+        config.extra_statistics.then_some(IndexMap::default());
+
+    let mut all_peers = repeat_with(|| {
+        let num_scrape_indices = rng.gen_range(1..config.requests.scrape_max_torrents + 1);
+
+        let scrape_info_hash_indices = repeat_with(|| info_hash_dist.get_random_index(&mut rng))
+            .take(num_scrape_indices)
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+
+        let (announce_info_hash_index, announce_info_hash) = info_hash_dist.get_random(&mut rng);
+
+        if let Some(peers_per_info_hash) = opt_peers_per_info_hash.as_mut() {
+            *peers_per_info_hash
+                .entry(announce_info_hash_index)
+                .or_default() += 1;
+        }
+
+        Peer {
+            announce_info_hash_index,
+            announce_info_hash,
+            announce_port: Port::new(rng.gen()),
+            scrape_info_hash_indices,
+            socket_index: rng.gen_range(0..config.network.sockets_per_worker),
+        }
+    })
+    .take(config.requests.number_of_peers)
+    .collect::<Vec<_>>();
+
+    if let Some(peers_per_info_hash) = opt_peers_per_info_hash {
+        println!("Number of info hashes: {}", peers_per_info_hash.len());
+
+        let mut histogram = Histogram::<u64>::new(2).unwrap();
+
+        for num_peers in peers_per_info_hash.values() {
+            histogram.record(*num_peers).unwrap();
+        }
+
+        println!("Peers per info hash:");
+
+        for p in PERCENTILES {
+            println!("  - p{}: {}", p, histogram.value_at_percentile(*p));
+        }
+    }
+
+    let mut peers_by_worker = Vec::new();
+
+    let num_peers_per_worker = all_peers.len() / config.workers as usize;
+
+    for _ in 0..(config.workers as usize) {
+        peers_by_worker.push(
+            all_peers
+                .split_off(all_peers.len() - num_peers_per_worker)
+                .into_boxed_slice(),
+        );
+
+        all_peers.shrink_to_fit();
+    }
+
+    peers_by_worker
+}
+
+struct InfoHashDist {
+    info_hashes: Box<[InfoHash]>,
+    dist: WeightedAliasIndex<f64>,
+}
+
+impl InfoHashDist {
+    fn new(config: &Config) -> anyhow::Result<Self> {
+        let mut rng = SmallRng::seed_from_u64(0xc3aa8be617b3acce);
+
+        let info_hashes = repeat_with(|| {
+            let mut bytes = [0u8; 20];
+
+            for byte in bytes.iter_mut() {
+                *byte = rng.gen();
+            }
+
+            InfoHash(bytes)
+        })
+        .take(config.requests.number_of_torrents)
+        .collect::<Vec<InfoHash>>()
+        .into_boxed_slice();
+
+        let num_torrents = config.requests.number_of_torrents as u32;
+
+        let weights = (0..num_torrents)
+            .map(|i| {
+                let floor = num_torrents as f64 / config.requests.number_of_peers as f64;
+
+                floor + (6.5f64 - ((500.0 * f64::from(i)) / f64::from(num_torrents))).exp()
+            })
+            .collect();
+
+        let dist = WeightedAliasIndex::new(weights)?;
+
+        Ok(Self { info_hashes, dist })
+    }
+
+    fn get_random(&self, rng: &mut impl Rng) -> (usize, InfoHash) {
+        let index = self.dist.sample(rng);
+
+        (index, self.info_hashes[index])
+    }
+
+    fn get_random_index(&self, rng: &mut impl Rng) -> usize {
+        self.dist.sample(rng)
+    }
+
+    fn into_arc_info_hashes(self) -> Arc<[InfoHash]> {
+        Arc::from(self.info_hashes)
+    }
 }

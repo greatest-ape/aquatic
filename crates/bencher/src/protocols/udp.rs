@@ -443,6 +443,8 @@ impl ProcessRunner for AquaticUdpLoadTestRunner {
         c.duration = self.parameters.duration;
         c.summarize_last = self.parameters.summarize_last;
 
+        c.extra_statistics = false;
+
         c.requests.announce_peers_wanted = 30;
         c.requests.weight_connect = 0;
         c.requests.weight_announce = 100;
