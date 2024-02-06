@@ -89,7 +89,10 @@ impl Worker {
                 for _ in 0..self.sockets.len() {
                     match self.request_type_dist.sample(&mut self.rng) {
                         RequestType::Connect => {
-                            self.send_connect_request(connect_socket_index, u32::MAX - 1);
+                            self.send_connect_request(
+                                connect_socket_index,
+                                connect_socket_index.into(),
+                            );
 
                             connect_socket_index = connect_socket_index.wrapping_add(1)
                                 % self.config.network.sockets_per_worker;
@@ -117,6 +120,16 @@ impl Worker {
                 match socket.recv(&mut self.buffer[..]) {
                     Ok(amt) => {
                         match Response::parse_bytes(&self.buffer[0..amt], self.addr.is_ipv4()) {
+                            Ok(Response::Connect(r)) => {
+                                // If we're sending connect requests, we might
+                                // as well keep connection IDs valid
+                                let connection_id_index =
+                                    u32::from_ne_bytes(r.transaction_id.0.get().to_ne_bytes())
+                                        as usize;
+                                connection_ids[connection_id_index] = r.connection_id;
+
+                                self.handle_response(Response::Connect(r));
+                            }
                             Ok(response) => {
                                 self.handle_response(response);
                             }
