@@ -433,7 +433,7 @@ impl<I: Ip> LargePeerMap<I> {
     }
 
     fn remove_peer(&mut self, key: &ResponsePeer<I>) -> Option<Peer> {
-        let opt_removed_peer = self.peers.remove(key);
+        let opt_removed_peer = self.peers.swap_remove(key);
 
         if let Some(Peer {
             is_seeder: true, ..

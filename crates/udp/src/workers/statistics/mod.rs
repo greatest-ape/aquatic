@@ -97,7 +97,7 @@ pub fn run_statistics_worker(
                             *count -= 1;
 
                             if *count == 0 {
-                                peers.remove(&peer_id);
+                                peers.swap_remove(&peer_id);
                             }
                         }
                     }
