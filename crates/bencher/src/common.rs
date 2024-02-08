@@ -57,7 +57,7 @@ impl TaskSetCpuList {
     ) -> Self {
         match direction {
             CpuDirection::Asc => match mode {
-                CpuMode::Split => {
+                CpuMode::SplitPairs => {
                     let middle = available_parallelism / 2;
 
                     let range_a = 0..(middle.min(requested_cpus));
@@ -68,14 +68,14 @@ impl TaskSetCpuList {
                         range_b.try_into().unwrap(),
                     ])
                 }
-                CpuMode::All => {
+                CpuMode::SubsequentSingle => {
                     let range = 0..(available_parallelism.min(requested_cpus));
 
                     Self(vec![range.try_into().unwrap()])
                 }
             },
             CpuDirection::Desc => match mode {
-                CpuMode::Split => {
+                CpuMode::SplitPairs => {
                     let middle = available_parallelism / 2;
 
                     let range_a = middle.saturating_sub(requested_cpus)..middle;
@@ -88,7 +88,7 @@ impl TaskSetCpuList {
                         range_b.try_into().unwrap(),
                     ])
                 }
-                CpuMode::All => {
+                CpuMode::SubsequentSingle => {
                     let range =
                         available_parallelism.saturating_sub(requested_cpus)..available_parallelism;
 
@@ -133,15 +133,15 @@ impl TryFrom<Range<usize>> for TaskSetCpuIndicator {
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum CpuMode {
-    Split,
-    All,
+    SplitPairs,
+    SubsequentSingle,
 }
 
 impl Display for CpuMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::All => f.write_str("all"),
-            Self::Split => f.write_str("split"),
+            Self::SubsequentSingle => f.write_str("subsequent-single"),
+            Self::SplitPairs => f.write_str("split-paris"),
         }
     }
 }
@@ -178,23 +178,23 @@ mod tests {
         let f = TaskSetCpuList::new_with_available_parallelism;
 
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Asc, 1).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Asc, 1).as_cpu_list(),
             "0,4"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Asc, 2).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Asc, 2).as_cpu_list(),
             "0-1,4-5"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Asc, 4).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Asc, 4).as_cpu_list(),
             "0-3,4-7"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Asc, 8).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Asc, 8).as_cpu_list(),
             "0-3,4-7"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Asc, 9).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Asc, 9).as_cpu_list(),
             "0-3,4-7"
         );
     }
@@ -204,23 +204,23 @@ mod tests {
         let f = TaskSetCpuList::new_with_available_parallelism;
 
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Desc, 1).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Desc, 1).as_cpu_list(),
             "3,7"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Desc, 2).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Desc, 2).as_cpu_list(),
             "2-3,6-7"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Desc, 4).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Desc, 4).as_cpu_list(),
             "0-3,4-7"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Desc, 8).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Desc, 8).as_cpu_list(),
             "0-3,4-7"
         );
         assert_eq!(
-            f(8, CpuMode::Split, CpuDirection::Desc, 9).as_cpu_list(),
+            f(8, CpuMode::SplitPairs, CpuDirection::Desc, 9).as_cpu_list(),
             "0-3,4-7"
         );
     }
@@ -229,21 +229,21 @@ mod tests {
     fn test_task_set_cpu_list_all_asc() {
         let f = TaskSetCpuList::new_with_available_parallelism;
 
-        assert_eq!(f(8, CpuMode::All, CpuDirection::Asc, 1).as_cpu_list(), "0");
+        assert_eq!(f(8, CpuMode::SubsequentSingle, CpuDirection::Asc, 1).as_cpu_list(), "0");
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Asc, 2).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Asc, 2).as_cpu_list(),
             "0-1"
         );
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Asc, 4).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Asc, 4).as_cpu_list(),
             "0-3"
         );
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Asc, 8).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Asc, 8).as_cpu_list(),
             "0-7"
         );
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Asc, 9).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Asc, 9).as_cpu_list(),
             "0-7"
         );
     }
@@ -252,21 +252,21 @@ mod tests {
     fn test_task_set_cpu_list_all_desc() {
         let f = TaskSetCpuList::new_with_available_parallelism;
 
-        assert_eq!(f(8, CpuMode::All, CpuDirection::Desc, 1).as_cpu_list(), "7");
+        assert_eq!(f(8, CpuMode::SubsequentSingle, CpuDirection::Desc, 1).as_cpu_list(), "7");
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Desc, 2).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Desc, 2).as_cpu_list(),
             "6-7"
         );
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Desc, 4).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Desc, 4).as_cpu_list(),
             "4-7"
         );
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Desc, 8).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Desc, 8).as_cpu_list(),
             "0-7"
         );
         assert_eq!(
-            f(8, CpuMode::All, CpuDirection::Desc, 9).as_cpu_list(),
+            f(8, CpuMode::SubsequentSingle, CpuDirection::Desc, 9).as_cpu_list(),
             "0-7"
         );
     }
