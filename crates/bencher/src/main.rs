@@ -13,7 +13,7 @@ use set::run_sets;
 struct Args {
     /// How to choose which virtual CPUs to allow trackers and load test
     /// executables on
-    #[arg(long, default_value_t = CpuMode::Split)]
+    #[arg(long, default_value_t = CpuMode::SplitPairs)]
     cpu_mode: CpuMode,
     /// Minimum number of tracker cpu cores to run benchmarks for
     #[arg(long)]

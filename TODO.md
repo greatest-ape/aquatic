@@ -2,10 +2,10 @@
 
 ## High priority
 
-* aquatic_bench
-  * Opentracker "slow to get up to speed", is it due to getting faster once
-    inserts are rarely needed since most ip-port combinations have been sent?
-    In that case, a shorter duration (e.g., 30 seconds) would be a good idea.
+* aquatic_bencher
+  * bench aquatic_udp with io_uring too
+  * test with SubsequentOnePerPair
+  * include chihaya with higher core counts?
 
 ## Medium priority
 
