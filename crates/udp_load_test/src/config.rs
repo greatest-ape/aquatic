@@ -124,8 +124,8 @@ impl Default for RequestConfig {
             number_of_peers: 2_000_000,
             scrape_max_torrents: 10,
             announce_peers_wanted: 30,
-            weight_connect: 1,
-            weight_announce: 100,
+            weight_connect: 50,
+            weight_announce: 50,
             weight_scrape: 1,
             peer_seeder_probability: 0.75,
         }
