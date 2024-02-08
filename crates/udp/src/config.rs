@@ -152,7 +152,7 @@ impl Default for ProtocolConfig {
     fn default() -> Self {
         Self {
             max_scrape_torrents: 70,
-            max_response_peers: 50,
+            max_response_peers: 30,
             peer_announce_interval: 60 * 15,
         }
     }
