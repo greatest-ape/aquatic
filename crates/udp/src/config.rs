@@ -102,8 +102,7 @@ pub struct NetworkConfig {
     pub poll_timeout_ms: u64,
     /// Number of ring entries (io_uring backend only)
     ///
-    /// Will be rounded to next power of two if not already one. Increasing
-    /// this value can help throughput up to a certain point.
+    /// Will be rounded to next power of two if not already one.
     #[cfg(feature = "io-uring")]
     pub ring_size: u16,
     /// Store this many responses at most for retrying (once) on send failure
@@ -132,7 +131,7 @@ impl Default for NetworkConfig {
             socket_recv_buffer_size: 8_000_000,
             poll_timeout_ms: 50,
             #[cfg(feature = "io-uring")]
-            ring_size: 1024,
+            ring_size: 128,
             resend_buffer_max_len: 0,
         }
     }
