@@ -19,7 +19,7 @@ default = ["udp"]
 udp = ["aquatic_udp", "aquatic_udp_load_test"]
 
 [dependencies]
-aquatic_udp = { optional = true, workspace = true }
+aquatic_udp = { optional = true, workspace = true, features = ["io-uring"] }
 aquatic_udp_load_test = { optional = true, workspace = true }
 
 anyhow = "1"

@@ -2,11 +2,6 @@
 
 ## High priority
 
-* aquatic_bencher
-  * bench aquatic_udp with io_uring too
-  * test with SubsequentOnePerPair
-  * include chihaya with higher core counts?
-
 ## Medium priority
 
 * stagger cleaning tasks?

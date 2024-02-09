@@ -167,21 +167,21 @@ impl TryFrom<Range<usize>> for TaskSetCpuIndicator {
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum CpuMode {
-    /// For 8 vCPU processor, use vCPU groups 0, 1, 2, 3, 4, 5, 6 and 7
-    /// 
     /// Suitable for bare-metal machines without hyperthreads/SMT.
+    ///
+    /// For 8 vCPU processor, uses vCPU groups 0, 1, 2, 3, 4, 5, 6 and 7
     Subsequent,
-    /// For 8 vCPU processor, use vCPU groups 0 & 4, 1 & 5, 2 & 6 and 3 & 7
-    /// 
     /// Suitable for bare-metal machines with hyperthreads/SMT.
+    ///
+    /// For 8 vCPU processor, uses vCPU groups 0 & 4, 1 & 5, 2 & 6 and 3 & 7
     SplitPairs,
-    /// For 8 vCPU processor, use vCPU groups 0 & 1, 2 & 3, 4 & 5 and 6 & 7
+    /// For 8 vCPU processor, uses vCPU groups 0 & 1, 2 & 3, 4 & 5 and 6 & 7
     SubsequentPairs,
-    /// For 8 vCPU processor, use vCPU groups 0, 2, 4 and 6
-    /// 
     /// Suitable for somewhat fairly comparing trackers on Hetzner virtual
     /// machines. Since in-VM hyperthreads aren't really hyperthreads,
     /// enabling them causes unpredictable performance.
+    ///
+    /// For 8 vCPU processor, uses vCPU groups 0, 2, 4 and 6
     SubsequentOnePerPair,
 }
 
