@@ -50,7 +50,6 @@ const RESPONSE_BUF_LEN: usize = 2048;
 
 const USER_DATA_RECV: u64 = u64::MAX;
 const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 1;
-const USER_DATA_CLEANING_TIMEOUT: u64 = u64::MAX - 2;
 
 const SOCKET_IDENTIFIER: Fixed = Fixed(0);
 
@@ -90,7 +89,6 @@ pub struct SocketWorker {
     resubmittable_sqe_buf: Vec<io_uring::squeue::Entry>,
     recv_sqe: io_uring::squeue::Entry,
     pulse_timeout_sqe: io_uring::squeue::Entry,
-    cleaning_timeout_sqe: io_uring::squeue::Entry,
     peer_valid_until: ValidUntil,
     rng: SmallRng,
 }
@@ -147,21 +145,7 @@ impl SocketWorker {
                 .user_data(USER_DATA_PULSE_TIMEOUT)
         };
 
-        let cleaning_timeout_sqe = {
-            let timespec_ptr = Box::into_raw(Box::new(
-                Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval),
-            )) as *const _;
-
-            Timeout::new(timespec_ptr)
-                .build()
-                .user_data(USER_DATA_CLEANING_TIMEOUT)
-        };
-
-        let resubmittable_sqe_buf = vec![
-            recv_sqe.clone(),
-            pulse_timeout_sqe.clone(),
-            cleaning_timeout_sqe.clone(),
-        ];
+        let resubmittable_sqe_buf = vec![recv_sqe.clone(), pulse_timeout_sqe.clone()];
 
         let peer_valid_until = ValidUntil::new(
             shared_state.server_start_instant,
@@ -181,7 +165,6 @@ impl SocketWorker {
             buf_ring,
             recv_sqe,
             pulse_timeout_sqe,
-            cleaning_timeout_sqe,
             resubmittable_sqe_buf,
             socket,
             peer_valid_until,
@@ -262,10 +245,6 @@ impl SocketWorker {
 
                 self.resubmittable_sqe_buf
                     .push(self.pulse_timeout_sqe.clone());
-            }
-            USER_DATA_CLEANING_TIMEOUT => {
-                self.resubmittable_sqe_buf
-                    .push(self.cleaning_timeout_sqe.clone());
             }
             send_buffer_index => {
                 let result = cqe.result();

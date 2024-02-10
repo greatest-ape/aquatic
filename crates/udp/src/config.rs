@@ -210,28 +210,18 @@ impl Default for StatisticsConfig {
 pub struct CleaningConfig {
     /// Clean torrents this often (seconds)
     pub torrent_cleaning_interval: u64,
-    /// Clean pending scrape responses this often (seconds)
-    ///
-    /// In regular operation, there should be no pending scrape responses
-    /// lingering for long enough to have to be cleaned up this way.
-    pub pending_scrape_cleaning_interval: u64,
     /// Allow clients to use a connection token for this long (seconds)
     pub max_connection_age: u32,
     /// Remove peers who have not announced for this long (seconds)
     pub max_peer_age: u32,
-    /// Remove pending scrape responses that have not been returned from swarm
-    /// workers for this long (seconds)
-    pub max_pending_scrape_age: u32,
 }
 
 impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             torrent_cleaning_interval: 60 * 2,
-            pending_scrape_cleaning_interval: 60 * 10,
             max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
-            max_pending_scrape_age: 60,
         }
     }
 }
