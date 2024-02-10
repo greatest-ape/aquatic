@@ -40,10 +40,6 @@ More benchmark details are available [here](./documents/aquatic-udp-load-test-20
 Please refer to the README pages for the respective implementations listed in
 the table above.
 
-## Architectural overview
-
-![Architectural overview of aquatic](./documents/aquatic-architecture-2024.svg)
-
 ## Copyright and license
 
 Copyright (c) Joakim Frostegård
