@@ -32,6 +32,7 @@ pub struct SocketWorker {
     socket: UdpSocket,
     buffer: [u8; BUFFER_SIZE],
     rng: SmallRng,
+    peer_valid_until: ValidUntil,
 }
 
 impl SocketWorker {
@@ -45,6 +46,10 @@ impl SocketWorker {
     ) -> anyhow::Result<()> {
         let socket = UdpSocket::from_std(create_socket(&config, priv_dropper)?);
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
+        let peer_valid_until = ValidUntil::new(
+            shared_state.server_start_instant,
+            config.cleaning.max_peer_age,
+        );
 
         let mut worker = Self {
             config,
@@ -56,6 +61,7 @@ impl SocketWorker {
             socket,
             buffer: [0; BUFFER_SIZE],
             rng: SmallRng::from_entropy(),
+            peer_valid_until,
         };
 
         worker.run_inner()
@@ -73,6 +79,8 @@ impl SocketWorker {
 
         let poll_timeout = Duration::from_millis(self.config.network.poll_timeout_ms);
 
+        let mut iter_counter = 0u64;
+
         loop {
             poll.poll(&mut events, Some(poll_timeout)).context("poll")?;
 
@@ -88,6 +96,15 @@ impl SocketWorker {
                     self.send_response(&mut None, addr, response);
                 }
             }
+
+            if iter_counter % 256 == 0 {
+                self.peer_valid_until = ValidUntil::new(
+                    self.shared_state.server_start_instant,
+                    self.config.cleaning.max_peer_age,
+                );
+            }
+
+            iter_counter = iter_counter.wrapping_add(1);
         }
     }
 
@@ -194,18 +211,13 @@ impl SocketWorker {
                         .load()
                         .allows(access_list_mode, &request.info_hash.0)
                     {
-                        let peer_valid_until = ValidUntil::new(
-                            self.shared_state.server_start_instant,
-                            self.config.cleaning.max_peer_age,
-                        );
-
                         let response = self.shared_state.torrent_maps.announce(
                             &self.config,
                             &self.statistics_sender,
                             &mut self.rng,
                             &request,
                             src,
-                            peer_valid_until,
+                            self.peer_valid_until,
                         );
 
                         return Some(response);
