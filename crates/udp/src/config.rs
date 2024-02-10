@@ -11,7 +11,9 @@ use aquatic_toml_config::TomlConfig;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// Number of socket workers. One per virtual CPU is recommended
+    /// Number of socket workers
+    ///
+    /// 0 = automatically set to number of available virtual CPUs
     pub socket_workers: usize,
     pub log_level: LogLevel,
     pub network: NetworkConfig,

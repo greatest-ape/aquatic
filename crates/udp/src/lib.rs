@@ -3,7 +3,7 @@ pub mod config;
 pub mod swarm;
 pub mod workers;
 
-use std::thread::{sleep, Builder, JoinHandle};
+use std::thread::{available_parallelism, sleep, Builder, JoinHandle};
 use std::time::Duration;
 
 use anyhow::Context;
@@ -22,8 +22,12 @@ use workers::socket::ConnectionValidator;
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn run(config: Config) -> ::anyhow::Result<()> {
+pub fn run(mut config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1])?;
+
+    if config.socket_workers == 0 {
+        config.socket_workers = available_parallelism().map(Into::into).unwrap_or(1);
+    };
 
     let state = State::default();
     let statistics = Statistics::new(&config);
