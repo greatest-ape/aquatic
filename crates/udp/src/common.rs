@@ -13,6 +13,7 @@ use crossbeam_utils::CachePadded;
 use hdrhistogram::Histogram;
 
 use crate::config::Config;
+use crate::swarm::TorrentMaps;
 
 pub const BUFFER_SIZE: usize = 8192;
 
@@ -230,13 +231,15 @@ pub enum StatisticsMessage {
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessListArcSwap>,
+    pub torrent_maps: TorrentMaps,
     pub server_start_instant: ServerStartInstant,
 }
 
-impl Default for State {
-    fn default() -> Self {
+impl State {
+    pub fn new(config: &Config) -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
+            torrent_maps: TorrentMaps::new(config),
             server_start_instant: ServerStartInstant::new(),
         }
     }

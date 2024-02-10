@@ -16,6 +16,7 @@ use aquatic_udp_protocol::*;
 use arrayvec::ArrayVec;
 use crossbeam_channel::Sender;
 use hdrhistogram::Histogram;
+use parking_lot::RwLockUpgradableReadGuard;
 use rand::prelude::SmallRng;
 use rand::Rng;
 
@@ -37,7 +38,7 @@ pub struct TorrentMaps {
 
 impl TorrentMaps {
     pub fn new(config: &Config) -> Self {
-        let num_shards = 128usize;
+        let num_shards = 16usize;
 
         Self {
             ipv4: TorrentMapShards::new(num_shards),
@@ -51,10 +52,10 @@ impl TorrentMaps {
         statistics_sender: &Sender<StatisticsMessage>,
         rng: &mut SmallRng,
         request: &AnnounceRequest,
-        ip_address: CanonicalSocketAddr,
+        src: CanonicalSocketAddr,
         valid_until: ValidUntil,
     ) -> Response {
-        match ip_address.get().ip() {
+        match src.get().ip() {
             IpAddr::V4(ip_address) => Response::AnnounceIpv4(self.ipv4.announce(
                 config,
                 statistics_sender,
@@ -74,8 +75,8 @@ impl TorrentMaps {
         }
     }
 
-    pub fn scrape(&self, ip_addr: CanonicalSocketAddr, request: ScrapeRequest) -> ScrapeResponse {
-        if ip_addr.is_ipv4() {
+    pub fn scrape(&self, request: ScrapeRequest, src: CanonicalSocketAddr) -> ScrapeResponse {
+        if src.is_ipv4() {
             self.ipv4.scrape(request)
         } else {
             self.ipv6.scrape(request)
@@ -142,20 +143,20 @@ impl<I: Ip> TorrentMapShards<I> {
         ip_address: I,
         valid_until: ValidUntil,
     ) -> AnnounceResponse<I> {
-        let torrent_map_shard = self.get_shard(&request.info_hash);
+        let torrent_data = {
+            let torrent_map_shard = self.get_shard(&request.info_hash).upgradable_read();
 
-        // Clone Arc here to avoid keeping lock on whole shard
-        let torrent_data =
-            if let Some(torrent_data) = torrent_map_shard.read().get(&request.info_hash) {
+            // Clone Arc here to avoid keeping lock on whole shard
+            if let Some(torrent_data) = torrent_map_shard.get(&request.info_hash) {
                 torrent_data.clone()
             } else {
                 // Don't overwrite entry if created in the meantime
-                torrent_map_shard
-                    .write()
+                RwLockUpgradableReadGuard::upgrade(torrent_map_shard)
                     .entry(request.info_hash)
                     .or_default()
                     .clone()
-            };
+            }
+        };
 
         let mut peer_map = torrent_data.peer_map.write();
 
