@@ -25,7 +25,6 @@ pub struct StatisticsCollector {
     statistics: Statistics,
     ip_version: IpVersion,
     last_update: Instant,
-    pending_histograms: Vec<Histogram<u64>>,
     last_complete_histogram: PeerHistogramStatistics,
 }
 
@@ -34,19 +33,13 @@ impl StatisticsCollector {
         Self {
             statistics,
             last_update: Instant::now(),
-            pending_histograms: Vec::new(),
             last_complete_histogram: Default::default(),
             ip_version,
         }
     }
 
-    pub fn add_histogram(&mut self, config: &Config, histogram: Histogram<u64>) {
-        self.pending_histograms.push(histogram);
-
-        if self.pending_histograms.len() == config.swarm_workers {
-            self.last_complete_histogram =
-                PeerHistogramStatistics::new(self.pending_histograms.drain(..).sum());
-        }
+    pub fn add_histogram(&mut self, histogram: Histogram<u64>) {
+        self.last_complete_histogram = PeerHistogramStatistics::new(histogram);
     }
 
     pub fn collect_from_shared(

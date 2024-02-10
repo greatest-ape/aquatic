@@ -81,8 +81,8 @@ pub fn run_statistics_worker(
 
         for message in statistics_receiver.try_iter() {
             match message {
-                StatisticsMessage::Ipv4PeerHistogram(h) => ipv4_collector.add_histogram(&config, h),
-                StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(&config, h),
+                StatisticsMessage::Ipv4PeerHistogram(h) => ipv4_collector.add_histogram(h),
+                StatisticsMessage::Ipv6PeerHistogram(h) => ipv6_collector.add_histogram(h),
                 StatisticsMessage::PeerAdded(peer_id) => {
                     if process_peer_client_data {
                         peers

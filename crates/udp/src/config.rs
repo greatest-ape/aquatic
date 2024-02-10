@@ -11,36 +11,14 @@ use aquatic_toml_config::TomlConfig;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// Number of socket worker. One per physical core is recommended.
-    ///
-    /// Socket workers receive requests from clients and parse them.
-    /// Responses to connect requests are sent back immediately. Announce and
-    /// scrape requests are passed on to swarm workers, which generate
-    /// responses and send them back to the socket worker, which sends them
-    /// to the client.
+    /// Number of socket worker. One per virtual CPU is recommended
     pub socket_workers: usize,
-    /// Number of swarm workers. One is enough in almost all cases
-    ///
-    /// Swarm workers receive parsed announce and scrape requests from socket
-    /// workers, generate responses and send them back to the socket workers.
-    pub swarm_workers: usize,
     pub log_level: LogLevel,
-    /// Maximum number of items in each channel passing requests/responses
-    /// between workers. A value of zero is no longer allowed.
-    pub worker_channel_size: usize,
-    /// How long to block waiting for requests in swarm workers.
-    ///
-    /// Higher values means that with zero traffic, the worker will not
-    /// unnecessarily cause the CPU to wake up as often. However, high values
-    /// (something like larger than 1000) combined with very low traffic can
-    /// cause delays in torrent cleaning.
-    pub request_channel_recv_timeout_ms: u64,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
-
     /// Access list configuration
     ///
     /// The file is read on start and when the program receives `SIGUSR1`. If
@@ -48,26 +26,19 @@ pub struct Config {
     /// emitting of an error-level log message, while successful updates of the
     /// access list result in emitting of an info-level log message.
     pub access_list: AccessListConfig,
-    #[cfg(feature = "cpu-pinning")]
-    pub cpu_pinning: aquatic_common::cpu_pinning::asc::CpuPinningConfigAsc,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             socket_workers: 1,
-            swarm_workers: 1,
             log_level: LogLevel::Error,
-            worker_channel_size: 1_024,
-            request_channel_recv_timeout_ms: 100,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: Default::default(),
         }
     }
 }

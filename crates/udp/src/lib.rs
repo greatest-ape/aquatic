@@ -13,8 +13,6 @@ use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
 
 use aquatic_common::access_list::update_access_list;
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::PrivilegeDropper;
 
 use common::{State, Statistics};
@@ -31,13 +29,13 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
     let statistics = Statistics::new(&config);
     let connection_validator = ConnectionValidator::new(&config)?;
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
-
-    let mut join_handles = Vec::new();
+    let (statistics_sender, statistics_receiver) = unbounded();
 
     update_access_list(&config.access_list, &state.access_list)?;
 
-    let (statistics_sender, statistics_receiver) = unbounded();
+    let mut join_handles = Vec::new();
 
+    // Spawn socket worker threads
     for i in 0..config.socket_workers {
         let state = state.clone();
         let config = config.clone();
@@ -49,14 +47,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let handle = Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::SocketWorker(i),
-                );
-
                 workers::socket::run_socket_worker(
                     config,
                     state,
@@ -71,6 +61,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Socket(i), handle));
     }
 
+    // Spawn cleaning thread
     {
         let state = state.clone();
         let config = config.clone();
@@ -94,6 +85,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Cleaning, handle));
     }
 
+    // Spawn statistics thread
     if config.statistics.active() {
         let state = state.clone();
         let config = config.clone();
@@ -101,14 +93,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let handle = Builder::new()
             .name("statistics".into())
             .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::Util,
-                );
-
                 workers::statistics::run_statistics_worker(
                     config,
                     state,
@@ -121,6 +105,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Statistics, handle));
     }
 
+    // Spawn prometheus endpoint thread
     #[cfg(feature = "prometheus")]
     if config.statistics.active() && config.statistics.run_prometheus_endpoint {
         let handle = aquatic_common::spawn_prometheus_endpoint(
@@ -141,14 +126,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let handle: JoinHandle<anyhow::Result<()>> = Builder::new()
             .name("signals".into())
             .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::Util,
-                );
-
                 for signal in &mut signals {
                     match signal {
                         SIGUSR1 => {
@@ -165,6 +142,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Signals, handle));
     }
 
+    // Quit application if any worker returns or panics
     loop {
         for (i, (_, handle)) in join_handles.iter().enumerate() {
             if handle.is_finished() {
