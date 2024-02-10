@@ -3,7 +3,6 @@
 ## High priority
 
 * udp
-  * consider ways of avoiding response peer allocations
   * make ConnectionValidator faster by avoiding calling time functions so often
 
 ## Medium priority
