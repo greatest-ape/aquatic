@@ -2,6 +2,13 @@
 
 ## High priority
 
+* udp
+  * fix cleaning
+  * fix statistics
+  * fix config
+  * consider ways of avoiding response peer allocations
+  * make ConnectionValidator faster by avoiding calling time functions so often
+
 ## Medium priority
 
 * stagger cleaning tasks?
