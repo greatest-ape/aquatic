@@ -87,7 +87,6 @@ impl UdpCommand {
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(2, Priority::High),
-                        OpenTrackerUdpRunner::new(4, Priority::Medium),
                     ],
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
