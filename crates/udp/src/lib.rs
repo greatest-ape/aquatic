@@ -1,5 +1,6 @@
 pub mod common;
 pub mod config;
+pub mod swarm;
 pub mod workers;
 
 use std::collections::BTreeMap;
