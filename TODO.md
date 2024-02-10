@@ -2,9 +2,6 @@
 
 ## High priority
 
-* udp
-  * make ConnectionValidator faster by avoiding calling time functions so often
-
 ## Medium priority
 
 * stagger cleaning tasks?

@@ -98,6 +98,8 @@ impl SocketWorker {
             }
 
             if iter_counter % 256 == 0 {
+                self.validator.update_elapsed();
+
                 self.peer_valid_until = ValidUntil::new(
                     self.shared_state.server_start_instant,
                     self.config.cleaning.max_peer_age,

@@ -134,9 +134,10 @@ impl SocketWorker {
 
         let recv_sqe = recv_helper.create_entry(buf_ring.bgid());
 
-        // This timeout enables regular updates of peer_valid_until
+        // This timeout enables regular updates of ConnectionValidator and
+        // peer_valid_until
         let pulse_timeout_sqe = {
-            let timespec_ptr = Box::into_raw(Box::new(Timespec::new().sec(1))) as *const _;
+            let timespec_ptr = Box::into_raw(Box::new(Timespec::new().sec(5))) as *const _;
 
             Timeout::new(timespec_ptr)
                 .build()
@@ -238,6 +239,8 @@ impl SocketWorker {
                 }
             }
             USER_DATA_PULSE_TIMEOUT => {
+                self.validator.update_elapsed();
+
                 self.peer_valid_until = ValidUntil::new(
                     self.shared_state.server_start_instant,
                     self.config.cleaning.max_peer_age,
