@@ -249,7 +249,10 @@ fn print_to_stdout(config: &Config, statistics: &CollectedStatistics) {
         "    error:         {:>10}",
         statistics.responses_per_second_error
     );
-    println!("  torrents:        {:>10}", statistics.num_torrents);
+    println!(
+        "  torrents:        {:>10} (updated every {}s)",
+        statistics.num_torrents, config.cleaning.torrent_cleaning_interval
+    );
     println!(
         "  peers:           {:>10} (updated every {}s)",
         statistics.num_peers, config.cleaning.torrent_cleaning_interval

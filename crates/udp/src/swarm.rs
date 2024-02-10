@@ -84,6 +84,7 @@ impl TorrentMaps {
             self.ipv6.scrape(request)
         }
     }
+
     /// Remove forbidden or inactive torrents, reclaim space and update statistics
     pub fn clean_and_update_statistics(
         &self,
@@ -105,15 +106,18 @@ impl TorrentMaps {
                 .clean_and_get_statistics(config, statistics_sender, &mut cache, mode, now);
 
         if config.statistics.active() {
-            statistics.ipv4.peers.store(ipv4.0, Ordering::Relaxed);
-            statistics.ipv6.peers.store(ipv6.0, Ordering::Relaxed);
+            statistics.ipv4.torrents.store(ipv4.0, Ordering::Relaxed);
+            statistics.ipv6.torrents.store(ipv6.0, Ordering::Relaxed);
 
-            if let Some(message) = ipv4.1.map(StatisticsMessage::Ipv4PeerHistogram) {
+            statistics.ipv4.peers.store(ipv4.1, Ordering::Relaxed);
+            statistics.ipv6.peers.store(ipv6.1, Ordering::Relaxed);
+
+            if let Some(message) = ipv4.2.map(StatisticsMessage::Ipv4PeerHistogram) {
                 if let Err(err) = statistics_sender.try_send(message) {
                     ::log::error!("couldn't send statistics message: {:#}", err);
                 }
             }
-            if let Some(message) = ipv6.1.map(StatisticsMessage::Ipv6PeerHistogram) {
+            if let Some(message) = ipv6.2.map(StatisticsMessage::Ipv6PeerHistogram) {
                 if let Err(err) = statistics_sender.try_send(message) {
                     ::log::error!("couldn't send statistics message: {:#}", err);
                 }
@@ -204,7 +208,8 @@ impl<I: Ip> TorrentMapShards<I> {
         access_list_cache: &mut AccessListCache,
         access_list_mode: AccessListMode,
         now: SecondsSinceServerStart,
-    ) -> (usize, Option<Histogram<u64>>) {
+    ) -> (usize, usize, Option<Histogram<u64>>) {
+        let mut total_num_torrents = 0;
         let mut total_num_peers = 0;
 
         let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.torrent_peer_histograms
@@ -271,8 +276,10 @@ impl<I: Ip> TorrentMapShards<I> {
                     return false;
                 }
 
-                // Only remove if no peers have been added since previous
-                // cleaning step
+                // Check pending_removal flag set in previous cleaning step. This
+                // prevents us from removing TorrentData entries that were just
+                // added but do not yet contain any peers. Also double-check that
+                // no peers have been added since we last checked.
                 if torrent_data
                     .pending_removal
                     .fetch_and(false, Ordering::Acquire)
@@ -285,9 +292,11 @@ impl<I: Ip> TorrentMapShards<I> {
             });
 
             torrent_map_shard.shrink_to_fit();
+
+            total_num_torrents += torrent_map_shard.len();
         }
 
-        (total_num_peers, opt_histogram)
+        (total_num_torrents, total_num_peers, opt_histogram)
     }
 
     fn get_shard(&self, info_hash: &InfoHash) -> &RwLock<TorrentMapShard<I>> {
