@@ -18,28 +18,28 @@
 
 #### Changed
 
+* Switch from socket worker/swarm worker division to a single type of worker,
+  for performance reasons. Several config file keys were removed since they
+  are no longer needed.
 * Index peers by packet source IP and provided port, instead of by peer_id.
   This prevents users from impersonating others and is likely also slightly
   faster for IPv4 peers.
-* Remove support for unbounded worker channels
-* Add backpressure in socket workers. They will postpone reading from the
-  socket if sending a request to a swarm worker failed
 * Avoid a heap allocation for torrents with two or less peers. This can save
   a lot of memory if many torrents are tracked
 * Improve announce performance by avoiding having to filter response peers
 * In announce response statistics, don't include announcing peer
-* Distribute announce responses from swarm workers over socket workers to
-  decrease performance loss due to underutilized threads
 * Harden ConnectionValidator to make IP spoofing even more costly
 * Remove config key `network.poll_event_capacity` (always use 1)
 * Speed up parsing and serialization of requests and responses by using
   [zerocopy](https://crates.io/crates/zerocopy)
 * Report socket worker related prometheus stats per worker
+* Remove CPU pinning support
 
 #### Fixed
 
 * Quit whole application if any worker thread quits
 * Disallow announce requests with port value of 0
+* Fix io_uring UB issues
 
 ### aquatic_http
 
