@@ -4,7 +4,7 @@
 
 This is a performance comparison of several UDP BitTorrent tracker implementations.
 
-Benchmarks were run using [aquatic_bencher](https://github.com/greatest-ape/aquatic), with `--cpu-mode subsequent-one-per-pair`.
+Benchmarks were run using [aquatic_bencher](../crates/bencher), with `--cpu-mode subsequent-one-per-pair`.
 
 ## Software and hardware
 
@@ -16,7 +16,7 @@ Benchmarks were run using [aquatic_bencher](https://github.com/greatest-ape/aqua
 | [opentracker] | 110868e |
 | [chihaya]     | 2f79440 |
 
-[aquatic_udp]: https://github.com/greatest-ape/aquatic
+[aquatic_udp]: ../crates/udp
 [opentracker]: http://erdgeist.org/arts/software/opentracker/
 [chihaya]: https://github.com/chihaya/chihaya
 
@@ -35,6 +35,8 @@ Benchmarks were run using [aquatic_bencher](https://github.com/greatest-ape/aqua
 Hetzner CCX63: 48 dedicated vCPUs (AMD Milan Epyc 7003)
 
 ## Results
+
+![UDP BitTorrent tracker throughput](./aquatic-udp-load-test-2024-02-10.png)
 
 <table>
     <caption>
@@ -102,5 +104,3 @@ Hetzner CCX63: 48 dedicated vCPUs (AMD Milan Epyc 7003)
         </tr>
     </tbody>
 </table>
-
-![UDP BitTorrent tracker throughput](./aquatic-udp-load-test-2024-02-10.png)
