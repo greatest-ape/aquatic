@@ -48,7 +48,6 @@ pub fn run_socket_worker(
     validator: ConnectionValidator,
     priv_dropper: PrivilegeDropper,
 ) -> anyhow::Result<()> {
-    /*
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
     if config.network.use_io_uring {
         self::uring::supported_on_current_kernel().context("check for io_uring compatibility")?;
@@ -57,13 +56,11 @@ pub fn run_socket_worker(
             config,
             shared_state,
             statistics,
+            statistics_sender,
             validator,
-            request_sender,
-            response_receiver,
             priv_dropper,
         );
     }
-    */
 
     self::mio::SocketWorker::run(
         config,
