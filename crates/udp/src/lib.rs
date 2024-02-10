@@ -3,13 +3,12 @@ pub mod config;
 pub mod swarm;
 pub mod workers;
 
-use std::collections::BTreeMap;
 use std::thread::{sleep, Builder, JoinHandle};
 use std::time::Duration;
 
 use anyhow::Context;
 use aquatic_common::WorkerType;
-use crossbeam_channel::{bounded, unbounded};
+use crossbeam_channel::unbounded;
 use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
 
@@ -18,14 +17,9 @@ use aquatic_common::access_list::update_access_list;
 use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::PrivilegeDropper;
 
-use common::{
-    ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, Statistics,
-    SwarmWorkerIndex,
-};
+use common::{State, Statistics};
 use config::Config;
-use swarm::TorrentMaps;
 use workers::socket::ConnectionValidator;
-use workers::swarm::SwarmWorker;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");

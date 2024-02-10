@@ -1,5 +1,4 @@
 mod mio;
-mod storage;
 #[cfg(all(target_os = "linux", feature = "io-uring"))]
 mod uring;
 mod validator;
@@ -11,8 +10,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::{
     common::{
-        CachePaddedArc, ConnectedRequestSender, ConnectedResponseReceiver, IpVersionStatistics,
-        SocketWorkerStatistics, State, StatisticsMessage,
+        CachePaddedArc, IpVersionStatistics, SocketWorkerStatistics, State, StatisticsMessage,
     },
     config::Config,
 };
