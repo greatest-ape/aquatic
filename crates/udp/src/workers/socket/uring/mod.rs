@@ -134,9 +134,7 @@ impl SocketWorker {
 
         let recv_sqe = recv_helper.create_entry(buf_ring.bgid());
 
-        // This timeout enables regular updates of pending_scrape_valid_until
-        // and wakes the main loop to send any pending responses in the case
-        // of no incoming requests
+        // This timeout enables regular updates of peer_valid_until
         let pulse_timeout_sqe = {
             let timespec_ptr = Box::into_raw(Box::new(Timespec::new().sec(1))) as *const _;
 
