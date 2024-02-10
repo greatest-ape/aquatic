@@ -21,9 +21,9 @@ This is the most mature implementation in the aquatic family. I consider it full
 
 ## Performance
 
-![UDP BitTorrent tracker throughput comparison](../../documents/aquatic-udp-load-test-illustration-2023-01-11.png)
+![UDP BitTorrent tracker throughput](../../documents/aquatic-udp-load-test-2024-02-10.png)
 
-More benchmark details are available [here](../../documents/aquatic-udp-load-test-2023-01-11.pdf).
+More benchmark details are available [here](./documents/aquatic-udp-load-test-2024-02-10.md).
 
 ## Usage
 
