@@ -6,6 +6,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use aquatic_common::SecondsSinceServerStart;
+use aquatic_common::ServerStartInstant;
 use aquatic_common::{
     access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache, AccessListMode},
     ValidUntil,
@@ -84,16 +85,16 @@ impl TorrentMaps {
     }
     /// Remove forbidden or inactive torrents, reclaim space and update statistics
     pub fn clean_and_update_statistics(
-        &mut self,
+        &self,
         config: &Config,
-        state: &State,
         statistics: &CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>,
         statistics_sender: &Sender<StatisticsMessage>,
         access_list: &Arc<AccessListArcSwap>,
+        server_start_instant: ServerStartInstant,
     ) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
-        let now = state.server_start_instant.seconds_elapsed();
+        let now = server_start_instant.seconds_elapsed();
 
         let ipv4 =
             self.ipv4
@@ -196,7 +197,7 @@ impl<I: Ip> TorrentMapShards<I> {
     }
 
     fn clean_and_get_statistics(
-        &mut self,
+        &self,
         config: &Config,
         statistics_sender: &Sender<StatisticsMessage>,
         access_list_cache: &mut AccessListCache,

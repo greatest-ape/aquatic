@@ -163,6 +163,7 @@ pub enum WorkerType {
     Socket(usize),
     Statistics,
     Signals,
+    Cleaning,
     #[cfg(feature = "prometheus")]
     Prometheus,
 }
@@ -174,6 +175,7 @@ impl Display for WorkerType {
             Self::Socket(index) => f.write_fmt(format_args!("Socket worker {}", index + 1)),
             Self::Statistics => f.write_str("Statistics worker"),
             Self::Signals => f.write_str("Signals worker"),
+            Self::Cleaning => f.write_str("Cleaning worker"),
             #[cfg(feature = "prometheus")]
             Self::Prometheus => f.write_str("Prometheus worker"),
         }

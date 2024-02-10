@@ -71,6 +71,29 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Socket(i), handle));
     }
 
+    {
+        let state = state.clone();
+        let config = config.clone();
+        let statistics = statistics.swarm.clone();
+        let statistics_sender = statistics_sender.clone();
+
+        let handle = Builder::new().name("cleaning".into()).spawn(move || loop {
+            sleep(Duration::from_secs(
+                config.cleaning.torrent_cleaning_interval,
+            ));
+
+            state.torrent_maps.clean_and_update_statistics(
+                &config,
+                &statistics,
+                &statistics_sender,
+                &state.access_list,
+                state.server_start_instant,
+            );
+        })?;
+
+        join_handles.push((WorkerType::Cleaning, handle));
+    }
+
     if config.statistics.active() {
         let state = state.clone();
         let config = config.clone();
@@ -141,14 +164,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
 
         join_handles.push((WorkerType::Signals, handle));
     }
-
-    #[cfg(feature = "cpu-pinning")]
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        config.swarm_workers,
-        WorkerIndex::Util,
-    );
 
     loop {
         for (i, (_, handle)) in join_handles.iter().enumerate() {

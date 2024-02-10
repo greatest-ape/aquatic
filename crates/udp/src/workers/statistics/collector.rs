@@ -60,8 +60,6 @@ impl StatisticsCollector {
         let mut responses_error: usize = 0;
         let mut bytes_received: usize = 0;
         let mut bytes_sent: usize = 0;
-        let mut num_torrents: usize = 0;
-        let mut num_peers: usize = 0;
 
         #[cfg(feature = "prometheus")]
         let ip_version_prometheus_str = self.ip_version.prometheus_str();
@@ -186,44 +184,37 @@ impl StatisticsCollector {
             }
         }
 
-        for (i, statistics) in self
-            .statistics
-            .swarm
-            .iter()
-            .map(|s| s.by_ip_version(self.ip_version))
-            .enumerate()
-        {
-            {
-                let n = statistics.torrents.load(Ordering::Relaxed);
+        let swarm_statistics = &self.statistics.swarm.by_ip_version(self.ip_version);
 
-                num_torrents += n;
+        let num_torrents = {
+            let num_torrents = swarm_statistics.torrents.load(Ordering::Relaxed);
 
-                #[cfg(feature = "prometheus")]
-                if config.statistics.run_prometheus_endpoint {
-                    ::metrics::gauge!(
-                        "aquatic_torrents",
-                        "ip_version" => ip_version_prometheus_str,
-                        "worker_index" => i.to_string(),
-                    )
-                    .set(n as f64);
-                }
+            #[cfg(feature = "prometheus")]
+            if config.statistics.run_prometheus_endpoint {
+                ::metrics::gauge!(
+                    "aquatic_torrents",
+                    "ip_version" => ip_version_prometheus_str,
+                )
+                .set(num_torrents as f64);
             }
-            {
-                let n = statistics.peers.load(Ordering::Relaxed);
 
-                num_peers += n;
+            num_torrents
+        };
 
-                #[cfg(feature = "prometheus")]
-                if config.statistics.run_prometheus_endpoint {
-                    ::metrics::gauge!(
-                        "aquatic_peers",
-                        "ip_version" => ip_version_prometheus_str,
-                        "worker_index" => i.to_string(),
-                    )
-                    .set(n as f64);
-                }
+        let num_peers = {
+            let num_peers = swarm_statistics.peers.load(Ordering::Relaxed);
+
+            #[cfg(feature = "prometheus")]
+            if config.statistics.run_prometheus_endpoint {
+                ::metrics::gauge!(
+                    "aquatic_peers",
+                    "ip_version" => ip_version_prometheus_str,
+                )
+                .set(num_peers as f64);
             }
-        }
+
+            num_peers
+        };
 
         let elapsed = {
             let now = Instant::now();

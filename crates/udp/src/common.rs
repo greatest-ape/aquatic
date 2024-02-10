@@ -32,7 +32,7 @@ impl IpVersion {
 #[derive(Clone)]
 pub struct Statistics {
     pub socket: Vec<CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>>,
-    pub swarm: Vec<CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>>,
+    pub swarm: CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>,
 }
 
 impl Statistics {
@@ -41,9 +41,7 @@ impl Statistics {
             socket: repeat_with(Default::default)
                 .take(config.socket_workers)
                 .collect(),
-            swarm: repeat_with(Default::default)
-                .take(config.swarm_workers)
-                .collect(),
+            swarm: Default::default(),
         }
     }
 }
