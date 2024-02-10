@@ -16,6 +16,7 @@ use aquatic_common::{CanonicalSocketAddr, IndexMap};
 use aquatic_udp_protocol::*;
 use arrayvec::ArrayVec;
 use crossbeam_channel::Sender;
+use hashbrown::HashMap;
 use hdrhistogram::Histogram;
 use parking_lot::RwLockUpgradableReadGuard;
 use rand::prelude::SmallRng;
@@ -29,24 +30,24 @@ const SMALL_PEER_MAP_CAPACITY: usize = 2;
 use aquatic_udp_protocol::InfoHash;
 use parking_lot::RwLock;
 
-type TorrentMapShard<T> = IndexMap<InfoHash, Arc<TorrentData<T>>>;
-
 #[derive(Clone)]
 pub struct TorrentMaps {
     ipv4: TorrentMapShards<Ipv4AddrBytes>,
     ipv6: TorrentMapShards<Ipv6AddrBytes>,
 }
 
-impl TorrentMaps {
-    pub fn new(config: &Config) -> Self {
-        let num_shards = 16usize;
+impl Default for TorrentMaps {
+    fn default() -> Self {
+        const NUM_SHARDS: usize = 16;
 
         Self {
-            ipv4: TorrentMapShards::new(num_shards),
-            ipv6: TorrentMapShards::new(num_shards),
+            ipv4: TorrentMapShards::new(NUM_SHARDS),
+            ipv6: TorrentMapShards::new(NUM_SHARDS),
         }
     }
+}
 
+impl TorrentMaps {
     pub fn announce(
         &self,
         config: &Config,
@@ -293,6 +294,9 @@ impl<I: Ip> TorrentMapShards<I> {
         self.0.get(info_hash.0[0] as usize % self.0.len()).unwrap()
     }
 }
+
+/// Use HashMap instead of IndexMap for better lookup performance
+type TorrentMapShard<T> = HashMap<InfoHash, Arc<TorrentData<T>>>;
 
 pub struct TorrentData<T: Ip> {
     peer_map: RwLock<PeerMap<T>>,

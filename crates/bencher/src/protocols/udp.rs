@@ -58,6 +58,12 @@ impl UdpCommand {
         indexmap::indexmap! {
             1 => SetConfig {
                 implementations: indexmap! {
+                    UdpTracker::Aquatic => vec![
+                        AquaticUdpRunner::with_mio(1, Priority::High),
+                    ],
+                    UdpTracker::AquaticIoUring => vec![
+                        AquaticUdpRunner::with_io_uring(1, Priority::High),
+                    ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(0, Priority::Medium), // Handle requests within event loop
                         OpenTrackerUdpRunner::new(1, Priority::High),
@@ -74,12 +80,10 @@ impl UdpCommand {
             2 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::with_mio(1, 1, Priority::Medium),
-                        AquaticUdpRunner::with_mio(2, 1, Priority::High),
+                        AquaticUdpRunner::with_mio(2, Priority::High),
                     ],
                     UdpTracker::AquaticIoUring => vec![
-                        AquaticUdpRunner::with_io_uring(1, 1, Priority::Medium),
-                        AquaticUdpRunner::with_io_uring(2, 1, Priority::High),
+                        AquaticUdpRunner::with_io_uring(2, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(2, Priority::High),
@@ -97,12 +101,10 @@ impl UdpCommand {
             4 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::with_mio(3, 1, Priority::High),
-                        AquaticUdpRunner::with_mio(4, 1, Priority::Medium),
+                        AquaticUdpRunner::with_mio(4, Priority::High),
                     ],
                     UdpTracker::AquaticIoUring => vec![
-                        AquaticUdpRunner::with_io_uring(3, 1, Priority::High),
-                        AquaticUdpRunner::with_io_uring(4, 1, Priority::Medium),
+                        AquaticUdpRunner::with_io_uring(4, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(4, Priority::High),
@@ -119,10 +121,10 @@ impl UdpCommand {
             6 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::with_mio(5, 1, Priority::High),
+                        AquaticUdpRunner::with_mio(6, Priority::High),
                     ],
                     UdpTracker::AquaticIoUring => vec![
-                        AquaticUdpRunner::with_io_uring(5, 1, Priority::High),
+                        AquaticUdpRunner::with_io_uring(6, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(6, Priority::High),
@@ -139,10 +141,10 @@ impl UdpCommand {
             8 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::with_mio(7, 1, Priority::High),
+                        AquaticUdpRunner::with_mio(8, Priority::High),
                     ],
                     UdpTracker::AquaticIoUring => vec![
-                        AquaticUdpRunner::with_io_uring(7, 1, Priority::High),
+                        AquaticUdpRunner::with_io_uring(8, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(8, Priority::High),
@@ -159,12 +161,10 @@ impl UdpCommand {
             12 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::with_mio(10, 2, Priority::High),
-                        AquaticUdpRunner::with_mio(9, 3, Priority::Medium),
+                        AquaticUdpRunner::with_mio(12, Priority::High),
                     ],
                     UdpTracker::AquaticIoUring => vec![
-                        AquaticUdpRunner::with_io_uring(10, 2, Priority::High),
-                        AquaticUdpRunner::with_io_uring(9, 3, Priority::Medium),
+                        AquaticUdpRunner::with_io_uring(12, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(12, Priority::High),
@@ -181,10 +181,10 @@ impl UdpCommand {
             16 => SetConfig {
                 implementations: indexmap! {
                     UdpTracker::Aquatic => vec![
-                        AquaticUdpRunner::with_mio(13, 3, Priority::High),
+                        AquaticUdpRunner::with_mio(16, Priority::High),
                     ],
                     UdpTracker::AquaticIoUring => vec![
-                        AquaticUdpRunner::with_io_uring(13, 3, Priority::High),
+                        AquaticUdpRunner::with_io_uring(16, Priority::High),
                     ],
                     UdpTracker::OpenTracker => vec![
                         OpenTrackerUdpRunner::new(16, Priority::High),
@@ -211,7 +211,6 @@ impl UdpCommand {
 #[derive(Debug, Clone)]
 struct AquaticUdpRunner {
     socket_workers: usize,
-    swarm_workers: usize,
     use_io_uring: bool,
     priority: Priority,
 }
@@ -219,24 +218,20 @@ struct AquaticUdpRunner {
 impl AquaticUdpRunner {
     fn with_mio(
         socket_workers: usize,
-        swarm_workers: usize,
         priority: Priority,
     ) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
         Rc::new(Self {
             socket_workers,
-            swarm_workers,
             use_io_uring: false,
             priority,
         })
     }
     fn with_io_uring(
         socket_workers: usize,
-        swarm_workers: usize,
         priority: Priority,
     ) -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
         Rc::new(Self {
             socket_workers,
-            swarm_workers,
             use_io_uring: true,
             priority,
         })
@@ -256,7 +251,6 @@ impl ProcessRunner for AquaticUdpRunner {
         let mut c = aquatic_udp::config::Config::default();
 
         c.socket_workers = self.socket_workers;
-        c.swarm_workers = self.swarm_workers;
         c.network.address = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 3000));
         c.network.use_io_uring = self.use_io_uring;
         c.protocol.max_response_peers = 30;
@@ -283,7 +277,6 @@ impl ProcessRunner for AquaticUdpRunner {
     fn keys(&self) -> IndexMap<String, String> {
         indexmap! {
             "socket workers".to_string() => self.socket_workers.to_string(),
-            "swarm workers".to_string() => self.swarm_workers.to_string(),
         }
     }
 }

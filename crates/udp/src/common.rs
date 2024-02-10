@@ -94,11 +94,11 @@ pub struct State {
     pub server_start_instant: ServerStartInstant,
 }
 
-impl State {
-    pub fn new(config: &Config) -> Self {
+impl Default for State {
+    fn default() -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
-            torrent_maps: TorrentMaps::new(config),
+            torrent_maps: TorrentMaps::default(),
             server_start_instant: ServerStartInstant::new(),
         }
     }

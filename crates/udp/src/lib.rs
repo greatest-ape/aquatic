@@ -25,7 +25,7 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1])?;
 
-    let state = State::new(&config);
+    let state = State::default();
     let statistics = Statistics::new(&config);
     let connection_validator = ConnectionValidator::new(&config)?;
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
