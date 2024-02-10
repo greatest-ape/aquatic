@@ -11,7 +11,7 @@ use aquatic_toml_config::TomlConfig;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// Number of socket worker. One per virtual CPU is recommended
+    /// Number of socket workers. One per virtual CPU is recommended
     pub socket_workers: usize,
     pub log_level: LogLevel,
     pub network: NetworkConfig,
@@ -71,13 +71,6 @@ pub struct NetworkConfig {
     pub socket_recv_buffer_size: usize,
     /// Poll timeout in milliseconds (mio backend only)
     pub poll_timeout_ms: u64,
-    #[cfg(feature = "io-uring")]
-    pub use_io_uring: bool,
-    /// Number of ring entries (io_uring backend only)
-    ///
-    /// Will be rounded to next power of two if not already one.
-    #[cfg(feature = "io-uring")]
-    pub ring_size: u16,
     /// Store this many responses at most for retrying (once) on send failure
     /// (mio backend only)
     ///
@@ -85,6 +78,13 @@ pub struct NetworkConfig {
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
     pub resend_buffer_max_len: usize,
+    #[cfg(feature = "io-uring")]
+    pub use_io_uring: bool,
+    /// Number of ring entries (io_uring backend only)
+    ///
+    /// Will be rounded to next power of two if not already one.
+    #[cfg(feature = "io-uring")]
+    pub ring_size: u16,
 }
 
 impl NetworkConfig {
@@ -103,11 +103,11 @@ impl Default for NetworkConfig {
             only_ipv6: false,
             socket_recv_buffer_size: 8_000_000,
             poll_timeout_ms: 50,
+            resend_buffer_max_len: 0,
             #[cfg(feature = "io-uring")]
             use_io_uring: true,
             #[cfg(feature = "io-uring")]
             ring_size: 128,
-            resend_buffer_max_len: 0,
         }
     }
 }
