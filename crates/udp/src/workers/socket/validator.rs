@@ -156,6 +156,10 @@ mod tests {
             return quickcheck::TestResult::failed();
         }
 
-        quickcheck::TestResult::from_bool(original_valid)
+        if max_connection_age == 0 {
+            quickcheck::TestResult::from_bool(!original_valid)
+        } else {
+            quickcheck::TestResult::from_bool(original_valid)
+        }
     }
 }
