@@ -5,13 +5,14 @@
 sudo apt-get update && sudo apt-get upgrade -y
 sudo apt-get install -y curl vim htop screen cmake build-essential pkg-config git screen cvs zlib1g zlib1g-dev golang
 sudo echo "deb http://deb.debian.org/debian bookworm-backports main contrib" >> /etc/apt/sources.list
-sudo apt-get update && sudo apt-get install linux-image-amd64/bookworm-backports
+sudo apt-get update && sudo apt-get install -y linux-image-amd64/bookworm-backports
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 
 # Build aquatic
 . ./scripts/env-native-cpu-without-avx-512
-cargo build --profile "release-debug" -p aquatic_udp
+# export RUSTFLAGS="-C target-cpu=native"
+cargo build --profile "release-debug" -p aquatic_udp --features "io-uring"
 cargo build --profile "release-debug" -p aquatic_udp_load_test
 cargo build --profile "release-debug" -p aquatic_bencher --features udp
 git log --oneline | head -n 1

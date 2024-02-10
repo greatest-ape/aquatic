@@ -49,24 +49,18 @@ pub fn run_socket_worker(
     priv_dropper: PrivilegeDropper,
 ) -> anyhow::Result<()> {
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
-    match self::uring::supported_on_current_kernel() {
-        Ok(()) => {
-            return self::uring::SocketWorker::run(
-                config,
-                shared_state,
-                statistics,
-                validator,
-                request_sender,
-                response_receiver,
-                priv_dropper,
-            );
-        }
-        Err(err) => {
-            ::log::warn!(
-                "Falling back to mio because of lacking kernel io_uring support: {:#}",
-                err
-            );
-        }
+    if config.network.use_io_uring {
+        self::uring::supported_on_current_kernel().context("check for io_uring compatibility")?;
+
+        return self::uring::SocketWorker::run(
+            config,
+            shared_state,
+            statistics,
+            validator,
+            request_sender,
+            response_receiver,
+            priv_dropper,
+        );
     }
 
     self::mio::SocketWorker::run(

@@ -1,6 +1,8 @@
 # aquatic_bencher
 
-Automated benchmarking of aquatic and other BitTorrent trackers. Linux only.
+Automated benchmarking of aquatic and other BitTorrent trackers.
+
+Requires Linux 6.0 or later.
 
 ## Supported trackers by protocol
 

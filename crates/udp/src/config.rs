@@ -100,6 +100,8 @@ pub struct NetworkConfig {
     pub socket_recv_buffer_size: usize,
     /// Poll timeout in milliseconds (mio backend only)
     pub poll_timeout_ms: u64,
+    #[cfg(feature = "io-uring")]
+    pub use_io_uring: bool,
     /// Number of ring entries (io_uring backend only)
     ///
     /// Will be rounded to next power of two if not already one.
@@ -130,6 +132,8 @@ impl Default for NetworkConfig {
             only_ipv6: false,
             socket_recv_buffer_size: 8_000_000,
             poll_timeout_ms: 50,
+            #[cfg(feature = "io-uring")]
+            use_io_uring: true,
             #[cfg(feature = "io-uring")]
             ring_size: 128,
             resend_buffer_max_len: 0,
