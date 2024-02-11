@@ -570,11 +570,10 @@ impl<I: Ip> LargePeerMap<I> {
 
     /// Extract response peers
     ///
-    /// If there are more peers in map than `max_num_peers_to_take`, do a random
-    /// selection of peers from first and second halves of map in order to avoid
-    /// returning too homogeneous peers.
-    ///
-    /// Does NOT filter out announcing peer.
+    /// If there are more peers in map than `max_num_peers_to_take`, do a
+    /// random selection of peers from first and second halves of map in
+    /// order to avoid returning too homogeneous peers. This is a lot more
+    /// cache-friendly than doing a fully random selection.
     fn extract_response_peers(
         &self,
         rng: &mut impl Rng,
@@ -605,10 +604,10 @@ impl<I: Ip> LargePeerMap<I> {
             let mut peers = Vec::with_capacity(max_num_peers_to_take);
 
             if let Some(slice) = self.peers.get_range(offset_half_one..end_half_one) {
-                peers.extend(slice.keys());
+                peers.extend(slice.keys().copied());
             }
             if let Some(slice) = self.peers.get_range(offset_half_two..end_half_two) {
-                peers.extend(slice.keys());
+                peers.extend(slice.keys().copied());
             }
 
             peers
