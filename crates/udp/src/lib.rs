@@ -1,130 +1,62 @@
 pub mod common;
 pub mod config;
+pub mod swarm;
 pub mod workers;
 
-use std::collections::BTreeMap;
-use std::thread::{sleep, Builder, JoinHandle};
+use std::thread::{available_parallelism, sleep, Builder, JoinHandle};
 use std::time::Duration;
 
 use anyhow::Context;
 use aquatic_common::WorkerType;
-use crossbeam_channel::{bounded, unbounded};
+use crossbeam_channel::unbounded;
 use signal_hook::consts::SIGUSR1;
 use signal_hook::iterator::Signals;
 
 use aquatic_common::access_list::update_access_list;
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::privileges::PrivilegeDropper;
 
-use common::{
-    ConnectedRequestSender, ConnectedResponseSender, SocketWorkerIndex, State, Statistics,
-    SwarmWorkerIndex,
-};
+use common::{State, Statistics};
 use config::Config;
 use workers::socket::ConnectionValidator;
-use workers::swarm::SwarmWorker;
 
 pub const APP_NAME: &str = "aquatic_udp: UDP BitTorrent tracker";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn run(config: Config) -> ::anyhow::Result<()> {
+pub fn run(mut config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1])?;
+
+    if config.socket_workers == 0 {
+        config.socket_workers = available_parallelism().map(Into::into).unwrap_or(1);
+    };
 
     let state = State::default();
     let statistics = Statistics::new(&config);
     let connection_validator = ConnectionValidator::new(&config)?;
     let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
-    let mut join_handles = Vec::new();
+    let (statistics_sender, statistics_receiver) = unbounded();
 
     update_access_list(&config.access_list, &state.access_list)?;
 
-    let mut request_senders = Vec::new();
-    let mut request_receivers = BTreeMap::new();
+    let mut join_handles = Vec::new();
 
-    let mut response_senders = Vec::new();
-    let mut response_receivers = BTreeMap::new();
-
-    let (statistics_sender, statistics_receiver) = unbounded();
-
-    for i in 0..config.swarm_workers {
-        let (request_sender, request_receiver) = bounded(config.worker_channel_size);
-
-        request_senders.push(request_sender);
-        request_receivers.insert(i, request_receiver);
-    }
-
-    for i in 0..config.socket_workers {
-        let (response_sender, response_receiver) = bounded(config.worker_channel_size);
-
-        response_senders.push(response_sender);
-        response_receivers.insert(i, response_receiver);
-    }
-
-    for i in 0..config.swarm_workers {
-        let config = config.clone();
-        let state = state.clone();
-        let request_receiver = request_receivers.remove(&i).unwrap().clone();
-        let response_sender = ConnectedResponseSender::new(response_senders.clone());
-        let statistics_sender = statistics_sender.clone();
-        let statistics = statistics.swarm[i].clone();
-
-        let handle = Builder::new()
-            .name(format!("swarm-{:02}", i + 1))
-            .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::SwarmWorker(i),
-                );
-
-                let mut worker = SwarmWorker {
-                    config,
-                    state,
-                    statistics,
-                    request_receiver,
-                    response_sender,
-                    statistics_sender,
-                    worker_index: SwarmWorkerIndex(i),
-                };
-
-                worker.run()
-            })
-            .with_context(|| "spawn swarm worker")?;
-
-        join_handles.push((WorkerType::Swarm(i), handle));
-    }
-
+    // Spawn socket worker threads
     for i in 0..config.socket_workers {
         let state = state.clone();
         let config = config.clone();
         let connection_validator = connection_validator.clone();
-        let request_sender =
-            ConnectedRequestSender::new(SocketWorkerIndex(i), request_senders.clone());
-        let response_receiver = response_receivers.remove(&i).unwrap();
         let priv_dropper = priv_dropper.clone();
         let statistics = statistics.socket[i].clone();
+        let statistics_sender = statistics_sender.clone();
 
         let handle = Builder::new()
             .name(format!("socket-{:02}", i + 1))
             .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::SocketWorker(i),
-                );
-
                 workers::socket::run_socket_worker(
                     config,
                     state,
                     statistics,
+                    statistics_sender,
                     connection_validator,
-                    request_sender,
-                    response_receiver,
                     priv_dropper,
                 )
             })
@@ -133,6 +65,31 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Socket(i), handle));
     }
 
+    // Spawn cleaning thread
+    {
+        let state = state.clone();
+        let config = config.clone();
+        let statistics = statistics.swarm.clone();
+        let statistics_sender = statistics_sender.clone();
+
+        let handle = Builder::new().name("cleaning".into()).spawn(move || loop {
+            sleep(Duration::from_secs(
+                config.cleaning.torrent_cleaning_interval,
+            ));
+
+            state.torrent_maps.clean_and_update_statistics(
+                &config,
+                &statistics,
+                &statistics_sender,
+                &state.access_list,
+                state.server_start_instant,
+            );
+        })?;
+
+        join_handles.push((WorkerType::Cleaning, handle));
+    }
+
+    // Spawn statistics thread
     if config.statistics.active() {
         let state = state.clone();
         let config = config.clone();
@@ -140,14 +97,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let handle = Builder::new()
             .name("statistics".into())
             .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::Util,
-                );
-
                 workers::statistics::run_statistics_worker(
                     config,
                     state,
@@ -160,6 +109,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Statistics, handle));
     }
 
+    // Spawn prometheus endpoint thread
     #[cfg(feature = "prometheus")]
     if config.statistics.active() && config.statistics.run_prometheus_endpoint {
         let handle = aquatic_common::spawn_prometheus_endpoint(
@@ -180,14 +130,6 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let handle: JoinHandle<anyhow::Result<()>> = Builder::new()
             .name("signals".into())
             .spawn(move || {
-                #[cfg(feature = "cpu-pinning")]
-                pin_current_if_configured_to(
-                    &config.cpu_pinning,
-                    config.socket_workers,
-                    config.swarm_workers,
-                    WorkerIndex::Util,
-                );
-
                 for signal in &mut signals {
                     match signal {
                         SIGUSR1 => {
@@ -204,14 +146,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         join_handles.push((WorkerType::Signals, handle));
     }
 
-    #[cfg(feature = "cpu-pinning")]
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.socket_workers,
-        config.swarm_workers,
-        WorkerIndex::Util,
-    );
-
+    // Quit application if any worker returns or panics
     loop {
         for (i, (_, handle)) in join_handles.iter().enumerate() {
             if handle.is_finished() {

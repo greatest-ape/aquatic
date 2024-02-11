@@ -11,6 +11,7 @@ use std::sync::atomic::Ordering;
 
 use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
+use crossbeam_channel::Sender;
 use io_uring::opcode::Timeout;
 use io_uring::types::{Fixed, Timespec};
 use io_uring::{IoUring, Probe};
@@ -20,6 +21,8 @@ use aquatic_common::{
     ValidUntil,
 };
 use aquatic_udp_protocol::*;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 
 use crate::common::*;
 use crate::config::Config;
@@ -28,7 +31,6 @@ use self::buf_ring::BufRing;
 use self::recv_helper::RecvHelper;
 use self::send_buffers::{ResponseType, SendBuffers};
 
-use super::storage::PendingScrapeResponseSlab;
 use super::validator::ConnectionValidator;
 use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
@@ -48,7 +50,6 @@ const RESPONSE_BUF_LEN: usize = 2048;
 
 const USER_DATA_RECV: u64 = u64::MAX;
 const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 1;
-const USER_DATA_CLEANING_TIMEOUT: u64 = u64::MAX - 2;
 
 const SOCKET_IDENTIFIER: Fixed = Fixed(0);
 
@@ -76,22 +77,20 @@ pub struct SocketWorker {
     config: Config,
     shared_state: State,
     statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
-    request_sender: ConnectedRequestSender,
-    response_receiver: ConnectedResponseReceiver,
+    statistics_sender: Sender<StatisticsMessage>,
     access_list_cache: AccessListCache,
     validator: ConnectionValidator,
     #[allow(dead_code)]
     socket: UdpSocket,
-    pending_scrape_responses: PendingScrapeResponseSlab,
     buf_ring: BufRing,
     send_buffers: SendBuffers,
     recv_helper: RecvHelper,
-    local_responses: VecDeque<(Response, CanonicalSocketAddr)>,
+    local_responses: VecDeque<(CanonicalSocketAddr, Response)>,
     resubmittable_sqe_buf: Vec<io_uring::squeue::Entry>,
     recv_sqe: io_uring::squeue::Entry,
     pulse_timeout_sqe: io_uring::squeue::Entry,
-    cleaning_timeout_sqe: io_uring::squeue::Entry,
-    pending_scrape_valid_until: ValidUntil,
+    peer_valid_until: ValidUntil,
+    rng: SmallRng,
 }
 
 impl SocketWorker {
@@ -99,9 +98,8 @@ impl SocketWorker {
         config: Config,
         shared_state: State,
         statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
+        statistics_sender: Sender<StatisticsMessage>,
         validator: ConnectionValidator,
-        request_sender: ConnectedRequestSender,
-        response_receiver: ConnectedResponseReceiver,
         priv_dropper: PrivilegeDropper,
     ) -> anyhow::Result<()> {
         let ring_entries = config.network.ring_size.next_power_of_two();
@@ -136,57 +134,40 @@ impl SocketWorker {
 
         let recv_sqe = recv_helper.create_entry(buf_ring.bgid());
 
-        // This timeout enables regular updates of pending_scrape_valid_until
-        // and wakes the main loop to send any pending responses in the case
-        // of no incoming requests
+        // This timeout enables regular updates of ConnectionValidator and
+        // peer_valid_until
         let pulse_timeout_sqe = {
-            let timespec_ptr = Box::into_raw(Box::new(Timespec::new().sec(1))) as *const _;
+            let timespec_ptr = Box::into_raw(Box::new(Timespec::new().sec(5))) as *const _;
 
             Timeout::new(timespec_ptr)
                 .build()
                 .user_data(USER_DATA_PULSE_TIMEOUT)
         };
 
-        let cleaning_timeout_sqe = {
-            let timespec_ptr = Box::into_raw(Box::new(
-                Timespec::new().sec(config.cleaning.pending_scrape_cleaning_interval),
-            )) as *const _;
+        let resubmittable_sqe_buf = vec![recv_sqe.clone(), pulse_timeout_sqe.clone()];
 
-            Timeout::new(timespec_ptr)
-                .build()
-                .user_data(USER_DATA_CLEANING_TIMEOUT)
-        };
-
-        let resubmittable_sqe_buf = vec![
-            recv_sqe.clone(),
-            pulse_timeout_sqe.clone(),
-            cleaning_timeout_sqe.clone(),
-        ];
-
-        let pending_scrape_valid_until = ValidUntil::new(
+        let peer_valid_until = ValidUntil::new(
             shared_state.server_start_instant,
-            config.cleaning.max_pending_scrape_age,
+            config.cleaning.max_peer_age,
         );
 
         let mut worker = Self {
             config,
             shared_state,
             statistics,
+            statistics_sender,
             validator,
-            request_sender,
-            response_receiver,
             access_list_cache,
-            pending_scrape_responses: Default::default(),
             send_buffers,
             recv_helper,
             local_responses: Default::default(),
             buf_ring,
             recv_sqe,
             pulse_timeout_sqe,
-            cleaning_timeout_sqe,
             resubmittable_sqe_buf,
             socket,
-            pending_scrape_valid_until,
+            peer_valid_until,
+            rng: SmallRng::from_entropy(),
         };
 
         CurrentRing::with(|ring| worker.run_inner(ring));
@@ -210,7 +191,7 @@ impl SocketWorker {
 
             // Enqueue local responses
             for _ in 0..sq_space {
-                if let Some((response, addr)) = self.local_responses.pop_front() {
+                if let Some((addr, response)) = self.local_responses.pop_front() {
                     match self.send_buffers.prepare_entry(response, addr) {
                         Ok(entry) => {
                             unsafe { ring.submission().push(&entry).unwrap() };
@@ -218,7 +199,7 @@ impl SocketWorker {
                             num_send_added += 1;
                         }
                         Err(send_buffers::Error::NoBuffers(response)) => {
-                            self.local_responses.push_front((response, addr));
+                            self.local_responses.push_front((addr, response));
 
                             break;
                         }
@@ -228,43 +209,6 @@ impl SocketWorker {
                     }
                 } else {
                     break;
-                }
-            }
-
-            // Enqueue swarm worker responses
-            for _ in 0..(sq_space - num_send_added) {
-                let (addr, response) = if let Ok(r) = self.response_receiver.try_recv() {
-                    r
-                } else {
-                    break;
-                };
-
-                let response = match response {
-                    ConnectedResponse::AnnounceIpv4(r) => Response::AnnounceIpv4(r),
-                    ConnectedResponse::AnnounceIpv6(r) => Response::AnnounceIpv6(r),
-                    ConnectedResponse::Scrape(r) => {
-                        if let Some(r) = self.pending_scrape_responses.add_and_get_finished(&r) {
-                            Response::Scrape(r)
-                        } else {
-                            continue;
-                        }
-                    }
-                };
-
-                match self.send_buffers.prepare_entry(response, addr) {
-                    Ok(entry) => {
-                        unsafe { ring.submission().push(&entry).unwrap() };
-
-                        num_send_added += 1;
-                    }
-                    Err(send_buffers::Error::NoBuffers(response)) => {
-                        self.local_responses.push_back((response, addr));
-
-                        break;
-                    }
-                    Err(send_buffers::Error::SerializationFailed(err)) => {
-                        ::log::error!("Failed serializing response: {:#}", err);
-                    }
                 }
             }
 
@@ -286,27 +230,24 @@ impl SocketWorker {
     fn handle_cqe(&mut self, cqe: io_uring::cqueue::Entry) {
         match cqe.user_data() {
             USER_DATA_RECV => {
-                self.handle_recv_cqe(&cqe);
+                if let Some((addr, response)) = self.handle_recv_cqe(&cqe) {
+                    self.local_responses.push_back((addr, response));
+                }
 
                 if !io_uring::cqueue::more(cqe.flags()) {
                     self.resubmittable_sqe_buf.push(self.recv_sqe.clone());
                 }
             }
             USER_DATA_PULSE_TIMEOUT => {
-                self.pending_scrape_valid_until = ValidUntil::new(
+                self.validator.update_elapsed();
+
+                self.peer_valid_until = ValidUntil::new(
                     self.shared_state.server_start_instant,
-                    self.config.cleaning.max_pending_scrape_age,
+                    self.config.cleaning.max_peer_age,
                 );
 
                 self.resubmittable_sqe_buf
                     .push(self.pulse_timeout_sqe.clone());
-            }
-            USER_DATA_CLEANING_TIMEOUT => {
-                self.pending_scrape_responses
-                    .clean(self.shared_state.server_start_instant.seconds_elapsed());
-
-                self.resubmittable_sqe_buf
-                    .push(self.cleaning_timeout_sqe.clone());
             }
             send_buffer_index => {
                 let result = cqe.result();
@@ -352,12 +293,15 @@ impl SocketWorker {
         }
     }
 
-    fn handle_recv_cqe(&mut self, cqe: &io_uring::cqueue::Entry) {
+    fn handle_recv_cqe(
+        &mut self,
+        cqe: &io_uring::cqueue::Entry,
+    ) -> Option<(CanonicalSocketAddr, Response)> {
         let result = cqe.result();
 
         if result < 0 {
             if -result == libc::ENOBUFS {
-                ::log::info!("recv failed due to lack of buffers. If increasing ring size doesn't help, get faster hardware");
+                ::log::info!("recv failed due to lack of buffers, try increasing ring size");
             } else {
                 ::log::warn!(
                     "recv failed: {:#}",
@@ -365,7 +309,7 @@ impl SocketWorker {
                 );
             }
 
-            return;
+            return None;
         }
 
         let buffer = unsafe {
@@ -374,23 +318,48 @@ impl SocketWorker {
                 Ok(None) => {
                     ::log::error!("Couldn't get recv buffer");
 
-                    return;
+                    return None;
                 }
                 Err(err) => {
                     ::log::error!("Couldn't get recv buffer: {:#}", err);
 
-                    return;
+                    return None;
                 }
             }
         };
 
-        let addr = match self.recv_helper.parse(buffer.as_slice()) {
+        match self.recv_helper.parse(buffer.as_slice()) {
             Ok((request, addr)) => {
-                self.handle_request(request, addr);
+                if self.config.statistics.active() {
+                    let (statistics, extra_bytes) = if addr.is_ipv4() {
+                        (&self.statistics.ipv4, EXTRA_PACKET_SIZE_IPV4)
+                    } else {
+                        (&self.statistics.ipv6, EXTRA_PACKET_SIZE_IPV6)
+                    };
 
-                addr
+                    statistics
+                        .bytes_received
+                        .fetch_add(buffer.len() + extra_bytes, Ordering::Relaxed);
+                    statistics.requests.fetch_add(1, Ordering::Relaxed);
+                }
+
+                return self.handle_request(request, addr);
             }
             Err(self::recv_helper::Error::RequestParseError(err, addr)) => {
+                if self.config.statistics.active() {
+                    if addr.is_ipv4() {
+                        self.statistics
+                            .ipv4
+                            .bytes_received
+                            .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV4, Ordering::Relaxed);
+                    } else {
+                        self.statistics
+                            .ipv6
+                            .bytes_received
+                            .fetch_add(buffer.len() + EXTRA_PACKET_SIZE_IPV6, Ordering::Relaxed);
+                    }
+                }
+
                 match err {
                     RequestParseError::Sendable {
                         connection_id,
@@ -405,60 +374,43 @@ impl SocketWorker {
                                 message: err.into(),
                             };
 
-                            self.local_responses.push_back((response.into(), addr));
+                            return Some((addr, Response::Error(response)));
                         }
                     }
                     RequestParseError::Unsendable { err } => {
                         ::log::debug!("Couldn't parse request from {:?}: {}", addr, err);
                     }
                 }
-
-                addr
             }
             Err(self::recv_helper::Error::InvalidSocketAddress) => {
                 ::log::debug!("Ignored request claiming to be from port 0");
-
-                return;
             }
             Err(self::recv_helper::Error::RecvMsgParseError) => {
                 ::log::error!("RecvMsgOut::parse failed");
-
-                return;
             }
             Err(self::recv_helper::Error::RecvMsgTruncated) => {
                 ::log::warn!("RecvMsgOut::parse failed: sockaddr or payload truncated");
-
-                return;
             }
-        };
-
-        if self.config.statistics.active() {
-            let (statistics, extra_bytes) = if addr.is_ipv4() {
-                (&self.statistics.ipv4, EXTRA_PACKET_SIZE_IPV4)
-            } else {
-                (&self.statistics.ipv6, EXTRA_PACKET_SIZE_IPV6)
-            };
-
-            statistics
-                .bytes_received
-                .fetch_add(buffer.len() + extra_bytes, Ordering::Relaxed);
-            statistics.requests.fetch_add(1, Ordering::Relaxed);
         }
+
+        None
     }
 
-    fn handle_request(&mut self, request: Request, src: CanonicalSocketAddr) {
+    fn handle_request(
+        &mut self,
+        request: Request,
+        src: CanonicalSocketAddr,
+    ) -> Option<(CanonicalSocketAddr, Response)> {
         let access_list_mode = self.config.access_list.mode;
 
         match request {
             Request::Connect(request) => {
-                let connection_id = self.validator.create_connection_id(src);
-
                 let response = Response::Connect(ConnectResponse {
-                    connection_id,
+                    connection_id: self.validator.create_connection_id(src),
                     transaction_id: request.transaction_id,
                 });
 
-                self.local_responses.push_back((response, src));
+                return Some((src, response));
             }
             Request::Announce(request) => {
                 if self
@@ -470,23 +422,23 @@ impl SocketWorker {
                         .load()
                         .allows(access_list_mode, &request.info_hash.0)
                     {
-                        let worker_index =
-                            SwarmWorkerIndex::from_info_hash(&self.config, request.info_hash);
+                        let response = self.shared_state.torrent_maps.announce(
+                            &self.config,
+                            &self.statistics_sender,
+                            &mut self.rng,
+                            &request,
+                            src,
+                            self.peer_valid_until,
+                        );
 
-                        if self
-                            .request_sender
-                            .try_send_to(worker_index, ConnectedRequest::Announce(request), src)
-                            .is_err()
-                        {
-                            ::log::warn!("request sender full, dropping request");
-                        }
+                        return Some((src, response));
                     } else {
                         let response = Response::Error(ErrorResponse {
                             transaction_id: request.transaction_id,
                             message: "Info hash not allowed".into(),
                         });
 
-                        self.local_responses.push_back((response, src))
+                        return Some((src, response));
                     }
                 }
             }
@@ -495,24 +447,15 @@ impl SocketWorker {
                     .validator
                     .connection_id_valid(src, request.connection_id)
                 {
-                    let split_requests = self.pending_scrape_responses.prepare_split_requests(
-                        &self.config,
-                        request,
-                        self.pending_scrape_valid_until,
-                    );
+                    let response =
+                        Response::Scrape(self.shared_state.torrent_maps.scrape(request, src));
 
-                    for (swarm_worker_index, request) in split_requests {
-                        if self
-                            .request_sender
-                            .try_send_to(swarm_worker_index, ConnectedRequest::Scrape(request), src)
-                            .is_err()
-                        {
-                            ::log::warn!("request sender full, dropping request");
-                        }
-                    }
+                    return Some((src, response));
                 }
             }
         }
+
+        None
     }
 }
 

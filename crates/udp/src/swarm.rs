@@ -1,17 +1,24 @@
+use std::iter::repeat_with;
+use std::net::IpAddr;
+use std::ops::DerefMut;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use aquatic_common::IndexMap;
 use aquatic_common::SecondsSinceServerStart;
+use aquatic_common::ServerStartInstant;
 use aquatic_common::{
     access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache, AccessListMode},
     ValidUntil,
 };
+use aquatic_common::{CanonicalSocketAddr, IndexMap};
 
 use aquatic_udp_protocol::*;
 use arrayvec::ArrayVec;
 use crossbeam_channel::Sender;
+use hashbrown::HashMap;
 use hdrhistogram::Histogram;
+use parking_lot::RwLockUpgradableReadGuard;
 use rand::prelude::SmallRng;
 use rand::Rng;
 
@@ -20,51 +27,108 @@ use crate::config::Config;
 
 const SMALL_PEER_MAP_CAPACITY: usize = 2;
 
+use aquatic_udp_protocol::InfoHash;
+use parking_lot::RwLock;
+
+#[derive(Clone)]
 pub struct TorrentMaps {
-    pub ipv4: TorrentMap<Ipv4AddrBytes>,
-    pub ipv6: TorrentMap<Ipv6AddrBytes>,
+    ipv4: TorrentMapShards<Ipv4AddrBytes>,
+    ipv6: TorrentMapShards<Ipv6AddrBytes>,
 }
 
 impl Default for TorrentMaps {
     fn default() -> Self {
+        const NUM_SHARDS: usize = 16;
+
         Self {
-            ipv4: TorrentMap(Default::default()),
-            ipv6: TorrentMap(Default::default()),
+            ipv4: TorrentMapShards::new(NUM_SHARDS),
+            ipv6: TorrentMapShards::new(NUM_SHARDS),
         }
     }
 }
 
 impl TorrentMaps {
+    pub fn announce(
+        &self,
+        config: &Config,
+        statistics_sender: &Sender<StatisticsMessage>,
+        rng: &mut SmallRng,
+        request: &AnnounceRequest,
+        src: CanonicalSocketAddr,
+        valid_until: ValidUntil,
+    ) -> Response {
+        match src.get().ip() {
+            IpAddr::V4(ip_address) => Response::AnnounceIpv4(self.ipv4.announce(
+                config,
+                statistics_sender,
+                rng,
+                request,
+                ip_address.into(),
+                valid_until,
+            )),
+            IpAddr::V6(ip_address) => Response::AnnounceIpv6(self.ipv6.announce(
+                config,
+                statistics_sender,
+                rng,
+                request,
+                ip_address.into(),
+                valid_until,
+            )),
+        }
+    }
+
+    pub fn scrape(&self, request: ScrapeRequest, src: CanonicalSocketAddr) -> ScrapeResponse {
+        if src.is_ipv4() {
+            self.ipv4.scrape(request)
+        } else {
+            self.ipv6.scrape(request)
+        }
+    }
+
     /// Remove forbidden or inactive torrents, reclaim space and update statistics
     pub fn clean_and_update_statistics(
-        &mut self,
+        &self,
         config: &Config,
-        state: &State,
         statistics: &CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>,
         statistics_sender: &Sender<StatisticsMessage>,
         access_list: &Arc<AccessListArcSwap>,
+        server_start_instant: ServerStartInstant,
     ) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
-        let now = state.server_start_instant.seconds_elapsed();
+        let now = server_start_instant.seconds_elapsed();
 
-        let ipv4 =
-            self.ipv4
-                .clean_and_get_statistics(config, statistics_sender, &mut cache, mode, now);
-        let ipv6 =
-            self.ipv6
-                .clean_and_get_statistics(config, statistics_sender, &mut cache, mode, now);
+        let mut statistics_messages = Vec::new();
+
+        let ipv4 = self.ipv4.clean_and_get_statistics(
+            config,
+            &mut statistics_messages,
+            &mut cache,
+            mode,
+            now,
+        );
+        let ipv6 = self.ipv6.clean_and_get_statistics(
+            config,
+            &mut statistics_messages,
+            &mut cache,
+            mode,
+            now,
+        );
 
         if config.statistics.active() {
-            statistics.ipv4.peers.store(ipv4.0, Ordering::Relaxed);
-            statistics.ipv6.peers.store(ipv6.0, Ordering::Relaxed);
+            statistics.ipv4.torrents.store(ipv4.0, Ordering::Relaxed);
+            statistics.ipv6.torrents.store(ipv6.0, Ordering::Relaxed);
+            statistics.ipv4.peers.store(ipv4.1, Ordering::Relaxed);
+            statistics.ipv6.peers.store(ipv6.1, Ordering::Relaxed);
 
-            if let Some(message) = ipv4.1.map(StatisticsMessage::Ipv4PeerHistogram) {
-                if let Err(err) = statistics_sender.try_send(message) {
-                    ::log::error!("couldn't send statistics message: {:#}", err);
-                }
+            if let Some(message) = ipv4.2 {
+                statistics_messages.push(StatisticsMessage::Ipv4PeerHistogram(message));
             }
-            if let Some(message) = ipv6.1.map(StatisticsMessage::Ipv6PeerHistogram) {
+            if let Some(message) = ipv6.2 {
+                statistics_messages.push(StatisticsMessage::Ipv6PeerHistogram(message));
+            }
+
+            for message in statistics_messages {
                 if let Err(err) = statistics_sender.try_send(message) {
                     ::log::error!("couldn't send statistics message: {:#}", err);
                 }
@@ -73,116 +137,200 @@ impl TorrentMaps {
     }
 }
 
-#[derive(Default)]
-pub struct TorrentMap<I: Ip>(pub IndexMap<InfoHash, TorrentData<I>>);
+#[derive(Clone)]
+pub struct TorrentMapShards<I: Ip>(Arc<[RwLock<TorrentMapShard<I>>]>);
 
-impl<I: Ip> TorrentMap<I> {
-    pub fn scrape(&mut self, request: PendingScrapeRequest) -> PendingScrapeResponse {
-        let torrent_stats = request
-            .info_hashes
-            .into_iter()
-            .map(|(i, info_hash)| {
-                let stats = self
-                    .0
-                    .get(&info_hash)
-                    .map(|torrent_data| torrent_data.scrape_statistics())
-                    .unwrap_or_else(|| TorrentScrapeStatistics {
-                        seeders: NumberOfPeers::new(0),
-                        leechers: NumberOfPeers::new(0),
-                        completed: NumberOfDownloads::new(0),
-                    });
-
-                (i, stats)
-            })
-            .collect();
-
-        PendingScrapeResponse {
-            slab_key: request.slab_key,
-            torrent_stats,
-        }
+impl<I: Ip> TorrentMapShards<I> {
+    fn new(num_shards: usize) -> Self {
+        Self(
+            repeat_with(Default::default)
+                .take(num_shards)
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+                .into(),
+        )
     }
-    /// Remove forbidden or inactive torrents, reclaim space and return number of remaining peers
-    fn clean_and_get_statistics(
-        &mut self,
+
+    fn announce(
+        &self,
         config: &Config,
         statistics_sender: &Sender<StatisticsMessage>,
-        access_list_cache: &mut AccessListCache,
-        access_list_mode: AccessListMode,
-        now: SecondsSinceServerStart,
-    ) -> (usize, Option<Histogram<u64>>) {
-        let mut total_num_peers = 0;
+        rng: &mut SmallRng,
+        request: &AnnounceRequest,
+        ip_address: I,
+        valid_until: ValidUntil,
+    ) -> AnnounceResponse<I> {
+        let torrent_data = {
+            let torrent_map_shard = self.get_shard(&request.info_hash).upgradable_read();
 
-        let mut opt_histogram: Option<Histogram<u64>> = if config.statistics.torrent_peer_histograms
-        {
-            match Histogram::new(3) {
-                Ok(histogram) => Some(histogram),
-                Err(err) => {
-                    ::log::error!("Couldn't create peer histogram: {:#}", err);
-
-                    None
-                }
+            // Clone Arc here to avoid keeping lock on whole shard
+            if let Some(torrent_data) = torrent_map_shard.get(&request.info_hash) {
+                torrent_data.clone()
+            } else {
+                // Don't overwrite entry if created in the meantime
+                RwLockUpgradableReadGuard::upgrade(torrent_map_shard)
+                    .entry(request.info_hash)
+                    .or_default()
+                    .clone()
             }
-        } else {
-            None
         };
 
-        self.0.retain(|info_hash, torrent| {
-            if !access_list_cache
-                .load()
-                .allows(access_list_mode, &info_hash.0)
-            {
-                return false;
-            }
+        let mut peer_map = torrent_data.peer_map.write();
 
-            let num_peers = match torrent {
-                TorrentData::Small(peer_map) => {
-                    peer_map.clean_and_get_num_peers(config, statistics_sender, now)
-                }
-                TorrentData::Large(peer_map) => {
-                    let num_peers =
-                        peer_map.clean_and_get_num_peers(config, statistics_sender, now);
+        peer_map.announce(
+            config,
+            statistics_sender,
+            rng,
+            request,
+            ip_address,
+            valid_until,
+        )
+    }
 
-                    if let Some(peer_map) = peer_map.try_shrink() {
-                        *torrent = TorrentData::Small(peer_map);
-                    }
+    fn scrape(&self, request: ScrapeRequest) -> ScrapeResponse {
+        let mut response = ScrapeResponse {
+            transaction_id: request.transaction_id,
+            torrent_stats: Vec::with_capacity(request.info_hashes.len()),
+        };
 
-                    num_peers
+        for info_hash in request.info_hashes {
+            let torrent_map_shard = self.get_shard(&info_hash);
+
+            let statistics = if let Some(torrent_data) = torrent_map_shard.read().get(&info_hash) {
+                torrent_data.peer_map.read().scrape_statistics()
+            } else {
+                TorrentScrapeStatistics {
+                    seeders: NumberOfPeers::new(0),
+                    leechers: NumberOfPeers::new(0),
+                    completed: NumberOfDownloads::new(0),
                 }
             };
 
-            total_num_peers += num_peers;
+            response.torrent_stats.push(statistics);
+        }
 
-            match opt_histogram {
-                Some(ref mut histogram) if num_peers > 0 => {
-                    let n = num_peers.try_into().expect("Couldn't fit usize into u64");
-
-                    if let Err(err) = histogram.record(n) {
-                        ::log::error!("Couldn't record {} to histogram: {:#}", n, err);
-                    }
-                }
-                _ => (),
-            }
-
-            num_peers > 0
-        });
-
-        self.0.shrink_to_fit();
-
-        (total_num_peers, opt_histogram)
+        response
     }
 
-    pub fn num_torrents(&self) -> usize {
-        self.0.len()
+    fn clean_and_get_statistics(
+        &self,
+        config: &Config,
+        statistics_messages: &mut Vec<StatisticsMessage>,
+        access_list_cache: &mut AccessListCache,
+        access_list_mode: AccessListMode,
+        now: SecondsSinceServerStart,
+    ) -> (usize, usize, Option<Histogram<u64>>) {
+        let mut total_num_torrents = 0;
+        let mut total_num_peers = 0;
+
+        let mut opt_histogram: Option<Histogram<u64>> = config
+            .statistics
+            .torrent_peer_histograms
+            .then(|| Histogram::new(3).expect("create peer histogram"));
+
+        for torrent_map_shard in self.0.iter() {
+            for torrent_data in torrent_map_shard.read().values() {
+                let mut peer_map = torrent_data.peer_map.write();
+
+                let num_peers = match peer_map.deref_mut() {
+                    PeerMap::Small(small_peer_map) => {
+                        small_peer_map.clean_and_get_num_peers(config, statistics_messages, now)
+                    }
+                    PeerMap::Large(large_peer_map) => {
+                        let num_peers = large_peer_map.clean_and_get_num_peers(
+                            config,
+                            statistics_messages,
+                            now,
+                        );
+
+                        if let Some(small_peer_map) = large_peer_map.try_shrink() {
+                            *peer_map = PeerMap::Small(small_peer_map);
+                        }
+
+                        num_peers
+                    }
+                };
+
+                drop(peer_map);
+
+                match opt_histogram.as_mut() {
+                    Some(histogram) if num_peers > 0 => {
+                        if let Err(err) = histogram.record(num_peers as u64) {
+                            ::log::error!("Couldn't record {} to histogram: {:#}", num_peers, err);
+                        }
+                    }
+                    _ => (),
+                }
+
+                total_num_peers += num_peers;
+
+                torrent_data
+                    .pending_removal
+                    .store(num_peers == 0, Ordering::Release);
+            }
+
+            let mut torrent_map_shard = torrent_map_shard.write();
+
+            torrent_map_shard.retain(|info_hash, torrent_data| {
+                if !access_list_cache
+                    .load()
+                    .allows(access_list_mode, &info_hash.0)
+                {
+                    return false;
+                }
+
+                // Check pending_removal flag set in previous cleaning step. This
+                // prevents us from removing TorrentData entries that were just
+                // added but do not yet contain any peers. Also double-check that
+                // no peers have been added since we last checked.
+                if torrent_data
+                    .pending_removal
+                    .fetch_and(false, Ordering::Acquire)
+                    && torrent_data.peer_map.read().is_empty()
+                {
+                    return false;
+                }
+
+                true
+            });
+
+            torrent_map_shard.shrink_to_fit();
+
+            total_num_torrents += torrent_map_shard.len();
+        }
+
+        (total_num_torrents, total_num_peers, opt_histogram)
+    }
+
+    fn get_shard(&self, info_hash: &InfoHash) -> &RwLock<TorrentMapShard<I>> {
+        self.0.get(info_hash.0[0] as usize % self.0.len()).unwrap()
     }
 }
 
-pub enum TorrentData<I: Ip> {
+/// Use HashMap instead of IndexMap for better lookup performance
+type TorrentMapShard<T> = HashMap<InfoHash, Arc<TorrentData<T>>>;
+
+pub struct TorrentData<T: Ip> {
+    peer_map: RwLock<PeerMap<T>>,
+    pending_removal: AtomicBool,
+}
+
+impl<I: Ip> Default for TorrentData<I> {
+    fn default() -> Self {
+        Self {
+            peer_map: Default::default(),
+            pending_removal: Default::default(),
+        }
+    }
+}
+
+pub enum PeerMap<I: Ip> {
     Small(SmallPeerMap<I>),
     Large(LargePeerMap<I>),
 }
 
-impl<I: Ip> TorrentData<I> {
-    pub fn announce(
+impl<I: Ip> PeerMap<I> {
+    fn announce(
         &mut self,
         config: &Config,
         statistics_sender: &Sender<StatisticsMessage>,
@@ -298,7 +446,7 @@ impl<I: Ip> TorrentData<I> {
         response
     }
 
-    pub fn scrape_statistics(&self) -> TorrentScrapeStatistics {
+    fn scrape_statistics(&self) -> TorrentScrapeStatistics {
         let (seeders, leechers) = match self {
             Self::Small(peer_map) => peer_map.num_seeders_leechers(),
             Self::Large(peer_map) => peer_map.num_seeders_leechers(),
@@ -310,9 +458,16 @@ impl<I: Ip> TorrentData<I> {
             completed: NumberOfDownloads::new(0),
         }
     }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            Self::Small(peer_map) => peer_map.0.is_empty(),
+            Self::Large(peer_map) => peer_map.peers.is_empty(),
+        }
+    }
 }
 
-impl<I: Ip> Default for TorrentData<I> {
+impl<I: Ip> Default for PeerMap<I> {
     fn default() -> Self {
         Self::Small(SmallPeerMap(ArrayVec::default()))
     }
@@ -357,20 +512,14 @@ impl<I: Ip> SmallPeerMap<I> {
     fn clean_and_get_num_peers(
         &mut self,
         config: &Config,
-        statistics_sender: &Sender<StatisticsMessage>,
+        statistics_messages: &mut Vec<StatisticsMessage>,
         now: SecondsSinceServerStart,
     ) -> usize {
         self.0.retain(|(_, peer)| {
             let keep = peer.valid_until.valid(now);
 
-            if !keep
-                && config.statistics.peer_clients
-                && statistics_sender
-                    .try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
-                    .is_err()
-            {
-                // Should never happen in practice
-                ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
+            if !keep && config.statistics.peer_clients {
+                statistics_messages.push(StatisticsMessage::PeerRemoved(peer.peer_id));
             }
 
             keep
@@ -421,12 +570,11 @@ impl<I: Ip> LargePeerMap<I> {
 
     /// Extract response peers
     ///
-    /// If there are more peers in map than `max_num_peers_to_take`, do a random
-    /// selection of peers from first and second halves of map in order to avoid
-    /// returning too homogeneous peers.
-    ///
-    /// Does NOT filter out announcing peer.
-    pub fn extract_response_peers(
+    /// If there are more peers in map than `max_num_peers_to_take`, do a
+    /// random selection of peers from first and second halves of map in
+    /// order to avoid returning too homogeneous peers. This is a lot more
+    /// cache-friendly than doing a fully random selection.
+    fn extract_response_peers(
         &self,
         rng: &mut impl Rng,
         max_num_peers_to_take: usize,
@@ -456,10 +604,10 @@ impl<I: Ip> LargePeerMap<I> {
             let mut peers = Vec::with_capacity(max_num_peers_to_take);
 
             if let Some(slice) = self.peers.get_range(offset_half_one..end_half_one) {
-                peers.extend(slice.keys());
+                peers.extend(slice.keys().copied());
             }
             if let Some(slice) = self.peers.get_range(offset_half_two..end_half_two) {
-                peers.extend(slice.keys());
+                peers.extend(slice.keys().copied());
             }
 
             peers
@@ -469,7 +617,7 @@ impl<I: Ip> LargePeerMap<I> {
     fn clean_and_get_num_peers(
         &mut self,
         config: &Config,
-        statistics_sender: &Sender<StatisticsMessage>,
+        statistics_messages: &mut Vec<StatisticsMessage>,
         now: SecondsSinceServerStart,
     ) -> usize {
         self.peers.retain(|_, peer| {
@@ -479,13 +627,8 @@ impl<I: Ip> LargePeerMap<I> {
                 if peer.is_seeder {
                     self.num_seeders -= 1;
                 }
-                if config.statistics.peer_clients
-                    && statistics_sender
-                        .try_send(StatisticsMessage::PeerRemoved(peer.peer_id))
-                        .is_err()
-                {
-                    // Should never happen in practice
-                    ::log::error!("Couldn't send StatisticsMessage::PeerRemoved");
+                if config.statistics.peer_clients {
+                    statistics_messages.push(StatisticsMessage::PeerRemoved(peer.peer_id));
                 }
             }
 

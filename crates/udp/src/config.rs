@@ -11,36 +11,16 @@ use aquatic_toml_config::TomlConfig;
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// Number of socket worker. One per physical core is recommended.
+    /// Number of socket workers
     ///
-    /// Socket workers receive requests from clients and parse them.
-    /// Responses to connect requests are sent back immediately. Announce and
-    /// scrape requests are passed on to swarm workers, which generate
-    /// responses and send them back to the socket worker, which sends them
-    /// to the client.
+    /// 0 = automatically set to number of available virtual CPUs
     pub socket_workers: usize,
-    /// Number of swarm workers. One is enough in almost all cases
-    ///
-    /// Swarm workers receive parsed announce and scrape requests from socket
-    /// workers, generate responses and send them back to the socket workers.
-    pub swarm_workers: usize,
     pub log_level: LogLevel,
-    /// Maximum number of items in each channel passing requests/responses
-    /// between workers. A value of zero is no longer allowed.
-    pub worker_channel_size: usize,
-    /// How long to block waiting for requests in swarm workers.
-    ///
-    /// Higher values means that with zero traffic, the worker will not
-    /// unnecessarily cause the CPU to wake up as often. However, high values
-    /// (something like larger than 1000) combined with very low traffic can
-    /// cause delays in torrent cleaning.
-    pub request_channel_recv_timeout_ms: u64,
     pub network: NetworkConfig,
     pub protocol: ProtocolConfig,
     pub statistics: StatisticsConfig,
     pub cleaning: CleaningConfig,
     pub privileges: PrivilegeConfig,
-
     /// Access list configuration
     ///
     /// The file is read on start and when the program receives `SIGUSR1`. If
@@ -48,26 +28,19 @@ pub struct Config {
     /// emitting of an error-level log message, while successful updates of the
     /// access list result in emitting of an info-level log message.
     pub access_list: AccessListConfig,
-    #[cfg(feature = "cpu-pinning")]
-    pub cpu_pinning: aquatic_common::cpu_pinning::asc::CpuPinningConfigAsc,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             socket_workers: 1,
-            swarm_workers: 1,
             log_level: LogLevel::Error,
-            worker_channel_size: 1_024,
-            request_channel_recv_timeout_ms: 100,
             network: NetworkConfig::default(),
             protocol: ProtocolConfig::default(),
             statistics: StatisticsConfig::default(),
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
-            #[cfg(feature = "cpu-pinning")]
-            cpu_pinning: Default::default(),
         }
     }
 }
@@ -100,13 +73,6 @@ pub struct NetworkConfig {
     pub socket_recv_buffer_size: usize,
     /// Poll timeout in milliseconds (mio backend only)
     pub poll_timeout_ms: u64,
-    #[cfg(feature = "io-uring")]
-    pub use_io_uring: bool,
-    /// Number of ring entries (io_uring backend only)
-    ///
-    /// Will be rounded to next power of two if not already one.
-    #[cfg(feature = "io-uring")]
-    pub ring_size: u16,
     /// Store this many responses at most for retrying (once) on send failure
     /// (mio backend only)
     ///
@@ -114,6 +80,13 @@ pub struct NetworkConfig {
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
     pub resend_buffer_max_len: usize,
+    #[cfg(feature = "io-uring")]
+    pub use_io_uring: bool,
+    /// Number of ring entries (io_uring backend only)
+    ///
+    /// Will be rounded to next power of two if not already one.
+    #[cfg(feature = "io-uring")]
+    pub ring_size: u16,
 }
 
 impl NetworkConfig {
@@ -132,11 +105,11 @@ impl Default for NetworkConfig {
             only_ipv6: false,
             socket_recv_buffer_size: 8_000_000,
             poll_timeout_ms: 50,
+            resend_buffer_max_len: 0,
             #[cfg(feature = "io-uring")]
             use_io_uring: true,
             #[cfg(feature = "io-uring")]
             ring_size: 128,
-            resend_buffer_max_len: 0,
         }
     }
 }
@@ -239,28 +212,18 @@ impl Default for StatisticsConfig {
 pub struct CleaningConfig {
     /// Clean torrents this often (seconds)
     pub torrent_cleaning_interval: u64,
-    /// Clean pending scrape responses this often (seconds)
-    ///
-    /// In regular operation, there should be no pending scrape responses
-    /// lingering for long enough to have to be cleaned up this way.
-    pub pending_scrape_cleaning_interval: u64,
     /// Allow clients to use a connection token for this long (seconds)
     pub max_connection_age: u32,
     /// Remove peers who have not announced for this long (seconds)
     pub max_peer_age: u32,
-    /// Remove pending scrape responses that have not been returned from swarm
-    /// workers for this long (seconds)
-    pub max_pending_scrape_age: u32,
 }
 
 impl Default for CleaningConfig {
     fn default() -> Self {
         Self {
             torrent_cleaning_interval: 60 * 2,
-            pending_scrape_cleaning_interval: 60 * 10,
             max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
-            max_pending_scrape_age: 60,
         }
     }
 }

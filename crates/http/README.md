@@ -109,6 +109,10 @@ Implements:
 `aquatic_http` has not been tested as much as `aquatic_udp`, but likely works
 fine in production.
 
+## Architectural overview
+
+![Architectural overview of aquatic](../../documents/aquatic-architecture-2024.svg)
+
 ## Copyright and license
 
 Copyright (c) Joakim Frostegård

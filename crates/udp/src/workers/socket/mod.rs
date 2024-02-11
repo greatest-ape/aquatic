@@ -1,17 +1,16 @@
 mod mio;
-mod storage;
 #[cfg(all(target_os = "linux", feature = "io-uring"))]
 mod uring;
 mod validator;
 
 use anyhow::Context;
 use aquatic_common::privileges::PrivilegeDropper;
+use crossbeam_channel::Sender;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::{
     common::{
-        CachePaddedArc, ConnectedRequestSender, ConnectedResponseReceiver, IpVersionStatistics,
-        SocketWorkerStatistics, State,
+        CachePaddedArc, IpVersionStatistics, SocketWorkerStatistics, State, StatisticsMessage,
     },
     config::Config,
 };
@@ -43,9 +42,8 @@ pub fn run_socket_worker(
     config: Config,
     shared_state: State,
     statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
+    statistics_sender: Sender<StatisticsMessage>,
     validator: ConnectionValidator,
-    request_sender: ConnectedRequestSender,
-    response_receiver: ConnectedResponseReceiver,
     priv_dropper: PrivilegeDropper,
 ) -> anyhow::Result<()> {
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
@@ -56,9 +54,8 @@ pub fn run_socket_worker(
             config,
             shared_state,
             statistics,
+            statistics_sender,
             validator,
-            request_sender,
-            response_receiver,
             priv_dropper,
         );
     }
@@ -67,9 +64,8 @@ pub fn run_socket_worker(
         config,
         shared_state,
         statistics,
+        statistics_sender,
         validator,
-        request_sender,
-        response_receiver,
         priv_dropper,
     )
 }

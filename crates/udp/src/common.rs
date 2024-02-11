@@ -1,18 +1,15 @@
-use std::collections::BTreeMap;
-use std::hash::Hash;
 use std::iter::repeat_with;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
-use crossbeam_channel::{Receiver, SendError, Sender, TrySendError};
-
 use aquatic_common::access_list::AccessListArcSwap;
-use aquatic_common::{CanonicalSocketAddr, ServerStartInstant};
+use aquatic_common::ServerStartInstant;
 use aquatic_udp_protocol::*;
 use crossbeam_utils::CachePadded;
 use hdrhistogram::Histogram;
 
 use crate::config::Config;
+use crate::swarm::TorrentMaps;
 
 pub const BUFFER_SIZE: usize = 8192;
 
@@ -32,145 +29,10 @@ impl IpVersion {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct SocketWorkerIndex(pub usize);
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct SwarmWorkerIndex(pub usize);
-
-impl SwarmWorkerIndex {
-    pub fn from_info_hash(config: &Config, info_hash: InfoHash) -> Self {
-        Self(info_hash.0[0] as usize % config.swarm_workers)
-    }
-}
-
-#[derive(Debug)]
-pub struct PendingScrapeRequest {
-    pub slab_key: usize,
-    pub info_hashes: BTreeMap<usize, InfoHash>,
-}
-
-#[derive(Debug)]
-pub struct PendingScrapeResponse {
-    pub slab_key: usize,
-    pub torrent_stats: BTreeMap<usize, TorrentScrapeStatistics>,
-}
-
-#[derive(Debug)]
-pub enum ConnectedRequest {
-    Announce(AnnounceRequest),
-    Scrape(PendingScrapeRequest),
-}
-
-#[derive(Debug)]
-pub enum ConnectedResponse {
-    AnnounceIpv4(AnnounceResponse<Ipv4AddrBytes>),
-    AnnounceIpv6(AnnounceResponse<Ipv6AddrBytes>),
-    Scrape(PendingScrapeResponse),
-}
-
-pub struct ConnectedRequestSender {
-    index: SocketWorkerIndex,
-    senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>>,
-}
-
-impl ConnectedRequestSender {
-    pub fn new(
-        index: SocketWorkerIndex,
-        senders: Vec<Sender<(SocketWorkerIndex, ConnectedRequest, CanonicalSocketAddr)>>,
-    ) -> Self {
-        Self { index, senders }
-    }
-
-    pub fn try_send_to(
-        &self,
-        index: SwarmWorkerIndex,
-        request: ConnectedRequest,
-        addr: CanonicalSocketAddr,
-    ) -> Result<(), (SwarmWorkerIndex, ConnectedRequest, CanonicalSocketAddr)> {
-        match self.senders[index.0].try_send((self.index, request, addr)) {
-            Ok(()) => Ok(()),
-            Err(TrySendError::Full(r)) => Err((index, r.1, r.2)),
-            Err(TrySendError::Disconnected(_)) => {
-                panic!("Request channel {} is disconnected", index.0);
-            }
-        }
-    }
-}
-
-pub struct ConnectedResponseSender {
-    senders: Vec<Sender<(CanonicalSocketAddr, ConnectedResponse)>>,
-    to_any_last_index_picked: usize,
-}
-
-impl ConnectedResponseSender {
-    pub fn new(senders: Vec<Sender<(CanonicalSocketAddr, ConnectedResponse)>>) -> Self {
-        Self {
-            senders,
-            to_any_last_index_picked: 0,
-        }
-    }
-
-    pub fn try_send_to(
-        &self,
-        index: SocketWorkerIndex,
-        addr: CanonicalSocketAddr,
-        response: ConnectedResponse,
-    ) -> Result<(), TrySendError<(CanonicalSocketAddr, ConnectedResponse)>> {
-        self.senders[index.0].try_send((addr, response))
-    }
-
-    pub fn send_to(
-        &self,
-        index: SocketWorkerIndex,
-        addr: CanonicalSocketAddr,
-        response: ConnectedResponse,
-    ) -> Result<(), SendError<(CanonicalSocketAddr, ConnectedResponse)>> {
-        self.senders[index.0].send((addr, response))
-    }
-
-    pub fn send_to_any(
-        &mut self,
-        addr: CanonicalSocketAddr,
-        response: ConnectedResponse,
-    ) -> Result<(), SendError<(CanonicalSocketAddr, ConnectedResponse)>> {
-        let start = self.to_any_last_index_picked + 1;
-
-        let mut message = Some((addr, response));
-
-        for i in (start..start + self.senders.len()).map(|i| i % self.senders.len()) {
-            match self.senders[i].try_send(message.take().unwrap()) {
-                Ok(()) => {
-                    self.to_any_last_index_picked = i;
-
-                    return Ok(());
-                }
-                Err(TrySendError::Full(msg)) => {
-                    message = Some(msg);
-                }
-                Err(TrySendError::Disconnected(_)) => {
-                    panic!("ConnectedResponseReceiver disconnected");
-                }
-            }
-        }
-
-        let (addr, response) = message.unwrap();
-
-        self.to_any_last_index_picked = start % self.senders.len();
-        self.send_to(
-            SocketWorkerIndex(self.to_any_last_index_picked),
-            addr,
-            response,
-        )
-    }
-}
-
-pub type ConnectedResponseReceiver = Receiver<(CanonicalSocketAddr, ConnectedResponse)>;
-
 #[derive(Clone)]
 pub struct Statistics {
     pub socket: Vec<CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>>,
-    pub swarm: Vec<CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>>,
+    pub swarm: CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>,
 }
 
 impl Statistics {
@@ -179,9 +41,7 @@ impl Statistics {
             socket: repeat_with(Default::default)
                 .take(config.socket_workers)
                 .collect(),
-            swarm: repeat_with(Default::default)
-                .take(config.swarm_workers)
-                .collect(),
+            swarm: Default::default(),
         }
     }
 }
@@ -230,6 +90,7 @@ pub enum StatisticsMessage {
 #[derive(Clone)]
 pub struct State {
     pub access_list: Arc<AccessListArcSwap>,
+    pub torrent_maps: TorrentMaps,
     pub server_start_instant: ServerStartInstant,
 }
 
@@ -237,6 +98,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             access_list: Arc::new(AccessListArcSwap::default()),
+            torrent_maps: TorrentMaps::default(),
             server_start_instant: ServerStartInstant::new(),
         }
     }

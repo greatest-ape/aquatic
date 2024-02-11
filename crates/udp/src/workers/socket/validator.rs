@@ -12,6 +12,8 @@ use crate::config::Config;
 
 /// HMAC (BLAKE3) based ConnectionId creator and validator
 ///
+/// Method update_elapsed must be called at least once a minute.
+///
 /// The purpose of using ConnectionIds is to make IP spoofing costly, mainly to
 /// prevent the tracker from being used as an amplification vector for DDoS
 /// attacks. By including 32 bits of BLAKE3 keyed hash output in the Ids, an
@@ -32,6 +34,7 @@ pub struct ConnectionValidator {
     start_time: Instant,
     max_connection_age: u64,
     keyed_hasher: blake3::Hasher,
+    seconds_since_start: u32,
 }
 
 impl ConnectionValidator {
@@ -49,11 +52,12 @@ impl ConnectionValidator {
             keyed_hasher,
             start_time: Instant::now(),
             max_connection_age: config.cleaning.max_connection_age.into(),
+            seconds_since_start: 0,
         })
     }
 
     pub fn create_connection_id(&mut self, source_addr: CanonicalSocketAddr) -> ConnectionId {
-        let elapsed = (self.start_time.elapsed().as_secs() as u32).to_ne_bytes();
+        let elapsed = (self.seconds_since_start).to_ne_bytes();
 
         let hash = self.hash(elapsed, source_addr.get().ip());
 
@@ -78,16 +82,23 @@ impl ConnectionValidator {
             return false;
         }
 
-        let tracker_elapsed = self.start_time.elapsed().as_secs();
+        let seconds_since_start = self.seconds_since_start as u64;
         let client_elapsed = u64::from(u32::from_ne_bytes(elapsed));
         let client_expiration_time = client_elapsed + self.max_connection_age;
 
         // In addition to checking if the client connection is expired,
-        // disallow client_elapsed values that are in future and thus could not
-        // have been sent by the tracker. This prevents brute forcing with
-        // `u32::MAX` as 'elapsed' part of ConnectionId to find a hash that
+        // disallow client_elapsed values that are too far in future and thus
+        // could not have been sent by the tracker. This prevents brute forcing
+        // with `u32::MAX` as 'elapsed' part of ConnectionId to find a hash that
         // works until the tracker is restarted.
-        (client_expiration_time > tracker_elapsed) & (client_elapsed <= tracker_elapsed)
+        let client_not_expired = client_expiration_time > seconds_since_start;
+        let client_elapsed_not_in_far_future = client_elapsed <= (seconds_since_start + 60);
+
+        client_not_expired & client_elapsed_not_in_far_future
+    }
+
+    pub fn update_elapsed(&mut self) {
+        self.seconds_since_start = self.start_time.elapsed().as_secs() as u32;
     }
 
     fn hash(&mut self, elapsed: [u8; 4], ip_addr: IpAddr) -> [u8; 4] {
@@ -148,7 +159,6 @@ mod tests {
         if max_connection_age == 0 {
             quickcheck::TestResult::from_bool(!original_valid)
         } else {
-            // Note: depends on that running this test takes less than a second
             quickcheck::TestResult::from_bool(original_valid)
         }
     }
