@@ -23,6 +23,7 @@ pub enum UdpTracker {
     AquaticIoUring,
     OpenTracker,
     Chihaya,
+    TorrustTracker,
 }
 
 impl Tracker for UdpTracker {
@@ -32,6 +33,7 @@ impl Tracker for UdpTracker {
             Self::AquaticIoUring => "aquatic_udp (io_uring)".into(),
             Self::OpenTracker => "opentracker".into(),
             Self::Chihaya => "chihaya".into(),
+            Self::TorrustTracker => "torrust-tracker".into(),
         }
     }
 }
@@ -50,6 +52,9 @@ pub struct UdpCommand {
     /// Path to chihaya binary
     #[arg(long, default_value = "chihaya")]
     chihaya: PathBuf,
+    /// Path to torrust-tracker binary
+    #[arg(long, default_value = "torrust-tracker")]
+    torrust_tracker: PathBuf,
 }
 
 impl UdpCommand {
@@ -71,6 +76,9 @@ impl UdpCommand {
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
                     ],
+                    UdpTracker::TorrustTracker => vec![
+                        TorrustTrackerUdpRunner::new(),
+                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
                     (8, Priority::Medium),
@@ -90,6 +98,9 @@ impl UdpCommand {
                     ],
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
+                    ],
+                    UdpTracker::TorrustTracker => vec![
+                        TorrustTrackerUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
@@ -111,6 +122,9 @@ impl UdpCommand {
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
                     ],
+                    UdpTracker::TorrustTracker => vec![
+                        TorrustTrackerUdpRunner::new(),
+                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
                     (8, Priority::Medium),
@@ -130,6 +144,9 @@ impl UdpCommand {
                     ],
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
+                    ],
+                    UdpTracker::TorrustTracker => vec![
+                        TorrustTrackerUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
@@ -151,6 +168,9 @@ impl UdpCommand {
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
                     ],
+                    UdpTracker::TorrustTracker => vec![
+                        TorrustTrackerUdpRunner::new(),
+                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
                     (8, Priority::Medium),
@@ -171,6 +191,9 @@ impl UdpCommand {
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
                     ],
+                    UdpTracker::TorrustTracker => vec![
+                        TorrustTrackerUdpRunner::new(),
+                    ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
                     (8, Priority::Medium),
@@ -190,6 +213,9 @@ impl UdpCommand {
                     ],
                     UdpTracker::Chihaya => vec![
                         ChihayaUdpRunner::new(),
+                    ],
+                    UdpTracker::TorrustTracker => vec![
+                        TorrustTrackerUdpRunner::new(),
                     ],
                 },
                 load_test_runs: simple_load_test_runs(cpu_mode, &[
@@ -371,6 +397,87 @@ impl ProcessRunner for ChihayaUdpRunner {
             .arg(&command.chihaya)
             .arg("--config")
             .arg(tmp_file.path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?)
+    }
+
+    fn priority(&self) -> crate::common::Priority {
+        Priority::High
+    }
+
+    fn keys(&self) -> IndexMap<String, String> {
+        Default::default()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TorrustTrackerUdpRunner;
+
+impl TorrustTrackerUdpRunner {
+    #[allow(clippy::new_ret_no_self)]
+    fn new() -> Rc<dyn ProcessRunner<Command = UdpCommand>> {
+        Rc::new(Self {})
+    }
+}
+
+impl ProcessRunner for TorrustTrackerUdpRunner {
+    type Command = UdpCommand;
+
+    fn run(
+        &self,
+        command: &Self::Command,
+        vcpus: &TaskSetCpuList,
+        tmp_file: &mut NamedTempFile,
+    ) -> anyhow::Result<Child> {
+        writedoc!(
+            tmp_file,
+            r#"
+            announce_interval = 120
+            db_driver = "Sqlite3"
+            db_path = "./sqlite3.db"
+            external_ip = "0.0.0.0"
+            inactive_peer_cleanup_interval = 600
+            log_level = "error"
+            max_peer_timeout = 900
+            min_announce_interval = 120
+            mode = "public"
+            on_reverse_proxy = false
+            persistent_torrent_completed_stat = false
+            remove_peerless_torrents = false
+            tracker_usage_statistics = false
+
+            [[udp_trackers]]
+            bind_address = "0.0.0.0:3000"
+            enabled = true
+
+            [[http_trackers]]
+            bind_address = "0.0.0.0:7070"
+            enabled = false
+            ssl_cert_path = ""
+            ssl_enabled = false
+            ssl_key_path = ""
+
+            [http_api]
+            bind_address = "127.0.0.1:1212"
+            enabled = false
+            ssl_cert_path = ""
+            ssl_enabled = false
+            ssl_key_path = ""
+
+            [http_api.access_tokens]
+            admin = "MyAccessToken"
+
+            [health_check_api]
+            bind_address = "127.0.0.1:1313"
+            "#,
+        )?;
+
+        Ok(Command::new("taskset")
+            .arg("--cpu-list")
+            .arg(vcpus.as_cpu_list())
+            .env("TORRUST_TRACKER_PATH_CONFIG", tmp_file.path())
+            .arg(&command.torrust_tracker)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?)
