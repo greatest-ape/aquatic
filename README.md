@@ -40,6 +40,18 @@ More benchmark details are available [here](./documents/aquatic-udp-load-test-20
 Please refer to the README pages for the respective implementations listed in
 the table above.
 
+## Support applications
+
+There are also a few support applications:
+
+- [aquatic_udp_load_test](./crates/udp_load_test/) - UDP BitTorrent tracker load tester
+- [aquatic_http_load_test](./crates/http_load_test/) - HTTP BitTorrent tracker load tester
+- [aquatic_ws_load_test](./crates/ws_load_test/) - WebTorrent tracker load tester
+
+and
+
+- [aquatic_bencher](./crates/bencher/) - automated tracker benchmarking
+
 ## Copyright and license
 
 Copyright (c) Joakim Frostegård
