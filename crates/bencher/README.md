@@ -106,3 +106,7 @@ cd aquatic
 # or print info on command line arguments
 ./target/release-debug/aquatic_bencher udp --help
 ```
+
+If you're running the load test on a virtual machine / virtual server, consider
+passing `--min-priority medium --cpu-mode subsequent-one-per-pair` for fairer
+results.
