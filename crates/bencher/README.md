@@ -11,3 +11,4 @@ Requires Linux 6.0 or later.
 - [aquatic_udp](https://github.com/greatest-ape/aquatic/)
 - [opentracker](https://erdgeist.org/arts/software/opentracker/)
 - [chihaya](https://github.com/chihaya/chihaya)
+- [torrust-tracker](https://github.com/torrust/torrust-tracker)
