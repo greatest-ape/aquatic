@@ -1,6 +1,7 @@
 use std::{
     io::Cursor,
     iter::repeat_with,
+    mem::MaybeUninit,
     net::SocketAddr,
     ptr::{addr_of_mut, null_mut},
 };
@@ -135,21 +136,14 @@ impl SendBuffer {
                 iov_base: null_mut(),
                 iov_len: 0,
             },
-            msghdr: libc::msghdr {
-                msg_name: null_mut(),
-                msg_namelen: 0,
-                msg_iov: null_mut(),
-                msg_iovlen: 1,
-                msg_control: null_mut(),
-                msg_controllen: 0,
-                msg_flags: 0,
-            },
+            msghdr: unsafe { MaybeUninit::<libc::msghdr>::zeroed().assume_init() },
         });
 
         instance.iovec.iov_base = addr_of_mut!(instance.bytes) as *mut libc::c_void;
         instance.iovec.iov_len = instance.bytes.len();
 
         instance.msghdr.msg_iov = addr_of_mut!(instance.iovec);
+        instance.msghdr.msg_iovlen = 1;
 
         if socket_is_ipv4 {
             instance.msghdr.msg_name = addr_of_mut!(instance.name_v4) as *mut libc::c_void;

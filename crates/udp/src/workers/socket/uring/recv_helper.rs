@@ -1,6 +1,6 @@
 use std::{
+    mem::MaybeUninit,
     net::{Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
-    ptr::null_mut,
 };
 
 use aquatic_common::CanonicalSocketAddr;
@@ -39,15 +39,13 @@ impl RecvHelper {
             sin_zero: [0; 8],
         }));
 
-        let msghdr_v4 = Box::into_raw(Box::new(libc::msghdr {
-            msg_name: name_v4 as *mut libc::c_void,
-            msg_namelen: core::mem::size_of::<libc::sockaddr_in>() as u32,
-            msg_iov: null_mut(),
-            msg_iovlen: 0,
-            msg_control: null_mut(),
-            msg_controllen: 0,
-            msg_flags: 0,
-        }));
+        // XXX: on musl libc, msghdr contains private padding fields
+        let msghdr_v4 = unsafe {
+            let mut hdr = MaybeUninit::<libc::msghdr>::zeroed().assume_init();
+            hdr.msg_name = name_v4 as *mut libc::c_void;
+            hdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in>() as u32;
+            Box::into_raw(Box::new(hdr))
+        };
 
         let name_v6 = Box::into_raw(Box::new(libc::sockaddr_in6 {
             sin6_family: 0,
@@ -57,15 +55,13 @@ impl RecvHelper {
             sin6_scope_id: 0,
         }));
 
-        let msghdr_v6 = Box::into_raw(Box::new(libc::msghdr {
-            msg_name: name_v6 as *mut libc::c_void,
-            msg_namelen: core::mem::size_of::<libc::sockaddr_in6>() as u32,
-            msg_iov: null_mut(),
-            msg_iovlen: 0,
-            msg_control: null_mut(),
-            msg_controllen: 0,
-            msg_flags: 0,
-        }));
+        // XXX: on musl libc, msghdr contains private padding fields
+        let msghdr_v6 = unsafe {
+            let mut hdr = MaybeUninit::<libc::msghdr>::zeroed().assume_init();
+            hdr.msg_name = name_v6 as *mut libc::c_void;
+            hdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in6>() as u32;
+            Box::into_raw(Box::new(hdr))
+        };
 
         Self {
             socket_is_ipv4: config.network.address.is_ipv4(),
