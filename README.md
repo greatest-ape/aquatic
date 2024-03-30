@@ -40,17 +40,22 @@ More benchmark details are available [here](./documents/aquatic-udp-load-test-20
 Please refer to the README pages for the respective implementations listed in
 the table above.
 
-## Support applications
+## Support software
 
-There are also a few support applications:
+There are also some auxiliary applications and libraries.
 
-- [aquatic_udp_load_test](./crates/udp_load_test/) - UDP BitTorrent tracker load tester
-- [aquatic_http_load_test](./crates/http_load_test/) - HTTP BitTorrent tracker load tester
-- [aquatic_ws_load_test](./crates/ws_load_test/) - WebTorrent tracker load tester
+### Protocol-specific
 
-and
+| Protocol   | Tracker load testing                               | Client ⇄ tracker communication                   |
+|------------|----------------------------------------------------|--------------------------------------------------|
+| UDP        | [aquatic_udp_load_test](./crates/udp_load_test/)   | [aquatic_udp_protocol](./crates/udp_protocol/)   |
+| HTTP       | [aquatic_http_load_test](./crates/http_load_test/) | [aquatic_http_protocol](./crates/http_protocol/) |
+| WebTorrent | [aquatic_ws_load_test](./crates/ws_load_test/)     | [aquatic_ws_protocol](./crates/ws_protocol/)     |
+
+### General
 
 - [aquatic_bencher](./crates/bencher/) - automated tracker benchmarking
+- [aquatic_peer_id](./crates/peer_id/) - extract BitTorrent client information from peer identifiers
 
 ## Copyright and license
 
