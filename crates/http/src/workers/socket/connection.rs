@@ -441,14 +441,20 @@ where
                 Response::Failure(_) => "error",
             };
 
-            let peer_addr = self
+            // If we're behind a reverse proxy and we're sending an error
+            // response due to failing to parse a request, opt_peer_addr might
+            // not yet be set (and in that case, we don't know if the true peer
+            // connects over IPv4 or IPv6)
+            let ip_version_str = self
                 .opt_peer_addr
-                .expect("peer addr should already have been extracted by now");
+                .as_ref()
+                .map(peer_addr_to_ip_version_str)
+                .unwrap_or("?");
 
             ::metrics::counter!(
                 "aquatic_responses_total",
                 "type" => response_type,
-                "ip_version" => peer_addr_to_ip_version_str(&peer_addr),
+                "ip_version" => ip_version_str,
                 "worker_index" => self.worker_index_string.clone(),
             )
             .increment(1);
