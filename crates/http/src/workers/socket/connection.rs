@@ -146,6 +146,8 @@ struct Connection<S> {
     request_senders: Rc<Senders<ChannelRequest>>,
     valid_until: Rc<RefCell<ValidUntil>>,
     server_start_instant: ServerStartInstant,
+    // If we're running behind a reverse proxy, gets set as soon as we get a
+    // valid requiest. Otherwise, must be set before calling `run`.
     opt_peer_addr: Option<CanonicalSocketAddr>,
     peer_port: u16,
     request_buffer: Box<[u8; REQUEST_BUFFER_SIZE]>,
