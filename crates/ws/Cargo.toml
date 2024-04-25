@@ -39,7 +39,7 @@ cfg-if = "1"
 futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.26"
-glommio = "0.8"
+glommio = "0.9"
 hashbrown = { version = "0.14", features = ["serde"] }
 httparse = "1"
 indexmap = "2"
