@@ -21,8 +21,9 @@ name = "aquatic_ws"
 default = ["prometheus", "mimalloc"]
 prometheus = ["metrics", "aquatic_common/prometheus"]
 metrics = ["dep:metrics", "dep:metrics-util"]
-# Use mimalloc allocator for much better performance. Requires cmake and a
-# C/C++ compiler
+# Use mimalloc allocator for much better performance.
+#
+# Requires cmake and a C compiler
 mimalloc = ["dep:mimalloc"]
 
 [dependencies]
@@ -32,13 +33,13 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.24"
+async-tungstenite = "0.25"
 arc-swap = "1"
 cfg-if = "1"
 futures = "0.3"
 futures-lite = "1"
-futures-rustls = "0.25"
-glommio = "0.8"
+futures-rustls = "0.26"
+glommio = "0.9"
 hashbrown = { version = "0.14", features = ["serde"] }
 httparse = "1"
 indexmap = "2"
@@ -46,7 +47,7 @@ log = "0.4"
 mimalloc = { version = "0.1", default-features = false, optional = true }
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
-rustls = "0.22"
+rustls = "0.23"
 rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }

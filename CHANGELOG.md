@@ -63,6 +63,9 @@
 
 * Fix bug where clean up after closing connections wasn't always done
 * Quit whole application if any worker thread quits
+* Fix panic when sending failure response when running with metrics behind
+  reverse proxy
+* Don't always close connections after sending failure response
 
 ### aquatic_ws
 
