@@ -21,8 +21,9 @@ name = "aquatic_ws"
 default = ["prometheus", "mimalloc"]
 prometheus = ["metrics", "aquatic_common/prometheus"]
 metrics = ["dep:metrics", "dep:metrics-util"]
-# Use mimalloc allocator for much better performance. Requires cmake and a
-# C/C++ compiler
+# Use mimalloc allocator for much better performance.
+#
+# Requires cmake and a C compiler
 mimalloc = ["dep:mimalloc"]
 
 [dependencies]
