@@ -44,7 +44,7 @@ rustls-pemfile = { version = "2", optional = true }
 # prometheus feature
 metrics = { version = "0.22", optional = true }
 metrics-util = { version = "0.16", optional = true }
-metrics-exporter-prometheus = { version = "0.13", optional = true, default-features = false, features = ["http-listener"] }
+metrics-exporter-prometheus = { version = "0.14", optional = true, default-features = false, features = ["http-listener"] }
 tokio = { version = "1", optional = true, features = ["rt", "net", "time"] }
 
 # cpu pinning feature
