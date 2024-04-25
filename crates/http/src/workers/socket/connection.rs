@@ -171,7 +171,7 @@ where
 
             self.write_response(&response, peer_addr).await?;
 
-            if matches!(response, Response::Failure(_)) || !self.config.network.keep_alive {
+            if !self.config.network.keep_alive {
                 break;
             }
         }
