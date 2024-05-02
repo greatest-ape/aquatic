@@ -40,7 +40,7 @@ fi
 $SUDO echo "127.0.0.1    example.com" >> /etc/hosts
 
 openssl ecparam -genkey -name prime256v1 -out key.pem
-openssl req -new -sha256 -key key.pem -out csr.csr -subj "/C=GB/ST=Test/L=Test/O=Test/OU=Test/CN=example.com"
+openssl req -new -sha256 -key key.pem -out csr.csr -subj "/C=GB/ST=Test/L=Test/O=Test/OU=Test/CN=example.com" -addext "subjectAltName = DNS:example.com"
 openssl req -x509 -sha256 -nodes -days 365 -key key.pem -in csr.csr -out cert.crt
 openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8
 
