@@ -72,7 +72,7 @@ jobs:
     name: "Test BitTorrent file transfers (UDP, HTTP, WebTorrent)"
     timeout-minutes: 20
     container:
-      image: rust:1-bullseye
+      image: rust:1-bookworm
       options: --ulimit memlock=524288:524288
     steps:
       - name: Checkout
