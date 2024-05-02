@@ -22,6 +22,7 @@ $SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-
 
 git clone https://github.com/anacrolix/torrent.git gotorrent
 cd gotorrent
+# Use commit known to work
 git checkout 16176b762e4a840fc5dfe3b1dfd2d6fa853b68d7
 go build -o $HOME/gotorrent ./cmd/torrent
 cd ..
@@ -39,34 +40,21 @@ fi
 
 $SUDO echo "127.0.0.1    example.com" >> /etc/hosts
 
-openssl ecparam -genkey -name prime256v1 -out key.pem
-openssl req -new -sha256 -key key.pem -out csr.csr -subj "/C=GB/ST=Test/L=Test/O=Test/OU=Test/CN=example.com"
-openssl req -x509 -sha256 -nodes -days 365 -key key.pem -in csr.csr -out cert.crt
-openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8
+openssl genrsa -out ca.key 2048
+openssl req -new -x509 -days 365 -key ca.key -subj "/C=CN/ST=GD/L=SZ/O=Acme, Inc./CN=Acme Root CA" -out ca.crt
+openssl req -newkey rsa:2048 -nodes -keyout server.key -subj "/C=CN/ST=GD/L=SZ/O=Acme, Inc./CN=*.example.com" -out server.csr
+openssl x509 -req -extfile <(printf "subjectAltName=DNS:example.com,DNS:www.example.com") -days 365 -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt
+openssl pkcs8 -in server.key -topk8 -nocrypt -out key.pk8
 
-$SUDO cp cert.crt /usr/local/share/ca-certificates/snakeoil.crt
+$SUDO cp ca.crt /usr/local/share/ca-certificates/snakeoil-ca.crt
+$SUDO cp server.crt /usr/local/share/ca-certificates/snakeoil-server.crt
 $SUDO update-ca-certificates
 
 # Build and start tracker
 
 cargo build --bin aquatic
 
-echo "log_level = 'debug'
-
-[network]
-address = '127.0.0.1:3004'" > http.toml
-./target/debug/aquatic http -c http.toml > "$HOME/http.log" 2>&1 &
-
-echo "log_level = 'debug'
-
-[network]
-address = '127.0.0.1:3001'
-enable_tls = true
-tls_certificate_path = './cert.crt'
-tls_private_key_path = './key.pk8'
-" > tls.toml
-./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
-
+# UDP
 echo "
 log_level = 'debug'
 
@@ -74,16 +62,25 @@ log_level = 'debug'
 address = '127.0.0.1:3000'" > udp.toml
 ./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
 
+# HTTP
 echo "log_level = 'debug'
 
 [network]
-address = '127.0.0.1:3002'
-enable_tls = true
-tls_certificate_path = './cert.crt'
-tls_private_key_path = './key.pk8'
-" > ws-tls.toml
-./target/debug/aquatic ws -c ws-tls.toml > "$HOME/ws-tls.log" 2>&1 &
+address = '127.0.0.1:3004'" > http.toml
+./target/debug/aquatic http -c http.toml > "$HOME/http.log" 2>&1 &
 
+# HTTP with TLS
+echo "log_level = 'debug'
+
+[network]
+address = '127.0.0.1:3001'
+enable_tls = true
+tls_certificate_path = './server.crt'
+tls_private_key_path = './key.pk8'
+" > tls.toml
+./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
+
+# WebTorrent
 echo "log_level = 'debug'
 
 [network]
@@ -91,6 +88,17 @@ address = '127.0.0.1:3003'
 enable_http_health_checks = true
 " > ws.toml
 ./target/debug/aquatic ws -c ws.toml > "$HOME/ws.log" 2>&1 &
+
+# WebTorrent with TLS
+echo "log_level = 'debug'
+
+[network]
+address = '127.0.0.1:3002'
+enable_tls = true
+tls_certificate_path = './server.crt'
+tls_private_key_path = './key.pk8'
+" > ws-tls.toml
+./target/debug/aquatic ws -c ws-tls.toml > "$HOME/ws-tls.log" 2>&1 &
 
 # Setup directories
 
@@ -102,17 +110,17 @@ mkdir torrents
 
 # Create torrents
 
+echo "udp-test-ipv4" > seed/udp-test-ipv4
 echo "http-test-ipv4" > seed/http-test-ipv4
 echo "tls-test-ipv4" > seed/tls-test-ipv4
-echo "udp-test-ipv4" > seed/udp-test-ipv4
-echo "ws-tls-test-ipv4" > seed/ws-tls-test-ipv4
 echo "ws-test-ipv4" > seed/ws-test-ipv4
+echo "ws-tls-test-ipv4" > seed/ws-tls-test-ipv4
 
+mktorrent -p -o "torrents/udp-ipv4.torrent" -a "udp://127.0.0.1:3000" "seed/udp-test-ipv4"
 mktorrent -p -o "torrents/http-ipv4.torrent" -a "http://127.0.0.1:3004/announce" "seed/http-test-ipv4"
 mktorrent -p -o "torrents/tls-ipv4.torrent" -a "https://example.com:3001/announce" "seed/tls-test-ipv4"
-mktorrent -p -o "torrents/udp-ipv4.torrent" -a "udp://127.0.0.1:3000" "seed/udp-test-ipv4"
-mktorrent -p -o "torrents/ws-tls-ipv4.torrent" -a "wss://example.com:3002" "seed/ws-tls-test-ipv4"
 mktorrent -p -o "torrents/ws-ipv4.torrent" -a "ws://example.com:3003" "seed/ws-test-ipv4"
+mktorrent -p -o "torrents/ws-tls-ipv4.torrent" -a "wss://example.com:3002" "seed/ws-tls-test-ipv4"
 
 cp -r torrents torrents-seed
 cp -r torrents torrents-leech
@@ -121,14 +129,14 @@ cp -r torrents torrents-leech
 
 echo "Starting seeding ws-tls (wss) client"
 cd seed
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-seed.log" 2>&1 &
+GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-seed.log" 2>&1 &
 cd ..
 
 # Setup ws seeding client
 
 echo "Starting seeding ws client"
 cd seed
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-ipv4.torrent > "$HOME/ws-seed.log" 2>&1 &
+GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-ipv4.torrent > "$HOME/ws-seed.log" 2>&1 &
 cd ..
 
 # Start seeding rtorrent client
@@ -154,12 +162,12 @@ screen -dmS rtorrent-leech rtorrent
 
 echo "Starting leeching ws-tls (wss) client"
 cd leech
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --addr ":43000" ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-leech.log" 2>&1 &
+GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --addr ":43000" ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-leech.log" 2>&1 &
 cd ..
 
 echo "Starting leeching ws client"
 cd leech
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --addr ":43001" ../torrents/ws-ipv4.torrent > "$HOME/ws-leech.log" 2>&1 &
+GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --addr ":43001" ../torrents/ws-ipv4.torrent > "$HOME/ws-leech.log" 2>&1 &
 cd ..
 
 # Check for completion
