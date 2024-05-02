@@ -40,12 +40,14 @@ fi
 
 $SUDO echo "127.0.0.1    example.com" >> /etc/hosts
 
-openssl ecparam -genkey -name prime256v1 -out key.pem
-openssl req -new -sha256 -key key.pem -out csr.csr -subj "/C=GB/ST=Test/L=Test/O=Test/OU=Test/CN=example.com" -addext "subjectAltName = DNS:example.com"
-openssl req -x509 -sha256 -nodes -days 365 -key key.pem -in csr.csr -out cert.crt
-openssl pkcs8 -in key.pem -topk8 -nocrypt -out key.pk8
+openssl ecparam -genkey -name prime256v1 -out ca.key
+openssl req -new -x509 -days 365 -key ca.key -subj "/C=CN/ST=GD/L=SZ/O=Acme, Inc./CN=Acme Root CA" -out ca.crt
+openssl req -newkey prime256v1 -nodes -keyout server.key -subj "/C=CN/ST=GD/L=SZ/O=Acme, Inc./CN=*.example.com" -out server.csr
+openssl x509 -req -extfile <(printf "subjectAltName=DNS:example.com,DNS:www.example.com") -days 365 -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt
+openssl pkcs8 -in ca.key -topk8 -nocrypt -out key.pk8
 
-$SUDO cp cert.crt /usr/local/share/ca-certificates/snakeoil.crt
+$SUDO cp ca.crt /usr/local/share/ca-certificates/snakeoil-ca.crt
+$SUDO cp server.crt /usr/local/share/ca-certificates/snakeoil-server.crt
 $SUDO update-ca-certificates
 
 # Build and start tracker
@@ -73,7 +75,7 @@ echo "log_level = 'debug'
 [network]
 address = '127.0.0.1:3001'
 enable_tls = true
-tls_certificate_path = './cert.crt'
+tls_certificate_path = './server.crt'
 tls_private_key_path = './key.pk8'
 " > tls.toml
 ./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
@@ -93,7 +95,7 @@ echo "log_level = 'debug'
 [network]
 address = '127.0.0.1:3002'
 enable_tls = true
-tls_certificate_path = './cert.crt'
+tls_certificate_path = './server.crt'
 tls_private_key_path = './key.pk8'
 " > ws-tls.toml
 ./target/debug/aquatic ws -c ws-tls.toml > "$HOME/ws-tls.log" 2>&1 &
