@@ -110,17 +110,17 @@ mkdir torrents
 
 # Create torrents
 
+echo "udp-test-ipv4" > seed/udp-test-ipv4
 echo "http-test-ipv4" > seed/http-test-ipv4
 echo "tls-test-ipv4" > seed/tls-test-ipv4
-echo "udp-test-ipv4" > seed/udp-test-ipv4
-echo "ws-tls-test-ipv4" > seed/ws-tls-test-ipv4
 echo "ws-test-ipv4" > seed/ws-test-ipv4
+echo "ws-tls-test-ipv4" > seed/ws-tls-test-ipv4
 
+mktorrent -p -o "torrents/udp-ipv4.torrent" -a "udp://127.0.0.1:3000" "seed/udp-test-ipv4"
 mktorrent -p -o "torrents/http-ipv4.torrent" -a "http://127.0.0.1:3004/announce" "seed/http-test-ipv4"
 mktorrent -p -o "torrents/tls-ipv4.torrent" -a "https://example.com:3001/announce" "seed/tls-test-ipv4"
-mktorrent -p -o "torrents/udp-ipv4.torrent" -a "udp://127.0.0.1:3000" "seed/udp-test-ipv4"
-mktorrent -p -o "torrents/ws-tls-ipv4.torrent" -a "wss://example.com:3002" "seed/ws-tls-test-ipv4"
 mktorrent -p -o "torrents/ws-ipv4.torrent" -a "ws://example.com:3003" "seed/ws-test-ipv4"
+mktorrent -p -o "torrents/ws-tls-ipv4.torrent" -a "wss://example.com:3002" "seed/ws-tls-test-ipv4"
 
 cp -r torrents torrents-seed
 cp -r torrents torrents-leech
@@ -129,14 +129,14 @@ cp -r torrents torrents-leech
 
 echo "Starting seeding ws-tls (wss) client"
 cd seed
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-seed.log" 2>&1 &
+GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-seed.log" 2>&1 &
 cd ..
 
 # Setup ws seeding client
 
 echo "Starting seeding ws client"
 cd seed
-GOPPROF=http GODEBUG=x509ignoreCN=0 $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-ipv4.torrent > "$HOME/ws-seed.log" 2>&1 &
+GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-ipv4.torrent > "$HOME/ws-seed.log" 2>&1 &
 cd ..
 
 # Start seeding rtorrent client
