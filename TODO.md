@@ -2,6 +2,16 @@
 
 ## High priority
 
+* use more recent debian/ubuntu for transfer test
+  * need to update way to set fake tls certificates so torrent clients accept them
+
+* udp (uring)
+  * run tests under valgrind
+    * hangs for integration tests, possibly related to https://bugs.kde.org/show_bug.cgi?id=463859
+  * run tests with AddressSanitizer
+    * `RUSTFLAGS=-Zsanitizer=address cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu --verbose --profile "test-fast" -p aquatic_udp --features "io-uring"`
+      * build fails with `undefined reference to __asan_init`, currently unclear why
+
 ## Medium priority
 
 * stagger cleaning tasks?
