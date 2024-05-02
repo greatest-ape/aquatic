@@ -16,11 +16,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install latest stable Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
+      uses: dtolnay/rust-toolchain@stable
     - name: Install dependencies
       run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
     - name: Setup Rust dependency caching
@@ -37,11 +33,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install latest stable Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
+      uses: dtolnay/rust-toolchain@stable
     - name: Setup Rust dependency caching
       uses: Swatinem/rust-cache@v2
     - name: Build
@@ -53,11 +45,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install latest stable Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
+      uses: dtolnay/rust-toolchain@stable
     - name: Install dependencies
       run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
     - name: Setup Rust dependency caching
