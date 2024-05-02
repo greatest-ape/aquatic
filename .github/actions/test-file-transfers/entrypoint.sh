@@ -22,6 +22,7 @@ $SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-
 
 git clone https://github.com/anacrolix/torrent.git gotorrent
 cd gotorrent
+# Use commit known to work
 git checkout 16176b762e4a840fc5dfe3b1dfd2d6fa853b68d7
 go build -o $HOME/gotorrent ./cmd/torrent
 cd ..
@@ -51,12 +52,22 @@ $SUDO update-ca-certificates
 
 cargo build --bin aquatic
 
+# UDP
+echo "
+log_level = 'debug'
+
+[network]
+address = '127.0.0.1:3000'" > udp.toml
+./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
+
+# HTTP
 echo "log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3004'" > http.toml
 ./target/debug/aquatic http -c http.toml > "$HOME/http.log" 2>&1 &
 
+# HTTP with TLS
 echo "log_level = 'debug'
 
 [network]
@@ -67,13 +78,16 @@ tls_private_key_path = './key.pk8'
 " > tls.toml
 ./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
 
-echo "
-log_level = 'debug'
+# WebTorrent
+echo "log_level = 'debug'
 
 [network]
-address = '127.0.0.1:3000'" > udp.toml
-./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
+address = '127.0.0.1:3003'
+enable_http_health_checks = true
+" > ws.toml
+./target/debug/aquatic ws -c ws.toml > "$HOME/ws.log" 2>&1 &
 
+# WebTorrent with TLS
 echo "log_level = 'debug'
 
 [network]
@@ -83,14 +97,6 @@ tls_certificate_path = './cert.crt'
 tls_private_key_path = './key.pk8'
 " > ws-tls.toml
 ./target/debug/aquatic ws -c ws-tls.toml > "$HOME/ws-tls.log" 2>&1 &
-
-echo "log_level = 'debug'
-
-[network]
-address = '127.0.0.1:3003'
-enable_http_health_checks = true
-" > ws.toml
-./target/debug/aquatic ws -c ws.toml > "$HOME/ws.log" 2>&1 &
 
 # Setup directories
 
