@@ -44,7 +44,6 @@ hashbrown = { version = "0.14", features = ["serde"] }
 httparse = "1"
 indexmap = "2"
 log = "0.4"
-mimalloc = { version = "0.1", default-features = false, optional = true }
 privdrop = "0.5"
 rand = { version = "0.8", features = ["small_rng"] }
 rustls = "0.23"
@@ -59,6 +58,9 @@ tungstenite = "0.21"
 # metrics feature
 metrics = { version = "0.22", optional = true }
 metrics-util = { version = "0.16", optional = true }
+
+# mimalloc feature
+mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 quickcheck = "1"

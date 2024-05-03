@@ -1,6 +1,7 @@
 use aquatic_common::cli::run_app_with_cli_and_config;
 use aquatic_http::config::Config;
 
+#[cfg(feature = "mimalloc")]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 

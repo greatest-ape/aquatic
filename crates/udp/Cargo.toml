@@ -18,13 +18,15 @@ name = "aquatic_udp"
 name = "aquatic_udp"
 
 [features]
-default = ["prometheus"]
+default = ["prometheus", "mimalloc"]
 # Export prometheus metrics
 prometheus = ["metrics", "aquatic_common/prometheus"]
 # Experimental io_uring support (Linux 6.0 or later required)
 io-uring = ["dep:io-uring"]
-# Experimental CPU pinning support
-cpu-pinning = ["aquatic_common/cpu-pinning"]
+# Use mimalloc allocator for much better performance.
+#
+# Requires cmake and a C compiler
+mimalloc = ["dep:mimalloc"]
 
 [dependencies]
 aquatic_common.workspace = true
@@ -45,7 +47,6 @@ hdrhistogram = "7"
 hex = "0.4"
 libc = "0.2"
 log = "0.4"
-mimalloc = { version = "0.1", default-features = false }
 mio = { version = "0.8", features = ["net", "os-poll"] }
 num-format = "0.4"
 parking_lot = "0.12"
@@ -62,6 +63,9 @@ metrics = { version = "0.22", optional = true }
 
 # io-uring feature
 io-uring = { version = "0.6", optional = true }
+
+# mimalloc feature
+mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 tempfile = "3"
