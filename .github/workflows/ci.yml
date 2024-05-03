@@ -17,15 +17,13 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install latest stable Rust
       uses: dtolnay/rust-toolchain@stable
-    - name: Install dependencies
-      run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
     - name: Setup Rust dependency caching
       uses: Swatinem/rust-cache@v2
     - name: Build
       run: |
-        cargo build --verbose -p aquatic_udp --features "cpu-pinning"
+        cargo build --verbose -p aquatic_udp
         cargo build --verbose -p aquatic_http
-        cargo build --verbose -p aquatic_ws --features "prometheus"
+        cargo build --verbose -p aquatic_ws
 
   build-macos:
     runs-on: macos-latest
@@ -46,8 +44,6 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install latest stable Rust
       uses: dtolnay/rust-toolchain@stable
-    - name: Install dependencies
-      run: sudo apt-get update -y && sudo apt-get install libhwloc-dev -y
     - name: Setup Rust dependency caching
       uses: Swatinem/rust-cache@v2
     - name: Run tests
