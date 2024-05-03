@@ -76,7 +76,7 @@ After starting the tracker, run the load tester:
 ```sh
 . ./scripts/env-native-cpu-without-avx-512 # Optional
 
-cargo build --release -p aquatic_udp_load_test -- --help
+cargo run --release -p aquatic_udp_load_test -- --help
 ```
 
 ## Details
