@@ -18,9 +18,13 @@ name = "aquatic_http"
 name = "aquatic_http"
 
 [features]
-default = ["prometheus"]
+default = ["prometheus", "mimalloc"]
 prometheus = ["aquatic_common/prometheus", "metrics", "dep:metrics-util"]
 metrics = ["dep:metrics"]
+# Use mimalloc allocator for much better performance.
+#
+# Requires cmake and a C compiler
+mimalloc = ["dep:mimalloc"]
 
 [dependencies]
 aquatic_common = { workspace = true, features = ["rustls"] }
@@ -40,7 +44,6 @@ httparse = "1"
 itoa = "1"
 libc = "0.2"
 log = "0.4"
-mimalloc = { version = "0.1", default-features = false }
 memchr = "2"
 privdrop = "0.5"
 once_cell = "1"
@@ -55,6 +58,9 @@ thiserror = "1"
 # metrics feature
 metrics = { version = "0.22", optional = true }
 metrics-util = { version = "0.16", optional = true }
+
+# mimalloc feature
+mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 quickcheck = "1"
