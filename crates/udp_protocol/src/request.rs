@@ -90,12 +90,22 @@ impl Request {
                 let remaining_bytes = {
                     let position = bytes.position() as usize;
                     let inner = bytes.into_inner();
+
+                    // Slice will be empty if position == inner.len()
                     &inner[position..]
                 };
 
+                if remaining_bytes.is_empty() {
+                    return Err(RequestParseError::sendable_text(
+                        "Full scrapes are not allowed",
+                        connection_id,
+                        transaction_id,
+                    ))
+                }
+
                 let info_hashes = FromBytes::slice_from(remaining_bytes).ok_or_else(|| {
                     RequestParseError::sendable_text(
-                        "Invalid info hash list. Note that full scrapes are not allowed",
+                        "Invalid info hash list",
                         connection_id,
                         transaction_id,
                     )
@@ -370,5 +380,34 @@ mod tests {
         }
 
         TestResult::from_bool(same_after_conversion(request.into()))
+    }
+
+    #[test]
+    fn test_various_input_lengths() {
+        for action in 0i32..4 {
+            for max_scrape_torrents in 0..3 {
+                for num_bytes in 0..256 {
+                    let mut request_bytes = ::std::iter::repeat(0).take(num_bytes).collect::<Vec<_>>();
+
+                    if let Some(action_bytes) = request_bytes.get_mut(8..12) {
+                        action_bytes.copy_from_slice(&action.to_be_bytes())
+                    }
+
+                    // Should never panic
+                    let _ = Request::parse_bytes(&request_bytes, max_scrape_torrents);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_scrape_request_with_no_info_hashes() {
+        let mut request_bytes = Vec::new();
+
+        request_bytes.extend(0i64.to_be_bytes());
+        request_bytes.extend(2i32.to_be_bytes());
+        request_bytes.extend(0i32.to_be_bytes());
+
+        Request::parse_bytes(&request_bytes, 1).unwrap_err();
     }
 }
