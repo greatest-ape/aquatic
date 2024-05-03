@@ -23,8 +23,6 @@ default = ["prometheus", "mimalloc"]
 prometheus = ["metrics", "aquatic_common/prometheus"]
 # Experimental io_uring support (Linux 6.0 or later required)
 io-uring = ["dep:io-uring"]
-# Experimental CPU pinning support
-cpu-pinning = ["aquatic_common/cpu-pinning"]
 # Use mimalloc allocator for much better performance.
 #
 # Requires cmake and a C compiler

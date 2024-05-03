@@ -5,8 +5,6 @@ use std::sync::{atomic::Ordering, Arc};
 use std::thread::{self, Builder};
 use std::time::{Duration, Instant};
 
-#[cfg(feature = "cpu-pinning")]
-use aquatic_common::cpu_pinning::{pin_current_if_configured_to, WorkerIndex};
 use aquatic_common::IndexMap;
 use aquatic_udp_protocol::{InfoHash, Port};
 use crossbeam_channel::{unbounded, Receiver};
@@ -67,25 +65,9 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let statistics_sender = statistics_sender.clone();
 
         Builder::new().name("load-test".into()).spawn(move || {
-            #[cfg(feature = "cpu-pinning")]
-            pin_current_if_configured_to(
-                &config.cpu_pinning,
-                config.workers as usize,
-                0,
-                WorkerIndex::SocketWorker(i as usize),
-            );
-
             Worker::run(config, state, statistics_sender, peers, addr)
         })?;
     }
-
-    #[cfg(feature = "cpu-pinning")]
-    pin_current_if_configured_to(
-        &config.cpu_pinning,
-        config.workers as usize,
-        0,
-        WorkerIndex::Util,
-    );
 
     monitor_statistics(state, &config, statistics_receiver);
 
