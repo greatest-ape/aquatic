@@ -119,7 +119,7 @@ checksum = "f538837af36e6f6a9be0faa67f9a314f8119e4e4b5867c6ab40ed60360142519"
 
 [[package]]
 name = "aquatic"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "aquatic_common",
  "aquatic_http",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_bencher"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "aquatic_udp",
@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_common"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "ahash 0.8.11",
  "anyhow",
@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_http"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "aquatic_common",
@@ -217,7 +217,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_http_load_test"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "aquatic_common",
@@ -240,7 +240,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_http_protocol"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "bendy",
@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_peer_id"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "compact_str",
  "hex",
@@ -272,7 +272,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_toml_config"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "aquatic_toml_config_derive",
  "quickcheck",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_toml_config_derive"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -292,7 +292,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_udp"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "aquatic_common",
@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_udp_load_test"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "aquatic_common",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_udp_protocol"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "aquatic_peer_id",
  "byteorder",
@@ -363,7 +363,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_ws"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "aquatic_common",
@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_ws_load_test"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "aquatic_common",
@@ -424,7 +424,7 @@ dependencies = [
 
 [[package]]
 name = "aquatic_ws_protocol"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "criterion 0.5.1",
