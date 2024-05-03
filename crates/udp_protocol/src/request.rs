@@ -100,7 +100,7 @@ impl Request {
                         "Full scrapes are not allowed",
                         connection_id,
                         transaction_id,
-                    ))
+                    ));
                 }
 
                 let info_hashes = FromBytes::slice_from(remaining_bytes).ok_or_else(|| {
@@ -387,7 +387,8 @@ mod tests {
         for action in 0i32..4 {
             for max_scrape_torrents in 0..3 {
                 for num_bytes in 0..256 {
-                    let mut request_bytes = ::std::iter::repeat(0).take(num_bytes).collect::<Vec<_>>();
+                    let mut request_bytes =
+                        ::std::iter::repeat(0).take(num_bytes).collect::<Vec<_>>();
 
                     if let Some(action_bytes) = request_bytes.get_mut(8..12) {
                         action_bytes.copy_from_slice(&action.to_be_bytes())
