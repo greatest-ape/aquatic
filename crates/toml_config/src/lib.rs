@@ -1,5 +1,6 @@
-pub use aquatic_toml_config_derive::TomlConfig;
 pub use toml;
+
+pub use aquatic_toml_config_derive::TomlConfig;
 
 /// Run this on your struct implementing TomlConfig to generate a
 /// serialization/deserialization test for it.
@@ -94,7 +95,7 @@ pub mod __private {
 
                     let value = crate::toml::ser::to_string(self).unwrap();
 
-                    output.push_str(&format!("{} = {}\n", field_name, value));
+                    output.push_str(&format!("{} = {}\n\n", field_name, value));
 
                     output
                 }
@@ -123,4 +124,52 @@ pub mod __private {
 
     impl_trait!(PathBuf);
     impl_trait!(SocketAddr);
+
+    macro_rules! impl_option_trait {
+        ($ident:ident) => {
+            impl Private for Option<$ident> {
+                fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
+                    let mut output = String::new();
+
+                    if let Some(comment) = comment {
+                        output.push_str(&comment);
+                    }
+
+                    match self {
+                        Some(value) => {
+                            let value = crate::toml::ser::to_string(value).unwrap();
+                            output.push_str(&format!("{} = {}\n\n", field_name, value));
+                        }
+                        None => {
+                            output.push_str(&format!("{} = null\n\n", field_name));
+                        }
+                    }
+
+                    output
+                }
+            }
+        };
+    }
+
+    impl_option_trait!(isize);
+    impl_option_trait!(i8);
+    impl_option_trait!(i16);
+    impl_option_trait!(i32);
+    impl_option_trait!(i64);
+
+    impl_option_trait!(usize);
+    impl_option_trait!(u8);
+    impl_option_trait!(u16);
+    impl_option_trait!(u32);
+    impl_option_trait!(u64);
+
+    impl_option_trait!(f32);
+    impl_option_trait!(f64);
+
+    impl_option_trait!(bool);
+
+    impl_option_trait!(String);
+
+    impl_option_trait!(PathBuf);
+    impl_option_trait!(SocketAddr);
 }
