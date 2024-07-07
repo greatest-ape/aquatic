@@ -141,7 +141,7 @@ pub mod __private {
                             output.push_str(&format!("{} = {}\n\n", field_name, value));
                         }
                         None => {
-                            output.push_str(&format!("{} = null\n\n", field_name));
+                            output.push_str(&format!("#{} = \n\n", field_name));
                         }
                     }
 
