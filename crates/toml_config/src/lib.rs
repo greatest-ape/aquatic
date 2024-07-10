@@ -33,6 +33,10 @@ macro_rules! gen_serialize_deserialize_test {
 ///     a: usize,
 ///     /// B
 ///     b: String,
+///     /// C
+///     c: Option<String>,
+///     /// D
+///     d: Option<usize>,
 /// }
 ///
 /// impl Default for SubConfig {
@@ -40,6 +44,8 @@ macro_rules! gen_serialize_deserialize_test {
 ///         Self {
 ///             a: 200,
 ///             b: "subconfig hello".into(),
+///             c: None,
+///             d: Some(200),
 ///         }
 ///     }
 /// }
@@ -64,7 +70,7 @@ macro_rules! gen_serialize_deserialize_test {
 ///     }
 /// }
 ///
-/// let expected = "# A\na = 100\n# B\nb = \"hello\"\n\n# C\n[c]\n# A\na = 200\n# B\nb = \"subconfig hello\"\n";
+/// let expected = "# A\na = 100\n\n# B\nb = \"hello\"\n\n\n# C\n[c]\n# A\na = 200\n\n# B\nb = \"subconfig hello\"\n\n# C\n#c = \n\n# D\nd = 200\n\n";
 ///
 /// assert_eq!(
 ///     Config::default_to_string(),
@@ -100,33 +106,7 @@ pub mod __private {
                     output
                 }
             }
-        };
-    }
 
-    impl_trait!(isize);
-    impl_trait!(i8);
-    impl_trait!(i16);
-    impl_trait!(i32);
-    impl_trait!(i64);
-
-    impl_trait!(usize);
-    impl_trait!(u8);
-    impl_trait!(u16);
-    impl_trait!(u32);
-    impl_trait!(u64);
-
-    impl_trait!(f32);
-    impl_trait!(f64);
-
-    impl_trait!(bool);
-
-    impl_trait!(String);
-
-    impl_trait!(PathBuf);
-    impl_trait!(SocketAddr);
-
-    macro_rules! impl_option_trait {
-        ($ident:ident) => {
             impl Private for Option<$ident> {
                 fn __to_string(&self, comment: Option<String>, field_name: String) -> String {
                     let mut output = String::new();
@@ -151,25 +131,25 @@ pub mod __private {
         };
     }
 
-    impl_option_trait!(isize);
-    impl_option_trait!(i8);
-    impl_option_trait!(i16);
-    impl_option_trait!(i32);
-    impl_option_trait!(i64);
+    impl_trait!(isize);
+    impl_trait!(i8);
+    impl_trait!(i16);
+    impl_trait!(i32);
+    impl_trait!(i64);
 
-    impl_option_trait!(usize);
-    impl_option_trait!(u8);
-    impl_option_trait!(u16);
-    impl_option_trait!(u32);
-    impl_option_trait!(u64);
+    impl_trait!(usize);
+    impl_trait!(u8);
+    impl_trait!(u16);
+    impl_trait!(u32);
+    impl_trait!(u64);
 
-    impl_option_trait!(f32);
-    impl_option_trait!(f64);
+    impl_trait!(f32);
+    impl_trait!(f64);
 
-    impl_option_trait!(bool);
+    impl_trait!(bool);
 
-    impl_option_trait!(String);
+    impl_trait!(String);
 
-    impl_option_trait!(PathBuf);
-    impl_option_trait!(SocketAddr);
+    impl_trait!(PathBuf);
+    impl_trait!(SocketAddr);
 }

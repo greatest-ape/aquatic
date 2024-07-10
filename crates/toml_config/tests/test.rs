@@ -8,6 +8,10 @@ struct TestConfigInnerA {
     a: String,
     /// Comment for b
     b: usize,
+    /// Comment for c
+    c: Option<String>,
+    /// Comment for d
+    d: Option<usize>,
 }
 
 impl Default for TestConfigInnerA {
@@ -15,6 +19,8 @@ impl Default for TestConfigInnerA {
         Self {
             a: "Inner hello world".into(),
             b: 100,
+            c: None,
+            d: Some(200),
         }
     }
 }
