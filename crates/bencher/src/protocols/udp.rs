@@ -457,50 +457,34 @@ impl ProcessRunner for TorrustTrackerUdpRunner {
         writedoc!(
             tmp_file,
             r#"
-            announce_interval = 120
-            db_driver = "Sqlite3"
-            db_path = "./sqlite3.db"
-            external_ip = "0.0.0.0"
-            inactive_peer_cleanup_interval = 600
-            log_level = "error"
-            max_peer_timeout = 900
-            min_announce_interval = 120
-            mode = "public"
-            on_reverse_proxy = false
+            [metadata]
+            schema_version = "2.0.0"
+
+            [logging]
+            threshold = "error"
+
+            [core]
+            listed = false
+            private = false
+            tracker_usage_statistics = false
+
+            [core.database]
+            driver = "sqlite3"
+            path = "./sqlite3.db"
+
+            [core.tracker_policy]
             persistent_torrent_completed_stat = false
             remove_peerless_torrents = false
-            tracker_usage_statistics = false
 
             [[udp_trackers]]
             bind_address = "0.0.0.0:3000"
-            enabled = true
-
-            [[http_trackers]]
-            bind_address = "0.0.0.0:7070"
-            enabled = false
-            ssl_cert_path = ""
-            ssl_enabled = false
-            ssl_key_path = ""
-
-            [http_api]
-            bind_address = "127.0.0.1:1212"
-            enabled = false
-            ssl_cert_path = ""
-            ssl_enabled = false
-            ssl_key_path = ""
-
-            [http_api.access_tokens]
-            admin = "MyAccessToken"
-
-            [health_check_api]
-            bind_address = "127.0.0.1:1313"
             "#,
         )?;
 
         Ok(Command::new("taskset")
             .arg("--cpu-list")
             .arg(vcpus.as_cpu_list())
-            .env("TORRUST_TRACKER_PATH_CONFIG", tmp_file.path())
+            .env("TORRUST_TRACKER_CONFIG_TOML_PATH", tmp_file.path())
             .arg(&command.torrust_tracker)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
