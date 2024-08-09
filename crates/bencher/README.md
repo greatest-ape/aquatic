@@ -13,7 +13,7 @@ Currently, only UDP BitTorrent tracker support is implemented.
 | [aquatic_udp]     | (use same as bencher) |
 | [opentracker]     | 110868e               |
 | [chihaya]         | 2f79440               |
-| [torrust-tracker] | 47c2fe2               |
+| [torrust-tracker] | eaa86a7               |
 
 The commits listed are ones known to work. It might be a good idea to first
 test with the latest commits for each project, and if they don't seem to work,
