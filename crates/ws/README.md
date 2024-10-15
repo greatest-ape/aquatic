@@ -54,6 +54,8 @@ Generate the configuration file:
 Make necessary adjustments to the file. You will likely want to adjust `address`
 (listening address) under the `network` section.
 
+Use IPv4-mapped IPv6 address `[::ffff:127.0.0.1]:3000` to bind to both IPv4 and IPv6 loopback interfaces.
+
 To run over TLS, configure certificate and private key files.
 
 Running behind a reverse proxy is supported, as long as IPv4 requests are
