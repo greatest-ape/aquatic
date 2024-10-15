@@ -63,6 +63,7 @@ proxied to IPv4 requests, and IPv6 requests to IPv6 requests.
 
 Make sure locked memory limits are sufficient:
 - If you're using a systemd service file, add `LimitMEMLOCK=65536000` to it
+- If you're using openrc, make sure you have `rc_ulimit='-l 65536'` in your init script
 - Otherwise, add the following lines to
 `/etc/security/limits.conf`, and then log out and back in:
 
@@ -70,6 +71,8 @@ Make sure locked memory limits are sufficient:
 *    hard    memlock    65536
 *    soft    memlock    65536
 ```
+
+In Alpine Linux you will likely need a [higher limit](https://github.com/greatest-ape/aquatic/issues/211).
 
 Once done, start the application:
 
