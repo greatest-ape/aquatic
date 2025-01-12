@@ -60,14 +60,14 @@ log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3000'" > udp.toml
-./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
+$SUDO ./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
 
 # HTTP
 echo "log_level = 'debug'
 
 [network]
 address = '127.0.0.1:3004'" > http.toml
-./target/debug/aquatic http -c http.toml > "$HOME/http.log" 2>&1 &
+$SUDO ./target/debug/aquatic http -c http.toml > "$HOME/http.log" 2>&1 &
 
 # HTTP with TLS
 echo "log_level = 'debug'
@@ -78,7 +78,7 @@ enable_tls = true
 tls_certificate_path = './server.crt'
 tls_private_key_path = './key.pk8'
 " > tls.toml
-./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
+$SUDO ./target/debug/aquatic http -c tls.toml > "$HOME/tls.log" 2>&1 &
 
 # WebTorrent
 echo "log_level = 'debug'
@@ -87,7 +87,7 @@ echo "log_level = 'debug'
 address = '127.0.0.1:3003'
 enable_http_health_checks = true
 " > ws.toml
-./target/debug/aquatic ws -c ws.toml > "$HOME/ws.log" 2>&1 &
+$SUDO ./target/debug/aquatic ws -c ws.toml > "$HOME/ws.log" 2>&1 &
 
 # WebTorrent with TLS
 echo "log_level = 'debug'
@@ -98,7 +98,7 @@ enable_tls = true
 tls_certificate_path = './server.crt'
 tls_private_key_path = './key.pk8'
 " > ws-tls.toml
-./target/debug/aquatic ws -c ws-tls.toml > "$HOME/ws-tls.log" 2>&1 &
+$SUDO ./target/debug/aquatic ws -c ws-tls.toml > "$HOME/ws-tls.log" 2>&1 &
 
 # Setup directories
 
