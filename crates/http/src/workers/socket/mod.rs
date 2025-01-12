@@ -85,7 +85,7 @@ pub async fn run_socket_worker(
                         request_senders,
                         opt_tls_config,
                         connection_handles,
-                        valid_until,
+                        valid_until
                     )
                     async move {
                         #[cfg(feature = "metrics")]
