@@ -35,8 +35,8 @@ impl OutMessage {
         use tungstenite::Message::{Binary, Text};
 
         let mut text: Vec<u8> = match message {
-            Text(text) => text.into(),
-            Binary(bytes) => String::from_utf8(bytes)?.into(),
+            Text(text) => text.as_bytes().to_owned(),
+            Binary(bytes) => String::from_utf8(bytes.to_vec())?.into(),
             _ => return Err(anyhow::anyhow!("Message is neither text nor bytes")),
         };
 
