@@ -55,6 +55,25 @@ impl aquatic_common::cli::Config for Config {
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     /// Bind to this address
+    /// 
+    /// When providing an IPv4 style address, only IPv4 traffic will be
+    /// handled. Examples:
+    /// - "0.0.0.0:3000" binds to port 3000 on all network interfaces
+    /// - "127.0.0.1:3000" binds to port 3000 on the loopback interface
+    ///   (localhost)
+    /// 
+    /// When it comes to IPv6-style addresses, behaviour differs between
+    /// operating systems. On Linux or macOS, by default, both IPv4 and IPv6
+    /// traffic is received. For instance:
+    /// - "[::]:3000" binds on all interfaces on port 3000, with both IPv4 and
+    ///   IPv6 traffic being accepted
+    /// - "[::1]:3000" binds on the loopback interface (localhost) on port
+    ///   3000, with both IPv4 and IPv6 traffic being accepted
+    /// 
+    /// In this case, to only accept traffic over IPv6, use an IPv6-style
+    /// address, and additionally set "only_ipv6" below.
+    /// 
+    /// For other operating systems, please refer to their documentation.
     pub address: SocketAddr,
     /// Only allow access over IPv6
     pub only_ipv6: bool,
