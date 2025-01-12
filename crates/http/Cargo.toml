@@ -53,7 +53,7 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slotmap = "1"
 socket2 = { version = "0.5", features = ["all"] }
-thiserror = "1"
+thiserror = "2"
 
 # metrics feature
 metrics = { version = "0.24", optional = true }

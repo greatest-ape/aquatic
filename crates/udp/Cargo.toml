@@ -37,7 +37,7 @@ anyhow = "1"
 arrayvec = "0.7"
 blake3 = "1"
 cfg-if = "1"
-compact_str = "0.7"
+compact_str = "0.8"
 constant_time_eq = "0.3"
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
@@ -47,7 +47,7 @@ hdrhistogram = "7"
 hex = "0.4"
 libc = "0.2"
 log = "0.4"
-mio = { version = "0.8", features = ["net", "os-poll"] }
+mio = { version = "1", features = ["net", "os-poll"] }
 num-format = "0.4"
 parking_lot = "0.12"
 rand = { version = "0.8", features = ["small_rng"] }
