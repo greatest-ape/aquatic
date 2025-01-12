@@ -150,7 +150,9 @@ pub fn spawn_prometheus_endpoint(
                     }
                 });
 
-                exporter.await.context("run prometheus exporter")
+                exporter
+                    .await
+                    .map_err(|err| anyhow::anyhow!("run prometheus exporter: :{:#?}", err))
             })
         })
         .context("spawn prometheus endpoint")?;

@@ -33,14 +33,14 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.25"
+async-tungstenite = "0.28"
 arc-swap = "1"
 cfg-if = "1"
 futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.26"
 glommio = "0.9"
-hashbrown = { version = "0.14", features = ["serde"] }
+hashbrown = { version = "0.15", features = ["serde"] }
 httparse = "1"
 indexmap = "2"
 log = "0.4"
@@ -53,11 +53,11 @@ signal-hook = { version = "0.3" }
 slab = "0.4"
 slotmap = "1"
 socket2 = { version = "0.5", features = ["all"] }
-tungstenite = "0.21"
+tungstenite = "0.24"
 
 # metrics feature
-metrics = { version = "0.22", optional = true }
-metrics-util = { version = "0.16", optional = true }
+metrics = { version = "0.24", optional = true }
+metrics-util = { version = "0.19", optional = true }
 
 # mimalloc feature
 mimalloc = { version = "0.1", default-features = false, optional = true }

@@ -53,11 +53,11 @@ serde = { version = "1", features = ["derive"] }
 signal-hook = { version = "0.3" }
 slotmap = "1"
 socket2 = { version = "0.5", features = ["all"] }
-thiserror = "1"
+thiserror = "2"
 
 # metrics feature
-metrics = { version = "0.22", optional = true }
-metrics-util = { version = "0.16", optional = true }
+metrics = { version = "0.24", optional = true }
+metrics-util = { version = "0.19", optional = true }
 
 # mimalloc feature
 mimalloc = { version = "0.1", default-features = false, optional = true }

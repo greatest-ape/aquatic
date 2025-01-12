@@ -37,17 +37,17 @@ anyhow = "1"
 arrayvec = "0.7"
 blake3 = "1"
 cfg-if = "1"
-compact_str = "0.7"
+compact_str = "0.8"
 constant_time_eq = "0.3"
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
 getrandom = "0.2"
-hashbrown = { version = "0.14", default-features = false }
+hashbrown = { version = "0.15", default-features = false }
 hdrhistogram = "7"
 hex = "0.4"
 libc = "0.2"
 log = "0.4"
-mio = { version = "0.8", features = ["net", "os-poll"] }
+mio = { version = "1", features = ["net", "os-poll"] }
 num-format = "0.4"
 parking_lot = "0.12"
 rand = { version = "0.8", features = ["small_rng"] }
@@ -59,10 +59,10 @@ time = { version = "0.3", features = ["formatting"] }
 tinytemplate = "1"
 
 # prometheus feature
-metrics = { version = "0.22", optional = true }
+metrics = { version = "0.24", optional = true }
 
 # io-uring feature
-io-uring = { version = "0.6", optional = true }
+io-uring = { version = "0.7", optional = true }
 
 # mimalloc feature
 mimalloc = { version = "0.1", default-features = false, optional = true }

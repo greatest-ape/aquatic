@@ -24,9 +24,9 @@ aquatic_toml_config.workspace = true
 ahash = "0.8"
 anyhow = "1"
 arc-swap = "1"
-duplicate = "1"
+duplicate = "2"
 git-testament = "0.2"
-hashbrown = "0.14"
+hashbrown = "0.15"
 hex = "0.4"
 indexmap = "2"
 libc = "0.2"
@@ -42,9 +42,9 @@ rustls = { version = "0.23", optional = true }
 rustls-pemfile = { version = "2", optional = true }
 
 # prometheus feature
-metrics = { version = "0.22", optional = true }
-metrics-util = { version = "0.16", optional = true }
-metrics-exporter-prometheus = { version = "0.14", optional = true, default-features = false, features = ["http-listener"] }
+metrics = { version = "0.24", optional = true }
+metrics-util = { version = "0.19", optional = true }
+metrics-exporter-prometheus = { version = "0.16", optional = true, default-features = false, features = ["http-listener"] }
 tokio = { version = "1", optional = true, features = ["rt", "net", "time"] }
 
 # cpu pinning feature

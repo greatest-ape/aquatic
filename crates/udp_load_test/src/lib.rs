@@ -64,9 +64,9 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
         let statistics_sender = statistics_sender.clone();
 
-        Builder::new().name("load-test".into()).spawn(move || {
-            Worker::run(config, state, statistics_sender, peers, addr)
-        })?;
+        Builder::new()
+            .name("load-test".into())
+            .spawn(move || Worker::run(config, state, statistics_sender, peers, addr))?;
     }
 
     monitor_statistics(state, &config, statistics_receiver);

@@ -27,7 +27,7 @@ clap = { version = "4", features = ["derive"] }
 humanize-bytes = "1"
 indexmap = "2"
 indoc = "2"
-itertools = "0.12"
+itertools = "0.14"
 num-format = "0.4"
 nonblock = "0.2"
 once_cell = "1"
