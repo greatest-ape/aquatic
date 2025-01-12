@@ -2,6 +2,8 @@
 
 ## High priority
 
+* update zerocopy version (will likely require minor rewrite)
+
 * udp (uring)
   * run tests under valgrind
     * hangs for integration tests, possibly related to https://bugs.kde.org/show_bug.cgi?id=463859
