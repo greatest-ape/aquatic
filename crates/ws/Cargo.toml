@@ -56,8 +56,8 @@ socket2 = { version = "0.5", features = ["all"] }
 tungstenite = "0.21"
 
 # metrics feature
-metrics = { version = "0.22", optional = true }
-metrics-util = { version = "0.16", optional = true }
+metrics = { version = "0.24", optional = true }
+metrics-util = { version = "0.19", optional = true }
 
 # mimalloc feature
 mimalloc = { version = "0.1", default-features = false, optional = true }
