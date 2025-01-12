@@ -57,7 +57,7 @@ jobs:
     timeout-minutes: 20
     container:
       image: rust:1-bookworm
-      options: --ulimit memlock=524288:524288
+      options: --ulimit memlock=524288:524288 --privileged --security-opt="seccomp=unconfined"
     steps:
       - name: Checkout
         uses: actions/checkout@v2
