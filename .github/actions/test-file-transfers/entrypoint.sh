@@ -20,13 +20,7 @@ ulimit -a
 $SUDO apt-get update
 $SUDO apt-get install -y cmake libssl-dev screen rtorrent mktorrent ssl-cert ca-certificates curl golang libhwloc-dev
 
-git clone https://github.com/anacrolix/torrent.git gotorrent
-cd gotorrent
-# Use commit known to work
-git checkout 75e6b65
-go build -o $HOME/gotorrent ./cmd/torrent
-cd ..
-file $HOME/gotorrent
+go install github.com/anacrolix/torrent/cmd/...@latest
 
 # Go to repository directory
 
@@ -129,14 +123,14 @@ cp -r torrents torrents-leech
 
 echo "Starting seeding ws-tls (wss) client"
 cd seed
-GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-seed.log" 2>&1 &
+GOPPROF=http $GOPATH/bin/torrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-tls-ipv4.torrent > "$HOME/ws-tls-seed.log" 2>&1 &
 cd ..
 
 # Setup ws seeding client
 
 echo "Starting seeding ws client"
 cd seed
-GOPPROF=http $HOME/gotorrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-ipv4.torrent > "$HOME/ws-seed.log" 2>&1 &
+GOPPROF=http $GOPATH/bin/torrent download --dht=false --tcppeers=false --utppeers=false --pex=false --stats --seed ../torrents/ws-ipv4.torrent > "$HOME/ws-seed.log" 2>&1 &
 cd ..
 
 # Start seeding rtorrent client
