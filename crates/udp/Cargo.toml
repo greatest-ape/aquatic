@@ -62,7 +62,7 @@ tinytemplate = "1"
 metrics = { version = "0.24", optional = true }
 
 # io-uring feature
-io-uring = { version = "0.6", optional = true }
+io-uring = { version = "0.7", optional = true }
 
 # mimalloc feature
 mimalloc = { version = "0.1", default-features = false, optional = true }
