@@ -159,7 +159,7 @@ dependencies = [
  "arc-swap",
  "duplicate",
  "git-testament",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
  "hex",
  "hwloc",
  "indexmap 2.7.0",
@@ -227,7 +227,7 @@ dependencies = [
  "futures-lite",
  "futures-rustls",
  "glommio",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
  "log",
  "mimalloc",
  "quickcheck",
@@ -306,7 +306,7 @@ dependencies = [
  "crossbeam-channel",
  "crossbeam-utils",
  "getrandom",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
  "hdrhistogram",
  "hex",
  "io-uring",
@@ -377,7 +377,7 @@ dependencies = [
  "futures-lite",
  "futures-rustls",
  "glommio",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
  "httparse",
  "indexmap 2.7.0",
  "log",
@@ -428,7 +428,7 @@ version = "0.9.0"
 dependencies = [
  "anyhow",
  "criterion 0.5.1",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
  "quickcheck",
  "quickcheck_macros",
  "serde",
@@ -1173,6 +1173,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "foldhash"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0d2fde1f7b3d48b8395d5f2de76c18a528bd6a9cdde438df747bfcba3e05d6f"
+
+[[package]]
 name = "form_urlencoded"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1447,7 +1453,6 @@ checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash 0.8.11",
  "allocator-api2",
- "serde",
 ]
 
 [[package]]
@@ -1455,6 +1460,12 @@ name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash",
+ "serde",
+]
 
 [[package]]
 name = "hdrhistogram"

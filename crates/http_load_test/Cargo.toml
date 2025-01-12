@@ -23,7 +23,7 @@ anyhow = "1"
 futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.26"
-hashbrown = "0.14"
+hashbrown = "0.15"
 glommio = "0.9"
 log = "0.4"
 mimalloc = { version = "0.1", default-features = false }

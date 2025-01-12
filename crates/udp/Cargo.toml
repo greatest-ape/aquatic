@@ -42,7 +42,7 @@ constant_time_eq = "0.3"
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
 getrandom = "0.2"
-hashbrown = { version = "0.14", default-features = false }
+hashbrown = { version = "0.15", default-features = false }
 hdrhistogram = "7"
 hex = "0.4"
 libc = "0.2"
