@@ -78,18 +78,14 @@ pub struct NetworkConfig {
     /// - "127.0.0.1:3000" binds to port 3000 on the loopback interface
     ///   (localhost)
     /// 
-    /// When it comes to IPv6-style addresses, behaviour differs between
-    /// operating systems. On Linux or macOS, by default, both IPv4 and IPv6
-    /// traffic is received. For instance:
-    /// - "[::]:3000" binds on all interfaces on port 3000, with both IPv4 and
-    ///   IPv6 traffic being accepted
-    /// - "[::1]:3000" binds on the loopback interface (localhost) on port
-    ///   3000, with both IPv4 and IPv6 traffic being accepted
-    /// 
-    /// In this case, to only accept traffic over IPv6, use an IPv6-style
-    /// address, and additionally set "only_ipv6" below.
-    /// 
-    /// For other operating systems, please refer to their documentation.
+    /// When it comes to IPv6-style addresses, behaviour is more complex and
+    /// differs between operating systems. On Linux, to accept both IPv4 and
+    /// IPv6 traffic on any interface, use "[::]:3000". Set the "only_ipv6"
+    /// flag below to limit traffic to IPv6. To bind to the loopback interface
+    /// and only accept IPv6 packets, use "[::1]:3000" and set the only_ipv6
+    /// flag. Receiving both IPv4 and IPv6 traffic on loopback is currently
+    /// not supported. For other operating systems, please refer to their
+    /// respective documentation.
     pub address: SocketAddr,
     /// Only allow access over IPv6
     pub only_ipv6: bool,
