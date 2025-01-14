@@ -75,7 +75,7 @@ pub trait TomlConfig: Default {
 }
 
 pub mod __private {
-    use std::net::SocketAddr;
+    use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
     use std::path::PathBuf;
 
     pub trait Private {
@@ -123,4 +123,6 @@ pub mod __private {
 
     impl_trait!(PathBuf);
     impl_trait!(SocketAddr);
+    impl_trait!(SocketAddrV4);
+    impl_trait!(SocketAddrV6);
 }

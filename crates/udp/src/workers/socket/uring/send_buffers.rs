@@ -10,8 +10,6 @@ use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::Response;
 use io_uring::opcode::SendMsg;
 
-use crate::config::Config;
-
 use super::{RESPONSE_BUF_LEN, SOCKET_IDENTIFIER};
 
 pub enum Error {
@@ -26,8 +24,8 @@ pub struct SendBuffers {
 }
 
 impl SendBuffers {
-    pub fn new(config: &Config, capacity: usize) -> Self {
-        let socket_is_ipv4 = config.network.address.is_ipv4();
+    pub fn new(socket_addr: SocketAddr, capacity: usize) -> Self {
+        let socket_is_ipv4 = socket_addr.is_ipv4();
 
         let buffers = repeat_with(|| (Default::default(), SendBuffer::new(socket_is_ipv4)))
             .take(capacity)

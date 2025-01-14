@@ -60,7 +60,8 @@ fn test_access_list(
 
     let mut config = Config::default();
 
-    config.network.address.set_port(tracker_port);
+    config.network.address_ipv4.set_port(tracker_port);
+    config.network.use_ipv6 = false;
 
     config.access_list.mode = mode;
     config.access_list.path = access_list_path;

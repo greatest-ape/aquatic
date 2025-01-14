@@ -1,176 +1,140 @@
 use std::io::{Cursor, ErrorKind};
 use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
 
 use anyhow::Context;
-use aquatic_common::access_list::AccessListCache;
-use crossbeam_channel::Sender;
 use mio::net::UdpSocket;
-use mio::{Events, Interest, Poll, Token};
+use socket2::{Domain, Protocol, Type};
 
 use aquatic_common::{
-    access_list::create_access_list_cache, privileges::PrivilegeDropper, CanonicalSocketAddr,
-    ValidUntil,
+    privileges::PrivilegeDropper, CanonicalSocketAddr,
 };
 use aquatic_udp_protocol::*;
-use rand::rngs::SmallRng;
-use rand::SeedableRng;
 
-use crate::common::*;
 use crate::config::Config;
 
-use super::validator::ConnectionValidator;
-use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
+use super::{WorkerSharedData, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
-struct SocketWorker;
+pub trait IpVersion {
+    fn is_v4() -> bool;
+}
 
-impl SocketWorker {
-    pub fn run(
-        config: Config,
-        shared_state: State,
-        statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
-        statistics_sender: Sender<StatisticsMessage>,
-        validator: ConnectionValidator,
-        priv_dropper: PrivilegeDropper,
-    ) -> anyhow::Result<()> {
-        let socket = UdpSocket::from_std(create_socket(&config, priv_dropper)?);
-        let access_list_cache = create_access_list_cache(&shared_state.access_list);
-        let peer_valid_until = ValidUntil::new(
-            shared_state.server_start_instant,
-            config.cleaning.max_peer_age,
-        );
+#[derive(Clone, Copy, Debug)]
+pub struct Ipv4;
 
-        let mut shared = WorkerSharedData {
-            config,
-            shared_state,
-            statistics,
-            statistics_sender,
-            validator,
-            access_list_cache,
-            buffer: [0; BUFFER_SIZE],
-            rng: SmallRng::from_entropy(),
-            peer_valid_until,
-        };
+impl IpVersion for Ipv4 {
+    fn is_v4() -> bool {
+        true
+    }
+}
 
-        let mut opt_resend_buffer =
-            (shared.config.network.resend_buffer_max_len > 0).then_some(Vec::new());
-        let mut events = Events::with_capacity(1);
-        let mut poll = Poll::new().context("create poll")?;
+#[derive(Clone, Copy, Debug)]
+pub struct Ipv6;
 
-        poll.registry()
-            .register(&mut self.socket, Token(0), Interest::READABLE)
-            .context("register poll")?;
+impl IpVersion for Ipv6 {
+    fn is_v4() -> bool {
+        false
+    }
+}
 
-        let poll_timeout = Duration::from_millis(self.config.network.poll_timeout_ms);
 
-        let mut iter_counter = 0u64;
+pub struct Socket<V> {
+    pub socket: UdpSocket,
+    opt_resend_buffer: Option<Vec<(CanonicalSocketAddr, Response)>>,
+    phantom_data: PhantomData<V>,
+}
 
-        loop {
-            poll.poll(&mut events, Some(poll_timeout)).context("poll")?;
+impl Socket<Ipv4> {
+    pub fn create(config: &Config, priv_dropper: PrivilegeDropper,) -> anyhow::Result<Self> {
+        let socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
 
-            for event in events.iter() {
-                if event.is_readable() {
-                    self.read_and_handle_requests(&mut opt_resend_buffer);
-                }
-            }
+        socket
+            .set_reuse_port(true)
+            .with_context(|| "socket: set reuse port")?;
+        socket
+            .set_nonblocking(true)
+            .with_context(|| "socket: set nonblocking")?;
 
-            // FIXME: resend buffer
+        let recv_buffer_size = config.network.socket_recv_buffer_size;
 
-            if iter_counter % 256 == 0 {
-                shared.validator.update_elapsed();
-
-                shared.peer_valid_until = ValidUntil::new(
-                    shared.shared_state.server_start_instant,
-                    shared.config.cleaning.max_peer_age,
+        if recv_buffer_size != 0 {
+            if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size) {
+                ::log::error!(
+                    "socket: failed setting recv buffer to {}: {:?}",
+                    recv_buffer_size,
+                    err
                 );
             }
-
-            iter_counter = iter_counter.wrapping_add(1);
         }
+
+        socket
+            .bind(&config.network.address_ipv4.into())
+            .with_context(|| format!("socket: bind to {}", config.network.address_ipv4))?;
+
+        priv_dropper.after_socket_creation()?;
+
+        let mut s = Self {
+            socket: UdpSocket::from_std(::std::net::UdpSocket::from(socket)),
+            opt_resend_buffer: None,
+            phantom_data: Default::default(),
+        };
+
+        if config.network.resend_buffer_max_len > 0 {
+            s.opt_resend_buffer = Some(Vec::new());
+        }
+
+        Ok(s)
     }
 }
 
-struct WorkerSharedData {
-    config: Config,
-    shared_state: State,
-    statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
-    statistics_sender: Sender<StatisticsMessage>,
-    access_list_cache: AccessListCache,
-    validator: ConnectionValidator,
-    buffer: [u8; BUFFER_SIZE],
-    rng: SmallRng,
-    peer_valid_until: ValidUntil,
-}
+impl Socket<Ipv6> {
+    pub fn create(config: &Config, priv_dropper: PrivilegeDropper,) -> anyhow::Result<Self> {
+        let socket = socket2::Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?;
 
-impl WorkerSharedData {
-    fn handle_request(&mut self, request: Request, src: CanonicalSocketAddr) -> Option<Response> {
-        let access_list_mode = self.config.access_list.mode;
+        socket
+            .set_only_v6(config.network.set_only_ipv6)
+            .with_context(|| "socket: set only ipv6")?;
+        socket
+            .set_reuse_port(true)
+            .with_context(|| "socket: set reuse port")?;
+        socket
+            .set_nonblocking(true)
+            .with_context(|| "socket: set nonblocking")?;
 
-        match request {
-            Request::Connect(request) => {
-                return Some(Response::Connect(ConnectResponse {
-                    connection_id: self.validator.create_connection_id(src),
-                    transaction_id: request.transaction_id,
-                }));
-            }
-            Request::Announce(request) => {
-                if self
-                    .validator
-                    .connection_id_valid(src, request.connection_id)
-                {
-                    if self
-                        .access_list_cache
-                        .load()
-                        .allows(access_list_mode, &request.info_hash.0)
-                    {
-                        let response = self.shared_state.torrent_maps.announce(
-                            &self.config,
-                            &self.statistics_sender,
-                            &mut self.rng,
-                            &request,
-                            src,
-                            self.peer_valid_until,
-                        );
+        let recv_buffer_size = config.network.socket_recv_buffer_size;
 
-                        return Some(response);
-                    } else {
-                        return Some(Response::Error(ErrorResponse {
-                            transaction_id: request.transaction_id,
-                            message: "Info hash not allowed".into(),
-                        }));
-                    }
-                }
-            }
-            Request::Scrape(request) => {
-                if self
-                    .validator
-                    .connection_id_valid(src, request.connection_id)
-                {
-                    return Some(Response::Scrape(
-                        self.shared_state.torrent_maps.scrape(request, src),
-                    ));
-                }
+        if recv_buffer_size != 0 {
+            if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size) {
+                ::log::error!(
+                    "socket: failed setting recv buffer to {}: {:?}",
+                    recv_buffer_size,
+                    err
+                );
             }
         }
 
-        None
+        socket
+            .bind(&config.network.address_ipv4.into())
+            .with_context(|| format!("socket: bind to {}", config.network.address_ipv4))?;
+
+        priv_dropper.after_socket_creation()?;
+
+        let mut s = Self {
+            socket: UdpSocket::from_std(::std::net::UdpSocket::from(socket)),
+            opt_resend_buffer: None,
+            phantom_data: Default::default(),
+        };
+
+        if config.network.resend_buffer_max_len > 0 {
+            s.opt_resend_buffer = Some(Vec::new());
+        }
+
+        Ok(s)
     }
 }
 
-struct IPV4;
-struct IPV6;
-
-struct Socket<T> {
-    socket: UdpSocket,
-    opt_resend_buffer: Option<Vec<(CanonicalSocketAddr, Response)>>,
-    phantom_data: PhantomData<T>,
-}
-
-impl Socket<IPV4> {
-    fn read_and_handle_requests(&mut self
-    , shared: &mut WorkerSharedData
-    ) {
+impl<V: IpVersion> Socket<V> {
+    pub fn read_and_handle_requests(&mut self , shared: &mut WorkerSharedData) {
         let max_scrape_torrents = shared.config.protocol.max_scrape_torrents;
 
         loop {
@@ -249,7 +213,7 @@ impl Socket<IPV4> {
             }
         }
     }
-    fn send_response(
+    pub fn send_response(
         &mut self,
         shared: &mut WorkerSharedData,
         canonical_addr: CanonicalSocketAddr,
@@ -266,7 +230,7 @@ impl Socket<IPV4> {
 
         let bytes_written = buffer.position() as usize;
 
-        let addr = if shared.config.network.address.is_ipv4() {
+        let addr = if V::is_v4() {
             canonical_addr
                 .get_ipv4()
                 .expect("found peer ipv6 address while running bound to ipv4 address")
@@ -337,7 +301,7 @@ impl Socket<IPV4> {
 
 
     /// If resend buffer is enabled, send any responses in it
-    fn resend_failed(&mut self, shared: &mut WorkerSharedData) {
+    pub fn resend_failed(&mut self, shared: &mut WorkerSharedData) {
         if self.opt_resend_buffer.is_some() {
             let mut tmp_resend_buffer = Vec::new();
 

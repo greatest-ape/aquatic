@@ -29,10 +29,17 @@ pub fn run(mut config: Config) -> ::anyhow::Result<()> {
         config.socket_workers = available_parallelism().map(Into::into).unwrap_or(1);
     };
 
+    let num_sockets_per_worker = if config.network.use_ipv4 { 1 } else { 0 } + if config.network.use_ipv6 { 1 } else { 0 } ;
+
+    #[cfg(feature = "io-uring")]
+    if config.network.use_io_uring && (config.network.use_ipv6  || !config.network.use_ipv4) {
+        panic!("For the time being, io_uring mode can only be used with IPv4");
+    }
+
     let state = State::default();
     let statistics = Statistics::new(&config);
     let connection_validator = ConnectionValidator::new(&config)?;
-    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
+    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers * num_sockets_per_worker);
     let (statistics_sender, statistics_receiver) = unbounded();
 
     update_access_list(&config.access_list, &state.access_list)?;
@@ -44,9 +51,14 @@ pub fn run(mut config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
         let config = config.clone();
         let connection_validator = connection_validator.clone();
-        let priv_dropper = priv_dropper.clone();
         let statistics = statistics.socket[i].clone();
         let statistics_sender = statistics_sender.clone();
+
+        let mut priv_droppers = Vec::new();
+
+        for _ in 0..num_sockets_per_worker {
+            priv_droppers.push(priv_dropper.clone());
+        }
 
         let handle = Builder::new()
             .name(format!("socket-{:02}", i + 1))
@@ -57,7 +69,7 @@ pub fn run(mut config: Config) -> ::anyhow::Result<()> {
                     statistics,
                     statistics_sender,
                     connection_validator,
-                    priv_dropper,
+                    priv_droppers,
                 )
             })
             .with_context(|| "spawn socket worker")?;

@@ -8,6 +8,7 @@ use std::net::UdpSocket;
 use std::ops::DerefMut;
 use std::os::fd::AsRawFd;
 use std::sync::atomic::Ordering;
+use std::net::SocketAddr;
 
 use anyhow::Context;
 use aquatic_common::access_list::AccessListCache;
@@ -15,6 +16,7 @@ use crossbeam_channel::Sender;
 use io_uring::opcode::Timeout;
 use io_uring::types::{Fixed, Timespec};
 use io_uring::{IoUring, Probe};
+use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_common::{
     access_list::create_access_list_cache, privileges::PrivilegeDropper, CanonicalSocketAddr,
@@ -32,7 +34,7 @@ use self::recv_helper::RecvHelper;
 use self::send_buffers::{ResponseType, SendBuffers};
 
 use super::validator::ConnectionValidator;
-use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
+use super::{EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
 /// Size of each request buffer
 ///
@@ -100,17 +102,21 @@ impl SocketWorker {
         statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
         statistics_sender: Sender<StatisticsMessage>,
         validator: ConnectionValidator,
-        priv_dropper: PrivilegeDropper,
+        mut priv_droppers: Vec<PrivilegeDropper>,
     ) -> anyhow::Result<()> {
         let ring_entries = config.network.ring_size.next_power_of_two();
         // Try to fill up the ring with send requests
         let send_buffer_entries = ring_entries;
 
-        let socket = create_socket(&config, priv_dropper).expect("create socket");
+        // FIXME: should open a socket each for IPv4 and IPv6
+        let socket_addr: SocketAddr = config.network.address_ipv4.into();
+
+        let priv_dropper = priv_droppers.pop().expect("not enough priv droppers");
+        let socket = create_socket(&config, priv_dropper, socket_addr).expect("create socket");
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
 
-        let send_buffers = SendBuffers::new(&config, send_buffer_entries as usize);
-        let recv_helper = RecvHelper::new(&config);
+        let send_buffers = SendBuffers::new(socket_addr, send_buffer_entries as usize);
+        let recv_helper = RecvHelper::new(&config, socket_addr);
 
         let ring = IoUring::builder()
             .setup_coop_taskrun()
@@ -457,6 +463,54 @@ impl SocketWorker {
 
         None
     }
+}
+
+fn create_socket(
+    config: &Config,
+    priv_dropper: PrivilegeDropper,
+    address: SocketAddr,
+) -> anyhow::Result<::std::net::UdpSocket> {
+    let socket = if address.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?
+    } else {
+        Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?
+    };
+
+    /*
+    if config.network.only_ipv6 {
+        socket
+            .set_only_v6(true)
+            .with_context(|| "socket: set only ipv6")?;
+    }
+    */
+
+    socket
+        .set_reuse_port(true)
+        .with_context(|| "socket: set reuse port")?;
+
+    socket
+        .set_nonblocking(true)
+        .with_context(|| "socket: set nonblocking")?;
+
+    let recv_buffer_size = config.network.socket_recv_buffer_size;
+
+    if recv_buffer_size != 0 {
+        if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size) {
+            ::log::error!(
+                "socket: failed setting recv buffer to {}: {:?}",
+                recv_buffer_size,
+                err
+            );
+        }
+    }
+
+    socket
+        .bind(&address.into())
+        .with_context(|| format!("socket: bind to {}", address))?;
+
+    priv_dropper.after_socket_creation()?;
+
+    Ok(socket.into())
 }
 
 pub fn supported_on_current_kernel() -> anyhow::Result<()> {

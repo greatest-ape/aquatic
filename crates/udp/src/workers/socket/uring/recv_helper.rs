@@ -31,7 +31,7 @@ pub struct RecvHelper {
 }
 
 impl RecvHelper {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &Config, socket_addr: SocketAddr) -> Self {
         let name_v4 = Box::into_raw(Box::new(libc::sockaddr_in {
             sin_family: 0,
             sin_port: 0,
@@ -64,7 +64,7 @@ impl RecvHelper {
         };
 
         Self {
-            socket_is_ipv4: config.network.address.is_ipv4(),
+            socket_is_ipv4: socket_addr.is_ipv4(),
             max_scrape_torrents: config.protocol.max_scrape_torrents,
             name_v4,
             msghdr_v4,
