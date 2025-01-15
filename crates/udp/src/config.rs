@@ -1,4 +1,7 @@
-use std::{net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6}, path::PathBuf};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    path::PathBuf,
+};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use cfg_if::cfg_if;
@@ -54,22 +57,22 @@ impl aquatic_common::cli::Config for Config {
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
-    /// Bind to IPv4
+    /// Use IPv4
     pub use_ipv4: bool,
-    /// Bind to IPv6
+    /// Use IPv6
     pub use_ipv6: bool,
     /// IPv4 address and port
-    /// 
+    ///
     /// Examples:
-    /// - Use "0.0.0.0:3000" to bind to all interfaces on port 3000
-    /// - Use "127.0.0.1:3000" to bind to the loopback interface (localhost) on
+    /// - Use 0.0.0.0:3000 to bind to all interfaces on port 3000
+    /// - Use 127.0.0.1:3000 to bind to the loopback interface (localhost) on
     ///   port 3000
     pub address_ipv4: SocketAddrV4,
     /// IPv6 address and port
-    /// 
+    ///
     /// Examples:
-    /// - Use "[::]:3000" to bind to all interfaces on port 3000
-    /// - Use "[::1]:3000" to bind to the loopback interface (localhost) on
+    /// - Use [::]:3000 to bind to all interfaces on port 3000
+    /// - Use [::1]:3000 to bind to the loopback interface (localhost) on
     ///   port 3000
     pub address_ipv6: SocketAddrV6,
     /// Size of socket recv buffer. Use 0 for OS default.
@@ -94,8 +97,11 @@ pub struct NetworkConfig {
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
     pub resend_buffer_max_len: usize,
-    /// Only allow access over IPv6 on the IPv6 socket. Don't disable this
-    /// unless you know what you are doing
+    /// Set flag on IPv6 socket to only accept IPv6 traffic.
+    ///
+    /// This should typically be set to true unless your OS does not support
+    /// double-stack sockets (that is, sockets that receive both IPv4 and IPv6
+    /// packets).
     pub set_only_ipv6: bool,
     #[cfg(feature = "io-uring")]
     pub use_io_uring: bool,

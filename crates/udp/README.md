@@ -53,8 +53,8 @@ Generate the configuration file:
 ./target/release/aquatic_udp -p > "aquatic-udp-config.toml"
 ```
 
-Make necessary adjustments to the file. You will likely want to adjust `address`
-(listening address) under the `network` section.
+Make necessary adjustments to the file. You will likely want to adjust
+listening addresses under the `network` section.
 
 Once done, start the application:
 

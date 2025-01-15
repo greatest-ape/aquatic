@@ -25,21 +25,26 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn run(mut config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1])?;
 
+    if !(config.network.use_ipv4 || config.network.use_ipv6) {
+        return Result::Err(anyhow::anyhow!(
+            "Both use_ipv4 and use_ipv6 can not be set to false"
+        ));
+    }
+
     if config.socket_workers == 0 {
         config.socket_workers = available_parallelism().map(Into::into).unwrap_or(1);
     };
 
-    let num_sockets_per_worker = if config.network.use_ipv4 { 1 } else { 0 } + if config.network.use_ipv6 { 1 } else { 0 } ;
-
-    #[cfg(feature = "io-uring")]
-    if config.network.use_io_uring && (config.network.use_ipv6  || !config.network.use_ipv4) {
-        panic!("For the time being, io_uring mode can only be used with IPv4");
-    }
+    let num_sockets_per_worker =
+        if config.network.use_ipv4 { 1 } else { 0 } + if config.network.use_ipv6 { 1 } else { 0 };
 
     let state = State::default();
     let statistics = Statistics::new(&config);
     let connection_validator = ConnectionValidator::new(&config)?;
-    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers * num_sockets_per_worker);
+    let priv_dropper = PrivilegeDropper::new(
+        config.privileges.clone(),
+        config.socket_workers * num_sockets_per_worker,
+    );
     let (statistics_sender, statistics_receiver) = unbounded();
 
     update_access_list(&config.access_list, &state.access_list)?;

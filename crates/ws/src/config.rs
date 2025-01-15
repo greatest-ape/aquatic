@@ -75,13 +75,13 @@ impl aquatic_common::cli::Config for Config {
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
     /// Bind to this address
-    /// 
+    ///
     /// When providing an IPv4 style address, only IPv4 traffic will be
     /// handled. Examples:
     /// - "0.0.0.0:3000" binds to port 3000 on all network interfaces
     /// - "127.0.0.1:3000" binds to port 3000 on the loopback interface
     ///   (localhost)
-    /// 
+    ///
     /// When it comes to IPv6-style addresses, behaviour is more complex and
     /// differs between operating systems. On Linux, to accept both IPv4 and
     /// IPv6 traffic on any interface, use "[::]:3000". Set the "only_ipv6"

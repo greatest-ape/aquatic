@@ -6,9 +6,7 @@ use anyhow::Context;
 use mio::net::UdpSocket;
 use socket2::{Domain, Protocol, Type};
 
-use aquatic_common::{
-    privileges::PrivilegeDropper, CanonicalSocketAddr,
-};
+use aquatic_common::{privileges::PrivilegeDropper, CanonicalSocketAddr};
 use aquatic_udp_protocol::*;
 
 use crate::config::Config;
@@ -37,7 +35,6 @@ impl IpVersion for Ipv6 {
     }
 }
 
-
 pub struct Socket<V> {
     pub socket: UdpSocket,
     opt_resend_buffer: Option<Vec<(CanonicalSocketAddr, Response)>>,
@@ -45,7 +42,7 @@ pub struct Socket<V> {
 }
 
 impl Socket<Ipv4> {
-    pub fn create(config: &Config, priv_dropper: PrivilegeDropper,) -> anyhow::Result<Self> {
+    pub fn create(config: &Config, priv_dropper: PrivilegeDropper) -> anyhow::Result<Self> {
         let socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
 
         socket
@@ -88,12 +85,14 @@ impl Socket<Ipv4> {
 }
 
 impl Socket<Ipv6> {
-    pub fn create(config: &Config, priv_dropper: PrivilegeDropper,) -> anyhow::Result<Self> {
+    pub fn create(config: &Config, priv_dropper: PrivilegeDropper) -> anyhow::Result<Self> {
         let socket = socket2::Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?;
 
-        socket
-            .set_only_v6(config.network.set_only_ipv6)
-            .with_context(|| "socket: set only ipv6")?;
+        if config.network.set_only_ipv6 {
+            socket
+                .set_only_v6(true)
+                .with_context(|| "socket: set only ipv6")?;
+        }
         socket
             .set_reuse_port(true)
             .with_context(|| "socket: set reuse port")?;
@@ -114,8 +113,8 @@ impl Socket<Ipv6> {
         }
 
         socket
-            .bind(&config.network.address_ipv4.into())
-            .with_context(|| format!("socket: bind to {}", config.network.address_ipv4))?;
+            .bind(&config.network.address_ipv6.into())
+            .with_context(|| format!("socket: bind to {}", config.network.address_ipv6))?;
 
         priv_dropper.after_socket_creation()?;
 
@@ -134,7 +133,7 @@ impl Socket<Ipv6> {
 }
 
 impl<V: IpVersion> Socket<V> {
-    pub fn read_and_handle_requests(&mut self , shared: &mut WorkerSharedData) {
+    pub fn read_and_handle_requests(&mut self, shared: &mut WorkerSharedData) {
         let max_scrape_torrents = shared.config.protocol.max_scrape_torrents;
 
         loop {
@@ -179,7 +178,7 @@ impl<V: IpVersion> Socket<V> {
                             }
 
                             if let Some(response) = shared.handle_request(request, src) {
-                                self.send_response (shared, src, response, false);
+                                self.send_response(shared, src, response, false);
                             }
                         }
                         Err(RequestParseError::Sendable {
@@ -192,7 +191,7 @@ impl<V: IpVersion> Socket<V> {
                                 message: err.into(),
                             };
 
-                            self.send_response( shared, src, Response::Error(response), false);
+                            self.send_response(shared, src, Response::Error(response), false);
 
                             ::log::debug!("request parse error (sent error response): {:?}", err);
                         }
@@ -298,7 +297,6 @@ impl<V: IpVersion> Socket<V> {
 
         ::log::debug!("send response fn finished");
     }
-
 
     /// If resend buffer is enabled, send any responses in it
     pub fn resend_failed(&mut self, shared: &mut WorkerSharedData) {

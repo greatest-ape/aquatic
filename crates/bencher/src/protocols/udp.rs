@@ -300,7 +300,8 @@ impl ProcessRunner for AquaticUdpRunner {
         let mut c = aquatic_udp::config::Config::default();
 
         c.socket_workers = self.socket_workers;
-        c.network.address = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 3000));
+        c.network.address_ipv4 = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 3000);
+        c.network.use_ipv6 = false;
         c.network.use_io_uring = self.use_io_uring;
         c.protocol.max_response_peers = 30;
 

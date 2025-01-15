@@ -3,7 +3,6 @@ mod mio;
 mod uring;
 mod validator;
 
-use anyhow::Context;
 use aquatic_common::privileges::PrivilegeDropper;
 use crossbeam_channel::Sender;
 
@@ -47,6 +46,8 @@ pub fn run_socket_worker(
 ) -> anyhow::Result<()> {
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
     if config.network.use_io_uring {
+        use anyhow::Context;
+
         self::uring::supported_on_current_kernel().context("check for io_uring compatibility")?;
 
         return self::uring::SocketWorker::run(
