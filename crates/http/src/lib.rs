@@ -27,6 +27,12 @@ const SHARED_CHANNEL_SIZE: usize = 1024;
 pub fn run(config: Config) -> ::anyhow::Result<()> {
     let mut signals = Signals::new([SIGUSR1])?;
 
+    if !(config.network.use_ipv4 || config.network.use_ipv6) {
+        return Result::Err(anyhow::anyhow!(
+            "Both use_ipv4 and use_ipv6 can not be set to false"
+        ));
+    }
+
     let state = State::default();
 
     update_access_list(&config.access_list, &state.access_list)?;
@@ -35,7 +41,14 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         config.socket_workers + config.swarm_workers,
         SHARED_CHANNEL_SIZE,
     );
-    let priv_dropper = PrivilegeDropper::new(config.privileges.clone(), config.socket_workers);
+
+    let num_sockets_per_worker =
+        if config.network.use_ipv4 { 1 } else { 0 } + if config.network.use_ipv6 { 1 } else { 0 };
+
+    let priv_dropper = PrivilegeDropper::new(
+        config.privileges.clone(),
+        config.socket_workers * num_sockets_per_worker,
+    );
 
     let opt_tls_config = if config.network.enable_tls {
         Some(Arc::new(ArcSwap::from_pointee(create_rustls_config(
@@ -55,7 +68,12 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
         let state = state.clone();
         let opt_tls_config = opt_tls_config.clone();
         let request_mesh_builder = request_mesh_builder.clone();
-        let priv_dropper = priv_dropper.clone();
+
+        let mut priv_droppers = Vec::new();
+
+        for _ in 0..num_sockets_per_worker {
+            priv_droppers.push(priv_dropper.clone());
+        }
 
         let handle = Builder::new()
             .name(format!("socket-{:02}", i + 1))
@@ -68,7 +86,7 @@ pub fn run(config: Config) -> ::anyhow::Result<()> {
                         state,
                         opt_tls_config,
                         request_mesh_builder,
-                        priv_dropper,
+                        priv_droppers,
                         server_start_instant,
                         i,
                     ))

@@ -12,6 +12,7 @@ use aquatic_http_protocol::{
 use glommio::channels::shared_channel::SharedSender;
 use slotmap::new_key_type;
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub struct ConsumerId(pub usize);
 
