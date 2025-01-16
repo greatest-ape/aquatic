@@ -66,14 +66,14 @@ address_ipv4 = '127.0.0.1:3000'" > udp.toml
 echo "log_level = 'debug'
 
 [network]
-address = '127.0.0.1:3004'" > http.toml
+address_ipv4 = '127.0.0.1:3004'" > http.toml
 ./target/debug/aquatic http -c http.toml > "$HOME/http.log" 2>&1 &
 
 # HTTP with TLS
 echo "log_level = 'debug'
 
 [network]
-address = '127.0.0.1:3001'
+address_ipv4 = '127.0.0.1:3001'
 enable_tls = true
 tls_certificate_path = './server.crt'
 tls_private_key_path = './key.pk8'
