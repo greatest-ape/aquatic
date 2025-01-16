@@ -1,4 +1,7 @@
-use std::{net::SocketAddr, path::PathBuf};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    path::PathBuf,
+};
 
 use aquatic_common::{access_list::AccessListConfig, privileges::PrivilegeConfig};
 use cfg_if::cfg_if;
@@ -54,25 +57,24 @@ impl aquatic_common::cli::Config for Config {
 #[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NetworkConfig {
-    /// Bind to this address
-    /// 
-    /// When providing an IPv4 style address, only IPv4 traffic will be
-    /// handled. Examples:
-    /// - "0.0.0.0:3000" binds to port 3000 on all network interfaces
-    /// - "127.0.0.1:3000" binds to port 3000 on the loopback interface
-    ///   (localhost)
-    /// 
-    /// When it comes to IPv6-style addresses, behaviour is more complex and
-    /// differs between operating systems. On Linux, to accept both IPv4 and
-    /// IPv6 traffic on any interface, use "[::]:3000". Set the "only_ipv6"
-    /// flag below to limit traffic to IPv6. To bind to the loopback interface
-    /// and only accept IPv6 packets, use "[::1]:3000" and set the only_ipv6
-    /// flag. Receiving both IPv4 and IPv6 traffic on loopback is currently
-    /// not supported. For other operating systems, please refer to their
-    /// respective documentation.
-    pub address: SocketAddr,
-    /// Only allow access over IPv6
-    pub only_ipv6: bool,
+    /// Use IPv4
+    pub use_ipv4: bool,
+    /// Use IPv6
+    pub use_ipv6: bool,
+    /// IPv4 address and port
+    ///
+    /// Examples:
+    /// - Use 0.0.0.0:3000 to bind to all interfaces on port 3000
+    /// - Use 127.0.0.1:3000 to bind to the loopback interface (localhost) on
+    ///   port 3000
+    pub address_ipv4: SocketAddrV4,
+    /// IPv6 address and port
+    ///
+    /// Examples:
+    /// - Use [::]:3000 to bind to all interfaces on port 3000
+    /// - Use [::1]:3000 to bind to the loopback interface (localhost) on
+    ///   port 3000
+    pub address_ipv6: SocketAddrV6,
     /// Size of socket recv buffer. Use 0 for OS default.
     ///
     /// This setting can have a big impact on dropped packages. It might
@@ -95,6 +97,12 @@ pub struct NetworkConfig {
     /// such as FreeBSD. Setting the value to zero disables resending
     /// functionality.
     pub resend_buffer_max_len: usize,
+    /// Set flag on IPv6 socket to only accept IPv6 traffic.
+    ///
+    /// This should typically be set to true unless your OS does not support
+    /// double-stack sockets (that is, sockets that receive both IPv4 and IPv6
+    /// packets).
+    pub set_only_ipv6: bool,
     #[cfg(feature = "io-uring")]
     pub use_io_uring: bool,
     /// Number of ring entries (io_uring backend only)
@@ -106,21 +114,24 @@ pub struct NetworkConfig {
 
 impl NetworkConfig {
     pub fn ipv4_active(&self) -> bool {
-        self.address.is_ipv4() || !self.only_ipv6
+        self.use_ipv4
     }
     pub fn ipv6_active(&self) -> bool {
-        self.address.is_ipv6()
+        self.use_ipv6
     }
 }
 
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            address: SocketAddr::from(([0, 0, 0, 0], 3000)),
-            only_ipv6: false,
+            use_ipv4: true,
+            use_ipv6: true,
+            address_ipv4: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
+            address_ipv6: SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 3000, 0, 0),
             socket_recv_buffer_size: 8_000_000,
             poll_timeout_ms: 50,
             resend_buffer_max_len: 0,
+            set_only_ipv6: true,
             #[cfg(feature = "io-uring")]
             use_io_uring: true,
             #[cfg(feature = "io-uring")]

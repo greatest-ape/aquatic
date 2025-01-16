@@ -10,9 +10,7 @@ use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::Response;
 use io_uring::opcode::SendMsg;
 
-use crate::config::Config;
-
-use super::{RESPONSE_BUF_LEN, SOCKET_IDENTIFIER};
+use super::{RESPONSE_BUF_LEN, SOCKET_IDENTIFIER_V4, SOCKET_IDENTIFIER_V6};
 
 pub enum Error {
     NoBuffers(Response),
@@ -21,21 +19,17 @@ pub enum Error {
 
 pub struct SendBuffers {
     likely_next_free_index: usize,
-    socket_is_ipv4: bool,
     buffers: Vec<(SendBufferMetadata, *mut SendBuffer)>,
 }
 
 impl SendBuffers {
-    pub fn new(config: &Config, capacity: usize) -> Self {
-        let socket_is_ipv4 = config.network.address.is_ipv4();
-
-        let buffers = repeat_with(|| (Default::default(), SendBuffer::new(socket_is_ipv4)))
+    pub fn new(capacity: usize) -> Self {
+        let buffers = repeat_with(|| (Default::default(), SendBuffer::new()))
             .take(capacity)
             .collect::<Vec<_>>();
 
         Self {
             likely_next_free_index: 0,
-            socket_is_ipv4,
             buffers,
         }
     }
@@ -61,6 +55,7 @@ impl SendBuffers {
 
     pub fn prepare_entry(
         &mut self,
+        send_to_ipv4_socket: bool,
         response: Response,
         addr: CanonicalSocketAddr,
     ) -> Result<io_uring::squeue::Entry, Error> {
@@ -75,7 +70,7 @@ impl SendBuffers {
         // Safe as long as `mark_buffer_as_free` was used correctly
         let buffer = unsafe { &mut *(*buffer) };
 
-        match buffer.prepare_entry(response, addr, self.socket_is_ipv4, buffer_metadata) {
+        match buffer.prepare_entry(response, addr, send_to_ipv4_socket, buffer_metadata) {
             Ok(entry) => {
                 buffer_metadata.free = false;
 
@@ -116,7 +111,7 @@ struct SendBuffer {
 }
 
 impl SendBuffer {
-    fn new(socket_is_ipv4: bool) -> *mut Self {
+    fn new() -> *mut Self {
         let mut instance = Box::new(Self {
             name_v4: libc::sockaddr_in {
                 sin_family: libc::AF_INET as u16,
@@ -145,13 +140,9 @@ impl SendBuffer {
         instance.msghdr.msg_iov = addr_of_mut!(instance.iovec);
         instance.msghdr.msg_iovlen = 1;
 
-        if socket_is_ipv4 {
-            instance.msghdr.msg_name = addr_of_mut!(instance.name_v4) as *mut libc::c_void;
-            instance.msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in>() as u32;
-        } else {
-            instance.msghdr.msg_name = addr_of_mut!(instance.name_v6) as *mut libc::c_void;
-            instance.msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in6>() as u32;
-        }
+        // Set IPv4 initially. Will be overridden with each prepare_entry call
+        instance.msghdr.msg_name = addr_of_mut!(instance.name_v4) as *mut libc::c_void;
+        instance.msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in>() as u32;
 
         Box::into_raw(instance)
     }
@@ -160,10 +151,10 @@ impl SendBuffer {
         &mut self,
         response: Response,
         addr: CanonicalSocketAddr,
-        socket_is_ipv4: bool,
+        send_to_ipv4_socket: bool,
         metadata: &mut SendBufferMetadata,
     ) -> Result<io_uring::squeue::Entry, Error> {
-        if socket_is_ipv4 {
+        let entry_fd = if send_to_ipv4_socket {
             metadata.receiver_is_ipv4 = true;
 
             let addr = if let Some(SocketAddr::V4(addr)) = addr.get_ipv4() {
@@ -174,6 +165,10 @@ impl SendBuffer {
 
             self.name_v4.sin_port = addr.port().to_be();
             self.name_v4.sin_addr.s_addr = u32::from(*addr.ip()).to_be();
+            self.msghdr.msg_name = addr_of_mut!(self.name_v4) as *mut libc::c_void;
+            self.msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in>() as u32;
+
+            SOCKET_IDENTIFIER_V4
         } else {
             // Set receiver protocol type before calling addr.get_ipv6_mapped()
             metadata.receiver_is_ipv4 = addr.is_ipv4();
@@ -186,7 +181,11 @@ impl SendBuffer {
 
             self.name_v6.sin6_port = addr.port().to_be();
             self.name_v6.sin6_addr.s6_addr = addr.ip().octets();
-        }
+            self.msghdr.msg_name = addr_of_mut!(self.name_v6) as *mut libc::c_void;
+            self.msghdr.msg_namelen = core::mem::size_of::<libc::sockaddr_in6>() as u32;
+
+            SOCKET_IDENTIFIER_V6
+        };
 
         let mut cursor = Cursor::new(&mut self.bytes[..]);
 
@@ -196,7 +195,7 @@ impl SendBuffer {
 
                 metadata.response_type = ResponseType::from_response(&response);
 
-                Ok(SendMsg::new(SOCKET_IDENTIFIER, addr_of_mut!(self.msghdr)).build())
+                Ok(SendMsg::new(entry_fd, addr_of_mut!(self.msghdr)).build())
             }
             Err(err) => Err(Error::SerializationFailed(err)),
         }

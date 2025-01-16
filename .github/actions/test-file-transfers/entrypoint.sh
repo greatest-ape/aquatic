@@ -59,7 +59,7 @@ echo "
 log_level = 'debug'
 
 [network]
-address = '127.0.0.1:3000'" > udp.toml
+address_ipv4 = '127.0.0.1:3000'" > udp.toml
 ./target/debug/aquatic udp -c udp.toml > "$HOME/udp.log" 2>&1 &
 
 # HTTP

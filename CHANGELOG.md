@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### aquatic_udp
+
+#### Changed
+
+* (Breaking) Open one socket each for IPv4 and IPv6. The config file now has
+  one setting for each.
+
 ## 0.9.0 - 2024-04-03
 
 ### General

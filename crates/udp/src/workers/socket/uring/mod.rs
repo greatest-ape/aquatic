@@ -4,6 +4,7 @@ mod send_buffers;
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::net::SocketAddr;
 use std::net::UdpSocket;
 use std::ops::DerefMut;
 use std::os::fd::AsRawFd;
@@ -15,6 +16,8 @@ use crossbeam_channel::Sender;
 use io_uring::opcode::Timeout;
 use io_uring::types::{Fixed, Timespec};
 use io_uring::{IoUring, Probe};
+use recv_helper::RecvHelper;
+use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_common::{
     access_list::create_access_list_cache, privileges::PrivilegeDropper, CanonicalSocketAddr,
@@ -28,11 +31,11 @@ use crate::common::*;
 use crate::config::Config;
 
 use self::buf_ring::BufRing;
-use self::recv_helper::RecvHelper;
+use self::recv_helper::{RecvHelperV4, RecvHelperV6};
 use self::send_buffers::{ResponseType, SendBuffers};
 
 use super::validator::ConnectionValidator;
-use super::{create_socket, EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
+use super::{EXTRA_PACKET_SIZE_IPV4, EXTRA_PACKET_SIZE_IPV6};
 
 /// Size of each request buffer
 ///
@@ -48,10 +51,12 @@ const REQUEST_BUF_LEN: usize = 512;
 /// - scrape response for 170 info hashes
 const RESPONSE_BUF_LEN: usize = 2048;
 
-const USER_DATA_RECV: u64 = u64::MAX;
-const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 1;
+const USER_DATA_RECV_V4: u64 = u64::MAX;
+const USER_DATA_RECV_V6: u64 = u64::MAX - 1;
+const USER_DATA_PULSE_TIMEOUT: u64 = u64::MAX - 2;
 
-const SOCKET_IDENTIFIER: Fixed = Fixed(0);
+const SOCKET_IDENTIFIER_V4: Fixed = Fixed(0);
+const SOCKET_IDENTIFIER_V6: Fixed = Fixed(1);
 
 thread_local! {
     /// Store IoUring instance here so that it can be accessed in BufRing::drop
@@ -81,13 +86,17 @@ pub struct SocketWorker {
     access_list_cache: AccessListCache,
     validator: ConnectionValidator,
     #[allow(dead_code)]
-    socket: UdpSocket,
+    opt_socket_ipv4: Option<UdpSocket>,
+    #[allow(dead_code)]
+    opt_socket_ipv6: Option<UdpSocket>,
     buf_ring: BufRing,
     send_buffers: SendBuffers,
-    recv_helper: RecvHelper,
+    recv_helper_v4: RecvHelperV4,
+    recv_helper_v6: RecvHelperV6,
     local_responses: VecDeque<(CanonicalSocketAddr, Response)>,
     resubmittable_sqe_buf: Vec<io_uring::squeue::Entry>,
-    recv_sqe: io_uring::squeue::Entry,
+    recv_sqe_ipv4: io_uring::squeue::Entry,
+    recv_sqe_ipv6: io_uring::squeue::Entry,
     pulse_timeout_sqe: io_uring::squeue::Entry,
     peer_valid_until: ValidUntil,
     rng: SmallRng,
@@ -100,17 +109,38 @@ impl SocketWorker {
         statistics: CachePaddedArc<IpVersionStatistics<SocketWorkerStatistics>>,
         statistics_sender: Sender<StatisticsMessage>,
         validator: ConnectionValidator,
-        priv_dropper: PrivilegeDropper,
+        mut priv_droppers: Vec<PrivilegeDropper>,
     ) -> anyhow::Result<()> {
         let ring_entries = config.network.ring_size.next_power_of_two();
         // Try to fill up the ring with send requests
         let send_buffer_entries = ring_entries;
 
-        let socket = create_socket(&config, priv_dropper).expect("create socket");
+        let opt_socket_ipv4 = if config.network.use_ipv4 {
+            let priv_dropper = priv_droppers.pop().expect("not enough priv droppers");
+
+            Some(
+                create_socket(&config, priv_dropper, config.network.address_ipv4.into())
+                    .context("create ipv4 socket")?,
+            )
+        } else {
+            None
+        };
+        let opt_socket_ipv6 = if config.network.use_ipv6 {
+            let priv_dropper = priv_droppers.pop().expect("not enough priv droppers");
+
+            Some(
+                create_socket(&config, priv_dropper, config.network.address_ipv6.into())
+                    .context("create ipv6 socket")?,
+            )
+        } else {
+            None
+        };
+
         let access_list_cache = create_access_list_cache(&shared_state.access_list);
 
-        let send_buffers = SendBuffers::new(&config, send_buffer_entries as usize);
-        let recv_helper = RecvHelper::new(&config);
+        let send_buffers = SendBuffers::new(send_buffer_entries as usize);
+        let recv_helper_v4 = RecvHelperV4::new(&config);
+        let recv_helper_v6 = RecvHelperV6::new(&config);
 
         let ring = IoUring::builder()
             .setup_coop_taskrun()
@@ -120,7 +150,16 @@ impl SocketWorker {
             .unwrap();
 
         ring.submitter()
-            .register_files(&[socket.as_raw_fd()])
+            .register_files(&[
+                opt_socket_ipv4
+                    .as_ref()
+                    .map(|s| s.as_raw_fd())
+                    .unwrap_or(-1),
+                opt_socket_ipv6
+                    .as_ref()
+                    .map(|s| s.as_raw_fd())
+                    .unwrap_or(-1),
+            ])
             .unwrap();
 
         // Store ring in thread local storage before creating BufRing
@@ -132,8 +171,6 @@ impl SocketWorker {
             .build()
             .unwrap();
 
-        let recv_sqe = recv_helper.create_entry(buf_ring.bgid());
-
         // This timeout enables regular updates of ConnectionValidator and
         // peer_valid_until
         let pulse_timeout_sqe = {
@@ -144,7 +181,17 @@ impl SocketWorker {
                 .user_data(USER_DATA_PULSE_TIMEOUT)
         };
 
-        let resubmittable_sqe_buf = vec![recv_sqe.clone(), pulse_timeout_sqe.clone()];
+        let mut resubmittable_sqe_buf = vec![pulse_timeout_sqe.clone()];
+
+        let recv_sqe_ipv4 = recv_helper_v4.create_entry(buf_ring.bgid());
+        let recv_sqe_ipv6 = recv_helper_v6.create_entry(buf_ring.bgid());
+
+        if opt_socket_ipv4.is_some() {
+            resubmittable_sqe_buf.push(recv_sqe_ipv4.clone());
+        }
+        if opt_socket_ipv6.is_some() {
+            resubmittable_sqe_buf.push(recv_sqe_ipv6.clone());
+        }
 
         let peer_valid_until = ValidUntil::new(
             shared_state.server_start_instant,
@@ -158,14 +205,17 @@ impl SocketWorker {
             statistics_sender,
             validator,
             access_list_cache,
+            opt_socket_ipv4,
+            opt_socket_ipv6,
             send_buffers,
-            recv_helper,
+            recv_helper_v4,
+            recv_helper_v6,
             local_responses: Default::default(),
             buf_ring,
-            recv_sqe,
+            recv_sqe_ipv4,
+            recv_sqe_ipv6,
             pulse_timeout_sqe,
             resubmittable_sqe_buf,
-            socket,
             peer_valid_until,
             rng: SmallRng::from_entropy(),
         };
@@ -192,7 +242,24 @@ impl SocketWorker {
             // Enqueue local responses
             for _ in 0..sq_space {
                 if let Some((addr, response)) = self.local_responses.pop_front() {
-                    match self.send_buffers.prepare_entry(response, addr) {
+                    let send_to_ipv4_socket = if addr.is_ipv4() {
+                        if self.opt_socket_ipv4.is_some() {
+                            true
+                        } else if self.opt_socket_ipv6.is_some() {
+                            false
+                        } else {
+                            panic!("No socket open")
+                        }
+                    } else if self.opt_socket_ipv6.is_some() {
+                        false
+                    } else {
+                        panic!("IPv6 response with no IPv6 socket")
+                    };
+
+                    match self
+                        .send_buffers
+                        .prepare_entry(send_to_ipv4_socket, response, addr)
+                    {
                         Ok(entry) => {
                             unsafe { ring.submission().push(&entry).unwrap() };
 
@@ -229,13 +296,22 @@ impl SocketWorker {
 
     fn handle_cqe(&mut self, cqe: io_uring::cqueue::Entry) {
         match cqe.user_data() {
-            USER_DATA_RECV => {
-                if let Some((addr, response)) = self.handle_recv_cqe(&cqe) {
+            USER_DATA_RECV_V4 => {
+                if let Some((addr, response)) = self.handle_recv_cqe(&cqe, true) {
                     self.local_responses.push_back((addr, response));
                 }
 
                 if !io_uring::cqueue::more(cqe.flags()) {
-                    self.resubmittable_sqe_buf.push(self.recv_sqe.clone());
+                    self.resubmittable_sqe_buf.push(self.recv_sqe_ipv4.clone());
+                }
+            }
+            USER_DATA_RECV_V6 => {
+                if let Some((addr, response)) = self.handle_recv_cqe(&cqe, false) {
+                    self.local_responses.push_back((addr, response));
+                }
+
+                if !io_uring::cqueue::more(cqe.flags()) {
+                    self.resubmittable_sqe_buf.push(self.recv_sqe_ipv6.clone());
                 }
             }
             USER_DATA_PULSE_TIMEOUT => {
@@ -296,6 +372,7 @@ impl SocketWorker {
     fn handle_recv_cqe(
         &mut self,
         cqe: &io_uring::cqueue::Entry,
+        received_on_ipv4_socket: bool,
     ) -> Option<(CanonicalSocketAddr, Response)> {
         let result = cqe.result();
 
@@ -328,7 +405,13 @@ impl SocketWorker {
             }
         };
 
-        match self.recv_helper.parse(buffer.as_slice()) {
+        let recv_helper = if received_on_ipv4_socket {
+            &self.recv_helper_v4 as &dyn RecvHelper
+        } else {
+            &self.recv_helper_v6 as &dyn RecvHelper
+        };
+
+        match recv_helper.parse(buffer.as_slice()) {
             Ok((request, addr)) => {
                 if self.config.statistics.active() {
                     let (statistics, extra_bytes) = if addr.is_ipv4() {
@@ -457,6 +540,54 @@ impl SocketWorker {
 
         None
     }
+}
+
+fn create_socket(
+    config: &Config,
+    priv_dropper: PrivilegeDropper,
+    address: SocketAddr,
+) -> anyhow::Result<::std::net::UdpSocket> {
+    let socket = if address.is_ipv4() {
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?
+    } else {
+        let socket = Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?;
+
+        if config.network.set_only_ipv6 {
+            socket
+                .set_only_v6(true)
+                .with_context(|| "socket: set only ipv6")?;
+        }
+
+        socket
+    };
+
+    socket
+        .set_reuse_port(true)
+        .with_context(|| "socket: set reuse port")?;
+
+    socket
+        .set_nonblocking(true)
+        .with_context(|| "socket: set nonblocking")?;
+
+    let recv_buffer_size = config.network.socket_recv_buffer_size;
+
+    if recv_buffer_size != 0 {
+        if let Err(err) = socket.set_recv_buffer_size(recv_buffer_size) {
+            ::log::error!(
+                "socket: failed setting recv buffer to {}: {:?}",
+                recv_buffer_size,
+                err
+            );
+        }
+    }
+
+    socket
+        .bind(&address.into())
+        .with_context(|| format!("socket: bind to {}", address))?;
+
+    priv_dropper.after_socket_creation()?;
+
+    Ok(socket.into())
 }
 
 pub fn supported_on_current_kernel() -> anyhow::Result<()> {

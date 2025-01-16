@@ -22,7 +22,8 @@ fn test_invalid_connection_id() -> anyhow::Result<()> {
 
     let mut config = Config::default();
 
-    config.network.address.set_port(TRACKER_PORT);
+    config.network.address_ipv4.set_port(TRACKER_PORT);
+    config.network.use_ipv6 = false;
 
     run_tracker(config);
 

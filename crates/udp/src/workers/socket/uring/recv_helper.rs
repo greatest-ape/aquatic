@@ -9,7 +9,7 @@ use io_uring::{opcode::RecvMsgMulti, types::RecvMsgOut};
 
 use crate::config::Config;
 
-use super::{SOCKET_IDENTIFIER, USER_DATA_RECV};
+use super::{SOCKET_IDENTIFIER_V4, SOCKET_IDENTIFIER_V6, USER_DATA_RECV_V4, USER_DATA_RECV_V6};
 
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
@@ -19,18 +19,19 @@ pub enum Error {
     InvalidSocketAddress,
 }
 
-pub struct RecvHelper {
-    socket_is_ipv4: bool,
+pub trait RecvHelper {
+    fn parse(&self, buffer: &[u8]) -> Result<(Request, CanonicalSocketAddr), Error>;
+}
+
+// For IPv4 sockets
+pub struct RecvHelperV4 {
     max_scrape_torrents: u8,
     #[allow(dead_code)]
     name_v4: *const libc::sockaddr_in,
     msghdr_v4: *const libc::msghdr,
-    #[allow(dead_code)]
-    name_v6: *const libc::sockaddr_in6,
-    msghdr_v6: *const libc::msghdr,
 }
 
-impl RecvHelper {
+impl RecvHelperV4 {
     pub fn new(config: &Config) -> Self {
         let name_v4 = Box::into_raw(Box::new(libc::sockaddr_in {
             sin_family: 0,
@@ -47,6 +48,62 @@ impl RecvHelper {
             Box::into_raw(Box::new(hdr))
         };
 
+        Self {
+            max_scrape_torrents: config.protocol.max_scrape_torrents,
+            name_v4,
+            msghdr_v4,
+        }
+    }
+
+    pub fn create_entry(&self, buf_group: u16) -> io_uring::squeue::Entry {
+        RecvMsgMulti::new(SOCKET_IDENTIFIER_V4, self.msghdr_v4, buf_group)
+            .build()
+            .user_data(USER_DATA_RECV_V4)
+    }
+}
+
+impl RecvHelper for RecvHelperV4 {
+    fn parse(&self, buffer: &[u8]) -> Result<(Request, CanonicalSocketAddr), Error> {
+        // Safe as long as kernel only reads from the pointer and doesn't
+        // write to it. I think this is the case.
+        let msghdr = unsafe { self.msghdr_v4.read() };
+
+        let msg = RecvMsgOut::parse(buffer, &msghdr).map_err(|_| Error::RecvMsgParseError)?;
+
+        if msg.is_name_data_truncated() | msg.is_payload_truncated() {
+            return Err(Error::RecvMsgTruncated);
+        }
+
+        let name_data = unsafe { *(msg.name_data().as_ptr() as *const libc::sockaddr_in) };
+
+        let addr = SocketAddr::V4(SocketAddrV4::new(
+            u32::from_be(name_data.sin_addr.s_addr).into(),
+            u16::from_be(name_data.sin_port),
+        ));
+
+        if addr.port() == 0 {
+            return Err(Error::InvalidSocketAddress);
+        }
+
+        let addr = CanonicalSocketAddr::new(addr);
+
+        let request = Request::parse_bytes(msg.payload_data(), self.max_scrape_torrents)
+            .map_err(|err| Error::RequestParseError(err, addr))?;
+
+        Ok((request, addr))
+    }
+}
+
+// For IPv6 sockets (can theoretically still receive IPv4 packets, though)
+pub struct RecvHelperV6 {
+    max_scrape_torrents: u8,
+    #[allow(dead_code)]
+    name_v6: *const libc::sockaddr_in6,
+    msghdr_v6: *const libc::msghdr,
+}
+
+impl RecvHelperV6 {
+    pub fn new(config: &Config) -> Self {
         let name_v6 = Box::into_raw(Box::new(libc::sockaddr_in6 {
             sin6_family: 0,
             sin6_port: 0,
@@ -64,69 +121,39 @@ impl RecvHelper {
         };
 
         Self {
-            socket_is_ipv4: config.network.address.is_ipv4(),
             max_scrape_torrents: config.protocol.max_scrape_torrents,
-            name_v4,
-            msghdr_v4,
             name_v6,
             msghdr_v6,
         }
     }
 
     pub fn create_entry(&self, buf_group: u16) -> io_uring::squeue::Entry {
-        let msghdr = if self.socket_is_ipv4 {
-            self.msghdr_v4
-        } else {
-            self.msghdr_v6
-        };
-
-        RecvMsgMulti::new(SOCKET_IDENTIFIER, msghdr, buf_group)
+        RecvMsgMulti::new(SOCKET_IDENTIFIER_V6, self.msghdr_v6, buf_group)
             .build()
-            .user_data(USER_DATA_RECV)
+            .user_data(USER_DATA_RECV_V6)
     }
+}
 
-    pub fn parse(&self, buffer: &[u8]) -> Result<(Request, CanonicalSocketAddr), Error> {
-        let (msg, addr) = if self.socket_is_ipv4 {
-            // Safe as long as kernel only reads from the pointer and doesn't
-            // write to it. I think this is the case.
-            let msghdr = unsafe { self.msghdr_v4.read() };
+impl RecvHelper for RecvHelperV6 {
+    fn parse(&self, buffer: &[u8]) -> Result<(Request, CanonicalSocketAddr), Error> {
+        // Safe as long as kernel only reads from the pointer and doesn't
+        // write to it. I think this is the case.
+        let msghdr = unsafe { self.msghdr_v6.read() };
 
-            let msg = RecvMsgOut::parse(buffer, &msghdr).map_err(|_| Error::RecvMsgParseError)?;
+        let msg = RecvMsgOut::parse(buffer, &msghdr).map_err(|_| Error::RecvMsgParseError)?;
 
-            if msg.is_name_data_truncated() | msg.is_payload_truncated() {
-                return Err(Error::RecvMsgTruncated);
-            }
+        if msg.is_name_data_truncated() | msg.is_payload_truncated() {
+            return Err(Error::RecvMsgTruncated);
+        }
 
-            let name_data = unsafe { *(msg.name_data().as_ptr() as *const libc::sockaddr_in) };
+        let name_data = unsafe { *(msg.name_data().as_ptr() as *const libc::sockaddr_in6) };
 
-            let addr = SocketAddr::V4(SocketAddrV4::new(
-                u32::from_be(name_data.sin_addr.s_addr).into(),
-                u16::from_be(name_data.sin_port),
-            ));
-
-            (msg, addr)
-        } else {
-            // Safe as long as kernel only reads from the pointer and doesn't
-            // write to it. I think this is the case.
-            let msghdr = unsafe { self.msghdr_v6.read() };
-
-            let msg = RecvMsgOut::parse(buffer, &msghdr).map_err(|_| Error::RecvMsgParseError)?;
-
-            if msg.is_name_data_truncated() | msg.is_payload_truncated() {
-                return Err(Error::RecvMsgTruncated);
-            }
-
-            let name_data = unsafe { *(msg.name_data().as_ptr() as *const libc::sockaddr_in6) };
-
-            let addr = SocketAddr::V6(SocketAddrV6::new(
-                Ipv6Addr::from(name_data.sin6_addr.s6_addr),
-                u16::from_be(name_data.sin6_port),
-                u32::from_be(name_data.sin6_flowinfo),
-                u32::from_be(name_data.sin6_scope_id),
-            ));
-
-            (msg, addr)
-        };
+        let addr = SocketAddr::V6(SocketAddrV6::new(
+            Ipv6Addr::from(name_data.sin6_addr.s6_addr),
+            u16::from_be(name_data.sin6_port),
+            u32::from_be(name_data.sin6_flowinfo),
+            u32::from_be(name_data.sin6_scope_id),
+        ));
 
         if addr.port() == 0 {
             return Err(Error::InvalidSocketAddress);
