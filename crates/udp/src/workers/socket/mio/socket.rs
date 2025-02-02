@@ -278,8 +278,9 @@ impl<V: IpVersion> Socket<V> {
             Ok(_) => (),
             Err(err) => match self.opt_resend_buffer.as_mut() {
                 Some(resend_buffer)
-                    if !disable_resend_buffer && (err.raw_os_error() == Some(libc::ENOBUFS))
-                        || (err.kind() == ErrorKind::WouldBlock) =>
+                    if !disable_resend_buffer
+                        && ((err.raw_os_error() == Some(libc::ENOBUFS))
+                            || (err.kind() == ErrorKind::WouldBlock)) =>
                 {
                     if resend_buffer.len() < shared.config.network.resend_buffer_max_len {
                         ::log::debug!("Adding response to resend queue, since sending it to {} failed with: {:#}", addr, err);
