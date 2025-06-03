@@ -275,6 +275,19 @@ pub fn invalid_data() -> ::std::io::Error {
     ::std::io::Error::new(::std::io::ErrorKind::InvalidData, "invalid data")
 }
 
+impl std::fmt::Display for InfoHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.0
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>()
+        )
+    }
+}
+
 #[cfg(test)]
 impl quickcheck::Arbitrary for InfoHash {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
