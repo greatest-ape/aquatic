@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::iter::repeat_with;
 use std::net::IpAddr;
 use std::ops::DerefMut;
@@ -133,6 +134,43 @@ impl TorrentMaps {
                     ::log::error!("couldn't send statistics message: {:#}", err);
                 }
             }
+
+            if config.statistics.write_json_to_file {
+                fn save_to_file(
+                    path: &std::path::PathBuf,
+                    info_hashes: &Vec<InfoHash>,
+                ) -> anyhow::Result<()> {
+                    let mut file =
+                        anyhow::Context::with_context(std::fs::File::create(path), || {
+                            format!("File path: {}", path.to_string_lossy())
+                        })?;
+                    write!(file, "[")?;
+                    if !info_hashes.is_empty() {
+                        write!(file, "\"{}\"", info_hashes[0])?;
+                        if let Some(i) = info_hashes.get(1..) {
+                            for info_hash in i {
+                                write!(file, ",\"{info_hash}\"")?;
+                            }
+                        }
+                    }
+                    write!(file, "]")?; // @TODO serialize with serde_json?
+                    Ok(())
+                }
+                if config.network.ipv4_active() {
+                    if let Err(err) =
+                        save_to_file(&config.statistics.json_info_hash_ipv4_file_path, &ipv4.3)
+                    {
+                        ::log::error!("Couldn't dump IPv4 info-hash table to file: {:#}", err)
+                    }
+                }
+                if config.network.ipv6_active() {
+                    if let Err(err) =
+                        save_to_file(&config.statistics.json_info_hash_ipv6_file_path, &ipv6.3)
+                    {
+                        ::log::error!("Couldn't dump IPv6 info-hash table to file: {:#}", err)
+                    }
+                }
+            }
         }
     }
 }
@@ -219,9 +257,10 @@ impl<I: Ip> TorrentMapShards<I> {
         access_list_cache: &mut AccessListCache,
         access_list_mode: AccessListMode,
         now: SecondsSinceServerStart,
-    ) -> (usize, usize, Option<Histogram<u64>>) {
+    ) -> (usize, usize, Option<Histogram<u64>>, Vec<InfoHash>) {
         let mut total_num_torrents = 0;
         let mut total_num_peers = 0;
+        let mut info_hashes: Vec<InfoHash> = Vec::new();
 
         let mut opt_histogram: Option<Histogram<u64>> = config
             .statistics
@@ -297,9 +336,21 @@ impl<I: Ip> TorrentMapShards<I> {
             torrent_map_shard.shrink_to_fit();
 
             total_num_torrents += torrent_map_shard.len();
+
+            if config.statistics.write_json_to_file {
+                info_hashes.reserve(total_num_torrents);
+                for (k, _) in torrent_map_shard.iter() {
+                    info_hashes.push(*k)
+                }
+            }
         }
 
-        (total_num_torrents, total_num_peers, opt_histogram)
+        (
+            total_num_torrents,
+            total_num_peers,
+            opt_histogram,
+            info_hashes,
+        )
     }
 
     fn get_shard(&self, info_hash: &InfoHash) -> &RwLock<TorrentMapShard<I>> {

@@ -183,6 +183,12 @@ pub struct StatisticsConfig {
     pub write_html_to_file: bool,
     /// Path to save HTML file to
     pub html_file_path: PathBuf,
+    /// Save statistics as JSON to a file
+    pub write_json_to_file: bool,
+    /// Path to dump JSON info-hash IPv4 to
+    pub json_info_hash_ipv4_file_path: PathBuf,
+    /// Path to dump JSON info-hash IPv6 to
+    pub json_info_hash_ipv6_file_path: PathBuf,
     /// Run a prometheus endpoint
     #[cfg(feature = "prometheus")]
     pub run_prometheus_endpoint: bool,
@@ -223,6 +229,9 @@ impl Default for StatisticsConfig {
             print_to_stdout: false,
             write_html_to_file: false,
             html_file_path: "tmp/statistics.html".into(),
+            write_json_to_file: false,
+            json_info_hash_ipv4_file_path: "tmp/info_hash_v4.json".into(),
+            json_info_hash_ipv6_file_path: "tmp/info_hash_v6.json".into(),
             #[cfg(feature = "prometheus")]
             run_prometheus_endpoint: false,
             #[cfg(feature = "prometheus")]
