@@ -183,7 +183,7 @@ impl TorrentMaps {
                     let mut t = 0;
                     let mut f = File::open(path)?;
                     loop {
-                        let mut b = vec![0, 20];
+                        let mut b = vec![0; 20];
                         let n = f.read_to_end(&mut b)?;
                         if n == 0 {
                             break;
