@@ -189,6 +189,13 @@ pub struct StatisticsConfig {
     pub json_info_hash_ipv4_file_path: PathBuf,
     /// Path to dump JSON info-hash IPv6 to
     pub json_info_hash_ipv6_file_path: PathBuf,
+    /// Save statistics as binary to a file
+    /// * this option is recommended for SSD as compares previous file before overwrite
+    pub write_bin_to_file: bool,
+    /// Path to dump binary info-hash IPv4 to
+    pub bin_info_hash_ipv4_file_path: PathBuf,
+    /// Path to dump binary info-hash IPv6 to
+    pub bin_info_hash_ipv6_file_path: PathBuf,
     /// Run a prometheus endpoint
     #[cfg(feature = "prometheus")]
     pub run_prometheus_endpoint: bool,
@@ -232,6 +239,9 @@ impl Default for StatisticsConfig {
             write_json_to_file: false,
             json_info_hash_ipv4_file_path: "tmp/info_hash_v4.json".into(),
             json_info_hash_ipv6_file_path: "tmp/info_hash_v6.json".into(),
+            write_bin_to_file: false,
+            bin_info_hash_ipv4_file_path: "tmp/info_hash_v4.bin".into(),
+            bin_info_hash_ipv6_file_path: "tmp/info_hash_v6.bin".into(),
             #[cfg(feature = "prometheus")]
             run_prometheus_endpoint: false,
             #[cfg(feature = "prometheus")]

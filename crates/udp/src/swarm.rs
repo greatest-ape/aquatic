@@ -136,14 +136,14 @@ impl TorrentMaps {
             }
 
             if config.statistics.write_json_to_file {
+                use anyhow::{Context, Result};
                 fn save_to_file(
                     path: &std::path::PathBuf,
                     info_hashes: &Vec<InfoHash>,
-                ) -> anyhow::Result<()> {
-                    let mut file =
-                        anyhow::Context::with_context(std::fs::File::create(path), || {
-                            format!("File path: {}", path.to_string_lossy())
-                        })?;
+                ) -> Result<()> {
+                    let mut file = Context::with_context(std::fs::File::create(path), || {
+                        format!("File path: {}", path.to_string_lossy())
+                    })?;
                     write!(file, "[")?;
                     if !info_hashes.is_empty() {
                         write!(file, "\"{}\"", info_hashes[0])?;
@@ -153,7 +153,7 @@ impl TorrentMaps {
                             }
                         }
                     }
-                    write!(file, "]")?; // @TODO serialize with serde_json?
+                    write!(file, "]")?;
                     Ok(())
                 }
                 if config.network.ipv4_active() {
@@ -166,6 +166,59 @@ impl TorrentMaps {
                 if config.network.ipv6_active() {
                     if let Err(err) =
                         save_to_file(&config.statistics.json_info_hash_ipv6_file_path, &ipv6.3)
+                    {
+                        ::log::error!("Couldn't dump IPv6 info-hash table to file: {:#}", err)
+                    }
+                }
+            }
+
+            if config.statistics.write_bin_to_file {
+                use anyhow::{Context, Result};
+                use std::{fs::File, io::Read, path::PathBuf};
+                /// Prevent extra write operations by compare the file content is same
+                fn is_same(path: &PathBuf, info_hashes: &Vec<InfoHash>) -> Result<bool> {
+                    if !std::fs::exists(path)? {
+                        return Ok(false);
+                    }
+                    let mut t = 0;
+                    let mut f = File::open(path)?;
+                    loop {
+                        let mut b = vec![0, 20];
+                        let n = f.read_to_end(&mut b)?;
+                        if n == 0 {
+                            break;
+                        }
+                        if info_hashes.iter().any(|i| i.0 != b[..n]) {
+                            return Ok(false);
+                        }
+                        t += 1
+                    }
+                    Ok(t == info_hashes.len())
+                }
+                /// Dump `InfoHash` index to file
+                fn save_to_file(path: &PathBuf, info_hashes: &Vec<InfoHash>) -> Result<()> {
+                    if is_same(path, info_hashes)? {
+                        return Ok(());
+                    }
+                    let mut f = Context::with_context(File::create(path), || {
+                        format!("File path: {}", path.to_string_lossy())
+                    })?;
+                    for i in info_hashes {
+                        f.write_all(&i.0)?;
+                        f.write_all(b"\n")?
+                    }
+                    Ok(())
+                }
+                if config.network.ipv4_active() {
+                    if let Err(err) =
+                        save_to_file(&config.statistics.bin_info_hash_ipv4_file_path, &ipv4.3)
+                    {
+                        ::log::error!("Couldn't dump IPv4 info-hash table to file: {:#}", err)
+                    }
+                }
+                if config.network.ipv6_active() {
+                    if let Err(err) =
+                        save_to_file(&config.statistics.bin_info_hash_ipv6_file_path, &ipv6.3)
                     {
                         ::log::error!("Couldn't dump IPv6 info-hash table to file: {:#}", err)
                     }
