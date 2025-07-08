@@ -185,11 +185,11 @@ impl TorrentMaps {
                     let mut f = File::open(path)?;
                     loop {
                         let mut b = vec![0; L];
-                        let n = f.read(&mut b)?;
-                        if n != L {
+                        let l = f.read(&mut b)?;
+                        if l != L {
                             break;
                         }
-                        if info_hashes.iter().any(|i| i.0 != b[..n]) {
+                        if info_hashes.iter().any(|i| i.0 != b[..l]) {
                             return Ok(false);
                         }
                         t += 1
