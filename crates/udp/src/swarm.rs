@@ -175,17 +175,18 @@ impl TorrentMaps {
             if config.statistics.write_bin_to_file {
                 use anyhow::{Context, Result};
                 use std::{fs::File, io::Read, path::PathBuf};
-                /// Prevent extra write operations by compare the file content is same
+                /// Prevent extra write operations by compare the file content is up to date
                 fn is_same(path: &PathBuf, info_hashes: &Vec<InfoHash>) -> Result<bool> {
                     if !std::fs::exists(path)? {
                         return Ok(false);
                     }
+                    const L: usize = 20; // v1 only
                     let mut t = 0;
                     let mut f = File::open(path)?;
                     loop {
-                        let mut b = vec![0; 20];
-                        let n = f.read_to_end(&mut b)?;
-                        if n == 0 {
+                        let mut b = vec![0; L];
+                        let n = f.read(&mut b)?;
+                        if n != L {
                             break;
                         }
                         if info_hashes.iter().any(|i| i.0 != b[..n]) {
@@ -204,8 +205,7 @@ impl TorrentMaps {
                         format!("File path: {}", path.to_string_lossy())
                     })?;
                     for i in info_hashes {
-                        f.write_all(&i.0)?;
-                        f.write_all(b"\n")?
+                        f.write_all(&i.0)?
                     }
                     Ok(())
                 }
