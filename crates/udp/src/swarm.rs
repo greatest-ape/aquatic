@@ -389,7 +389,7 @@ impl<I: Ip> TorrentMapShards<I> {
 
             total_num_torrents += torrent_map_shard.len();
 
-            if config.statistics.write_json_to_file {
+            if config.statistics.collect_info_hash() {
                 info_hashes.reserve(total_num_torrents);
                 for (k, _) in torrent_map_shard.iter() {
                     info_hashes.push(*k)

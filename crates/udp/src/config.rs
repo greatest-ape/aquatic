@@ -225,6 +225,10 @@ impl StatisticsConfig {
             }
         }
     }
+    /// Skip info-hash collection if not required by the configuration
+    pub fn collect_info_hash(&self) -> bool {
+        (self.interval != 0) & (self.write_json_to_file | self.write_bin_to_file)
+    }
 }
 
 impl Default for StatisticsConfig {
