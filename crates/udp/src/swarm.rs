@@ -141,19 +141,19 @@ impl TorrentMaps {
                     path: &std::path::PathBuf,
                     info_hashes: &Vec<InfoHash>,
                 ) -> Result<()> {
-                    let mut file = Context::with_context(std::fs::File::create(path), || {
+                    let mut f = Context::with_context(std::fs::File::create(path), || {
                         format!("File path: {}", path.to_string_lossy())
                     })?;
-                    write!(file, "[")?;
+                    write!(f, "[")?;
                     if !info_hashes.is_empty() {
-                        write!(file, "\"{}\"", info_hashes[0])?;
+                        write!(f, "\"{}\"", info_hashes[0])?;
                         if let Some(i) = info_hashes.get(1..) {
                             for info_hash in i {
-                                write!(file, ",\"{info_hash}\"")?;
+                                write!(f, ",\"{info_hash}\"")?;
                             }
                         }
                     }
-                    write!(file, "]")?;
+                    write!(f, "]")?;
                     Ok(())
                 }
                 if config.network.ipv4_active() {
