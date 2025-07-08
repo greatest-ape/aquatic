@@ -282,7 +282,7 @@ impl std::fmt::Display for InfoHash {
             "{}",
             self.0
                 .iter()
-                .map(|b| format!("{:02x}", b))
+                .map(|b| format!("{b:02x}"))
                 .collect::<String>()
         )
     }
