@@ -217,11 +217,11 @@ impl StatisticsConfig {
         if #[cfg(feature = "prometheus")] {
             pub fn active(&self) -> bool {
                 (self.interval != 0) &
-                    (self.print_to_stdout | self.write_html_to_file | self.run_prometheus_endpoint)
+                    (self.print_to_stdout | self.write_html_to_file | self.write_json_to_file | self.write_bin_to_file | self.run_prometheus_endpoint)
             }
         } else {
             pub fn active(&self) -> bool {
-                (self.interval != 0) & (self.print_to_stdout | self.write_html_to_file)
+                (self.interval != 0) & (self.print_to_stdout | self.write_html_to_file | self.write_json_to_file | self.write_bin_to_file)
             }
         }
     }
