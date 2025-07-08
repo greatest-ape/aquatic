@@ -189,7 +189,7 @@ impl TorrentMaps {
                         if l != L {
                             break;
                         }
-                        if info_hashes.iter().any(|i| i.0 != b[..l]) {
+                        if !info_hashes.iter().any(|i| i.0 == b[..l]) {
                             return Ok(false);
                         }
                         t += 1
