@@ -4,11 +4,14 @@ use std::num::NonZeroU16;
 
 pub use aquatic_peer_id::{PeerClient, PeerId};
 use zerocopy::network_endian::{I32, I64, U16, U32};
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, Immutable, IntoBytes};
 
-pub trait Ip: Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + AsBytes {}
+pub trait Ip:
+    Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + IntoBytes + Immutable
+{
+}
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct AnnounceInterval(pub I32);
 
@@ -31,12 +34,12 @@ impl PartialOrd for AnnounceInterval {
 }
 
 #[derive(
-    PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes,
+    PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable,
 )]
 #[repr(transparent)]
 pub struct InfoHash(pub [u8; 20]);
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct ConnectionId(pub I64);
 
@@ -58,7 +61,7 @@ impl PartialOrd for ConnectionId {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct TransactionId(pub I32);
 
@@ -80,7 +83,7 @@ impl PartialOrd for TransactionId {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct NumberOfBytes(pub I64);
 
@@ -102,7 +105,7 @@ impl PartialOrd for NumberOfBytes {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct NumberOfPeers(pub I32);
 
@@ -124,7 +127,7 @@ impl PartialOrd for NumberOfPeers {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct NumberOfDownloads(pub I32);
 
@@ -146,7 +149,7 @@ impl PartialOrd for NumberOfDownloads {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct Port(pub U16);
 
@@ -168,7 +171,7 @@ impl PartialOrd for Port {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct PeerKey(pub I32);
 
@@ -191,7 +194,7 @@ impl PartialOrd for PeerKey {
 }
 
 #[derive(
-    PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash, AsBytes, FromBytes, FromZeroes,
+    PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash, IntoBytes, FromBytes, Immutable,
 )]
 #[repr(C, packed)]
 pub struct ResponsePeer<I: Ip> {
@@ -200,7 +203,7 @@ pub struct ResponsePeer<I: Ip> {
 }
 
 #[derive(
-    PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes,
+    PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable,
 )]
 #[repr(transparent)]
 pub struct Ipv4AddrBytes(pub [u8; 4]);
@@ -220,7 +223,7 @@ impl From<Ipv4Addr> for Ipv4AddrBytes {
 }
 
 #[derive(
-    PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes,
+    PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable,
 )]
 #[repr(transparent)]
 pub struct Ipv6AddrBytes(pub [u8; 16]);

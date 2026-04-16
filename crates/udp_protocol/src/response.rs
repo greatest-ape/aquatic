@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::mem::size_of;
 
 use byteorder::{NetworkEndian, WriteBytesExt};
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes};
 
 use super::common::*;
 
@@ -35,19 +35,31 @@ impl Response {
         match action.get() {
             // Connect
             0 => Ok(Response::Connect(
-                ConnectResponse::read_from_prefix(bytes).ok_or_else(invalid_data)?,
+                ConnectResponse::read_from_prefix(bytes)
+                    .map_err(|_| invalid_data())?
+                    .0,
             )),
             // Announce
             1 if ipv4 => {
-                let fixed =
-                    AnnounceResponseFixedData::read_from_prefix(bytes).ok_or_else(invalid_data)?;
+                let fixed = AnnounceResponseFixedData::read_from_prefix(bytes)
+                    .map_err(|_| invalid_data())?
+                    .0;
 
                 let peers = if let Some(bytes) = bytes.get(size_of::<AnnounceResponseFixedData>()..)
                 {
-                    Vec::from(
-                        ResponsePeer::<Ipv4AddrBytes>::slice_from(bytes)
-                            .ok_or_else(invalid_data)?,
-                    )
+                    let chunks = bytes.chunks_exact(size_of::<ResponsePeer<Ipv4AddrBytes>>());
+
+                    if !chunks.remainder().is_empty() {
+                        return Err(invalid_data());
+                    }
+
+                    chunks
+                        .map(|chunk| {
+                            ResponsePeer::<Ipv4AddrBytes>::read_from_prefix(chunk)
+                                .map(|(peer, _)| peer)
+                                .map_err(|_| invalid_data())
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
                 } else {
                     Vec::new()
                 };
@@ -55,15 +67,25 @@ impl Response {
                 Ok(Response::AnnounceIpv4(AnnounceResponse { fixed, peers }))
             }
             1 if !ipv4 => {
-                let fixed =
-                    AnnounceResponseFixedData::read_from_prefix(bytes).ok_or_else(invalid_data)?;
+                let fixed = AnnounceResponseFixedData::read_from_prefix(bytes)
+                    .map_err(|_| invalid_data())?
+                    .0;
 
                 let peers = if let Some(bytes) = bytes.get(size_of::<AnnounceResponseFixedData>()..)
                 {
-                    Vec::from(
-                        ResponsePeer::<Ipv6AddrBytes>::slice_from(bytes)
-                            .ok_or_else(invalid_data)?,
-                    )
+                    let chunks = bytes.chunks_exact(size_of::<ResponsePeer<Ipv6AddrBytes>>());
+
+                    if !chunks.remainder().is_empty() {
+                        return Err(invalid_data());
+                    }
+
+                    chunks
+                        .map(|chunk| {
+                            ResponsePeer::<Ipv6AddrBytes>::read_from_prefix(chunk)
+                                .map(|(peer, _)| peer)
+                                .map_err(|_| invalid_data())
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
                 } else {
                     Vec::new()
                 };
@@ -73,8 +95,19 @@ impl Response {
             // Scrape
             2 => {
                 let transaction_id = read_i32_ne(&mut bytes).map(TransactionId)?;
-                let torrent_stats =
-                    Vec::from(TorrentScrapeStatistics::slice_from(bytes).ok_or_else(invalid_data)?);
+                let chunks = bytes.chunks_exact(size_of::<TorrentScrapeStatistics>());
+
+                if !chunks.remainder().is_empty() {
+                    return Err(invalid_data());
+                }
+
+                let torrent_stats = chunks
+                    .map(|chunk| {
+                        TorrentScrapeStatistics::read_from_prefix(chunk)
+                            .map(|(stats, _)| stats)
+                            .map_err(|_| invalid_data())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 Ok((ScrapeResponse {
                     transaction_id,
@@ -128,7 +161,7 @@ impl From<ErrorResponse> for Response {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct ConnectResponse {
     pub transaction_id: TransactionId,
@@ -154,7 +187,7 @@ pub struct AnnounceResponse<I: Ip> {
 impl<I: Ip> AnnounceResponse<I> {
     pub fn empty() -> Self {
         Self {
-            fixed: FromZeroes::new_zeroed(),
+            fixed: FromZeros::new_zeroed(),
             peers: Default::default(),
         }
     }
@@ -169,7 +202,7 @@ impl<I: Ip> AnnounceResponse<I> {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct AnnounceResponseFixedData {
     pub transaction_id: TransactionId,
@@ -195,7 +228,7 @@ impl ScrapeResponse {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct TorrentScrapeStatistics {
     pub seeders: NumberOfPeers,

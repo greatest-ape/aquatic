@@ -1,9 +1,9 @@
 use std::io::{self, Cursor, Write};
+use std::mem::size_of;
 
 use byteorder::{NetworkEndian, WriteBytesExt};
 use either::Either;
-use zerocopy::FromZeroes;
-use zerocopy::{byteorder::network_endian::I32, AsBytes, FromBytes};
+use zerocopy::{byteorder::network_endian::I32, FromBytes, Immutable, IntoBytes};
 
 use aquatic_peer_id::PeerId;
 
@@ -56,7 +56,8 @@ impl Request {
             // Announce
             1 => {
                 let request = AnnounceRequest::read_from_prefix(bytes)
-                    .ok_or_else(|| RequestParseError::unsendable_text("invalid data"))?;
+                    .map_err(|_| RequestParseError::unsendable_text("invalid data"))?
+                    .0;
 
                 if request.port.0.get() == 0 {
                     Err(RequestParseError::sendable_text(
@@ -103,13 +104,23 @@ impl Request {
                     ));
                 }
 
-                let info_hashes = FromBytes::slice_from(remaining_bytes).ok_or_else(|| {
-                    RequestParseError::sendable_text(
+                let chunks = remaining_bytes.chunks_exact(size_of::<InfoHash>());
+
+                if !chunks.remainder().is_empty() {
+                    return Err(RequestParseError::sendable_text(
                         "Invalid info hash list",
                         connection_id,
                         transaction_id,
-                    )
-                })?;
+                    ));
+                }
+
+                let info_hashes = chunks
+                    .map(|chunk| {
+                        let mut bytes = [0u8; 20];
+                        bytes.copy_from_slice(chunk);
+                        InfoHash(bytes)
+                    })
+                    .collect::<Vec<_>>();
 
                 let info_hashes = Vec::from(
                     &info_hashes[..(max_scrape_torrents as usize).min(info_hashes.len())],
@@ -161,7 +172,7 @@ impl ConnectRequest {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct AnnounceRequest {
     pub connection_id: ConnectionId,
@@ -188,7 +199,7 @@ impl AnnounceRequest {
 }
 
 /// Note: Request::from_bytes only creates this struct with value 1
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct AnnounceActionPlaceholder(I32);
 
@@ -199,7 +210,7 @@ impl Default for AnnounceActionPlaceholder {
 }
 
 /// Note: Request::from_bytes only creates this struct with values 0..=3
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct AnnounceEventBytes(I32);
 
