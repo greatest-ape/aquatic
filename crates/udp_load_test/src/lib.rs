@@ -10,8 +10,8 @@ use aquatic_udp_protocol::{InfoHash, Port};
 use crossbeam_channel::{unbounded, Receiver};
 use hdrhistogram::Histogram;
 use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
-use rand_distr::{Distribution, WeightedAliasIndex};
+use rand::{Rng, SeedableRng, RngExt};
+use rand_distr::{Distribution, weighted::WeightedAliasIndex};
 
 mod common;
 pub mod config;
@@ -224,7 +224,7 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
         config.extra_statistics.then_some(IndexMap::default());
 
     let mut all_peers = repeat_with(|| {
-        let num_scrape_indices = rng.gen_range(1..config.requests.scrape_max_torrents + 1);
+        let num_scrape_indices = rng.random_range(1..config.requests.scrape_max_torrents + 1);
 
         let scrape_info_hash_indices = repeat_with(|| info_hash_dist.get_random_index(&mut rng))
             .take(num_scrape_indices)
@@ -242,9 +242,9 @@ fn create_peers(config: &Config, info_hash_dist: &InfoHashDist) -> Vec<Box<[Peer
         Peer {
             announce_info_hash_index,
             announce_info_hash,
-            announce_port: Port::new(rng.gen()),
+            announce_port: Port::new(rng.random()),
             scrape_info_hash_indices,
-            socket_index: rng.gen_range(0..config.network.sockets_per_worker),
+            socket_index: rng.random_range(0..config.network.sockets_per_worker),
         }
     })
     .take(config.requests.number_of_peers)
@@ -296,7 +296,7 @@ impl InfoHashDist {
             let mut bytes = [0u8; 20];
 
             for byte in bytes.iter_mut() {
-                *byte = rng.gen();
+                *byte = rng.random();
             }
 
             InfoHash(bytes)

@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use anyhow::Context;
 use constant_time_eq::constant_time_eq;
-use getrandom::getrandom;
+use getrandom::fill;
 
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::ConnectionId;
@@ -43,7 +43,7 @@ impl ConnectionValidator {
     pub fn new(config: &Config) -> anyhow::Result<Self> {
         let mut key = [0; 32];
 
-        getrandom(&mut key)
+        fill(&mut key)
             .with_context(|| "Couldn't get random bytes for ConnectionValidator key")?;
 
         let keyed_hasher = blake3::Hasher::new_keyed(&key);

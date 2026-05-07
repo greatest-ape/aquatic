@@ -13,7 +13,6 @@ use aquatic_common::{
 };
 use aquatic_udp_protocol::*;
 use rand::rngs::SmallRng;
-use rand::SeedableRng;
 
 use crate::common::*;
 use crate::config::Config;
@@ -63,7 +62,7 @@ pub fn run(
         validator,
         access_list_cache,
         buffer: [0; BUFFER_SIZE],
-        rng: SmallRng::from_entropy(),
+        rng: rand::make_rng(),
         peer_valid_until,
     };
 

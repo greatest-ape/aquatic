@@ -26,13 +26,13 @@ anyhow = "1"
 arc-swap = "1"
 duplicate = "2"
 git-testament = "0.2"
-hashbrown = "0.15"
+hashbrown = "0.17"
 hex = "0.4"
 indexmap = "2"
 libc = "0.2"
 log = "0.4"
 privdrop = "0.5"
-rand = { version = "0.8", features = ["small_rng"] }
+rand = "0.10"
 serde = { version = "1", features = ["derive"] }
 simplelog = { version = "0.12" }
 toml = "0.5"
