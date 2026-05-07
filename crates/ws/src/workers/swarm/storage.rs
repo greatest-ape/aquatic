@@ -673,13 +673,13 @@ where
 #[cfg(test)]
 mod tests {
     use hashbrown::HashSet;
-    use rand::{rngs::SmallRng, SeedableRng};
+    use rand::{rngs::SmallRng, make_rng};
 
     use super::*;
 
     #[test]
     fn test_extract_response_peers() {
-        let mut rng = SmallRng::from_entropy();
+        let mut rng: SmallRng = make_rng();
 
         for num_peers_in_map in 0..50 {
             for max_num_peers_to_take in 0..50 {
