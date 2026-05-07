@@ -2,6 +2,7 @@
 
 * udp: steal latest buf ring implementation from io-uring crate examples
 * update zerocopy version (will likely require minor rewrite)
+* udp: FreeBSD: set SO_REUSEPORT_LB. See socket2 set_reuse_port_lb
 
 ## High priority
 
