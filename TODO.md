@@ -1,11 +1,13 @@
 # TODO
 
+* udp: steal latest buf ring implementation from io-uring crate examples
+* update zerocopy version (will likely require minor rewrite)
+
 ## High priority
 
 * Change network address handling to accept separate IPv4 and IPv6
   addresses. Open a socket for each one, setting ipv6_only flag on
   the IPv6 one (unless user opts out).
-* update zerocopy version (will likely require minor rewrite)
 
 * udp (uring)
   * run tests under valgrind
