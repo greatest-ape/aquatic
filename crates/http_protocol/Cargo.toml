@@ -38,6 +38,6 @@ urlencoding = "2"
 
 [dev-dependencies]
 bendy = { version = "0.6", features = ["std", "serde"] }
-criterion = "0.4"
+criterion = "0.8"
 quickcheck = "1"
 quickcheck_macros = "1"

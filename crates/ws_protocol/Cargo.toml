@@ -33,6 +33,6 @@ simd-json = "0.17"
 tungstenite = { version = "0.29", optional = true }
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8"
 quickcheck = "1"
 quickcheck_macros = "1"
