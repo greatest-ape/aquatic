@@ -11,7 +11,7 @@ use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::enclose;
 use glommio::prelude::*;
 use glommio::timer::TimerActionRepeat;
-use rand::{rngs::SmallRng, make_rng};
+use rand::{make_rng, rngs::SmallRng};
 
 use aquatic_common::ServerStartInstant;
 

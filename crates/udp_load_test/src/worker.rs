@@ -6,8 +6,8 @@ use std::time::Duration;
 use aquatic_common::IndexMap;
 use crossbeam_channel::Sender;
 use rand::Rng;
-use rand::{prelude::SmallRng, SeedableRng, RngExt};
-use rand_distr::{Distribution, weighted::WeightedIndex};
+use rand::{prelude::SmallRng, RngExt, SeedableRng};
+use rand_distr::{weighted::WeightedIndex, Distribution};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::*;

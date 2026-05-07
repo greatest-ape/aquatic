@@ -8,7 +8,7 @@ use futures_lite::{Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role};
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
-use rand::{rngs::SmallRng, make_rng};
+use rand::{make_rng, rngs::SmallRng};
 
 use aquatic_common::{ServerStartInstant, ValidUntil};
 

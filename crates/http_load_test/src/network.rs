@@ -12,7 +12,7 @@ use futures_lite::{AsyncReadExt, AsyncWriteExt};
 use futures_rustls::TlsConnector;
 use glommio::net::TcpStream;
 use glommio::{prelude::*, timer::TimerActionRepeat};
-use rand::{prelude::SmallRng, make_rng};
+use rand::{make_rng, prelude::SmallRng};
 
 use crate::{common::LoadTestState, config::Config, utils::create_random_request};
 
