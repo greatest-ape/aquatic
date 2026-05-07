@@ -378,7 +378,7 @@ dependencies = [
  "futures-lite",
  "futures-rustls",
  "glommio",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.0",
  "httparse",
  "indexmap 2.14.0",
  "log",
@@ -388,14 +388,14 @@ dependencies = [
  "privdrop",
  "quickcheck",
  "quickcheck_macros",
- "rand 0.8.6",
+ "rand 0.10.1",
  "rustls",
  "rustls-pemfile",
  "serde",
- "signal-hook 0.3.18",
+ "signal-hook 0.4.4",
  "slab",
  "slotmap",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "tungstenite",
 ]
 
@@ -415,8 +415,8 @@ dependencies = [
  "mimalloc",
  "quickcheck",
  "quickcheck_macros",
- "rand 0.8.6",
- "rand_distr 0.4.3",
+ "rand 0.10.1",
+ "rand_distr 0.6.0",
  "rustls",
  "serde",
  "serde_json",
@@ -429,7 +429,7 @@ version = "0.9.0"
 dependencies = [
  "anyhow",
  "criterion 0.5.1",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.0",
  "quickcheck",
  "quickcheck_macros",
  "serde",
@@ -1490,7 +1490,6 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash 0.1.5",
- "serde",
 ]
 
 [[package]]
@@ -1502,6 +1501,8 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash 0.2.0",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]

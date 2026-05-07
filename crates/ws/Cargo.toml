@@ -40,19 +40,19 @@ futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.26"
 glommio = "0.9"
-hashbrown = { version = "0.15", features = ["serde"] }
+hashbrown = { version = "0.17", features = ["serde"] }
 httparse = "1"
 indexmap = "2"
 log = "0.4"
 privdrop = "0.5"
-rand = { version = "0.8", features = ["small_rng"] }
+rand = "0.10"
 rustls = "0.23"
 rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
-signal-hook = { version = "0.3" }
+signal-hook = { version = "0.4" }
 slab = "0.4"
 slotmap = "1"
-socket2 = { version = "0.5", features = ["all"] }
+socket2 = { version = "0.6", features = ["all"] }
 tungstenite = "0.24"
 
 # metrics feature

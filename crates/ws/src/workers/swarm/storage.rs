@@ -13,7 +13,7 @@ use rand::rngs::SmallRng;
 
 use aquatic_common::{IndexMap, SecondsSinceServerStart, ServerStartInstant};
 use aquatic_ws_protocol::common::*;
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 use crate::common::*;
 use crate::config::Config;
@@ -637,13 +637,13 @@ where
             let from = 0;
             let to = usize::max(1, middle_index - num_to_take_per_half);
 
-            rng.gen_range(from..to)
+            rng.random_range(from..to)
         };
         let offset_half_two = {
             let from = middle_index;
             let to = usize::max(middle_index + 1, peer_map.len() - num_to_take_per_half);
 
-            rng.gen_range(from..to)
+            rng.random_range(from..to)
         };
 
         let end_half_one = offset_half_one + num_to_take_per_half;
