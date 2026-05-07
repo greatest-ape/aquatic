@@ -1,7 +1,8 @@
+use std::hint::black_box;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 use aquatic_http_protocol::response::*;
 
