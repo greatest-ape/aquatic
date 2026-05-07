@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rand::distributions::WeightedIndex;
+use rand::distr::weighted::WeightedIndex;
 use rand::prelude::*;
 use rand_distr::Gamma;
 
@@ -30,7 +30,7 @@ pub fn create_random_request(
 #[inline]
 fn create_announce_request(config: &Config, state: &LoadTestState, rng: &mut impl Rng) -> Request {
     let (event, bytes_left) = {
-        if rng.gen_bool(config.torrents.peer_seeder_probability) {
+        if rng.random_bool(config.torrents.peer_seeder_probability) {
             (AnnounceEvent::Completed, 0)
         } else {
             (AnnounceEvent::Started, 50)
@@ -41,12 +41,12 @@ fn create_announce_request(config: &Config, state: &LoadTestState, rng: &mut imp
 
     Request::Announce(AnnounceRequest {
         info_hash: state.info_hashes[info_hash_index],
-        peer_id: PeerId(rng.gen()),
+        peer_id: PeerId(rng.random()),
         bytes_left,
         event,
         key: None,
         numwant: None,
-        port: rng.gen(),
+        port: rng.random(),
         bytes_uploaded: 0,
         bytes_downloaded: 0,
     })

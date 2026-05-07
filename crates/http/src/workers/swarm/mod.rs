@@ -8,8 +8,7 @@ use futures_lite::{Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role};
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
-use rand::prelude::SmallRng;
-use rand::SeedableRng;
+use rand::{rngs::SmallRng, make_rng};
 
 use aquatic_common::{ServerStartInstant, ValidUntil};
 
@@ -96,7 +95,7 @@ async fn handle_request_stream<S>(
 ) where
     S: Stream<Item = ChannelRequest> + ::std::marker::Unpin,
 {
-    let mut rng = SmallRng::from_entropy();
+    let mut rng: SmallRng = make_rng();
 
     while let Some(channel_request) = stream.next().await {
         match channel_request {
