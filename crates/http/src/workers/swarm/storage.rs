@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 use aquatic_common::access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache};
 use aquatic_common::{
@@ -467,13 +467,13 @@ impl<I: Ip> LargePeerMap<I> {
                 let from = 0;
                 let to = usize::max(1, middle_index - num_to_take_per_half);
 
-                rng.gen_range(from..to)
+                rng.random_range(from..to)
             };
             let offset_half_two = {
                 let from = middle_index;
                 let to = usize::max(middle_index + 1, self.peers.len() - num_to_take_per_half);
 
-                rng.gen_range(from..to)
+                rng.random_range(from..to)
             };
 
             let end_half_one = offset_half_one + num_to_take_per_half;

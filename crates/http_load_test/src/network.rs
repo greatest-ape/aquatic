@@ -12,7 +12,7 @@ use futures_lite::{AsyncReadExt, AsyncWriteExt};
 use futures_rustls::TlsConnector;
 use glommio::net::TcpStream;
 use glommio::{prelude::*, timer::TimerActionRepeat};
-use rand::{prelude::SmallRng, SeedableRng};
+use rand::{prelude::SmallRng, make_rng};
 
 use crate::{common::LoadTestState, config::Config, utils::create_random_request};
 
@@ -23,7 +23,7 @@ pub async fn run_socket_thread(
 ) -> anyhow::Result<()> {
     let config = Rc::new(config);
     let num_active_connections = Rc::new(RefCell::new(0usize));
-    let rng = Rc::new(RefCell::new(SmallRng::from_entropy()));
+    let rng: Rc<RefCell<SmallRng>> = Rc::new(RefCell::new(make_rng()));
 
     let interval = config.connection_creation_interval_ms;
 

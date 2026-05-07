@@ -39,10 +39,10 @@ fn run(config: Config) -> ::anyhow::Result<()> {
 
     let mut info_hashes = Vec::with_capacity(config.torrents.number_of_torrents);
 
-    let mut rng = SmallRng::from_entropy();
+    let mut rng: SmallRng = rand::make_rng();
 
     for _ in 0..config.torrents.number_of_torrents {
-        info_hashes.push(InfoHash(rng.gen()));
+        info_hashes.push(InfoHash(rng.random()));
     }
 
     let gamma = Gamma::new(
