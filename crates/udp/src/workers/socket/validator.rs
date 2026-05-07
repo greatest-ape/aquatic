@@ -43,8 +43,7 @@ impl ConnectionValidator {
     pub fn new(config: &Config) -> anyhow::Result<Self> {
         let mut key = [0; 32];
 
-        fill(&mut key)
-            .with_context(|| "Couldn't get random bytes for ConnectionValidator key")?;
+        fill(&mut key).with_context(|| "Couldn't get random bytes for ConnectionValidator key")?;
 
         let keyed_hasher = blake3::Hasher::new_keyed(&key);
 

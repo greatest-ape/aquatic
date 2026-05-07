@@ -673,7 +673,7 @@ where
 #[cfg(test)]
 mod tests {
     use hashbrown::HashSet;
-    use rand::{rngs::SmallRng, make_rng};
+    use rand::{make_rng, rngs::SmallRng};
 
     use super::*;
 

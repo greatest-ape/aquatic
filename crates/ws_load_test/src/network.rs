@@ -22,8 +22,8 @@ use futures::{SinkExt, StreamExt};
 use futures_rustls::{client::TlsStream, TlsConnector};
 use glommio::net::TcpStream;
 use glommio::{prelude::*, timer::TimerActionRepeat};
-use rand::{prelude::SmallRng, Rng, RngExt, make_rng};
-use rand_distr::{Distribution, weighted::WeightedIndex};
+use rand::{make_rng, prelude::SmallRng, Rng, RngExt};
+use rand_distr::{weighted::WeightedIndex, Distribution};
 
 use crate::{
     common::{LoadTestState, RequestType},

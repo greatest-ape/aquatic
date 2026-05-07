@@ -10,8 +10,8 @@ use aquatic_udp_protocol::{InfoHash, Port};
 use crossbeam_channel::{unbounded, Receiver};
 use hdrhistogram::Histogram;
 use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng, RngExt};
-use rand_distr::{Distribution, weighted::WeightedAliasIndex};
+use rand::{Rng, RngExt, SeedableRng};
+use rand_distr::{weighted::WeightedAliasIndex, Distribution};
 
 mod common;
 pub mod config;
