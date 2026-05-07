@@ -11,7 +11,7 @@ use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role, Senders};
 use glommio::enclose;
 use glommio::prelude::*;
 use glommio::timer::TimerActionRepeat;
-use rand::{rngs::SmallRng, SeedableRng};
+use rand::{rngs::SmallRng, make_rng};
 
 use aquatic_common::ServerStartInstant;
 
@@ -125,7 +125,7 @@ async fn handle_request_stream<S>(
 ) where
     S: futures_lite::Stream<Item = (InMessageMeta, InMessage)> + ::std::marker::Unpin,
 {
-    let rng = Rc::new(RefCell::new(SmallRng::from_entropy()));
+    let rng: Rc<RefCell<SmallRng>> = Rc::new(RefCell::new(make_rng()));
     let config = &config;
     let torrents = &torrents;
     let rng = &rng;

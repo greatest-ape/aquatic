@@ -22,8 +22,8 @@ use futures::{SinkExt, StreamExt};
 use futures_rustls::{client::TlsStream, TlsConnector};
 use glommio::net::TcpStream;
 use glommio::{prelude::*, timer::TimerActionRepeat};
-use rand::{prelude::SmallRng, Rng, SeedableRng};
-use rand_distr::{Distribution, WeightedIndex};
+use rand::{prelude::SmallRng, Rng, RngExt, make_rng};
+use rand_distr::{Distribution, weighted::WeightedIndex};
 
 use crate::{
     common::{LoadTestState, RequestType},
@@ -37,7 +37,7 @@ pub async fn run_socket_thread(
     load_test_state: LoadTestState,
 ) -> anyhow::Result<()> {
     let config = Rc::new(config);
-    let rng = Rc::new(RefCell::new(SmallRng::from_entropy()));
+    let rng = Rc::new(RefCell::new(make_rng()));
     let num_active_connections = Rc::new(RefCell::new(0usize));
     let connection_creation_interval =
         Duration::from_millis(config.connection_creation_interval_ms);
@@ -103,7 +103,7 @@ impl Connection {
         num_active_connections: Rc<RefCell<usize>>,
         rng: Rc<RefCell<SmallRng>>,
     ) -> anyhow::Result<()> {
-        let peer_id = PeerId(rng.borrow_mut().gen());
+        let peer_id = PeerId(rng.borrow_mut().random());
         let stream = TcpStream::connect(config.server_address)
             .await
             .map_err(|err| anyhow::anyhow!("connect: {:?}", err))?;
@@ -167,7 +167,7 @@ impl Connection {
         let request = match random_request_type(&self.config, &mut *rng) {
             RequestType::Announce => {
                 let (event, bytes_left) = {
-                    if rng.gen_bool(self.config.torrents.peer_seeder_probability) {
+                    if rng.random_bool(self.config.torrents.peer_seeder_probability) {
                         (AnnounceEvent::Completed, 0)
                     } else {
                         (AnnounceEvent::Started, 50)
@@ -200,7 +200,7 @@ impl Connection {
 
                     for _ in 0..self.config.torrents.offers_per_request {
                         offers.push(AnnounceRequestOffer {
-                            offer_id: OfferId(rng.gen()),
+                            offer_id: OfferId(rng.random()),
                             offer: RtcOffer {
                                 t: RtcOfferType::Offer,
                                 sdp: SDP.into(),
