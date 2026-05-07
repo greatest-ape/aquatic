@@ -19,7 +19,7 @@ use glommio::channels::shared_channel::ConnectedReceiver;
 use glommio::net::TcpListener;
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
-use slotmap::HopSlotMap;
+use slotmap::DenseSlotMap;
 
 use crate::config::Config;
 
@@ -28,7 +28,7 @@ use crate::workers::socket::connection::ConnectionRunner;
 
 mod connection;
 
-type ConnectionHandles = HopSlotMap<ConnectionId, ConnectionHandle>;
+type ConnectionHandles = DenseSlotMap<ConnectionId, ConnectionHandle>;
 
 const LOCAL_CHANNEL_SIZE: usize = 16;
 

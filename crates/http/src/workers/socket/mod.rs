@@ -21,7 +21,7 @@ use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::net::{TcpListener, TcpStream};
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
-use slotmap::HopSlotMap;
+use slotmap::DenseSlotMap;
 
 use crate::common::*;
 use crate::config::Config;
@@ -82,7 +82,7 @@ pub async fn run_socket_worker(
         .map_err(|err| anyhow::anyhow!("join request mesh: {:#}", err))?;
     let request_senders = Rc::new(request_senders);
 
-    let connection_handles = Rc::new(RefCell::new(HopSlotMap::with_key()));
+    let connection_handles = Rc::new(RefCell::new(DenseSlotMap::with_key()));
 
     TimerActionRepeat::repeat(enclose!((config, connection_handles) move || {
         clean_connections(
@@ -122,7 +122,7 @@ struct ListenerState {
     access_list: Arc<ArcSwapAny<Arc<AccessList>>>,
     opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
     server_start_instant: ServerStartInstant,
-    connection_handles: Rc<RefCell<HopSlotMap<ConnectionId, ConnectionHandle>>>,
+    connection_handles: Rc<RefCell<DenseSlotMap<ConnectionId, ConnectionHandle>>>,
     request_senders: Rc<Senders<ChannelRequest>>,
     worker_index: usize,
 }
@@ -228,7 +228,7 @@ impl ListenerState {
 
 async fn clean_connections(
     config: Rc<Config>,
-    connection_slab: Rc<RefCell<HopSlotMap<ConnectionId, ConnectionHandle>>>,
+    connection_slab: Rc<RefCell<DenseSlotMap<ConnectionId, ConnectionHandle>>>,
     server_start_instant: ServerStartInstant,
 ) -> Option<Duration> {
     let now = server_start_instant.seconds_elapsed();
