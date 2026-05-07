@@ -37,11 +37,11 @@ Make necessary adjustments to the file.
 Make sure locked memory limits are sufficient:
 
 ```sh
-ulimit -l 65536
+ulimit -l 262144
 ```
 
-First, start the tracker application that you want to test. Then
-start the load tester:
+First, start the tracker application that you want to test. TLS must be
+enabled. Then start the load tester:
 
 ```sh
 ./target/release/aquatic_ws_load_test -c "load-test-config.toml"
