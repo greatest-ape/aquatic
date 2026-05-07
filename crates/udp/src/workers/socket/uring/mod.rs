@@ -25,7 +25,6 @@ use aquatic_common::{
 };
 use aquatic_udp_protocol::*;
 use rand::rngs::SmallRng;
-use rand::SeedableRng;
 
 use crate::common::*;
 use crate::config::Config;
@@ -217,7 +216,7 @@ impl SocketWorker {
             pulse_timeout_sqe,
             resubmittable_sqe_buf,
             peer_valid_until,
-            rng: SmallRng::from_entropy(),
+            rng: rand::make_rng(),
         };
 
         CurrentRing::with(|ring| worker.run_inner(ring));
