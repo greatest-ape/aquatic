@@ -37,12 +37,12 @@ anyhow = "1"
 arrayvec = "0.7"
 blake3 = "1"
 cfg-if = "1"
-compact_str = "0.8"
-constant_time_eq = "0.3"
+compact_str = "0.9"
+constant_time_eq = "0.5"
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
-getrandom = "0.2"
-hashbrown = { version = "0.15", default-features = false }
+getrandom = "0.4"
+hashbrown = { version = "0.17", default-features = false }
 hdrhistogram = "7"
 hex = "0.4"
 libc = "0.2"
@@ -50,11 +50,11 @@ log = "0.4"
 mio = { version = "1", features = ["net", "os-poll"] }
 num-format = "0.4"
 parking_lot = "0.12"
-rand = { version = "0.8", features = ["small_rng"] }
+rand = "0.10"
 serde = { version = "1", features = ["derive"] }
-signal-hook = { version = "0.3" }
+signal-hook = { version = "0.4" }
 slab = "0.4"
-socket2 = { version = "0.5", features = ["all"] }
+socket2 = { version = "0.6", features = ["all"] }
 time = { version = "0.3", features = ["formatting"] }
 tinytemplate = "1"
 

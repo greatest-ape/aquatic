@@ -6,8 +6,8 @@ use std::time::Duration;
 use aquatic_common::IndexMap;
 use crossbeam_channel::Sender;
 use rand::Rng;
-use rand::{prelude::SmallRng, SeedableRng};
-use rand_distr::{Distribution, WeightedIndex};
+use rand::{prelude::SmallRng, SeedableRng, RngExt};
+use rand_distr::{Distribution, weighted::WeightedIndex};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use aquatic_udp_protocol::*;
@@ -85,7 +85,7 @@ impl Worker {
         loop {
             let response_ratio = responses_received as f64 / requests_sent.max(1) as f64;
 
-            if response_ratio >= 0.90 || requests_sent == 0 || self.rng.gen::<u8>() == 0 {
+            if response_ratio >= 0.90 || requests_sent == 0 || self.rng.random::<u8>() == 0 {
                 for _ in 0..self.sockets.len() {
                     match self.request_type_dist.sample(&mut self.rng) {
                         RequestType::Connect => {
@@ -212,7 +212,7 @@ impl Worker {
         let (event, bytes_left) = {
             if self
                 .rng
-                .gen_bool(self.config.requests.peer_seeder_probability)
+                .random_bool(self.config.requests.peer_seeder_probability)
             {
                 (AnnounceEvent::Completed, NumberOfBytes::new(0))
             } else {

@@ -29,10 +29,10 @@ anyhow = "1"
 crossbeam-channel = "0.5"
 hdrhistogram = "7"
 mimalloc = { version = "0.1", default-features = false }
-rand_distr = "0.4"
-rand = { version = "0.8", features = ["small_rng"] }
+rand_distr = "0.6"
+rand = "0.10"
 serde = { version = "1", features = ["derive"] }
-socket2 = { version = "0.5", features = ["all"] }
+socket2 = { version = "0.6", features = ["all"] }
 
 [dev-dependencies]
 quickcheck = "1"

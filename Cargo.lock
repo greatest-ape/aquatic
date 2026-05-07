@@ -160,7 +160,7 @@ dependencies = [
  "arc-swap",
  "duplicate",
  "git-testament",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.0",
  "hex",
  "hwloc",
  "indexmap 2.14.0",
@@ -170,7 +170,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "metrics-util",
  "privdrop",
- "rand 0.8.6",
+ "rand 0.10.1",
  "rustls",
  "rustls-pemfile",
  "serde",
@@ -210,7 +210,7 @@ dependencies = [
  "rand 0.8.6",
  "rustls-pemfile",
  "serde",
- "signal-hook",
+ "signal-hook 0.3.18",
  "slotmap",
  "socket2 0.5.10",
  "thiserror 2.0.18",
@@ -234,7 +234,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand 0.8.6",
- "rand_distr",
+ "rand_distr 0.4.3",
  "rustls",
  "serde",
 ]
@@ -263,7 +263,7 @@ dependencies = [
 name = "aquatic_peer_id"
 version = "0.9.0"
 dependencies = [
- "compact_str 0.8.1",
+ "compact_str 0.9.0",
  "hex",
  "quickcheck",
  "regex",
@@ -302,12 +302,12 @@ dependencies = [
  "arrayvec",
  "blake3",
  "cfg-if",
- "compact_str 0.8.1",
- "constant_time_eq 0.3.1",
+ "compact_str 0.9.0",
+ "constant_time_eq 0.5.0",
  "crossbeam-channel",
  "crossbeam-utils",
- "getrandom 0.2.17",
- "hashbrown 0.15.5",
+ "getrandom 0.4.2",
+ "hashbrown 0.17.0",
  "hdrhistogram",
  "hex",
  "io-uring",
@@ -320,11 +320,11 @@ dependencies = [
  "parking_lot",
  "quickcheck",
  "quickcheck_macros",
- "rand 0.8.6",
+ "rand 0.10.1",
  "serde",
- "signal-hook",
+ "signal-hook 0.4.4",
  "slab",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "tempfile",
  "time",
  "tinytemplate",
@@ -343,10 +343,10 @@ dependencies = [
  "mimalloc",
  "quickcheck",
  "quickcheck_macros",
- "rand 0.8.6",
- "rand_distr",
+ "rand 0.10.1",
+ "rand_distr 0.6.0",
  "serde",
- "socket2 0.5.10",
+ "socket2 0.6.3",
 ]
 
 [[package]]
@@ -392,7 +392,7 @@ dependencies = [
  "rustls",
  "rustls-pemfile",
  "serde",
- "signal-hook",
+ "signal-hook 0.3.18",
  "slab",
  "slotmap",
  "socket2 0.5.10",
@@ -416,7 +416,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rand 0.8.6",
- "rand_distr",
+ "rand_distr 0.4.3",
  "rustls",
  "serde",
  "serde_json",
@@ -676,6 +676,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chacha20"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f8d983286843e49675a4b7a2d174efe136dc93a18d69130dd18198a6c167601"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+ "rand_core 0.10.1",
+]
+
+[[package]]
 name = "ciborium"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -794,9 +805,9 @@ dependencies = [
 
 [[package]]
 name = "compact_str"
-version = "0.8.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b79c4069c6cad78e2e0cdfcbd26275770669fb39fd308a752dc110e83b9af32"
+checksum = "3fdb1325a1cece981e8a296ab8f0f9b63ae357bd0784a9faaf548cc7b480707a"
 dependencies = [
  "castaway",
  "cfg-if",
@@ -817,15 +828,15 @@ dependencies = [
 
 [[package]]
 name = "constant_time_eq"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
-
-[[package]]
-name = "constant_time_eq"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
+
+[[package]]
+name = "constant_time_eq"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a1ec0cfec728a79a5109075543131387f911cb4d07716436d7ae20533657a96"
 
 [[package]]
 name = "cpufeatures"
@@ -1177,6 +1188,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1400,7 +1417,7 @@ dependencies = [
  "rlimit",
  "scoped-tls",
  "scopeguard",
- "signal-hook",
+ "signal-hook 0.3.18",
  "sketches-ddsketch 0.1.3",
  "smallvec",
  "socket2 0.4.10",
@@ -1472,7 +1489,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.1.5",
  "serde",
 ]
 
@@ -1481,6 +1498,11 @@ name = "hashbrown"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "hdrhistogram"
@@ -2375,6 +2397,7 @@ version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
 dependencies = [
+ "chacha20",
  "getrandom 0.4.2",
  "rand_core 0.10.1",
 ]
@@ -2431,6 +2454,16 @@ checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
 dependencies = [
  "num-traits",
  "rand 0.8.6",
+]
+
+[[package]]
+name = "rand_distr"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d431c2703ccf129de4d45253c03f49ebb22b97d6ad79ee3ecfc7e3f4862c1d8"
+dependencies = [
+ "num-traits",
+ "rand 0.10.1",
 ]
 
 [[package]]
@@ -2758,6 +2791,16 @@ name = "signal-hook"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d881a16cf4426aa584979d30bd82cb33429027e42122b169753d6ef1085ed6e2"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
+
+[[package]]
+name = "signal-hook"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a0c28ca5908dbdbcd52e6fdaa00358ab88637f8ab33e1f188dd510eb44b53d"
 dependencies = [
  "libc",
  "signal-hook-registry",

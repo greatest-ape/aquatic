@@ -20,7 +20,7 @@ use hashbrown::HashMap;
 use hdrhistogram::Histogram;
 use parking_lot::RwLockUpgradableReadGuard;
 use rand::prelude::SmallRng;
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 use crate::common::*;
 use crate::config::Config;
@@ -589,13 +589,13 @@ impl<I: Ip> LargePeerMap<I> {
                 let from = 0;
                 let to = usize::max(1, middle_index - num_to_take_per_half);
 
-                rng.gen_range(from..to)
+                rng.random_range(from..to)
             };
             let offset_half_two = {
                 let from = middle_index;
                 let to = usize::max(middle_index + 1, self.peers.len() - num_to_take_per_half);
 
-                rng.gen_range(from..to)
+                rng.random_range(from..to)
             };
 
             let end_half_one = offset_half_one + num_to_take_per_half;
