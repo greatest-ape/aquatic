@@ -549,9 +549,9 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bendy"
-version = "0.4.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3d60116e2174fd5ea2889fffacdcbe47229beeb12f7908e1e6525dc346c9431"
+checksum = "57cdd50c5215bbee87e15d24a8ab68bdc9c3602adbf43bfc831815ddbf1e62ee"
 dependencies = [
  "rustversion",
  "serde",
