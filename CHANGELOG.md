@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### General
+
+#### Changed
+
+* Update dependencies
+
 ### aquatic_udp
 
 #### Changed
