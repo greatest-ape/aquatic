@@ -8,7 +8,6 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 readme.workspace = true
-rust-version.workspace = true
 
 [lib]
 name = "aquatic_toml_config"

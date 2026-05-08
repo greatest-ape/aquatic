@@ -25,7 +25,6 @@ edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/greatest-ape/aquatic"
 readme = "./README.md"
-rust-version = "1.64"
 
 [workspace.dependencies]
 aquatic_common = { version = "0.9.0", path = "./crates/common" }

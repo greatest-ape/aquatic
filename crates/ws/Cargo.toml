@@ -9,7 +9,6 @@ license.workspace = true
 repository.workspace = true
 
 readme = "./README.md"
-rust-version = "1.70"
 
 [lib]
 name = "aquatic_ws"
