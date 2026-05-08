@@ -1,9 +1,8 @@
 use std::borrow::Cow;
 use std::io::{self, Write};
-use std::mem::size_of;
 
 use byteorder::{NetworkEndian, WriteBytesExt};
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes};
 
 use super::common::*;
 
@@ -35,46 +34,38 @@ impl Response {
         match action.get() {
             // Connect
             0 => Ok(Response::Connect(
-                ConnectResponse::read_from_prefix(bytes).ok_or_else(invalid_data)?,
+                ConnectResponse::read_from_bytes(bytes).map_err(|_| invalid_data())?,
             )),
             // Announce
             1 if ipv4 => {
-                let fixed =
-                    AnnounceResponseFixedData::read_from_prefix(bytes).ok_or_else(invalid_data)?;
+                let (fixed, rest) = AnnounceResponseFixedData::read_from_prefix(bytes)
+                    .map_err(|_| invalid_data())?;
 
-                let peers = if let Some(bytes) = bytes.get(size_of::<AnnounceResponseFixedData>()..)
-                {
-                    Vec::from(
-                        ResponsePeer::<Ipv4AddrBytes>::slice_from(bytes)
-                            .ok_or_else(invalid_data)?,
-                    )
-                } else {
-                    Vec::new()
-                };
+                let peers = Vec::from(
+                    <[ResponsePeer<Ipv4AddrBytes>]>::ref_from_bytes(rest)
+                        .map_err(|_| invalid_data())?,
+                );
 
                 Ok(Response::AnnounceIpv4(AnnounceResponse { fixed, peers }))
             }
             1 if !ipv4 => {
-                let fixed =
-                    AnnounceResponseFixedData::read_from_prefix(bytes).ok_or_else(invalid_data)?;
+                let (fixed, rest) = AnnounceResponseFixedData::read_from_prefix(bytes)
+                    .map_err(|_| invalid_data())?;
 
-                let peers = if let Some(bytes) = bytes.get(size_of::<AnnounceResponseFixedData>()..)
-                {
-                    Vec::from(
-                        ResponsePeer::<Ipv6AddrBytes>::slice_from(bytes)
-                            .ok_or_else(invalid_data)?,
-                    )
-                } else {
-                    Vec::new()
-                };
+                let peers = Vec::from(
+                    <[ResponsePeer<Ipv6AddrBytes>]>::ref_from_bytes(rest)
+                        .map_err(|_| invalid_data())?,
+                );
 
                 Ok(Response::AnnounceIpv6(AnnounceResponse { fixed, peers }))
             }
             // Scrape
             2 => {
                 let transaction_id = read_i32_ne(&mut bytes).map(TransactionId)?;
-                let torrent_stats =
-                    Vec::from(TorrentScrapeStatistics::slice_from(bytes).ok_or_else(invalid_data)?);
+                let torrent_stats = Vec::from(
+                    <[TorrentScrapeStatistics]>::ref_from_bytes(bytes)
+                        .map_err(|_| invalid_data())?,
+                );
 
                 Ok((ScrapeResponse {
                     transaction_id,
@@ -128,7 +119,7 @@ impl From<ErrorResponse> for Response {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct ConnectResponse {
     pub transaction_id: TransactionId,
@@ -154,7 +145,7 @@ pub struct AnnounceResponse<I: Ip> {
 impl<I: Ip> AnnounceResponse<I> {
     pub fn empty() -> Self {
         Self {
-            fixed: FromZeroes::new_zeroed(),
+            fixed: FromZeros::new_zeroed(),
             peers: Default::default(),
         }
     }
@@ -169,7 +160,7 @@ impl<I: Ip> AnnounceResponse<I> {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct AnnounceResponseFixedData {
     pub transaction_id: TransactionId,
@@ -195,7 +186,7 @@ impl ScrapeResponse {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct TorrentScrapeStatistics {
     pub seeders: NumberOfPeers,
