@@ -2,7 +2,7 @@ use std::io::{self, Cursor, Write};
 
 use byteorder::{NetworkEndian, WriteBytesExt};
 use either::Either;
-use zerocopy::{byteorder::network_endian::I32, TryFromBytes, FromBytes, Immutable, IntoBytes};
+use zerocopy::{byteorder::network_endian::I32, FromBytes, Immutable, IntoBytes, TryFromBytes};
 
 use aquatic_peer_id::PeerId;
 
@@ -181,7 +181,9 @@ impl AnnounceRequest {
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, TryFromBytes, Immutable)]
 #[repr(i32)]
-pub enum AnnounceActionPlaceholder { Announce = 1_i32.to_be() }
+pub enum AnnounceActionPlaceholder {
+    Announce = 1_i32.to_be(),
+}
 
 impl Default for AnnounceActionPlaceholder {
     fn default() -> Self {
