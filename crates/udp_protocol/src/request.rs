@@ -2,7 +2,7 @@ use std::io::{self, Cursor, Write};
 
 use byteorder::{NetworkEndian, WriteBytesExt};
 use either::Either;
-use zerocopy::{byteorder::network_endian::I32, FromBytes, Immutable, IntoBytes};
+use zerocopy::{byteorder::network_endian::I32, TryFromBytes, FromBytes, Immutable, IntoBytes};
 
 use aquatic_peer_id::PeerId;
 
@@ -54,19 +54,12 @@ impl Request {
             }
             // Announce
             1 => {
-                let request = AnnounceRequest::read_from_bytes(bytes)
+                let request = AnnounceRequest::try_read_from_bytes(bytes)
                     .map_err(|_| RequestParseError::unsendable_text("invalid data"))?;
 
                 if request.port.0.get() == 0 {
                     Err(RequestParseError::sendable_text(
                         "Port can't be 0",
-                        request.connection_id,
-                        request.transaction_id,
-                    ))
-                } else if !matches!(request.event.0.get(), (0..=3)) {
-                    // Make sure not to allow AnnounceEventBytes with invalid value
-                    Err(RequestParseError::sendable_text(
-                        "Invalid announce event",
                         request.connection_id,
                         request.transaction_id,
                     ))
@@ -160,7 +153,7 @@ impl ConnectRequest {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, TryFromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct AnnounceRequest {
     pub connection_id: ConnectionId,
@@ -173,7 +166,7 @@ pub struct AnnounceRequest {
     pub bytes_downloaded: NumberOfBytes,
     pub bytes_left: NumberOfBytes,
     pub bytes_uploaded: NumberOfBytes,
-    pub event: AnnounceEventBytes,
+    pub event: AnnounceEvent,
     pub ip_address: Ipv4AddrBytes,
     pub key: PeerKey,
     pub peers_wanted: NumberOfPeers,
@@ -186,50 +179,23 @@ impl AnnounceRequest {
     }
 }
 
-/// Note: Request::from_bytes only creates this struct with value 1
-#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
-#[repr(transparent)]
-pub struct AnnounceActionPlaceholder(I32);
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, TryFromBytes, Immutable)]
+#[repr(i32)]
+pub enum AnnounceActionPlaceholder { Announce = 1_i32.to_be() }
 
 impl Default for AnnounceActionPlaceholder {
     fn default() -> Self {
-        Self(I32::new(1))
+        Self::Announce
     }
 }
 
-/// Note: Request::from_bytes only creates this struct with values 0..=3
-#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
-#[repr(transparent)]
-pub struct AnnounceEventBytes(I32);
-
-impl From<AnnounceEvent> for AnnounceEventBytes {
-    fn from(value: AnnounceEvent) -> Self {
-        Self(I32::new(match value {
-            AnnounceEvent::None => 0,
-            AnnounceEvent::Completed => 1,
-            AnnounceEvent::Started => 2,
-            AnnounceEvent::Stopped => 3,
-        }))
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, TryFromBytes, Immutable)]
+#[repr(i32)]
 pub enum AnnounceEvent {
-    Started,
-    Stopped,
-    Completed,
-    None,
-}
-
-impl From<AnnounceEventBytes> for AnnounceEvent {
-    fn from(value: AnnounceEventBytes) -> Self {
-        match value.0.get() {
-            1 => Self::Completed,
-            2 => Self::Started,
-            3 => Self::Stopped,
-            _ => Self::None,
-        }
-    }
+    Started = 2_i32.to_be(),
+    Stopped = 3_i32.to_be(),
+    Completed = 1_i32.to_be(),
+    None = 0_i32.to_be(),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
