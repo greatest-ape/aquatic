@@ -15,6 +15,14 @@
 * (Breaking) Open one socket each for IPv4 and IPv6. The config file now has
   one setting for each.
 
+### aquatic_udp_protocol
+
+#### Changed
+
+* (Breaking) Upgrade to zerocopy v0.8, changing exported derives of various types
+* (Breaking) Remove AnnounceEventBytes wrapper type (use AnnounceEvent directly instead)
+* (Breaking) Turn AnnounceActionPlaceholder into an enum with one variant
+
 ### aquatic_http
 
 #### Changed
