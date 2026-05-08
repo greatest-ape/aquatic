@@ -2,8 +2,7 @@ use std::io::{self, Cursor, Write};
 
 use byteorder::{NetworkEndian, WriteBytesExt};
 use either::Either;
-use zerocopy::FromZeroes;
-use zerocopy::{byteorder::network_endian::I32, AsBytes, FromBytes};
+use zerocopy::{byteorder::network_endian::I32, FromBytes, Immutable, IntoBytes};
 
 use aquatic_peer_id::PeerId;
 
@@ -31,7 +30,7 @@ impl Request {
         let action = bytes
             .get(8..12)
             .map(|bytes| I32::from_bytes(bytes.try_into().unwrap()))
-            .ok_or_else(|| RequestParseError::unsendable_text("Couldn't parse action"))?;
+            .ok_or(RequestParseError::unsendable_text("Couldn't parse action"))?;
 
         match action.get() {
             // Connect
@@ -55,8 +54,8 @@ impl Request {
             }
             // Announce
             1 => {
-                let request = AnnounceRequest::read_from_prefix(bytes)
-                    .ok_or_else(|| RequestParseError::unsendable_text("invalid data"))?;
+                let request = AnnounceRequest::read_from_bytes(bytes)
+                    .map_err(|_| RequestParseError::unsendable_text("invalid data"))?;
 
                 if request.port.0.get() == 0 {
                     Err(RequestParseError::sendable_text(
@@ -103,7 +102,7 @@ impl Request {
                     ));
                 }
 
-                let info_hashes = FromBytes::slice_from(remaining_bytes).ok_or_else(|| {
+                let info_hashes = <[InfoHash]>::ref_from_bytes(remaining_bytes).map_err(|_| {
                     RequestParseError::sendable_text(
                         "Invalid info hash list",
                         connection_id,
@@ -161,7 +160,7 @@ impl ConnectRequest {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct AnnounceRequest {
     pub connection_id: ConnectionId,
@@ -188,7 +187,7 @@ impl AnnounceRequest {
 }
 
 /// Note: Request::from_bytes only creates this struct with value 1
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct AnnounceActionPlaceholder(I32);
 
@@ -199,7 +198,7 @@ impl Default for AnnounceActionPlaceholder {
 }
 
 /// Note: Request::from_bytes only creates this struct with values 0..=3
-#[derive(PartialEq, Eq, Clone, Copy, Debug, AsBytes, FromBytes, FromZeroes)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
 #[repr(transparent)]
 pub struct AnnounceEventBytes(I32);
 
