@@ -30,7 +30,7 @@ impl Request {
         let action = bytes
             .get(8..12)
             .map(|bytes| I32::from_bytes(bytes.try_into().unwrap()))
-            .ok_or(RequestParseError::unsendable_text("Couldn't parse action"))?;
+            .ok_or_else(|| RequestParseError::unsendable_text("Couldn't parse action"))?;
 
         match action.get() {
             // Connect
