@@ -550,10 +550,14 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
         .with_context(|| "send_out_message")?;
 
         if let OutMessage::AnnounceResponse(_) | OutMessage::ScrapeResponse(_) = out_message {
-            *self.connection_valid_until.borrow_mut() = ValidUntil::new(
+            if let Some(valid_until) = ValidUntil::new(
                 self.server_start_instant,
                 self.config.cleaning.max_connection_idle,
-            );
+            ) {
+                *self.connection_valid_until.borrow_mut() = valid_until
+            } else {
+                ::log::warn!("clock monotonicity error, could not update connection_valid_until");
+            }
         }
 
         #[cfg(feature = "metrics")]

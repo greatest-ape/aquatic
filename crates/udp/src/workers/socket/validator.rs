@@ -97,7 +97,11 @@ impl ConnectionValidator {
     }
 
     pub fn update_elapsed(&mut self) {
-        self.seconds_since_start = self.start_time.elapsed().as_secs() as u32;
+        if let Some(dur) = Instant::now().checked_duration_since(self.start_time) {
+            self.seconds_since_start = dur.as_secs() as u32;
+        } else {
+            ::log::error!("Couldn't not update connection validator timer due to clock monotonicity error. Expired connections may not be rejected.");
+        }
     }
 
     fn hash(&mut self, elapsed: [u8; 4], ip_addr: IpAddr) -> [u8; 4] {

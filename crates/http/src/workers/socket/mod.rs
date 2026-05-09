@@ -134,12 +134,24 @@ impl ListenerState {
         while let Some(stream) = incoming.next().await {
             match stream {
                 Ok(stream) => {
-                    let (close_conn_sender, close_conn_receiver) = new_bounded(1);
-
-                    let valid_until = Rc::new(RefCell::new(ValidUntil::new(
+                    let opt_valid_until = ValidUntil::new(
                         self.server_start_instant,
                         self.config.cleaning.max_connection_idle,
-                    )));
+                    );
+
+                    let valid_until = if let Some(valid_until) = opt_valid_until {
+                        Rc::new(RefCell::new(valid_until))
+                    } else {
+                        ::log::warn!("clock monotonicity error, not establishing this connection");
+
+                        spawn_local(async move {
+                            stream.shutdown(std::net::Shutdown::Both);
+                        });
+
+                        continue;
+                    };
+
+                    let (close_conn_sender, close_conn_receiver) = new_bounded(1);
 
                     let connection_id =
                         self.connection_handles
@@ -231,17 +243,19 @@ async fn clean_connections(
     connection_slab: Rc<RefCell<DenseSlotMap<ConnectionId, ConnectionHandle>>>,
     server_start_instant: ServerStartInstant,
 ) -> Option<Duration> {
-    let now = server_start_instant.seconds_elapsed();
+    if let Some(now) = server_start_instant.seconds_elapsed() {
+        connection_slab.borrow_mut().retain(|_, handle| {
+            if handle.valid_until.borrow().valid(now) {
+                true
+            } else {
+                let _ = handle.close_conn_sender.try_send(());
 
-    connection_slab.borrow_mut().retain(|_, handle| {
-        if handle.valid_until.borrow().valid(now) {
-            true
-        } else {
-            let _ = handle.close_conn_sender.try_send(());
-
-            false
-        }
-    });
+                false
+            }
+        });
+    } else {
+        ::log::warn!("clock monotonicity failure, could not clean torrents and peers");
+    }
 
     Some(Duration::from_secs(
         config.cleaning.connection_cleaning_interval,

@@ -94,13 +94,19 @@ pub fn run(mut config: Config) -> ::anyhow::Result<()> {
                 config.cleaning.torrent_cleaning_interval,
             ));
 
-            state.torrent_maps.clean_and_update_statistics(
-                &config,
-                &statistics,
-                &statistics_sender,
-                &state.access_list,
-                state.server_start_instant.seconds_elapsed(),
-            );
+            if let Some(seconds_since_server_start) = state.server_start_instant.seconds_elapsed() {
+                state.torrent_maps.clean_and_update_statistics(
+                    &config,
+                    &statistics,
+                    &statistics_sender,
+                    &state.access_list,
+                    seconds_since_server_start,
+                );
+            } else {
+                // Note: the alternatives are to either clean nothing or remove
+                // the entire swarm, none of which are great options
+                ::log::warn!("clock monotonicity failure, could not clean torrents and peers");
+            }
         })?;
 
         join_handles.push((WorkerType::Cleaning, handle));

@@ -145,16 +145,20 @@ pub async fn run_socket_worker(
                         continue;
                     }
                 };
+                let connection_valid_until = if let Some(v) =
+                    ValidUntil::new(server_start_instant, config.cleaning.max_connection_idle)
+                {
+                    Rc::new(RefCell::new(v))
+                } else {
+                    ::log::warn!("clock monotonicity error, could not open stream");
+
+                    continue;
+                };
 
                 let (out_message_sender, out_message_receiver) = new_bounded(LOCAL_CHANNEL_SIZE);
                 let out_message_sender = Rc::new(out_message_sender);
 
                 let (close_conn_sender, close_conn_receiver) = new_bounded(1);
-
-                let connection_valid_until = Rc::new(RefCell::new(ValidUntil::new(
-                    server_start_instant,
-                    config.cleaning.max_connection_idle,
-                )));
 
                 let connection_handle = ConnectionHandle {
                     close_conn_sender,
@@ -211,7 +215,30 @@ async fn clean_connections(
     server_start_instant: ServerStartInstant,
     opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
 ) -> Option<Duration> {
-    let now = server_start_instant.seconds_elapsed();
+    let now = if let Some(now) = server_start_instant.seconds_elapsed() {
+        now
+    } else {
+        ::log::error!("clock monotonicity error, could not clean connections");
+
+        return Some(Duration::from_secs(
+            config.cleaning.connection_cleaning_interval,
+        ));
+    };
+    let tls_change_grace_period_valid_until = if let Some(v) = ValidUntil::new(
+        server_start_instant,
+        config.cleaning.close_after_tls_update_grace_period,
+    ) {
+        v
+    } else {
+        ::log::error!(
+            "clock monotonicity error, could not clean connections (calc TLS grace period)"
+        );
+
+        return Some(Duration::from_secs(
+            config.cleaning.connection_cleaning_interval,
+        ));
+    };
+
     let opt_current_tls_config = opt_tls_config.map(|c| c.load_full());
 
     connection_slab.borrow_mut().retain(|_, reference| {
@@ -227,10 +254,7 @@ async fn clean_connections(
             .zip(reference.opt_tls_config.as_ref())
             .map(|(a, b)| Arc::ptr_eq(a, b))
         {
-            reference.valid_until_after_tls_update = Some(ValidUntil::new(
-                server_start_instant,
-                config.cleaning.close_after_tls_update_grace_period,
-            ));
+            reference.valid_until_after_tls_update = Some(tls_change_grace_period_valid_until);
         }
 
         keep &= reference.valid_until.borrow().valid(now);
