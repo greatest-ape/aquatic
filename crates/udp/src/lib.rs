@@ -99,7 +99,7 @@ pub fn run(mut config: Config) -> ::anyhow::Result<()> {
                 &statistics,
                 &statistics_sender,
                 &state.access_list,
-                state.server_start_instant,
+                state.server_start_instant.seconds_elapsed(),
             );
         })?;
 

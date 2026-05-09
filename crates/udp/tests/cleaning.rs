@@ -1,6 +1,6 @@
 mod common;
 
-use aquatic_common::{CanonicalSocketAddr, ServerStartInstant, ValidUntil};
+use aquatic_common::{CanonicalSocketAddr, SecondsSinceServerStart, ValidUntil};
 use crossbeam_channel::unbounded;
 use rand::make_rng;
 
@@ -21,13 +21,13 @@ use aquatic_udp_protocol::{
 
 #[test]
 fn test_cleaning() -> anyhow::Result<()> {
-    const NUM_TORRENTS: u8 = 2;
+    const NUM_TORRENTS: u8 = 20;
     const NUM_PEERS: u8 = 50;
 
     let mut config = Config::default();
 
     config.protocol.max_response_peers = 100;
-    config.statistics.print_to_stdout = true; // Just to enable calculating statistics
+    config.statistics.print_to_stdout = true; // Just to enable storing statistics
 
     let state = State::default();
     let statistics = Statistics::new(&config);
@@ -36,10 +36,8 @@ fn test_cleaning() -> anyhow::Result<()> {
 
     let (statistics_sender, _statistics_receiver) = unbounded();
 
-    let server_start_instant = ServerStartInstant::new();
-
-    let short = ValidUntil::new(server_start_instant, 0);
-    let long = ValidUntil::new(server_start_instant, 4);
+    let short = ValidUntil::new_raw(SecondsSinceServerStart::new_raw(0));
+    let long = ValidUntil::new_raw(SecondsSinceServerStart::new_raw(2));
 
     for i in 0..NUM_TORRENTS {
         for j in 0..NUM_PEERS {
@@ -67,25 +65,20 @@ fn test_cleaning() -> anyhow::Result<()> {
 
     // Clean out half
 
-    ::std::thread::sleep(::std::time::Duration::from_secs(1));
-
-    let elapsed = server_start_instant.seconds_elapsed().get();
-    assert!(elapsed > 0 && elapsed < 4);
-
     torrent_maps.clean_and_update_statistics(
         &config,
         &statistics.swarm.clone(),
         &statistics_sender,
         &state.access_list,
-        server_start_instant,
+        SecondsSinceServerStart::new_raw(1),
     );
 
     assert_eq!(
-        statistics.swarm.ipv4.peers.load(Ordering::SeqCst),
+        statistics.swarm.ipv4.peers.load(Ordering::Relaxed),
         (NUM_PEERS as usize * NUM_TORRENTS as usize) / 2
     );
     assert_eq!(
-        statistics.swarm.ipv4.torrents.load(Ordering::SeqCst),
+        statistics.swarm.ipv4.torrents.load(Ordering::Relaxed),
         NUM_TORRENTS as usize
     );
 
@@ -105,21 +98,16 @@ fn test_cleaning() -> anyhow::Result<()> {
 
     // Clean out rest
 
-    ::std::thread::sleep(::std::time::Duration::from_secs(4));
-
-    let elapsed = server_start_instant.seconds_elapsed().get();
-    assert!(elapsed > 4);
-
     torrent_maps.clean_and_update_statistics(
         &config,
         &statistics.swarm.clone(),
         &statistics_sender,
         &state.access_list,
-        server_start_instant,
+        SecondsSinceServerStart::new_raw(3),
     );
 
-    assert_eq!(statistics.swarm.ipv4.peers.load(Ordering::SeqCst), 0);
-    assert_eq!(statistics.swarm.ipv4.torrents.load(Ordering::SeqCst), 0);
+    assert_eq!(statistics.swarm.ipv4.peers.load(Ordering::Relaxed), 0);
+    assert_eq!(statistics.swarm.ipv4.torrents.load(Ordering::Relaxed), 0);
 
     for i in 0..NUM_TORRENTS {
         let (request, src) = make_request_and_src(NUM_PEERS, i);
