@@ -145,8 +145,8 @@ impl ListenerState {
                         ::log::warn!("clock monotonicity error, not establishing this connection");
 
                         spawn_local(async move {
-                            stream.shutdown(std::net::Shutdown::Both);
-                        });
+                            let _ = stream.shutdown(std::net::Shutdown::Both).await;
+                        }).detach();
 
                         continue;
                     };
