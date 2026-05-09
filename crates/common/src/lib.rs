@@ -56,6 +56,12 @@ impl ServerStartInstant {
 #[derive(Debug, Clone, Copy)]
 pub struct SecondsSinceServerStart(u32);
 
+impl SecondsSinceServerStart {
+    pub fn get(&self) -> u32 {
+        self.0
+    }
+}
+
 /// SocketAddr that is not an IPv6-mapped IPv4 address
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct CanonicalSocketAddr(SocketAddr);
@@ -181,5 +187,17 @@ impl Display for WorkerType {
             #[cfg(feature = "prometheus")]
             Self::Prometheus => f.write_str("Prometheus worker"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ServerStartInstant, ValidUntil};
+
+    #[test]
+    fn test_valid_until() {
+        let server_start_instant = ServerStartInstant::new();
+        let valid_until = ValidUntil::new(server_start_instant, 60);
+        assert!(valid_until.valid(server_start_instant.seconds_elapsed()));
     }
 }
