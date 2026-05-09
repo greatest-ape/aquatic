@@ -71,10 +71,13 @@ impl TorrentMaps {
         server_start_instant: ServerStartInstant,
     ) {
         let mut access_list_cache = create_access_list_cache(access_list);
-        let now = server_start_instant.seconds_elapsed();
 
-        self.ipv4.clean(config, &mut access_list_cache, now);
-        self.ipv6.clean(config, &mut access_list_cache, now);
+        if let Some(now) = server_start_instant.seconds_elapsed() {
+            self.ipv4.clean(config, &mut access_list_cache, now);
+            self.ipv6.clean(config, &mut access_list_cache, now);
+        } else {
+            ::log::error!("Could not clean torrents due to clock monotonicity error.");
+        }
     }
 
     #[cfg(feature = "metrics")]
@@ -326,7 +329,12 @@ impl TorrentData {
         request: &AnnounceRequest,
         #[cfg(feature = "metrics")] peer_gauge: &::metrics::Gauge,
     ) -> PeerStatus {
-        let valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age);
+        let valid_until = ValidUntil::new(server_start_instant, config.cleaning.max_peer_age)
+            .unwrap_or_else(|| {
+                ::log::warn!("announce: monotonicity error: peer may be cleaned to soon");
+
+                ValidUntil::new_raw(SecondsSinceServerStart::new_raw(0))
+            });
 
         let peer_status = PeerStatus::from_event_and_bytes_left(
             request.event.unwrap_or_default(),
@@ -432,12 +440,23 @@ impl TorrentData {
                 (offer_receiver_peer_id, offer_receiver_connection_id, offer_receiver_consumer_id),
             ) in offers.into_iter().zip(offer_receivers)
             {
+                let opt_valid_until =
+                    ValidUntil::new(server_start_instant, config.cleaning.max_offer_age);
+
+                let valid_until = if let Some(valid_until) = opt_valid_until {
+                    valid_until
+                } else {
+                    ::log::warn!("Could not send offers due to monotonicity error");
+
+                    continue;
+                };
+
                 peer.expecting_answers.insert(
                     ExpectingAnswer {
                         from_peer_id: offer_receiver_peer_id,
                         regarding_offer_id: offer.offer_id,
                     },
-                    ValidUntil::new(server_start_instant, config.cleaning.max_offer_age),
+                    valid_until,
                 );
 
                 let offer_out_message = OfferOutMessage {

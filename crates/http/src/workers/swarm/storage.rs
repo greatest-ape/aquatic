@@ -113,10 +113,12 @@ impl TorrentMaps {
     ) {
         let mut access_list_cache = create_access_list_cache(access_list);
 
-        let now = server_start_instant.seconds_elapsed();
-
-        self.ipv4.clean(config, &mut access_list_cache, now);
-        self.ipv6.clean(config, &mut access_list_cache, now);
+        if let Some(now) = server_start_instant.seconds_elapsed() {
+            self.ipv4.clean(config, &mut access_list_cache, now);
+            self.ipv6.clean(config, &mut access_list_cache, now);
+        } else {
+            ::log::warn!("Could not clean torrents due to monotonicity error");
+        }
     }
 }
 

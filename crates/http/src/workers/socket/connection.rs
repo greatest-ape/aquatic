@@ -242,10 +242,14 @@ where
         request: Request,
         peer_addr: CanonicalSocketAddr,
     ) -> Result<Response, ConnectionError> {
-        *self.valid_until.borrow_mut() = ValidUntil::new(
+        if let Some(valid_until) = ValidUntil::new(
             self.server_start_instant,
             self.config.cleaning.max_connection_idle,
-        );
+        ) {
+            *self.valid_until.borrow_mut() = valid_until;
+        } else {
+            ::log::warn!("Could not update connection ValidUntil due to monotonicity error. Connection may be cleaned earlier than it should be.");
+        }
 
         match request {
             Request::Announce(request) => {

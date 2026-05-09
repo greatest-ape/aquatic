@@ -52,7 +52,8 @@ pub fn run(
     let peer_valid_until = ValidUntil::new(
         shared_state.server_start_instant,
         config.cleaning.max_peer_age,
-    );
+    )
+    .expect("Could not create initial peer ValidUntil due to monotonicity error");
 
     let mut shared = WorkerSharedData {
         config,
@@ -115,10 +116,16 @@ pub fn run(
         if iter_counter % 256 == 0 {
             shared.validator.update_elapsed();
 
-            shared.peer_valid_until = ValidUntil::new(
+            let opt_valid_until = ValidUntil::new(
                 shared.shared_state.server_start_instant,
                 shared.config.cleaning.max_peer_age,
             );
+
+            if let Some(valid_until) = opt_valid_until {
+                shared.peer_valid_until = valid_until;
+            } else {
+                ::log::warn!("Couldn't not update peer_valid until due to clock monotonicity error. As a consequence, peers may be removed earlier than they should.");
+            }
         }
 
         iter_counter = iter_counter.wrapping_add(1);

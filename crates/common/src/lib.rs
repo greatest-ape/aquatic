@@ -21,10 +21,10 @@ pub struct ValidUntil(SecondsSinceServerStart);
 
 impl ValidUntil {
     #[inline]
-    pub fn new(start_instant: ServerStartInstant, offset_seconds: u32) -> Self {
-        Self(SecondsSinceServerStart(
-            start_instant.seconds_elapsed().0 + offset_seconds,
-        ))
+    pub fn new(start_instant: ServerStartInstant, offset_seconds: u32) -> Option<Self> {
+        start_instant
+            .seconds_elapsed()
+            .map(|elapsed| Self(SecondsSinceServerStart(elapsed.0 + offset_seconds)))
     }
     pub fn new_with_now(now: SecondsSinceServerStart, offset_seconds: u32) -> Self {
         Self(SecondsSinceServerStart(now.0 + offset_seconds))
@@ -46,14 +46,14 @@ impl ServerStartInstant {
     pub fn new() -> Self {
         Self(Instant::now())
     }
-    pub fn seconds_elapsed(&self) -> SecondsSinceServerStart {
-        SecondsSinceServerStart(
-            self.0
-                .elapsed()
+    pub fn seconds_elapsed(&self) -> Option<SecondsSinceServerStart> {
+        Instant::now().checked_duration_since(self.0).map(|dur| {
+            let seconds = dur
                 .as_secs()
                 .try_into()
-                .expect("server ran for more seconds than what fits in a u32"),
-        )
+                .expect("server ran for more seconds than what fits in a u32");
+            SecondsSinceServerStart(seconds)
+        })
     }
 }
 
@@ -200,12 +200,12 @@ impl Display for WorkerType {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ServerStartInstant, ValidUntil};
+    use crate::{SecondsSinceServerStart, ValidUntil};
 
     #[test]
     fn test_valid_until() {
-        let server_start_instant = ServerStartInstant::new();
-        let valid_until = ValidUntil::new(server_start_instant, 60);
-        assert!(valid_until.valid(server_start_instant.seconds_elapsed()));
+        let valid_until = ValidUntil::new_raw(SecondsSinceServerStart::new_raw(1));
+
+        assert!(valid_until.valid(SecondsSinceServerStart::new_raw(0)));
     }
 }
