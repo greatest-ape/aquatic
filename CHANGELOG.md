@@ -6,6 +6,12 @@
 
 #### Changed
 
+* [Monotonicity errors](https://doc.rust-lang.org/std/time/struct.Instant.html)
+  deriving from the OS or the hardware are now handled explicitly and logged.
+  If such errors occur, peers may be removed (cleaned) earlier than they should
+  be, or not be removed at all, depending on which code paths are affected.
+  Some attempts are now made to mitigate such errors, but they are only partly
+  effective as the tracker needs to be able to accurately keep track of time.
 * Update dependencies
 
 ### aquatic_udp
