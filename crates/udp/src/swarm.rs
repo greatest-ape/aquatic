@@ -6,7 +6,6 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use aquatic_common::SecondsSinceServerStart;
-use aquatic_common::ServerStartInstant;
 use aquatic_common::{
     access_list::{create_access_list_cache, AccessListArcSwap, AccessListCache, AccessListMode},
     ValidUntil,
@@ -92,11 +91,10 @@ impl TorrentMaps {
         statistics: &CachePaddedArc<IpVersionStatistics<SwarmWorkerStatistics>>,
         statistics_sender: &Sender<StatisticsMessage>,
         access_list: &Arc<AccessListArcSwap>,
-        server_start_instant: ServerStartInstant,
+        seconds_since_server_start: SecondsSinceServerStart,
     ) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
-        let now = server_start_instant.seconds_elapsed();
 
         let mut statistics_messages = Vec::new();
 
@@ -105,14 +103,14 @@ impl TorrentMaps {
             &mut statistics_messages,
             &mut cache,
             mode,
-            now,
+            seconds_since_server_start,
         );
         let ipv6 = self.ipv6.clean_and_get_statistics(
             config,
             &mut statistics_messages,
             &mut cache,
             mode,
-            now,
+            seconds_since_server_start,
         );
 
         if config.statistics.active() {

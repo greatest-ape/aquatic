@@ -32,6 +32,10 @@ impl ValidUntil {
     pub fn valid(&self, now: SecondsSinceServerStart) -> bool {
         self.0 .0 > now.0
     }
+    /// Don't use this except for testing
+    pub fn new_raw(inner: SecondsSinceServerStart) -> Self {
+        Self(inner)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,6 +63,10 @@ pub struct SecondsSinceServerStart(u32);
 impl SecondsSinceServerStart {
     pub fn get(&self) -> u32 {
         self.0
+    }
+    /// Don't use this except for testing
+    pub fn new_raw(inner: u32) -> Self {
+        Self(inner)
     }
 }
 
