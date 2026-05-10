@@ -89,23 +89,35 @@ pub fn run(mut config: Config) -> ::anyhow::Result<()> {
         let statistics = statistics.swarm.clone();
         let statistics_sender = statistics_sender.clone();
 
-        let handle = Builder::new().name("cleaning".into()).spawn(move || loop {
-            sleep(Duration::from_secs(
-                config.cleaning.torrent_cleaning_interval,
-            ));
+        let handle = Builder::new().name("cleaning".into()).spawn(move || {
+            let mut counter = 0usize;
 
-            if let Some(seconds_since_server_start) = state.server_start_instant.seconds_elapsed() {
-                state.torrent_maps.clean_and_update_statistics(
-                    &config,
-                    &statistics,
-                    &statistics_sender,
-                    &state.access_list,
-                    seconds_since_server_start,
-                );
-            } else {
-                // Note: the alternatives are to either clean nothing or remove
-                // the entire swarm, none of which are great options
-                ::log::warn!("clock monotonicity failure, could not clean torrents and peers");
+            loop {
+                sleep(Duration::from_secs(
+                    config.cleaning.torrent_cleaning_interval,
+                ));
+
+                let export_full_scrape = config.scrape_exports.enable_scrape_exports
+                    && counter % (config.scrape_exports.frequency.max(1)) == 0;
+
+                if let Some(seconds_since_server_start) =
+                    state.server_start_instant.seconds_elapsed()
+                {
+                    state.torrent_maps.clean_and_update_statistics(
+                        &config,
+                        &statistics,
+                        &statistics_sender,
+                        &state.access_list,
+                        seconds_since_server_start,
+                        export_full_scrape,
+                    );
+                } else {
+                    // Note: the alternatives are to either clean nothing or remove
+                    // the entire swarm, none of which are great options
+                    ::log::warn!("clock monotonicity failure, could not clean torrents and peers");
+                }
+
+                counter = counter.wrapping_add(1);
             }
         })?;
 

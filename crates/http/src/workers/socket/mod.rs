@@ -146,7 +146,8 @@ impl ListenerState {
 
                         spawn_local(async move {
                             let _ = stream.shutdown(std::net::Shutdown::Both).await;
-                        }).detach();
+                        })
+                        .detach();
 
                         continue;
                     };

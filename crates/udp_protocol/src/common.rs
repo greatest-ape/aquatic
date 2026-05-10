@@ -9,6 +9,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes};
 pub trait Ip:
     Clone + Copy + Debug + PartialEq + Eq + std::hash::Hash + IntoBytes + Immutable
 {
+    fn version_char() -> char;
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, IntoBytes, FromBytes, Immutable)]
@@ -208,7 +209,11 @@ pub struct ResponsePeer<I: Ip> {
 #[repr(transparent)]
 pub struct Ipv4AddrBytes(pub [u8; 4]);
 
-impl Ip for Ipv4AddrBytes {}
+impl Ip for Ipv4AddrBytes {
+    fn version_char() -> char {
+        '4'
+    }
+}
 
 impl From<Ipv4AddrBytes> for Ipv4Addr {
     fn from(val: Ipv4AddrBytes) -> Self {
@@ -228,7 +233,11 @@ impl From<Ipv4Addr> for Ipv4AddrBytes {
 #[repr(transparent)]
 pub struct Ipv6AddrBytes(pub [u8; 16]);
 
-impl Ip for Ipv6AddrBytes {}
+impl Ip for Ipv6AddrBytes {
+    fn version_char() -> char {
+        '6'
+    }
+}
 
 impl From<Ipv6AddrBytes> for Ipv6Addr {
     fn from(val: Ipv6AddrBytes) -> Self {
