@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::Write;
 use std::iter::repeat_with;
 use std::net::IpAddr;
 use std::ops::DerefMut;
@@ -92,11 +95,28 @@ impl TorrentMaps {
         statistics_sender: &Sender<StatisticsMessage>,
         access_list: &Arc<AccessListArcSwap>,
         seconds_since_server_start: SecondsSinceServerStart,
+        export_full_scrape: bool,
     ) {
         let mut cache = create_access_list_cache(access_list);
         let mode = config.access_list.mode;
 
         let mut statistics_messages = Vec::new();
+        let mut opt_scrape_export_writer = if export_full_scrape {
+            match File::create(config.scrape_exports.tmp_path()) {
+                Ok(file) => Some(BufWriter::new(file)),
+                Err(err) => {
+                    ::log::error!(
+                        "Could not create temporary scrape export file at path {}: {:?}",
+                        config.scrape_exports.tmp_path().to_string_lossy(),
+                        err
+                    );
+
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         let ipv4 = self.ipv4.clean_and_get_statistics(
             config,
@@ -104,6 +124,7 @@ impl TorrentMaps {
             &mut cache,
             mode,
             seconds_since_server_start,
+            &mut opt_scrape_export_writer,
         );
         let ipv6 = self.ipv6.clean_and_get_statistics(
             config,
@@ -111,6 +132,7 @@ impl TorrentMaps {
             &mut cache,
             mode,
             seconds_since_server_start,
+            &mut opt_scrape_export_writer,
         );
 
         if config.statistics.active() {
@@ -129,6 +151,29 @@ impl TorrentMaps {
             for message in statistics_messages {
                 if let Err(err) = statistics_sender.try_send(message) {
                     ::log::error!("couldn't send statistics message: {:#}", err);
+                }
+            }
+        }
+
+        if let Some(mut w) = opt_scrape_export_writer.take() {
+            if let Err(err) = w.flush() {
+                ::log::error!(
+                    "Could not flush writes to temporary scrape export file at path {}: {:?}",
+                    config.scrape_exports.tmp_path().to_string_lossy(),
+                    err
+                );
+            } else {
+                drop(w);
+
+                if let Err(err) = ::std::fs::rename(
+                    config.scrape_exports.tmp_path(),
+                    &config.scrape_exports.path,
+                ) {
+                    ::log::error!(
+                        "Could not move temporary scrape export file to path {}: {:?}",
+                        config.scrape_exports.path.to_string_lossy(),
+                        err
+                    );
                 }
             }
         }
@@ -217,6 +262,7 @@ impl<I: Ip> TorrentMapShards<I> {
         access_list_cache: &mut AccessListCache,
         access_list_mode: AccessListMode,
         now: SecondsSinceServerStart,
+        opt_scrape_export_writer: &mut Option<BufWriter<File>>,
     ) -> (usize, usize, Option<Histogram<u64>>) {
         let mut total_num_torrents = 0;
         let mut total_num_peers = 0;
@@ -227,10 +273,10 @@ impl<I: Ip> TorrentMapShards<I> {
             .then(|| Histogram::new(3).expect("create peer histogram"));
 
         for torrent_map_shard in self.0.iter() {
-            for torrent_data in torrent_map_shard.read().values() {
+            for (info_hash, torrent_data) in torrent_map_shard.read().iter() {
                 let mut peer_map = torrent_data.peer_map.write();
 
-                let num_peers = match peer_map.deref_mut() {
+                let (num_seeders, num_leechers) = match peer_map.deref_mut() {
                     PeerMap::Small(small_peer_map) => {
                         small_peer_map.clean_and_get_num_peers(config, statistics_messages, now)
                     }
@@ -249,15 +295,35 @@ impl<I: Ip> TorrentMapShards<I> {
                     }
                 };
 
+                // Allow other threads to write to the peer map again
                 drop(peer_map);
 
-                match opt_histogram.as_mut() {
-                    Some(histogram) if num_peers > 0 => {
+                let num_peers = num_seeders + num_leechers;
+
+                if num_peers != 0 {
+                    if let Some(histogram) = opt_histogram.as_mut() {
                         if let Err(err) = histogram.record(num_peers as u64) {
                             ::log::error!("Couldn't record {} to histogram: {:#}", num_peers, err);
                         }
                     }
-                    _ => (),
+
+                    if let Some(w) = opt_scrape_export_writer.as_mut() {
+                        let result = writeln!(
+                            w,
+                            "{ip_version} {info_hash} {seeders} {leechers}",
+                            ip_version = I::version_char(),
+                            info_hash = const_hex::display(info_hash.0),
+                            seeders = num_seeders,
+                            leechers = num_leechers
+                        );
+
+                        if let Err(err) = result {
+                            ::log::error!(
+                                "Could not write to temporary scrape export file: {:?}",
+                                err
+                            );
+                        }
+                    }
                 }
 
                 total_num_peers += num_peers;
@@ -512,18 +578,22 @@ impl<I: Ip> SmallPeerMap<I> {
         config: &Config,
         statistics_messages: &mut Vec<StatisticsMessage>,
         now: SecondsSinceServerStart,
-    ) -> usize {
+    ) -> (usize, usize) {
+        let mut num_seeders = 0;
+
         self.0.retain(|(_, peer)| {
             let keep = peer.valid_until.valid(now);
 
-            if !keep && config.statistics.peer_clients {
+            if keep {
+                num_seeders += peer.is_seeder as usize;
+            } else if config.statistics.peer_clients {
                 statistics_messages.push(StatisticsMessage::PeerRemoved(peer.peer_id));
             }
 
             keep
         });
 
-        self.0.len()
+        (num_seeders, self.0.len() - num_seeders)
     }
 
     fn to_large(&self) -> LargePeerMap<I> {
@@ -617,7 +687,7 @@ impl<I: Ip> LargePeerMap<I> {
         config: &Config,
         statistics_messages: &mut Vec<StatisticsMessage>,
         now: SecondsSinceServerStart,
-    ) -> usize {
+    ) -> (usize, usize) {
         self.peers.retain(|_, peer| {
             let keep = peer.valid_until.valid(now);
 
@@ -637,7 +707,7 @@ impl<I: Ip> LargePeerMap<I> {
             self.peers.shrink_to_fit();
         }
 
-        self.peers.len()
+        self.num_seeders_leechers()
     }
 
     fn try_shrink(&mut self) -> Option<SmallPeerMap<I>> {

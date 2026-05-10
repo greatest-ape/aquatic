@@ -21,6 +21,11 @@
 * (Breaking) Open one socket each for IPv4 and IPv6. The config file now has
   one setting for each.
 
+#### Added
+
+* Implement optional full scrape exports (information on how many seeders and
+  leechers are tracked for each info hash) to a text file 
+
 ### aquatic_udp_protocol
 
 #### Changed

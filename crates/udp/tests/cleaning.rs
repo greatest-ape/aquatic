@@ -71,6 +71,7 @@ fn test_cleaning() -> anyhow::Result<()> {
         &statistics_sender,
         &state.access_list,
         SecondsSinceServerStart::new_raw(1),
+        false,
     );
 
     assert_eq!(
@@ -104,6 +105,7 @@ fn test_cleaning() -> anyhow::Result<()> {
         &statistics_sender,
         &state.access_list,
         SecondsSinceServerStart::new_raw(3),
+        false,
     );
 
     assert_eq!(statistics.swarm.ipv4.peers.load(Ordering::Relaxed), 0);

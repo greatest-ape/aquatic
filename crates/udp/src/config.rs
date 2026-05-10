@@ -31,6 +31,7 @@ pub struct Config {
     /// emitting of an error-level log message, while successful updates of the
     /// access list result in emitting of an info-level log message.
     pub access_list: AccessListConfig,
+    pub scrape_exports: ScrapeExportConfig,
 }
 
 impl Default for Config {
@@ -44,6 +45,7 @@ impl Default for Config {
             cleaning: CleaningConfig::default(),
             privileges: PrivilegeConfig::default(),
             access_list: AccessListConfig::default(),
+            scrape_exports: Default::default(),
         }
     }
 }
@@ -251,6 +253,57 @@ impl Default for CleaningConfig {
             max_connection_age: 60 * 2,
             max_peer_age: 60 * 20,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ScrapeExportConfig {
+    /// Regularly export full scrape information to a file.
+    ///
+    /// This is done during torrent cleaning and is likely to slow down
+    /// processing of requests while in progress.
+    ///
+    /// If torrents are removed to due to changes to the access list, this may
+    /// not immediately be reflected in the scrape dump, as the latter is done
+    /// before the former.
+    pub enable_scrape_exports: bool,
+    /// Each 'frequency' times torrent cleaning is done, export a full scrape
+    ///
+    /// For instance, a value of 1 means that it is done every time the
+    /// torrents are cleaned, while a value of 10 means that it is done
+    /// every tenth time. 0 is interpreted as 1.
+    pub frequency: usize,
+    /// Path to scrape export file
+    ///
+    /// Each line of the text file will consist of the following components,
+    /// separated by spaces:
+    /// - '4' or '6', representing IPv4 or IPv6
+    /// - a hex-encoded info hash
+    /// - the number of seeders
+    /// - the number of leechers
+    ///
+    /// To make it easier for consuming applications to avoid reading partly
+    /// completed scrape exports, the path given here is not written to
+    /// directly. Instead, a temporary file is created with the same path but
+    /// with the file extension set to 'tmp'. This file is incrementally
+    /// written to, and once done, it is moved/renamed to the configured path.
+    pub path: PathBuf,
+}
+
+impl Default for ScrapeExportConfig {
+    fn default() -> Self {
+        Self {
+            enable_scrape_exports: false,
+            frequency: 10,
+            path: "./udp-scrape-export.txt".parse().unwrap(),
+        }
+    }
+}
+
+impl ScrapeExportConfig {
+    pub fn tmp_path(&self) -> PathBuf {
+        self.path.with_extension("tmp")
     }
 }
 

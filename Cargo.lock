@@ -312,6 +312,7 @@ dependencies = [
  "blake3",
  "cfg-if",
  "compact_str",
+ "const-hex",
  "constant_time_eq 0.5.0",
  "crossbeam-channel",
  "crossbeam-utils",
@@ -782,6 +783,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af4780a44ab5696ea9e28294517f1fffb421a83a25af521333c838635509db9c"
 dependencies = [
  "cache-padded",
+]
+
+[[package]]
+name = "const-hex"
+version = "1.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20d9a563d167a9cce0f94153382b33cb6eded6dfabff03c69ad65a28ea1514e0"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.2.17",
 ]
 
 [[package]]

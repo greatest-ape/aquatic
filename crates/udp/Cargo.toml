@@ -37,13 +37,13 @@ arrayvec = "0.7"
 blake3 = "1"
 cfg-if = "1"
 compact_str = "0.9"
+const-hex = { version = "1", default-features = false }
 constant_time_eq = "0.5"
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
 getrandom = "0.4"
 hashbrown = { version = "0.17", default-features = false }
 hdrhistogram = "7"
-hex = "0.4"
 libc = "0.2"
 log = "0.4"
 mio = { version = "1", features = ["net", "os-poll"] }
@@ -67,6 +67,7 @@ io-uring = { version = "0.7", optional = true }
 mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
+hex = "0.4"
 tempfile = "3"
 quickcheck = "1"
 quickcheck_macros = "1"
