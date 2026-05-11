@@ -205,8 +205,8 @@ impl<I: Ip> TorrentMapShards<I> {
         // Get or create a reference to the corresponding torrent, keeping
         // locks on the whole shard for as short a period as possible. This
         // allows processing of other requests to continue as long as they do
-        // not pertain to the same info hash. It also allows certain request
-        // processing to continue during torrent map cleaning.
+        // not pertain to the same info hash. It also allows request processing
+        // to continue during parts of the torrent map cleaning process.
         let torrent_data = {
             let torrent_map_shard = self.get_shard(&request.info_hash).upgradable_read();
 
@@ -278,8 +278,19 @@ impl<I: Ip> TorrentMapShards<I> {
             .torrent_peer_histograms
             .then(|| Histogram::new(3).expect("create peer histogram"));
 
+        // Remove expired peers; optionally calculate statistics and export
+        // scrape information
         for torrent_map_shard in self.0.iter() {
-            for (info_hash, torrent_data) in torrent_map_shard.read().iter() {
+            // To avoid having to keep a read lock on the whole shard, which
+            // would prevent certain announce requests from being processed,
+            // clone (Arc) references to peer maps.
+            let shard_torrents = torrent_map_shard
+                .read()
+                .iter()
+                .map(|(info_hash, peers)| (*info_hash, peers.clone()))
+                .collect::<Vec<_>>();
+
+            for (info_hash, torrent_data) in shard_torrents {
                 let mut peer_map = torrent_data.peer_map.write();
 
                 let (num_seeders, num_leechers) = match peer_map.deref_mut() {
@@ -334,7 +345,11 @@ impl<I: Ip> TorrentMapShards<I> {
 
                 total_num_peers += num_peers;
             }
+        }
 
+        // Now, remove torrents that are forbidden by the access list or which
+        // have no peers
+        for torrent_map_shard in self.0.iter() {
             let mut torrent_map_shard = torrent_map_shard.write();
 
             torrent_map_shard.retain(|info_hash, torrent_data| {
