@@ -28,6 +28,9 @@
 
 #### Fixed
 
+* Keep locks for a shorter period of time while cleaning torrents. This
+  makes it possible to keep processing requests, at the expense of somewhat
+  higher RAM usage (during cleaning)
 * Avoid the unlikely but possible situation of an announcing peer not being
   added to the swarm if the info hash has no other active peers and cleaning is
   in progress. The fix additionally slightly decreases RAM usage.
