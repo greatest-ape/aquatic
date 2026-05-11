@@ -31,8 +31,14 @@ fn test_cleaning() -> anyhow::Result<()> {
 
     let state = State::default();
     let statistics = Statistics::new(&config);
-    let torrent_maps = TorrentMaps::default();
     let mut rng = make_rng();
+
+    // Make two copies to simulate two socket workers holding one each, given
+    // that there is logic inside of the cleaning function that checks for
+    // multiple Arc references. While this is only the case for peer maps, it
+    // does not hurt to include this condition in the test.
+    let torrent_maps_1 = TorrentMaps::default();
+    let torrent_maps_2 = torrent_maps_1.clone();
 
     let (statistics_sender, _statistics_receiver) = unbounded();
 
@@ -45,7 +51,7 @@ fn test_cleaning() -> anyhow::Result<()> {
 
             let valid_until = if j % 2 == 0 { short } else { long };
 
-            let response = torrent_maps.announce(
+            let response = torrent_maps_1.announce(
                 &config,
                 &statistics_sender,
                 &mut rng,
@@ -65,7 +71,7 @@ fn test_cleaning() -> anyhow::Result<()> {
 
     // Clean out half
 
-    torrent_maps.clean_and_update_statistics(
+    torrent_maps_2.clean_and_update_statistics(
         &config,
         &statistics.swarm.clone(),
         &statistics_sender,
@@ -87,7 +93,7 @@ fn test_cleaning() -> anyhow::Result<()> {
         let (request, src) = make_request_and_src(NUM_PEERS, i);
 
         let response =
-            torrent_maps.announce(&config, &statistics_sender, &mut rng, &request, src, short);
+            torrent_maps_2.announce(&config, &statistics_sender, &mut rng, &request, src, short);
 
         match response {
             Response::AnnounceIpv4(AnnounceResponse { fixed: _, peers }) => {
@@ -99,7 +105,7 @@ fn test_cleaning() -> anyhow::Result<()> {
 
     // Clean out rest
 
-    torrent_maps.clean_and_update_statistics(
+    torrent_maps_1.clean_and_update_statistics(
         &config,
         &statistics.swarm.clone(),
         &statistics_sender,
@@ -115,7 +121,7 @@ fn test_cleaning() -> anyhow::Result<()> {
         let (request, src) = make_request_and_src(NUM_PEERS, i);
 
         let response =
-            torrent_maps.announce(&config, &statistics_sender, &mut rng, &request, src, short);
+            torrent_maps_2.announce(&config, &statistics_sender, &mut rng, &request, src, short);
 
         match response {
             Response::AnnounceIpv4(AnnounceResponse { fixed: _, peers }) => {
