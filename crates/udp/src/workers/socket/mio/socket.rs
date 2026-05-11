@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
 
 use anyhow::Context;
+use cfg_if::cfg_if;
 use mio::net::UdpSocket;
 use socket2::{Domain, Protocol, Type};
 
@@ -45,9 +46,21 @@ impl Socket<Ipv4> {
     pub fn create(config: &Config, priv_dropper: PrivilegeDropper) -> anyhow::Result<Self> {
         let socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
 
-        socket
-            .set_reuse_port(true)
-            .with_context(|| "socket: set reuse port")?;
+        cfg_if!(
+            if #[cfg(target_os = "freebsd")] {
+                // FreeBSD requires setting SO_REUSEPORT_LB to do load
+                // balancing (https://man.freebsd.org/cgi/man.cgi?setsockopt)
+                socket
+                    .set_reuse_port_lb(true)
+                    .with_context(|| "socket: set reuse port lb")?;
+
+            } else {
+                socket
+                    .set_reuse_port(true)
+                    .with_context(|| "socket: set reuse port")?;
+            }
+        );
+
         socket
             .set_nonblocking(true)
             .with_context(|| "socket: set nonblocking")?;
