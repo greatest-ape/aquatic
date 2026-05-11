@@ -4,7 +4,6 @@ use std::io::Write;
 use std::iter::repeat_with;
 use std::net::IpAddr;
 use std::ops::DerefMut;
-use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -203,14 +202,21 @@ impl<I: Ip> TorrentMapShards<I> {
         ip_address: I,
         valid_until: ValidUntil,
     ) -> AnnounceResponse<I> {
+        // Get or create a reference to the corresponding torrent, keeping
+        // locks on the whole shard for as short a period as possible. This
+        // allows processing of other requests to continue as long as they do
+        // not pertain to the same info hash. It also allows certain request
+        // processing to continue during torrent map cleaning.
         let torrent_data = {
             let torrent_map_shard = self.get_shard(&request.info_hash).upgradable_read();
 
-            // Clone Arc here to avoid keeping lock on whole shard
+            // Attempt to use a read-only lock, falling back to a read-write
+            // one if the info hash has to be inserted. The Arc is cloned to
+            // avoid keeping a lock on whole shard.
             if let Some(torrent_data) = torrent_map_shard.get(&request.info_hash) {
                 torrent_data.clone()
             } else {
-                // Don't overwrite entry if created in the meantime
+                // Don't overwrite entry if it was created in the meantime
                 RwLockUpgradableReadGuard::upgrade(torrent_map_shard)
                     .entry(request.info_hash)
                     .or_default()
@@ -327,10 +333,6 @@ impl<I: Ip> TorrentMapShards<I> {
                 }
 
                 total_num_peers += num_peers;
-
-                torrent_data
-                    .pending_removal
-                    .store(num_peers == 0, Ordering::Release);
             }
 
             let mut torrent_map_shard = torrent_map_shard.write();
@@ -343,16 +345,18 @@ impl<I: Ip> TorrentMapShards<I> {
                     return false;
                 }
 
-                // Check pending_removal flag set in previous cleaning step. This
-                // prevents us from removing TorrentData entries that were just
-                // added but do not yet contain any peers. Also double-check that
-                // no peers have been added since we last checked.
-                if torrent_data
-                    .pending_removal
-                    .fetch_and(false, Ordering::Acquire)
-                    && torrent_data.peer_map.read().is_empty()
-                {
-                    return false;
+                // Remove torrent if it has no peers, unless the Arc is also
+                // held elsewhere. This can happen in rare cases and would
+                // indicate that an announce is in progress but the PeerMap
+                // has not yet been modified, as the current step of the
+                // cleaning process started in between. Removing the torrent
+                // from the TorrentMapShard here would in that case result in
+                // the PeerMap being dropped as soon as the other Arc goes out
+                // of scope, meaning that any added peer would be discarded.
+                if let Some(torrent_data) = Arc::get_mut(torrent_data) {
+                    if torrent_data.peer_map.read().is_empty() {
+                        return false;
+                    }
                 }
 
                 true
@@ -376,14 +380,12 @@ type TorrentMapShard<T> = HashMap<InfoHash, Arc<TorrentData<T>>>;
 
 pub struct TorrentData<T: Ip> {
     peer_map: RwLock<PeerMap<T>>,
-    pending_removal: AtomicBool,
 }
 
 impl<I: Ip> Default for TorrentData<I> {
     fn default() -> Self {
         Self {
             peer_map: Default::default(),
-            pending_removal: Default::default(),
         }
     }
 }

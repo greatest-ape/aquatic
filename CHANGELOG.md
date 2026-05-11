@@ -16,15 +16,21 @@
 
 ### aquatic_udp
 
+#### Added
+
+* Implement optional full scrape exports (information on how many seeders and
+  leechers are tracked for each info hash) to a text file 
+
 #### Changed
 
 * (Breaking) Open one socket each for IPv4 and IPv6. The config file now has
   one setting for each.
 
-#### Added
+#### Fixed
 
-* Implement optional full scrape exports (information on how many seeders and
-  leechers are tracked for each info hash) to a text file 
+* Avoid the unlikely but possible situation of an announcing peer not being
+  added to the swarm if the info hash has no other active peers and cleaning is
+  in progress. The fix additionally slightly decreases RAM usage.
 
 ### aquatic_udp_protocol
 
