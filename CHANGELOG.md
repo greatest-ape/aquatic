@@ -25,6 +25,8 @@
 
 * (Breaking) Open one socket each for IPv4 and IPv6. The config file now has
   one setting for each.
+* On FreeBSD, set socket option SO_REUSEPORT_LB instead of SO_REUSEPORT. While
+  the latter implies load balancing on Linux, it does not on FreeBSD.
 
 #### Fixed
 
