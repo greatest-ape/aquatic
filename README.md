@@ -23,6 +23,7 @@ Features at a glance:
 - Supports forbidding/allowing info hashes
 - Prometheus metrics
 - Automated CI testing of full file transfers
+- Optional periodic exports of full scrape statistics (UDP only)
 
 Known users:
 

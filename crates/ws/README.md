@@ -15,7 +15,7 @@ Features at a glance:
 
 Known users:
 
-- [tracker.webtorrent.dev](https://tracker.webtorrent.dev) (`wss://tracker.webtorrent.dev`)
+- [webtorrent.dev](https://webtorrent.dev) (`wss://tracker.webtorrent.dev`)
 
 ## Performance
 
@@ -71,8 +71,6 @@ Make sure locked memory limits are sufficient:
 *    hard    memlock    262144
 *    soft    memlock    262144
 ```
-
-In Alpine Linux you will likely need a [higher limit](https://github.com/greatest-ape/aquatic/issues/211).
 
 Once done, start the application:
 
