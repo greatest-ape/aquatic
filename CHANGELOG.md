@@ -27,12 +27,12 @@
   one setting for each.
 * On FreeBSD, set socket option SO_REUSEPORT_LB instead of SO_REUSEPORT. While
   the latter implies load balancing on Linux, it does not on FreeBSD.
-
-#### Fixed
-
 * Keep locks for a shorter period of time while cleaning torrents. This
   makes it possible to keep processing requests, at the expense of somewhat
   higher RAM usage (during cleaning)
+
+#### Fixed
+
 * Avoid the unlikely but possible situation of an announcing peer not being
   added to the swarm if the info hash has no other active peers and cleaning is
   in progress. The fix additionally slightly decreases RAM usage.
