@@ -17,7 +17,6 @@ use aquatic_common::{CanonicalSocketAddr, IndexMap};
 use aquatic_udp_protocol::*;
 use arrayvec::ArrayVec;
 use crossbeam_channel::Sender;
-use hashbrown::HashMap;
 use hdrhistogram::Histogram;
 use parking_lot::RwLockUpgradableReadGuard;
 use rand::prelude::SmallRng;
@@ -202,19 +201,18 @@ impl<I: Ip> TorrentMapShards<I> {
         ip_address: I,
         valid_until: ValidUntil,
     ) -> AnnounceResponse<I> {
-        // Get or create a reference to the corresponding torrent, keeping
+        // Get or create a reference to the corresponding peer map, keeping
         // locks on the whole shard for as short a period as possible. This
         // allows processing of other requests to continue as long as they do
         // not pertain to the same info hash. It also allows request processing
         // to continue during parts of the torrent map cleaning process.
-        let torrent_data = {
+        let peer_map = {
             let torrent_map_shard = self.get_shard(&request.info_hash).upgradable_read();
 
             // Attempt to use a read-only lock, falling back to a read-write
-            // one if the info hash has to be inserted. The Arc is cloned to
-            // avoid keeping a lock on whole shard.
-            if let Some(torrent_data) = torrent_map_shard.get(&request.info_hash) {
-                torrent_data.clone()
+            // one if the info hash has to be inserted.
+            if let Some(peer_map) = torrent_map_shard.get(&request.info_hash) {
+                peer_map.clone()
             } else {
                 // Don't overwrite entry if it was created in the meantime
                 RwLockUpgradableReadGuard::upgrade(torrent_map_shard)
@@ -224,7 +222,7 @@ impl<I: Ip> TorrentMapShards<I> {
             }
         };
 
-        let mut peer_map = torrent_data.peer_map.write();
+        let mut peer_map = peer_map.write();
 
         peer_map.announce(
             config,
@@ -245,8 +243,8 @@ impl<I: Ip> TorrentMapShards<I> {
         for info_hash in request.info_hashes {
             let torrent_map_shard = self.get_shard(&info_hash);
 
-            let statistics = if let Some(torrent_data) = torrent_map_shard.read().get(&info_hash) {
-                torrent_data.peer_map.read().scrape_statistics()
+            let statistics = if let Some(peer_map) = torrent_map_shard.read().get(&info_hash) {
+                peer_map.read().scrape_statistics()
             } else {
                 TorrentScrapeStatistics {
                     seeders: NumberOfPeers::new(0),
@@ -290,8 +288,8 @@ impl<I: Ip> TorrentMapShards<I> {
                 .map(|(info_hash, peers)| (*info_hash, peers.clone()))
                 .collect::<Vec<_>>();
 
-            for (info_hash, torrent_data) in shard_torrents {
-                let mut peer_map = torrent_data.peer_map.write();
+            for (info_hash, peer_map) in shard_torrents {
+                let mut peer_map = peer_map.write();
 
                 let (num_seeders, num_leechers) = match peer_map.deref_mut() {
                     PeerMap::Small(small_peer_map) => {
@@ -352,7 +350,7 @@ impl<I: Ip> TorrentMapShards<I> {
         for torrent_map_shard in self.0.iter() {
             let mut torrent_map_shard = torrent_map_shard.write();
 
-            torrent_map_shard.retain(|info_hash, torrent_data| {
+            torrent_map_shard.retain(|info_hash, peer_map| {
                 if !access_list_cache
                     .load()
                     .allows(access_list_mode, &info_hash.0)
@@ -368,8 +366,8 @@ impl<I: Ip> TorrentMapShards<I> {
                 // from the TorrentMapShard here would in that case result in
                 // the PeerMap being dropped as soon as the other Arc goes out
                 // of scope, meaning that any added peer would be discarded.
-                if let Some(torrent_data) = Arc::get_mut(torrent_data) {
-                    if torrent_data.peer_map.read().is_empty() {
+                if let Some(peer_map) = Arc::get_mut(peer_map) {
+                    if peer_map.read().is_empty() {
                         return false;
                     }
                 }
@@ -390,20 +388,7 @@ impl<I: Ip> TorrentMapShards<I> {
     }
 }
 
-/// Use HashMap instead of IndexMap for better lookup performance
-type TorrentMapShard<T> = HashMap<InfoHash, Arc<TorrentData<T>>>;
-
-pub struct TorrentData<T: Ip> {
-    peer_map: RwLock<PeerMap<T>>,
-}
-
-impl<I: Ip> Default for TorrentData<I> {
-    fn default() -> Self {
-        Self {
-            peer_map: Default::default(),
-        }
-    }
-}
+type TorrentMapShard<T> = IndexMap<InfoHash, Arc<RwLock<PeerMap<T>>>>;
 
 pub enum PeerMap<I: Ip> {
     Small(SmallPeerMap<I>),
