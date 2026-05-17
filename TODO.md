@@ -1,5 +1,14 @@
 # TODO
 
+* udp
+  * optimization ideas:
+    * CachePadded for various structures? (any Arc? costly..)
+    * Add a small buffer for incoming requests. Add request handling argument
+      'wait_until_ready' to allow not waiting for locks to be ready. This
+      would possibly allow doing other work during that time
+    * Store num seeders and leechers in atomics so there is
+      less blocking on scrape requests - probably not meaningful
+
 * udp: steal latest buf ring implementation from io-uring crate examples
 * update zerocopy version (will likely require minor rewrite)
 * udp: FreeBSD: set SO_REUSEPORT_LB. See socket2 set_reuse_port_lb
