@@ -310,7 +310,7 @@ impl<I: Ip> TorrentMapShards<I> {
                     }
                 };
 
-                // Allow other threads to access to the peer map again
+                // Allow other threads to access the peer map again
                 drop(peer_map);
 
                 let num_peers = num_seeders + num_leechers;
