@@ -106,9 +106,21 @@ impl Socket<Ipv6> {
                 .set_only_v6(true)
                 .with_context(|| "socket: set only ipv6")?;
         }
-        socket
-            .set_reuse_port(true)
-            .with_context(|| "socket: set reuse port")?;
+
+        cfg_if!(
+            if #[cfg(target_os = "freebsd")] {
+                // FreeBSD requires setting SO_REUSEPORT_LB to do load
+                // balancing (https://man.freebsd.org/cgi/man.cgi?setsockopt)
+                socket
+                    .set_reuse_port_lb(true)
+                    .with_context(|| "socket: set reuse port lb")?;
+
+            } else {
+                socket
+                    .set_reuse_port(true)
+                    .with_context(|| "socket: set reuse port")?;
+            }
+        );
         socket
             .set_nonblocking(true)
             .with_context(|| "socket: set nonblocking")?;
