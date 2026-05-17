@@ -17,6 +17,7 @@ use aquatic_common::{CanonicalSocketAddr, IndexMap};
 use aquatic_udp_protocol::*;
 use arrayvec::ArrayVec;
 use crossbeam_channel::Sender;
+use hashbrown::HashMap;
 use hdrhistogram::Histogram;
 use parking_lot::RwLockUpgradableReadGuard;
 use rand::prelude::SmallRng;
@@ -388,7 +389,8 @@ impl<I: Ip> TorrentMapShards<I> {
     }
 }
 
-type TorrentMapShard<T> = IndexMap<InfoHash, Arc<RwLock<PeerMap<T>>>>;
+// Use HashMap instead of IndexMap for better lookup performance
+type TorrentMapShard<T> = HashMap<InfoHash, Arc<RwLock<PeerMap<T>>>>;
 
 pub enum PeerMap<I: Ip> {
     Small(SmallPeerMap<I>),
