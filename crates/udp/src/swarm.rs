@@ -282,13 +282,13 @@ impl<I: Ip> TorrentMapShards<I> {
             // To avoid having to keep a read lock on the whole shard, which
             // would prevent certain announce requests from being processed,
             // clone (Arc) references to peer maps.
-            let shard_torrents = torrent_map_shard
+            let torrent_references = torrent_map_shard
                 .read()
                 .iter()
                 .map(|(info_hash, peers)| (*info_hash, peers.clone()))
                 .collect::<Vec<_>>();
 
-            for (info_hash, peer_map) in shard_torrents {
+            for (info_hash, peer_map) in torrent_references {
                 let mut peer_map = peer_map.write();
 
                 let (num_seeders, num_leechers) = match peer_map.deref_mut() {
@@ -310,7 +310,7 @@ impl<I: Ip> TorrentMapShards<I> {
                     }
                 };
 
-                // Allow other threads to write to the peer map again
+                // Allow other threads to access to the peer map again
                 drop(peer_map);
 
                 let num_peers = num_seeders + num_leechers;
@@ -346,7 +346,7 @@ impl<I: Ip> TorrentMapShards<I> {
         }
 
         // Now, remove torrents that are forbidden by the access list or which
-        // have no peers
+        // have no peers. This unavoidably locks a whole shard at a time.
         for torrent_map_shard in self.0.iter() {
             let mut torrent_map_shard = torrent_map_shard.write();
 
