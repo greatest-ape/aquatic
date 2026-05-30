@@ -1,5 +1,5 @@
 [workspace]
-members = [ 
+members = [
     "crates/bencher",
     "crates/combined_binary",
     "crates/common",
@@ -57,3 +57,6 @@ debug = true
 [profile.test-fast]
 inherits = "release"
 lto = false
+
+[patch.crates-io]
+glommio = { git = "https://github.com/glommio/glommio.git", package = "glommio" }
