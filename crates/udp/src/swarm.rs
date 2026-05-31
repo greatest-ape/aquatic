@@ -416,8 +416,7 @@ impl<I: Ip> PeerMap<I> {
             )
         };
 
-        let status =
-            PeerStatus::from_event_and_bytes_left(request.event.into(), request.bytes_left);
+        let status = PeerStatus::from_event_and_bytes_left(request.event, request.bytes_left);
 
         let peer_map_key = ResponsePeer {
             ip_address,

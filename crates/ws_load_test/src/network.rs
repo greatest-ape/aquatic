@@ -18,7 +18,7 @@ use aquatic_ws_protocol::{
     incoming::ScrapeRequest,
 };
 use async_tungstenite::{client_async, WebSocketStream};
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 use futures_rustls::{client::TlsStream, TlsConnector};
 use glommio::net::TcpStream;
 use glommio::{prelude::*, timer::TimerActionRepeat};

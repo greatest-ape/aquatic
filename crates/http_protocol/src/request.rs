@@ -415,15 +415,11 @@ mod tests {
             match request {
                 Request::Announce(AnnounceRequest {
                     key: Some(ref key), ..
-                }) => {
-                    if key.len() > 30 {
-                        return TestResult::discard();
-                    }
+                }) if key.len() > 30 => {
+                    return TestResult::discard();
                 }
-                Request::Scrape(ScrapeRequest { ref info_hashes }) => {
-                    if info_hashes.is_empty() {
-                        return TestResult::discard();
-                    }
+                Request::Scrape(ScrapeRequest { ref info_hashes }) if info_hashes.is_empty() => {
+                    return TestResult::discard();
                 }
                 _ => {}
             }

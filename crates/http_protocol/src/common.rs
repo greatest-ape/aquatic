@@ -24,18 +24,13 @@ pub struct InfoHash(
     pub [u8; 20],
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AnnounceEvent {
     Started,
     Stopped,
     Completed,
+    #[default]
     Empty,
-}
-
-impl Default for AnnounceEvent {
-    fn default() -> Self {
-        Self::Empty
-    }
 }
 
 impl FromStr for AnnounceEvent {

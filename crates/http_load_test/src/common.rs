@@ -5,18 +5,9 @@ use rand_distr::Gamma;
 pub use aquatic_http_protocol::common::*;
 pub use aquatic_http_protocol::request::*;
 
-#[derive(PartialEq, Eq, Clone)]
-pub struct TorrentPeer {
-    pub info_hash: InfoHash,
-    pub scrape_hash_indeces: Vec<usize>,
-    pub peer_id: PeerId,
-    pub port: u16,
-}
-
 #[derive(Default)]
 pub struct Statistics {
     pub requests: AtomicUsize,
-    pub response_peers: AtomicUsize,
     pub responses_announce: AtomicUsize,
     pub responses_scrape: AtomicUsize,
     pub responses_failure: AtomicUsize,

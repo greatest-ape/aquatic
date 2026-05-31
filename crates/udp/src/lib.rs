@@ -98,7 +98,7 @@ pub fn run(mut config: Config) -> ::anyhow::Result<()> {
                 ));
 
                 let export_full_scrape = config.scrape_exports.enable_scrape_exports
-                    && counter % (config.scrape_exports.frequency.max(1)) == 0;
+                    && counter.is_multiple_of(config.scrape_exports.frequency.max(1));
 
                 if let Some(seconds_since_server_start) =
                     state.server_start_instant.seconds_elapsed()

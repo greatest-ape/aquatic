@@ -58,7 +58,7 @@ fn parse_forwarded_header(
                 ReverseProxyPeerIpHeaderFormat::LastAddress => {
                     return ::std::str::from_utf8(header.value)?
                         .split(',')
-                        .last()
+                        .next_back()
                         .ok_or(anyhow::anyhow!("no header value"))?
                         .trim()
                         .parse::<IpAddr>()

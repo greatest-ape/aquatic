@@ -63,7 +63,7 @@ pub fn announce(
         bytes_downloaded: NumberOfBytes::new(0),
         bytes_uploaded: NumberOfBytes::new(0),
         bytes_left: NumberOfBytes::new(if seeder { 0 } else { 1 }),
-        event: AnnounceEvent::Started.into(),
+        event: AnnounceEvent::Started,
         ip_address: Ipv4AddrBytes([0; 4]),
         key: PeerKey::new(0),
         peers_wanted: NumberOfPeers::new(peers_wanted as i32),

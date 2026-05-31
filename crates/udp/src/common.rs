@@ -120,11 +120,13 @@ mod tests {
 
         let config = Config::default();
 
-        let peers = ::std::iter::repeat(ResponsePeer {
-            ip_address: Ipv6AddrBytes(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1).octets()),
-            port: Port::new(NonZeroU16::new(1).unwrap()),
-        })
-        .take(config.protocol.max_response_peers)
+        let peers = std::iter::repeat_n(
+            ResponsePeer {
+                ip_address: Ipv6AddrBytes(Ipv6Addr::new(1, 1, 1, 1, 1, 1, 1, 1).octets()),
+                port: Port::new(NonZeroU16::new(1).unwrap()),
+            },
+            config.protocol.max_response_peers,
+        )
         .collect();
 
         let response = Response::AnnounceIpv6(AnnounceResponse {

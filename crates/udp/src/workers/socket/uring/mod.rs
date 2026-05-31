@@ -59,7 +59,7 @@ const SOCKET_IDENTIFIER_V6: Fixed = Fixed(1);
 
 thread_local! {
     /// Store IoUring instance here so that it can be accessed in BufRing::drop
-    pub static CURRENT_RING: CurrentRing = CurrentRing(RefCell::new(None));
+    pub static CURRENT_RING: CurrentRing = const { CurrentRing(RefCell::new(None)) };
 }
 
 pub struct CurrentRing(RefCell<Option<IoUring>>);
