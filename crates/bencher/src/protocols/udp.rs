@@ -1,6 +1,6 @@
 use std::{
     io::Write,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{Ipv4Addr, SocketAddrV4},
     path::PathBuf,
     process::{Child, Command, Stdio},
     rc::Rc,

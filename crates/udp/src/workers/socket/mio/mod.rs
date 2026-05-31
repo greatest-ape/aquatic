@@ -113,7 +113,7 @@ pub fn run(
             socket.resend_failed(&mut shared);
         }
 
-        if iter_counter % 256 == 0 {
+        if iter_counter.is_multiple_of(256) {
             shared.validator.update_elapsed();
 
             let opt_valid_until = ValidUntil::new(

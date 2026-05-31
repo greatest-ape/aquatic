@@ -30,7 +30,7 @@ impl Ord for AnnounceInterval {
 
 impl PartialOrd for AnnounceInterval {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -58,7 +58,7 @@ impl Ord for ConnectionId {
 
 impl PartialOrd for ConnectionId {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -80,7 +80,7 @@ impl Ord for TransactionId {
 
 impl PartialOrd for TransactionId {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -102,7 +102,7 @@ impl Ord for NumberOfBytes {
 
 impl PartialOrd for NumberOfBytes {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -124,7 +124,7 @@ impl Ord for NumberOfPeers {
 
 impl PartialOrd for NumberOfPeers {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -146,7 +146,7 @@ impl Ord for NumberOfDownloads {
 
 impl PartialOrd for NumberOfDownloads {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -168,7 +168,7 @@ impl Ord for Port {
 
 impl PartialOrd for Port {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -190,7 +190,7 @@ impl Ord for PeerKey {
 
 impl PartialOrd for PeerKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 

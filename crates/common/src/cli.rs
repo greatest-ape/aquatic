@@ -9,21 +9,16 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use simplelog::{ColorChoice, TermLogger, TerminalMode, ThreadLogMode};
 
 /// Log level. Available values are off, error, warn, info, debug and trace.
-#[derive(Debug, Clone, Copy, PartialEq, TomlConfig, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, TomlConfig, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Off,
     Error,
+    #[default]
     Warn,
     Info,
     Debug,
     Trace,
-}
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        Self::Warn
-    }
 }
 
 pub trait Config: Default + TomlConfig + DeserializeOwned + std::fmt::Debug {

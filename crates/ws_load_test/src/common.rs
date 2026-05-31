@@ -6,7 +6,6 @@ use rand_distr::Gamma;
 #[derive(Default)]
 pub struct Statistics {
     pub requests: AtomicUsize,
-    pub response_peers: AtomicUsize,
     pub responses_announce: AtomicUsize,
     pub responses_offer: AtomicUsize,
     pub responses_answer: AtomicUsize,

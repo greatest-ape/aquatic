@@ -49,7 +49,7 @@ fn test_invalid_connection_id() -> anyhow::Result<()> {
         bytes_downloaded: NumberOfBytes::new(0),
         bytes_uploaded: NumberOfBytes::new(0),
         bytes_left: NumberOfBytes::new(0),
-        event: AnnounceEvent::Started.into(),
+        event: AnnounceEvent::Started,
         ip_address: Ipv4AddrBytes([0; 4]),
         key: PeerKey::new(0),
         peers_wanted: NumberOfPeers::new(10),

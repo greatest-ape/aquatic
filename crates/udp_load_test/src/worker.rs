@@ -147,7 +147,7 @@ impl Worker {
                 }
             }
 
-            if loop_index % 1024 == 0 {
+            if loop_index.is_multiple_of(1024) {
                 self.update_shared_statistics();
             }
 
@@ -232,7 +232,7 @@ impl Worker {
             bytes_downloaded: NumberOfBytes::new(50),
             bytes_uploaded: NumberOfBytes::new(50),
             bytes_left,
-            event: event.into(),
+            event,
             ip_address: Ipv4AddrBytes([0; 4]),
             key: PeerKey::new(0),
             peers_wanted: NumberOfPeers::new(self.config.requests.announce_peers_wanted),

@@ -46,6 +46,8 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     - name: Setup Rust dependency caching
       uses: Swatinem/rust-cache@v2
+    - name: Run clippy
+      run: cargo clippy --all-targets
     - name: Run tests
       run: cargo test --verbose --profile "test-fast" --workspace
     - name: Run tests (aquatic_udp with io_uring)

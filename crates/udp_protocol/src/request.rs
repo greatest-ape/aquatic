@@ -179,16 +179,11 @@ impl AnnounceRequest {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, TryFromBytes, Immutable)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, TryFromBytes, Immutable, Default)]
 #[repr(i32)]
 pub enum AnnounceActionPlaceholder {
+    #[default]
     Announce = 1_i32.to_be(),
-}
-
-impl Default for AnnounceActionPlaceholder {
-    fn default() -> Self {
-        Self::Announce
-    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, IntoBytes, TryFromBytes, Immutable)]
@@ -292,7 +287,7 @@ mod tests {
                 bytes_downloaded: NumberOfBytes(I64::new(i64::arbitrary(g))),
                 bytes_uploaded: NumberOfBytes(I64::new(i64::arbitrary(g))),
                 bytes_left: NumberOfBytes(I64::new(i64::arbitrary(g))),
-                event: AnnounceEvent::arbitrary(g).into(),
+                event: AnnounceEvent::arbitrary(g),
                 ip_address: Ipv4AddrBytes::arbitrary(g),
                 key: PeerKey::new(i32::arbitrary(g)),
                 peers_wanted: NumberOfPeers(I32::new(i32::arbitrary(g))),
@@ -319,7 +314,7 @@ mod tests {
         let mut buf = Vec::new();
 
         request.clone().write_bytes(&mut buf).unwrap();
-        let r2 = Request::parse_bytes(&buf[..], ::std::u8::MAX).unwrap();
+        let r2 = Request::parse_bytes(&buf[..], u8::MAX).unwrap();
 
         let success = request == r2;
 
@@ -354,8 +349,9 @@ mod tests {
         for action in 0i32..4 {
             for max_scrape_torrents in 0..3 {
                 for num_bytes in 0..256 {
-                    let mut request_bytes =
-                        ::std::iter::repeat(0).take(num_bytes).collect::<Vec<_>>();
+                    let mut request_bytes = std::iter::repeat_n(0, num_bytes)
+                        .take(num_bytes)
+                        .collect::<Vec<_>>();
 
                     if let Some(action_bytes) = request_bytes.get_mut(8..12) {
                         action_bytes.copy_from_slice(&action.to_be_bytes())
