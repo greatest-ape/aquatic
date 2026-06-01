@@ -70,6 +70,59 @@ pub async fn run_swarm_worker(
         })()
     }));
 
+    // Periodically update torrent info-hash API
+    #[cfg(feature = "info_hash_api")]
+    if config.info_hash_api.is_ipv4_enabled || config.info_hash_api.is_ipv6_enabled {
+        TimerActionRepeat::repeat(enclose!((config, torrents) move || {
+            enclose!((config, torrents) move || async move {
+                fn update<'a>(info_hash_table_bytes: impl Iterator<Item = &'a [u8; 20]>, file_path: &std::path::PathBuf) -> usize {
+                    let mut total = 0;
+                    match std::fs::File::create(file_path) {
+                        Ok(file) => {
+                            use std::io::Write;
+                            let mut w = std::io::BufWriter::new(file);
+                            for b in info_hash_table_bytes {
+                                match w.write_all(b) {
+                                    Ok(()) => total += 1,
+                                    Err(e) => {
+                                        ::log::error!("Info-hash bytes write error: {e}");
+                                        break;
+                                    }
+                                }
+                            }
+                            if let Err(e) = w.flush() {
+                                ::log::error!("Could not flash info-hash bytes: {e}");
+                            }
+                        }
+                        Err(e) => ::log::error!(
+                            "Could not open info-hash API file `{}` to write: {e}",
+                            file_path.to_string_lossy()
+                        )
+                    }
+                    total
+                }
+                let t = torrents.borrow();
+                if config.info_hash_api.is_ipv4_enabled {
+                    ::log::debug!(
+                        "IPv4 info-hash API file updated ({} total).",
+                        update(t.ipv4_info_hash_table_bytes(), &config.info_hash_api.ipv4_file_path)
+                    )
+                }
+                if config.info_hash_api.is_ipv6_enabled {
+                    ::log::debug!(
+                        "IPv6 info-hash API file updated ({} total).",
+                        update(t.ipv6_info_hash_table_bytes(), &config.info_hash_api.ipv6_file_path)
+                    )
+                }
+                ::log::debug!(
+                    "Update info-hash API file completed; await {} seconds to renew...",
+                    config.info_hash_api.update_interval
+                );
+                Some(Duration::from_secs(config.info_hash_api.update_interval))
+            })()
+        }));
+    }
+
     let mut handles = Vec::new();
 
     for (_, receiver) in request_receivers.streams() {

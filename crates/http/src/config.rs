@@ -45,6 +45,8 @@ pub struct Config {
     pub access_list: AccessListConfig,
     #[cfg(feature = "metrics")]
     pub metrics: MetricsConfig,
+    #[cfg(feature = "info_hash_api")]
+    pub info_hash_api: InfoHashApiConfig,
 }
 
 impl Default for Config {
@@ -60,6 +62,8 @@ impl Default for Config {
             access_list: AccessListConfig::default(),
             #[cfg(feature = "metrics")]
             metrics: Default::default(),
+            #[cfg(feature = "info_hash_api")]
+            info_hash_api: InfoHashApiConfig::default(),
         }
     }
 }
@@ -219,6 +223,30 @@ impl Default for MetricsConfig {
             run_prometheus_endpoint: false,
             prometheus_endpoint_address: SocketAddr::from(([0, 0, 0, 0], 9000)),
             torrent_count_update_interval: 10,
+        }
+    }
+}
+
+#[cfg(feature = "info_hash_api")]
+#[derive(Clone, Debug, PartialEq, TomlConfig, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct InfoHashApiConfig {
+    pub is_ipv4_enabled: bool,
+    pub is_ipv6_enabled: bool,
+    pub ipv4_file_path: PathBuf,
+    pub ipv6_file_path: PathBuf,
+    pub update_interval: u64,
+}
+
+#[cfg(feature = "info_hash_api")]
+impl Default for InfoHashApiConfig {
+    fn default() -> Self {
+        Self {
+            is_ipv4_enabled: false,
+            is_ipv6_enabled: false,
+            ipv4_file_path: PathBuf::new(),
+            ipv6_file_path: PathBuf::new(),
+            update_interval: 900,
         }
     }
 }

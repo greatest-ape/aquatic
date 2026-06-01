@@ -20,6 +20,7 @@ name = "aquatic_http"
 default = ["prometheus", "mimalloc"]
 prometheus = ["aquatic_common/prometheus", "metrics", "dep:metrics-util"]
 metrics = ["dep:metrics"]
+info_hash_api = []
 # Use mimalloc allocator for much better performance.
 #
 # Requires cmake and a C compiler

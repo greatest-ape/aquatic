@@ -105,6 +105,16 @@ impl TorrentMaps {
         self.ipv6.torrent_gauge.set(self.ipv6.torrents.len() as f64);
     }
 
+    #[cfg(feature = "info_hash_api")]
+    pub fn ipv4_info_hash_table_bytes(&self) -> impl Iterator<Item = &[u8; 20]> {
+        self.ipv4.torrents.keys().map(|i| &i.0)
+    }
+
+    #[cfg(feature = "info_hash_api")]
+    pub fn ipv6_info_hash_table_bytes(&self) -> impl Iterator<Item = &[u8; 20]> {
+        self.ipv6.torrents.keys().map(|i| &i.0)
+    }
+
     pub fn clean(
         &mut self,
         config: &Config,
