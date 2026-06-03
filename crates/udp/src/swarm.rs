@@ -102,7 +102,19 @@ impl TorrentMaps {
         let mut statistics_messages = Vec::new();
         let mut opt_scrape_export_writer = if export_full_scrape {
             match File::create(config.scrape_exports.tmp_path()) {
-                Ok(file) => Some(BufWriter::new(file)),
+                Ok(file) => {
+                    let mut w = BufWriter::new(file);
+                    // Write BEP 48 Full Scrape header to file, return writer on success
+                    match w.write_all(b"d5:filesd") {
+                        Ok(()) => Some(w),
+                        Err(e) => {
+                            ::log::error!(
+                                "Could not write bencode header to scrape export file: {e:?}"
+                            );
+                            None
+                        }
+                    }
+                }
                 Err(err) => {
                     ::log::error!(
                         "Could not create temporary scrape export file at path {}: {:?}",
@@ -133,6 +145,13 @@ impl TorrentMaps {
             seconds_since_server_start,
             &mut opt_scrape_export_writer,
         );
+
+        // Write BEP 48 Full Scrape footer to file
+        if let Some(w) = opt_scrape_export_writer.as_mut() {
+            if let Err(e) = w.write_all(b"ee") {
+                ::log::error!("Could not write bencode footer to scrape export file: {e:?}",);
+            }
+        }
 
         if config.statistics.active() {
             statistics.ipv4.torrents.store(ipv4.0, Ordering::Relaxed);
@@ -322,22 +341,25 @@ impl<I: Ip> TorrentMapShards<I> {
                             ::log::error!("Couldn't record {} to histogram: {:#}", num_peers, err);
                         }
                     }
-
-                    if let Some(w) = opt_scrape_export_writer.as_mut() {
-                        let result = writeln!(
-                            w,
-                            "{ip_version} {info_hash} {seeders} {leechers}",
-                            ip_version = I::version_char(),
-                            info_hash = const_hex::display(info_hash.0),
-                            seeders = num_seeders,
-                            leechers = num_leechers
-                        );
-
-                        if let Err(err) = result {
+                    // Write BEP 48 Full Scrape body to file
+                    if let Some(ref mut w) = opt_scrape_export_writer.as_mut() {
+                        if let Err(err) =
+                            w.write_all(b"20:").and_then(|_| w.write_all(&info_hash.0))
+                        {
                             ::log::error!(
-                                "Could not write to temporary scrape export file: {:?}",
+                                "Could not write info_hash key to scrape export file: {:?}",
                                 err
-                            );
+                            )
+                        }
+                        let torrent_bencode = format!(
+                            "d8:completei{}e10:downloadedi{}e10:incompletei{}ee",
+                            num_seeders, num_peers, num_leechers
+                        );
+                        if let Err(err) = w.write_all(torrent_bencode.as_bytes()) {
+                            ::log::error!(
+                                "Could not write torrent metrics to scrape export file: {:?}",
+                                err
+                            )
                         }
                     }
                 }

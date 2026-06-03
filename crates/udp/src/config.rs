@@ -274,20 +274,7 @@ pub struct ScrapeExportConfig {
     /// torrents are cleaned, while a value of 10 means that it is done
     /// every tenth time. 0 is interpreted as 1.
     pub frequency: usize,
-    /// Path to scrape export file
-    ///
-    /// Each line of the text file will consist of the following components,
-    /// separated by spaces:
-    /// - '4' or '6', representing IPv4 or IPv6
-    /// - a hex-encoded info hash
-    /// - the number of seeders
-    /// - the number of leechers
-    ///
-    /// To make it easier for consuming applications to avoid reading partly
-    /// completed scrape exports, the path given here is not written to
-    /// directly. Instead, a temporary file is created with the same path but
-    /// with the file extension set to 'tmp'. This file is incrementally
-    /// written to, and once done, it is moved/renamed to the configured path.
+    /// Path to BEP 48 Full Scrape export file
     pub path: PathBuf,
 }
 
@@ -296,7 +283,7 @@ impl Default for ScrapeExportConfig {
         Self {
             enable_scrape_exports: false,
             frequency: 10,
-            path: "./udp-scrape-export.txt".parse().unwrap(),
+            path: "./scrape".parse().unwrap(),
         }
     }
 }
