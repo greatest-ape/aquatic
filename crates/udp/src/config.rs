@@ -112,6 +112,12 @@ pub struct NetworkConfig {
     /// Will be rounded to next power of two if not already one.
     #[cfg(feature = "io-uring")]
     pub ring_size: u16,
+    /// FreeBSD requires setting SO_REUSEPORT_LB to do load balancing
+    /// (https://man.freebsd.org/cgi/man.cgi?setsockopt), but enabling it has
+    /// been reported to cause issues in certain cases, so it is possibly to
+    /// disable doing so here.
+    #[cfg(target_os = "freebsd")]
+    pub set_reuseport_lb: bool,
 }
 
 impl NetworkConfig {
@@ -138,6 +144,8 @@ impl Default for NetworkConfig {
             use_io_uring: true,
             #[cfg(feature = "io-uring")]
             ring_size: 128,
+            #[cfg(target_os = "freebsd")]
+            set_reuseport_lb: true,
         }
     }
 }

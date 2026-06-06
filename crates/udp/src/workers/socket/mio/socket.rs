@@ -48,12 +48,15 @@ impl Socket<Ipv4> {
 
         cfg_if!(
             if #[cfg(target_os = "freebsd")] {
-                // FreeBSD requires setting SO_REUSEPORT_LB to do load
-                // balancing (https://man.freebsd.org/cgi/man.cgi?setsockopt)
-                socket
-                    .set_reuse_port_lb(true)
-                    .with_context(|| "socket: set reuse port lb")?;
-
+                if config.network.set_reuseport_lb {
+                    socket
+                        .set_reuse_port_lb(true)
+                        .with_context(|| "socket: set reuse port lb")?;
+                } else {
+                    socket
+                        .set_reuse_port(true)
+                        .with_context(|| "socket: set reuse port")?;
+                }
             } else {
                 socket
                     .set_reuse_port(true)
@@ -109,12 +112,15 @@ impl Socket<Ipv6> {
 
         cfg_if!(
             if #[cfg(target_os = "freebsd")] {
-                // FreeBSD requires setting SO_REUSEPORT_LB to do load
-                // balancing (https://man.freebsd.org/cgi/man.cgi?setsockopt)
-                socket
-                    .set_reuse_port_lb(true)
-                    .with_context(|| "socket: set reuse port lb")?;
-
+                if config.network.set_reuseport_lb {
+                    socket
+                        .set_reuse_port_lb(true)
+                        .with_context(|| "socket: set reuse port lb")?;
+                } else {
+                    socket
+                        .set_reuse_port(true)
+                        .with_context(|| "socket: set reuse port")?;
+                }
             } else {
                 socket
                     .set_reuse_port(true)
