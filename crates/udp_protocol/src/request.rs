@@ -54,7 +54,7 @@ impl Request {
             }
             // Announce
             1 => {
-                let request = AnnounceRequest::try_read_from_bytes(bytes)
+                let (request, _rest) = AnnounceRequest::try_read_from_prefix(bytes)
                     .map_err(|_| RequestParseError::unsendable_text("invalid data"))?;
 
                 if request.port.0.get() == 0 {
@@ -256,7 +256,9 @@ impl RequestParseError {
 
 #[cfg(test)]
 mod tests {
-    use quickcheck::TestResult;
+    use std::num::NonZeroU16;
+
+use quickcheck::TestResult;
     use quickcheck_macros::quickcheck;
     use zerocopy::network_endian::{I32, I64};
 
@@ -377,5 +379,62 @@ mod tests {
         request_bytes.extend(0i32.to_be_bytes());
 
         Request::parse_bytes(&request_bytes, 1).unwrap_err();
+    }
+
+    #[test]
+    fn test_announce() {
+        let mut request_bytes = Vec::new();
+
+        // https://www.bittorrent.org/beps/bep_0015.html
+        // https://libtorrent.org/udp_tracker_protocol.html
+        request_bytes.extend(123i64.to_be_bytes()); // ConnectionId
+        request_bytes.extend(1i32.to_be_bytes()); // Action (1 = announce)
+        request_bytes.extend(33i32.to_be_bytes());  // Transaction ID
+        request_bytes.extend([1; 20]); // Info hash
+        request_bytes.extend([2; 20]); // Peer id
+        request_bytes.extend(1i64.to_be_bytes()); // Downloaded
+        request_bytes.extend(2i64.to_be_bytes()); // Left
+        request_bytes.extend(3i64.to_be_bytes()); // Uploaded
+        request_bytes.extend(0i32.to_be_bytes()); // Event = none
+        request_bytes.extend([0; 4]); // IP
+        request_bytes.extend(55i32.to_be_bytes()); // Key
+        request_bytes.extend(21i32.to_be_bytes()); // numwant
+        request_bytes.extend(8080u16.to_be_bytes()); // Port
+        request_bytes.extend(0u16.to_be_bytes()); // Extensions
+
+        match Request::parse_bytes(&request_bytes, 1) {
+            Ok(Request::Announce(AnnounceRequest {
+                connection_id,
+                action_placeholder,
+                transaction_id,
+                info_hash,
+                peer_id,
+                bytes_downloaded,
+                bytes_left,
+                bytes_uploaded,
+                event,
+                ip_address,
+                key,
+                peers_wanted,
+                port 
+            })) => {
+                assert_eq!(connection_id, ConnectionId::new(123));
+                assert_eq!(action_placeholder, AnnounceActionPlaceholder::Announce);
+                assert_eq!(transaction_id, TransactionId::new(33));
+                assert_eq!(info_hash, InfoHash([1; 20]));
+                assert_eq!(peer_id, PeerId([2; 20]));
+                assert_eq!(bytes_downloaded, NumberOfBytes::new(1));
+                assert_eq!(bytes_left, NumberOfBytes::new(2));
+                assert_eq!(bytes_uploaded, NumberOfBytes::new(3));
+                assert_eq!(event, AnnounceEvent::None);
+                assert_eq!(ip_address, Ipv4AddrBytes([0; 4]));
+                assert_eq!(key, PeerKey::new(55));
+                assert_eq!(peers_wanted, NumberOfPeers::new(21));
+                assert_eq!(port, Port::new(NonZeroU16::new(8080).unwrap()));
+            }
+            request => {
+                panic!("request: {:?}", request)
+            }
+        }
     }
 }
