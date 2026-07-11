@@ -163,7 +163,8 @@ impl ConnectionRunner {
             .max_frame_size(Some(self.config.network.websocket_max_frame_size))
             .max_message_size(Some(self.config.network.websocket_max_message_size))
             .write_buffer_size(self.config.network.websocket_write_buffer_size)
-            .max_write_buffer_size(self.config.network.websocket_write_buffer_size * 3);
+            .max_write_buffer_size(self.config.network.websocket_write_buffer_size * 3)
+            .read_buffer_size(self.config.network.websocket_read_buffer_size);
         let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
         let (ws_out, ws_in) = futures::StreamExt::split(stream);
 
