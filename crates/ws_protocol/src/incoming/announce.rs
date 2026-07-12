@@ -20,7 +20,7 @@ pub struct AnnounceRequest {
     /// Just called "left" in protocol. Is set to None in some cases, such as
     /// when opening a magnet link
     #[serde(rename = "left")]
-    pub bytes_left: Option<isize>,
+    pub bytes_left: Option<i64>,
     /// Can be empty. Then, default is "update"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<AnnounceEvent>,

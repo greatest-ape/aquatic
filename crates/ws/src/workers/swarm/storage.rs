@@ -596,7 +596,7 @@ impl PeerStatus {
     ///
     /// Likely, the last branch will be taken most of the time.
     #[inline]
-    fn from_event_and_bytes_left(event: AnnounceEvent, opt_bytes_left: Option<isize>) -> Self {
+    fn from_event_and_bytes_left(event: AnnounceEvent, opt_bytes_left: Option<i64>) -> Self {
         if let AnnounceEvent::Stopped = event {
             Self::Stopped
         } else if let Some(0) = opt_bytes_left {
