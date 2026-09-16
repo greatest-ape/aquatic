@@ -59,4 +59,4 @@ inherits = "release"
 lto = false
 
 [patch.crates-io]
-glommio = { git = "https://github.com/glommio/glommio.git", package = "glommio" }
+glommio = { git = "https://github.com/glommio/glommio.git", rev = "95221339c6f9a32e001e7c6b3ecfa872e18f881d", package = "glommio" }
