@@ -16,4 +16,6 @@ pub struct ScrapeStatistics {
     pub complete: usize,
     pub incomplete: usize,
     pub downloaded: usize,
+    #[serde(default)]
+    pub downloaders: usize,
 }

@@ -198,6 +198,9 @@ pub enum AnnounceEvent {
     Stopped = 3_i32.to_be(),
     Completed = 1_i32.to_be(),
     None = 0_i32.to_be(),
+    /// A partial seed is not downloading more data. Event 4 is used by
+    /// libtorrent and the reference bittorrent-tracker implementation.
+    Paused = 4_i32.to_be(),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -266,11 +269,12 @@ use quickcheck::TestResult;
 
     impl quickcheck::Arbitrary for AnnounceEvent {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            match (bool::arbitrary(g), bool::arbitrary(g)) {
-                (false, false) => Self::Started,
-                (true, false) => Self::Started,
-                (false, true) => Self::Completed,
-                (true, true) => Self::None,
+            match u8::arbitrary(g) % 5 {
+                0 => Self::None,
+                1 => Self::Completed,
+                2 => Self::Started,
+                3 => Self::Stopped,
+                _ => Self::Paused,
             }
         }
     }
@@ -379,6 +383,41 @@ use quickcheck::TestResult;
         request_bytes.extend(0i32.to_be_bytes());
 
         Request::parse_bytes(&request_bytes, 1).unwrap_err();
+    }
+
+    #[test]
+    fn test_announce_paused_event_four() {
+        let mut request_bytes = Vec::new();
+
+        request_bytes.extend(123i64.to_be_bytes()); // Connection ID
+        request_bytes.extend(1i32.to_be_bytes()); // Action = announce
+        request_bytes.extend(33i32.to_be_bytes()); // Transaction ID
+        request_bytes.extend([1; 20]); // Info hash
+        request_bytes.extend([2; 20]); // Peer ID
+        request_bytes.extend(1i64.to_be_bytes()); // Downloaded
+        request_bytes.extend(2i64.to_be_bytes()); // Left
+        request_bytes.extend(3i64.to_be_bytes()); // Uploaded
+        request_bytes.extend(4i32.to_be_bytes()); // Event = paused (implementation convention)
+        request_bytes.extend([0; 4]); // IP
+        request_bytes.extend(55i32.to_be_bytes()); // Key
+        request_bytes.extend(21i32.to_be_bytes()); // numwant
+        request_bytes.extend(8080u16.to_be_bytes()); // Port
+
+        let request = Request::parse_bytes(&request_bytes, u8::MAX).unwrap();
+        assert!(matches!(
+            &request,
+            Request::Announce(AnnounceRequest {
+                event: AnnounceEvent::Paused,
+                ..
+            })
+        ));
+
+        let mut encoded = Vec::new();
+        request.write_bytes(&mut encoded).unwrap();
+        assert_eq!(
+            Request::parse_bytes(&encoded, u8::MAX).unwrap(),
+            request
+        );
     }
 
     #[test]
