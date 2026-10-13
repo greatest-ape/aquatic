@@ -39,6 +39,8 @@ pub struct ScrapeStatistics {
     pub complete: usize,
     pub incomplete: usize,
     pub downloaded: usize,
+    #[serde(default)]
+    pub downloaders: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,7 +137,10 @@ impl ScrapeResponse {
             bytes_written += output.write(b"d8:completei")?;
             bytes_written +=
                 output.write(itoa::Buffer::new().format(statistics.complete).as_bytes())?;
-            bytes_written += output.write(b"e10:downloadedi0e10:incompletei")?;
+            bytes_written += output.write(b"e10:downloadedi0e11:downloadersi")?;
+            bytes_written +=
+                output.write(itoa::Buffer::new().format(statistics.downloaders).as_bytes())?;
+            bytes_written += output.write(b"e10:incompletei")?;
             bytes_written +=
                 output.write(itoa::Buffer::new().format(statistics.incomplete).as_bytes())?;
             bytes_written += output.write(b"ee")?;
@@ -237,6 +242,7 @@ impl quickcheck::Arbitrary for ScrapeStatistics {
             complete: usize::arbitrary(g),
             incomplete: usize::arbitrary(g),
             downloaded: 0,
+            downloaders: usize::arbitrary(g),
         }
     }
 }
@@ -313,6 +319,44 @@ mod tests {
         }
 
         success
+    }
+
+    #[test]
+    fn test_scrape_response_roundtrips_zero_and_mixed_downloader_counts() {
+        let response = ScrapeResponse {
+            files: BTreeMap::from([
+                (InfoHash([1; 20]), ScrapeStatistics {
+                    complete: 0,
+                    incomplete: 0,
+                    downloaded: 0,
+                    downloaders: 0,
+                }),
+                (InfoHash([2; 20]), ScrapeStatistics {
+                    complete: 3,
+                    incomplete: 5,
+                    downloaded: 0,
+                    downloaders: 2,
+                }),
+            ]),
+        };
+
+        let mut bytes = Vec::new();
+        response.write_bytes(&mut bytes).unwrap();
+
+        let parsed = Response::parse_bytes(&bytes).unwrap();
+        let Response::Scrape(parsed) = parsed else {
+            panic!("expected scrape response");
+        };
+
+        let empty = parsed.files.get(&InfoHash([1; 20])).unwrap();
+        assert_eq!(empty.complete, 0);
+        assert_eq!(empty.incomplete, 0);
+        assert_eq!(empty.downloaders, 0);
+
+        let mixed = parsed.files.get(&InfoHash([2; 20])).unwrap();
+        assert_eq!(mixed.complete, 3);
+        assert_eq!(mixed.incomplete, 5);
+        assert_eq!(mixed.downloaders, 2);
     }
 
     #[quickcheck]

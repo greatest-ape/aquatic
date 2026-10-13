@@ -29,6 +29,7 @@ pub enum AnnounceEvent {
     Started,
     Stopped,
     Completed,
+    Paused,
     Empty,
 }
 
@@ -46,6 +47,7 @@ impl FromStr for AnnounceEvent {
             "started" => Ok(Self::Started),
             "stopped" => Ok(Self::Stopped),
             "completed" => Ok(Self::Completed),
+            "paused" => Ok(Self::Paused),
             "empty" => Ok(Self::Empty),
             value => Err(format!("Unknown value: {}", value)),
         }
@@ -58,6 +60,7 @@ impl AnnounceEvent {
             Self::Started => Some("started"),
             Self::Stopped => Some("stopped"),
             Self::Completed => Some("completed"),
+            Self::Paused => Some("paused"),
             Self::Empty => None,
         }
     }
@@ -92,11 +95,12 @@ impl quickcheck::Arbitrary for PeerId {
 #[cfg(test)]
 impl quickcheck::Arbitrary for AnnounceEvent {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        match (bool::arbitrary(g), bool::arbitrary(g)) {
-            (false, false) => Self::Started,
-            (true, false) => Self::Started,
-            (false, true) => Self::Completed,
-            (true, true) => Self::Empty,
+        match u8::arbitrary(g) % 5 {
+            0 => Self::Started,
+            1 => Self::Stopped,
+            2 => Self::Completed,
+            3 => Self::Paused,
+            _ => Self::Empty,
         }
     }
 }

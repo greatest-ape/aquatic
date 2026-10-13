@@ -64,6 +64,7 @@ pub enum AnnounceEvent {
     Stopped,
     Completed,
     Update,
+    Paused,
 }
 
 impl Default for AnnounceEvent {
@@ -77,4 +78,31 @@ impl Default for AnnounceEvent {
 pub struct AnnounceRequestOffer {
     pub offer: RtcOffer,
     pub offer_id: OfferId,
+}
+
+
+#[cfg(test)]
+mod paused_event_tests {
+    use super::*;
+
+    #[test]
+    fn paused_event_uses_lowercase_wire_value() {
+        assert_eq!(
+            serde_json::to_string(&AnnounceEvent::Paused).unwrap(),
+            "\"paused\""
+        );
+        assert_eq!(
+            serde_json::from_str::<AnnounceEvent>("\"paused\"").unwrap(),
+            AnnounceEvent::Paused
+        );
+    }
+
+    #[test]
+    fn omitted_event_keeps_update_default() {
+        assert_eq!(AnnounceEvent::default(), AnnounceEvent::Update);
+        assert_eq!(
+            serde_json::to_string(&AnnounceEvent::Update).unwrap(),
+            "\"update\""
+        );
+    }
 }

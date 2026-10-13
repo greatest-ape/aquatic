@@ -211,6 +211,7 @@ impl<I: Ip> TorrentMap<I> {
                     complete: 0,
                     incomplete: 0,
                     downloaded: 0,
+                    downloaders: 0,
                 });
 
             response.files.insert(info_hash, stats);
@@ -317,7 +318,7 @@ impl<I: Ip> TorrentData<I> {
         };
 
         match status {
-            PeerStatus::Leeching | PeerStatus::Seeding => {
+            PeerStatus::Leeching | PeerStatus::Seeding | PeerStatus::Paused => {
                 #[cfg(feature = "metrics")]
                 if opt_removed_peer.is_none() {
                     peer_gauge.increment(1.0);
@@ -325,6 +326,7 @@ impl<I: Ip> TorrentData<I> {
 
                 let peer = Peer {
                     is_seeder: status == PeerStatus::Seeding,
+                    is_downloader: status == PeerStatus::Leeching,
                     valid_until,
                 };
 
@@ -350,11 +352,16 @@ impl<I: Ip> TorrentData<I> {
             Self::Small(peer_map) => peer_map.num_seeders_leechers(),
             Self::Large(peer_map) => peer_map.num_seeders_leechers(),
         };
+        let downloaders = match self {
+            Self::Small(peer_map) => peer_map.num_downloaders(),
+            Self::Large(peer_map) => peer_map.num_downloaders,
+        };
 
         ScrapeStatistics {
             complete: seeders,
             incomplete: leechers,
             downloaded: 0,
+            downloaders,
         }
     }
 }
@@ -383,6 +390,10 @@ impl<I: Ip> SmallPeerMap<I> {
         (seeders, leechers)
     }
 
+    fn num_downloaders(&self) -> usize {
+        self.0.iter().filter(|(_, peer)| peer.is_downloader).count()
+    }
+
     fn insert(&mut self, key: ResponsePeer<I>, peer: Peer) {
         self.0.push((key, peer));
     }
@@ -409,9 +420,15 @@ impl<I: Ip> SmallPeerMap<I> {
 
     fn to_large(&self) -> LargePeerMap<I> {
         let (num_seeders, _) = self.num_seeders_leechers();
-        let peers = self.0.iter().copied().collect();
+        let num_downloaders = self.num_downloaders();
+        let peers: IndexMap<ResponsePeer<I>, Peer> =
+            self.0.iter().copied().collect();
 
-        LargePeerMap { peers, num_seeders }
+        LargePeerMap {
+            peers,
+            num_seeders,
+            num_downloaders,
+        }
     }
 }
 
@@ -419,6 +436,7 @@ impl<I: Ip> SmallPeerMap<I> {
 pub struct LargePeerMap<I: Ip> {
     peers: IndexMap<ResponsePeer<I>, Peer>,
     num_seeders: usize,
+    num_downloaders: usize,
 }
 
 impl<I: Ip> LargePeerMap<I> {
@@ -429,6 +447,9 @@ impl<I: Ip> LargePeerMap<I> {
     fn insert(&mut self, key: ResponsePeer<I>, peer: Peer) {
         if peer.is_seeder {
             self.num_seeders += 1;
+        }
+        if peer.is_downloader {
+            self.num_downloaders += 1;
         }
 
         self.peers.insert(key, peer);
@@ -442,6 +463,12 @@ impl<I: Ip> LargePeerMap<I> {
         }) = opt_removed_peer
         {
             self.num_seeders -= 1;
+        }
+        if let Some(Peer {
+            is_downloader: true, ..
+        }) = opt_removed_peer
+        {
+            self.num_downloaders -= 1;
         }
 
         opt_removed_peer
@@ -501,6 +528,9 @@ impl<I: Ip> LargePeerMap<I> {
             if (!keep) & peer.is_seeder {
                 self.num_seeders -= 1;
             }
+            if (!keep) & peer.is_downloader {
+                self.num_downloaders -= 1;
+            }
 
             keep
         });
@@ -523,12 +553,14 @@ impl<I: Ip> LargePeerMap<I> {
 struct Peer {
     pub valid_until: ValidUntil,
     pub is_seeder: bool,
+    pub is_downloader: bool,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum PeerStatus {
     Seeding,
     Leeching,
+    Paused,
     Stopped,
 }
 
@@ -538,8 +570,144 @@ impl PeerStatus {
             Self::Stopped
         } else if bytes_left == 0 {
             Self::Seeding
+        } else if event == AnnounceEvent::Paused {
+            Self::Paused
         } else {
             Self::Leeching
         }
+    }
+}
+
+#[cfg(test)]
+mod paused_event_tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    fn key(port: u16) -> ResponsePeer<Ipv4Addr> {
+        ResponsePeer {
+            ip_address: Ipv4Addr::LOCALHOST,
+            port,
+        }
+    }
+
+    fn peer(is_seeder: bool, is_downloader: bool) -> Peer {
+        Peer {
+            valid_until: ValidUntil::new_raw(SecondsSinceServerStart::new_raw(0)),
+            is_seeder,
+            is_downloader,
+        }
+    }
+
+    #[test]
+    fn paused_status_is_a_partial_seed_unless_complete_or_stopped() {
+        assert_eq!(PeerStatus::from_event_and_bytes_left(AnnounceEvent::Paused, 10), PeerStatus::Paused);
+        assert_eq!(PeerStatus::from_event_and_bytes_left(AnnounceEvent::Paused, 0), PeerStatus::Seeding);
+        assert_eq!(PeerStatus::from_event_and_bytes_left(AnnounceEvent::Stopped, 0), PeerStatus::Stopped);
+    }
+
+    #[test]
+    fn small_peer_map_counts_paused_peers_as_incomplete_not_downloaders() {
+        let k = key(1000);
+        let mut map = SmallPeerMap::<Ipv4Addr>(ArrayVec::new());
+
+        map.insert(k, peer(false, true));
+        assert_eq!(map.num_seeders_leechers(), (0, 1));
+        assert_eq!(map.num_downloaders(), 1);
+
+        map.remove(&k);
+        map.insert(k, peer(false, false));
+        assert_eq!(map.num_seeders_leechers(), (0, 1));
+        assert_eq!(map.num_downloaders(), 0);
+
+        map.remove(&k);
+        map.insert(k, peer(false, false));
+        assert_eq!(map.num_downloaders(), 0);
+
+        map.remove(&k);
+        map.insert(k, peer(false, true));
+        assert_eq!(map.num_downloaders(), 1);
+
+        map.remove(&k);
+        map.insert(k, peer(true, false));
+        assert_eq!(map.num_seeders_leechers(), (1, 0));
+        assert_eq!(map.num_downloaders(), 0);
+
+        map.remove(&k);
+        assert_eq!(map.num_seeders_leechers(), (0, 0));
+        assert_eq!(map.num_downloaders(), 0);
+    }
+
+    #[test]
+    fn large_peer_map_keeps_downloader_counter_consistent_on_transitions() {
+        let k = key(1001);
+        let mut map = LargePeerMap::<Ipv4Addr> {
+            peers: IndexMap::default(),
+            num_seeders: 0,
+            num_downloaders: 0,
+        };
+
+        map.insert(k, peer(false, true));
+        assert_eq!(map.num_seeders_leechers(), (0, 1));
+        assert_eq!(map.num_downloaders, 1);
+
+        map.remove_peer(&k);
+        map.insert(k, peer(false, false));
+        assert_eq!(map.num_seeders_leechers(), (0, 1));
+        assert_eq!(map.num_downloaders, 0);
+
+        map.remove_peer(&k);
+        map.insert(k, peer(false, false));
+        assert_eq!(map.num_downloaders, 0);
+
+        map.remove_peer(&k);
+        map.insert(k, peer(false, true));
+        assert_eq!(map.num_downloaders, 1);
+
+        map.remove_peer(&k);
+        map.insert(k, peer(true, false));
+        assert_eq!(map.num_seeders_leechers(), (1, 0));
+        assert_eq!(map.num_downloaders, 0);
+
+        map.remove_peer(&k);
+        assert_eq!(map.num_seeders_leechers(), (0, 0));
+        assert_eq!(map.num_downloaders, 0);
+    }
+}
+#[cfg(test)]
+mod paused_expiry_tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn expired_paused_membership_is_removed_from_small_and_large_maps() {
+        let key = ResponsePeer {
+            ip_address: Ipv4Addr::LOCALHOST,
+            port: 1000,
+        };
+        let valid_until = ValidUntil::new_raw(SecondsSinceServerStart::new_raw(1));
+        let now = SecondsSinceServerStart::new_raw(2);
+        let paused_peer = Peer {
+            valid_until,
+            is_seeder: false,
+            is_downloader: false,
+        };
+
+        let mut small = SmallPeerMap::<Ipv4Addr>(ArrayVec::new());
+        small.insert(key, paused_peer);
+        assert_eq!(small.num_downloaders(), 0);
+        assert_eq!(small.clean_and_get_num_peers(now), 0);
+        assert_eq!(small.num_downloaders(), 0);
+        assert!(small.0.is_empty());
+
+        let mut large = LargePeerMap::<Ipv4Addr> {
+            peers: IndexMap::default(),
+            num_seeders: 0,
+            num_downloaders: 0,
+        };
+        large.insert(key, paused_peer);
+        assert_eq!(large.num_seeders_leechers(), (0, 1));
+        assert_eq!(large.clean_and_get_num_peers(now), 0);
+        assert_eq!(large.num_seeders_leechers(), (0, 0));
+        assert_eq!(large.num_downloaders, 0);
     }
 }

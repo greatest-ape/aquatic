@@ -253,6 +253,7 @@ impl TorrentMap {
                     complete: torrent_data.num_seeders,
                     downloaded: 0, // No implementation planned
                     incomplete: torrent_data.num_leechers(),
+                    downloaders: torrent_data.num_downloaders,
                 };
 
                 out_message.files.insert(info_hash, stats);
@@ -314,6 +315,7 @@ impl TorrentMap {
 struct TorrentData {
     peers: IndexMap<PeerId, Peer>,
     num_seeders: usize,
+    num_downloaders: usize,
 }
 
 impl TorrentData {
@@ -349,8 +351,26 @@ impl TorrentData {
                     if peer.seeder {
                         self.num_seeders -= 1;
                     }
+                    if !peer.is_downloader {
+                        self.num_downloaders += 1;
+                    }
 
                     peer.seeder = false;
+                    peer.is_downloader = true;
+                    peer.valid_until = valid_until;
+                }
+                PeerStatus::Paused => {
+                    let peer = entry.get_mut();
+
+                    if peer.seeder {
+                        self.num_seeders -= 1;
+                    }
+                    if peer.is_downloader {
+                        self.num_downloaders -= 1;
+                    }
+
+                    peer.seeder = false;
+                    peer.is_downloader = false;
                     peer.valid_until = valid_until;
                 }
                 PeerStatus::Seeding => {
@@ -359,8 +379,12 @@ impl TorrentData {
                     if !peer.seeder {
                         self.num_seeders += 1;
                     }
+                    if peer.is_downloader {
+                        self.num_downloaders -= 1;
+                    }
 
                     peer.seeder = true;
+                    peer.is_downloader = false;
                     peer.valid_until = valid_until;
                 }
                 PeerStatus::Stopped => {
@@ -369,6 +393,9 @@ impl TorrentData {
                     if peer.seeder {
                         self.num_seeders -= 1;
                     }
+                    if peer.is_downloader {
+                        self.num_downloaders -= 1;
+                    }
 
                     #[cfg(feature = "metrics")]
                     peer_gauge.decrement(1.0);
@@ -376,10 +403,28 @@ impl TorrentData {
             },
             ::indexmap::map::Entry::Vacant(entry) => match peer_status {
                 PeerStatus::Leeching => {
+                    self.num_downloaders += 1;
+
                     let peer = Peer {
                         connection_id: request_sender_meta.connection_id,
                         consumer_id: request_sender_meta.out_message_consumer_id,
                         seeder: false,
+                        is_downloader: true,
+                        valid_until,
+                        expecting_answers: Default::default(),
+                    };
+
+                    entry.insert(peer);
+
+                    #[cfg(feature = "metrics")]
+                    peer_gauge.increment(1.0)
+                }
+                PeerStatus::Paused => {
+                    let peer = Peer {
+                        connection_id: request_sender_meta.connection_id,
+                        consumer_id: request_sender_meta.out_message_consumer_id,
+                        seeder: false,
+                        is_downloader: false,
                         valid_until,
                         expecting_answers: Default::default(),
                     };
@@ -396,6 +441,7 @@ impl TorrentData {
                         connection_id: request_sender_meta.connection_id,
                         consumer_id: request_sender_meta.out_message_consumer_id,
                         seeder: true,
+                        is_downloader: false,
                         valid_until,
                         expecting_answers: Default::default(),
                     };
@@ -542,6 +588,9 @@ impl TorrentData {
             if peer.seeder {
                 self.num_seeders -= 1;
             }
+            if peer.is_downloader {
+                self.num_downloaders -= 1;
+            }
 
             #[cfg(feature = "metrics")]
             peer_gauge.decrement(1.0);
@@ -559,6 +608,9 @@ impl TorrentData {
             if (!keep) & peer.seeder {
                 self.num_seeders -= 1;
             }
+            if (!keep) & peer.is_downloader {
+                self.num_downloaders -= 1;
+            }
 
             keep
         });
@@ -574,6 +626,7 @@ struct Peer {
     pub consumer_id: ConsumerId,
     pub connection_id: ConnectionId,
     pub seeder: bool,
+    pub is_downloader: bool,
     pub valid_until: ValidUntil,
     pub expecting_answers: IndexMap<ExpectingAnswer, ValidUntil>,
 }
@@ -588,6 +641,7 @@ pub struct ExpectingAnswer {
 enum PeerStatus {
     Seeding,
     Leeching,
+    Paused,
     Stopped,
 }
 
@@ -601,6 +655,8 @@ impl PeerStatus {
             Self::Stopped
         } else if let Some(0) = opt_bytes_left {
             Self::Seeding
+        } else if event == AnnounceEvent::Paused {
+            Self::Paused
         } else {
             Self::Leeching
         }
@@ -741,5 +797,237 @@ mod tests {
         let unique: HashSet<_> = response_peers.iter().copied().collect();
 
         assert_eq!(response_peers.len(), unique.len(),);
+    }
+}
+
+#[cfg(test)]
+mod paused_event_tests {
+    use super::*;
+
+    fn request(event: AnnounceEvent, bytes_left: i64) -> AnnounceRequest {
+        AnnounceRequest {
+            action: AnnounceAction::Announce,
+            info_hash: InfoHash([1; 20]),
+            peer_id: PeerId([2; 20]),
+            bytes_left: Some(bytes_left),
+            event: Some(event),
+            offers: None,
+            numwant: None,
+            answer: None,
+            answer_to_peer_id: None,
+            answer_offer_id: None,
+        }
+    }
+
+    fn announce(
+        torrent: &mut TorrentData,
+        config: &Config,
+        server_start: ServerStartInstant,
+        meta: InMessageMeta,
+        request: &AnnounceRequest,
+        #[cfg(feature = "metrics")] peer_gauge: &::metrics::Gauge,
+    ) -> PeerStatus {
+        torrent.insert_or_update_peer(
+            config,
+            server_start,
+            meta,
+            request,
+            #[cfg(feature = "metrics")]
+            peer_gauge,
+        )
+    }
+
+    #[test]
+    fn paused_peer_remains_eligible_for_webtorrent_offer_routing() {
+        let config = Config::default();
+        let server_start = ServerStartInstant::new();
+        let mut connections = slotmap::SlotMap::<ConnectionId, ()>::with_key();
+        let connection_id = connections.insert(());
+        let meta = InMessageMeta {
+            out_message_consumer_id: ConsumerId(0),
+            connection_id,
+            ip_version: IpVersion::V4,
+            pending_scrape_id: None,
+        };
+        let mut torrent = TorrentData::default();
+        let paused_peer_id = PeerId([3; 20]);
+        let sender_peer_id = PeerId([4; 20]);
+
+        let mut paused_request = request(AnnounceEvent::Paused, 10);
+        paused_request.peer_id = paused_peer_id;
+        announce(
+            &mut torrent,
+            &config,
+            server_start,
+            meta,
+            &paused_request,
+            #[cfg(feature = "metrics")]
+            &::metrics::gauge!("aquatic_test_paused_offer_peers"),
+        );
+
+        let mut sender_request = request(AnnounceEvent::Started, 10);
+        sender_request.peer_id = sender_peer_id;
+        announce(
+            &mut torrent,
+            &config,
+            server_start,
+            meta,
+            &sender_request,
+            #[cfg(feature = "metrics")]
+            &::metrics::gauge!("aquatic_test_paused_offer_peers"),
+        );
+
+        let mut rng = rand::make_rng::<SmallRng>();
+        let eligible = extract_response_peers(
+            &mut rng,
+            &torrent.peers,
+            1,
+            sender_peer_id,
+            |peer_id, peer| (*peer_id, peer.connection_id, peer.consumer_id),
+        );
+
+        assert_eq!(eligible.len(), 1);
+        assert_eq!(eligible[0].0, paused_peer_id);
+        assert_eq!(torrent.num_downloaders, 1);
+    }
+
+    #[test]
+    fn paused_partial_seed_transitions_keep_peer_and_downloader_counts_consistent() {
+        let config = Config::default();
+        let server_start = ServerStartInstant::new();
+        let mut connections = slotmap::SlotMap::<ConnectionId, ()>::with_key();
+        let connection_id = connections.insert(());
+        let meta = InMessageMeta {
+            out_message_consumer_id: ConsumerId(0),
+            connection_id,
+            ip_version: IpVersion::V4,
+            pending_scrape_id: None,
+        };
+        let mut torrent = TorrentData::default();
+
+        #[cfg(feature = "metrics")]
+        let peer_gauge = ::metrics::gauge!("aquatic_test_peers");
+
+        assert_eq!(
+            announce(
+                &mut torrent,
+                &config,
+                server_start,
+                meta,
+                &request(AnnounceEvent::Started, 12),
+                #[cfg(feature = "metrics")]
+                &peer_gauge,
+            ),
+            PeerStatus::Leeching
+        );
+        assert_eq!(torrent.peers.len(), 1);
+        assert_eq!(torrent.num_leechers(), 1);
+        assert_eq!(torrent.num_downloaders, 1);
+
+        for _ in 0..2 {
+            assert_eq!(
+                announce(
+                    &mut torrent,
+                    &config,
+                    server_start,
+                    meta,
+                    &request(AnnounceEvent::Paused, 12),
+                    #[cfg(feature = "metrics")]
+                    &peer_gauge,
+                ),
+                PeerStatus::Paused
+            );
+            assert_eq!(torrent.peers.len(), 1);
+            assert_eq!(torrent.num_leechers(), 1);
+            assert_eq!(torrent.num_downloaders, 0);
+        }
+
+        assert_eq!(
+            announce(
+                &mut torrent,
+                &config,
+                server_start,
+                meta,
+                &request(AnnounceEvent::Update, 12),
+                #[cfg(feature = "metrics")]
+                &peer_gauge,
+            ),
+            PeerStatus::Leeching
+        );
+        assert_eq!(torrent.num_downloaders, 1);
+
+        assert_eq!(
+            announce(
+                &mut torrent,
+                &config,
+                server_start,
+                meta,
+                &request(AnnounceEvent::Paused, 0),
+                #[cfg(feature = "metrics")]
+                &peer_gauge,
+            ),
+            PeerStatus::Seeding
+        );
+        assert_eq!(torrent.num_seeders, 1);
+        assert_eq!(torrent.num_leechers(), 0);
+        assert_eq!(torrent.num_downloaders, 0);
+
+        assert_eq!(
+            announce(
+                &mut torrent,
+                &config,
+                server_start,
+                meta,
+                &request(AnnounceEvent::Stopped, 0),
+                #[cfg(feature = "metrics")]
+                &peer_gauge,
+            ),
+            PeerStatus::Stopped
+        );
+        assert!(torrent.peers.is_empty());
+        assert_eq!(torrent.num_seeders, 0);
+        assert_eq!(torrent.num_downloaders, 0);
+    }
+}
+#[cfg(test)]
+mod paused_expiry_tests {
+    use super::*;
+
+    #[test]
+    fn expired_paused_peer_is_removed_without_downloader_counter_drift() {
+        let mut connections = slotmap::SlotMap::<ConnectionId, ()>::with_key();
+        let connection_id = connections.insert(());
+        let peer_id = PeerId([5; 20]);
+        let valid_until = ValidUntil::new_raw(SecondsSinceServerStart::new_raw(1));
+
+        let mut peers = IndexMap::default();
+        peers.insert(
+            peer_id,
+            Peer {
+                consumer_id: ConsumerId(0),
+                connection_id,
+                seeder: false,
+                is_downloader: false,
+                valid_until,
+                expecting_answers: Default::default(),
+            },
+        );
+        let mut torrent = TorrentData {
+            peers,
+            num_seeders: 0,
+            num_downloaders: 0,
+        };
+
+        assert_eq!(torrent.num_leechers(), 1);
+        assert_eq!(torrent.num_downloaders, 0);
+
+        assert_eq!(
+            torrent.clean_and_get_num_peers(SecondsSinceServerStart::new_raw(2)),
+            0
+        );
+        assert!(torrent.peers.is_empty());
+        assert_eq!(torrent.num_leechers(), 0);
+        assert_eq!(torrent.num_seeders, 0);
+        assert_eq!(torrent.num_downloaders, 0);
     }
 }

@@ -46,6 +46,7 @@ impl AnnounceRequest {
             AnnounceEvent::Started => output.write_all(b"&event=started")?,
             AnnounceEvent::Stopped => output.write_all(b"&event=stopped")?,
             AnnounceEvent::Completed => output.write_all(b"&event=completed")?,
+            AnnounceEvent::Paused => output.write_all(b"&event=paused")?,
             AnnounceEvent::Empty => (),
         };
 
@@ -355,6 +356,26 @@ mod tests {
         let reference_request = get_reference_announce_request();
 
         assert_eq!(parsed_request, reference_request);
+    }
+
+    #[test]
+    fn test_paused_announce_event_roundtrip() {
+        let query = ANNOUNCE_REQUEST_PATH
+            .split_once('?')
+            .unwrap()
+            .1
+            .replace("event=started", "event=paused");
+        let request = AnnounceRequest::parse_query_string(&query).unwrap();
+
+        assert_eq!(request.event, AnnounceEvent::Paused);
+
+        let mut bytes = Vec::new();
+        Request::Announce(request.clone()).write(&mut bytes, &[]).unwrap();
+        let serialized = String::from_utf8(bytes).unwrap();
+        assert!(serialized.contains("&event=paused"));
+
+        let parsed = Request::parse_bytes(serialized.as_bytes()).unwrap().unwrap();
+        assert_eq!(parsed, Request::Announce(request));
     }
 
     #[test]

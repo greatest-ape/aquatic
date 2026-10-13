@@ -45,6 +45,36 @@ use crate::workers::socket::{ip_version_to_metrics_str, WORKER_INDEX};
 #[cfg(feature = "metrics")]
 type PeerClientGauge = (Gauge, Option<Gauge>);
 
+/// Recover request-correlation fields only for an incoming message that failed
+/// typed deserialization. This intentionally does not change normal parsing.
+fn error_response_context(
+    message: &tungstenite::Message,
+) -> (Option<ErrorResponseAction>, Option<InfoHash>) {
+    let value: serde_json::Value = match message {
+        tungstenite::Message::Text(text) => match serde_json::from_str(text.as_ref()) {
+            Ok(value) => value,
+            Err(_) => return (None, None),
+        },
+        tungstenite::Message::Binary(bytes) => match serde_json::from_slice(bytes.as_ref()) {
+            Ok(value) => value,
+            Err(_) => return (None, None),
+        },
+        _ => return (None, None),
+    };
+
+    let action = match value.get("action").and_then(|v| v.as_str()) {
+        Some("announce") => Some(ErrorResponseAction::Announce),
+        _ => None,
+    };
+
+    let info_hash = value
+        .get("info_hash")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<InfoHash>(value).ok());
+
+    (action, info_hash)
+}
+
 pub struct ConnectionRunner {
     pub config: Rc<Config>,
     pub access_list: Arc<AccessListArcSwap>,
@@ -251,7 +281,7 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
 
             match &message {
                 tungstenite::Message::Text(_) | tungstenite::Message::Binary(_) => {
-                    match InMessage::from_ws_message(message) {
+                    match InMessage::from_ws_message(message.clone()) {
                         Ok(InMessage::AnnounceRequest(request)) => {
                             self.handle_announce_request(request).await?;
                         }
@@ -261,7 +291,9 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionReader<S> {
                         Err(err) => {
                             ::log::debug!("Couldn't parse in_message: {:#}", err);
 
-                            self.send_error_response("Invalid request".into(), None, None)
+                            let (action, info_hash) = error_response_context(&message);
+
+                            self.send_error_response("Invalid request".into(), action, info_hash)
                                 .await?;
                         }
                     }
@@ -658,4 +690,66 @@ impl ConnectionCleanupData {
 struct PendingScrapeResponse {
     pending_worker_out_messages: usize,
     stats: HashMap<InfoHash, ScrapeStatistics>,
+}
+
+
+#[cfg(test)]
+mod error_response_context_tests {
+    use super::*;
+
+    const INFO_HASH_BYTES: &[u8; 20] = b"aaaabbbbccccddddeeee";
+
+    #[test]
+    fn recovers_announce_context_from_text_paused_event() {
+        let message = tungstenite::Message::Text(
+            r#"{"action":"announce","event":"paused","info_hash":"aaaabbbbccccddddeeee"}"#.into(),
+        );
+
+        let (action, info_hash) = error_response_context(&message);
+
+        assert_eq!(action, Some(ErrorResponseAction::Announce));
+        assert_eq!(info_hash, Some(InfoHash(*INFO_HASH_BYTES)));
+    }
+
+    #[test]
+    fn recovers_announce_context_from_binary_paused_event() {
+        let message = tungstenite::Message::Binary(
+            br#"{"action":"announce","event":"paused","info_hash":"aaaabbbbccccddddeeee"}"#
+                .to_vec()
+                .into(),
+        );
+
+        let (action, info_hash) = error_response_context(&message);
+
+        assert_eq!(action, Some(ErrorResponseAction::Announce));
+        assert_eq!(info_hash, Some(InfoHash(*INFO_HASH_BYTES)));
+    }
+
+    #[test]
+    fn missing_or_invalid_info_hash_is_not_recovered() {
+        let missing_hash = tungstenite::Message::Text(
+            r#"{"action":"announce","event":"paused"}"#.into(),
+        );
+        let invalid_hash = tungstenite::Message::Text(
+            r#"{"action":"announce","event":"paused","info_hash":"not-a-valid-hash"}"#.into(),
+        );
+
+        assert_eq!(
+            error_response_context(&missing_hash),
+            (Some(ErrorResponseAction::Announce), None)
+        );
+        assert_eq!(
+            error_response_context(&invalid_hash),
+            (Some(ErrorResponseAction::Announce), None)
+        );
+    }
+
+    #[test]
+    fn invalid_json_returns_no_context() {
+        let message = tungstenite::Message::Text(
+            r#"{"action":"announce","info_hash":"# .into(),
+        );
+
+        assert_eq!(error_response_context(&message), (None, None));
+    }
 }

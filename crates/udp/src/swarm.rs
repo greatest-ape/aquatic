@@ -484,7 +484,9 @@ impl<I: Ip> PeerMap<I> {
         };
 
         match status {
-            PeerStatus::Leeching | PeerStatus::Seeding => {
+            PeerStatus::Leeching | PeerStatus::Seeding | PeerStatus::Paused => {
+                // UDP tracker responses have no downloader counter, but paused
+                // partial seeds remain in the swarm and count as incomplete.
                 let peer = Peer {
                     peer_id: request.peer_id,
                     is_seeder: status == PeerStatus::Seeding,
@@ -734,6 +736,7 @@ struct Peer {
 pub enum PeerStatus {
     Seeding,
     Leeching,
+    Paused,
     Stopped,
 }
 
@@ -747,6 +750,8 @@ impl PeerStatus {
             Self::Stopped
         } else if bytes_left.0.get() == 0 {
             Self::Seeding
+        } else if event == AnnounceEvent::Paused {
+            Self::Paused
         } else {
             Self::Leeching
         }
@@ -756,6 +761,50 @@ impl PeerStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paused_udp_announce_retains_peer_as_incomplete() {
+        use std::{net::Ipv4Addr, num::NonZeroU16};
+
+        let config = Config::default();
+        let (statistics_sender, _statistics_receiver) = crossbeam_channel::unbounded();
+        let mut rng = rand::make_rng::<SmallRng>();
+        let mut peer_map = PeerMap::<Ipv4AddrBytes>::default();
+
+        let request = AnnounceRequest {
+            connection_id: ConnectionId::new(123),
+            action_placeholder: AnnounceActionPlaceholder::default(),
+            transaction_id: TransactionId::new(33),
+            info_hash: InfoHash([1; 20]),
+            peer_id: PeerId([2; 20]),
+            bytes_downloaded: NumberOfBytes::new(0),
+            bytes_left: NumberOfBytes::new(10),
+            bytes_uploaded: NumberOfBytes::new(0),
+            event: AnnounceEvent::Paused,
+            ip_address: Ipv4AddrBytes([0; 4]),
+            key: PeerKey::new(0),
+            peers_wanted: NumberOfPeers::new(10),
+            port: Port::new(NonZeroU16::new(6881).unwrap()),
+        };
+
+        peer_map.announce(
+            &config,
+            &statistics_sender,
+            &mut rng,
+            &request,
+            Ipv4AddrBytes(Ipv4Addr::LOCALHOST.octets()),
+            ValidUntil::new_raw(SecondsSinceServerStart::new_raw(100)),
+        );
+
+        match peer_map {
+            PeerMap::Small(map) => {
+                assert_eq!(map.num_seeders_leechers(), (0, 1));
+                assert_eq!(map.0.len(), 1);
+                assert!(!map.0[0].1.is_seeder);
+            }
+            PeerMap::Large(_) => panic!("one paused peer should use the small peer map"),
+        }
+    }
 
     #[test]
     fn test_peer_status_from_event_and_bytes_left() {
@@ -774,5 +823,10 @@ mod tests {
 
         assert_eq!(Seeding, f(AnnounceEvent::None, NumberOfBytes::new(0)));
         assert_eq!(Leeching, f(AnnounceEvent::None, NumberOfBytes::new(1)));
+
+        // A paused partial seed remains in the swarm as incomplete. A peer
+        // with no bytes left is still a seeder, even if the event is paused.
+        assert_eq!(Paused, f(AnnounceEvent::Paused, NumberOfBytes::new(1)));
+        assert_eq!(Seeding, f(AnnounceEvent::Paused, NumberOfBytes::new(0)));
     }
 }

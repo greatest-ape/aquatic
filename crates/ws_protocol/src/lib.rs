@@ -31,6 +31,12 @@ mod tests {
         },
     };
 
+    #[test]
+    fn paused_announce_event_deserializes() {
+        let event: AnnounceEvent = serde_json::from_str("\"paused\"").unwrap();
+        assert_eq!(event, AnnounceEvent::Paused);
+    }
+
     fn arbitrary_20_bytes(g: &mut quickcheck::Gen) -> [u8; 20] {
         let mut bytes = [0u8; 20];
 
@@ -74,11 +80,12 @@ mod tests {
 
     impl Arbitrary for AnnounceEvent {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            match (bool::arbitrary(g), bool::arbitrary(g)) {
-                (false, false) => Self::Started,
-                (true, false) => Self::Started,
-                (false, true) => Self::Completed,
-                (true, true) => Self::Update,
+            match u8::arbitrary(g) % 5 {
+                0 => Self::Started,
+                1 => Self::Stopped,
+                2 => Self::Completed,
+                3 => Self::Update,
+                _ => Self::Paused,
             }
         }
     }
@@ -191,6 +198,7 @@ mod tests {
                 complete: Arbitrary::arbitrary(g),
                 incomplete: Arbitrary::arbitrary(g),
                 downloaded: Arbitrary::arbitrary(g),
+                downloaders: Arbitrary::arbitrary(g),
             }
         }
     }
